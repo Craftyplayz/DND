@@ -38,20 +38,26 @@ try {
     for (const name of ['chrome', 'firefox']) {
         setup();
         const b = await launch(name), ev = b.ev;
+        // a page counts as loaded once its <main> is there; a fixed sleep sometimes read the page before a redirect landed
+        const go = async (url) => {
+            await b.go(url);
+            for (let i = 0; i < 100 && !(await ev(`document.readyState === 'complete' && !!document.querySelector('main')`)); i++) await sleep(100);
+        };
         const errs = (where) => { if (b.errors.length) { bad++; console.log(`FAIL ${name} ${where}: ${b.errors.join(' | ').slice(0, 600)}`); } };
-        const as = async (who) => { await b.go(BASE + '/privacy/'); await ev(who ? `document.cookie = 'dndsid=check${who}0000000000000000000000000; path=/'` : `document.cookie = 'dndsid=; path=/; max-age=0'`); };
+        const as = async (who) => { await go(BASE + '/privacy/'); await ev(who ? `document.cookie = 'dndsid=check${who}0000000000000000000000000; path=/'` : `document.cookie = 'dndsid=; path=/; max-age=0'`); };
         const text = (sel) => ev(`document.querySelector(${JSON.stringify(sel)})?.textContent.trim()`);
         const cards = () => ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card b')].map((b) => b.textContent))`).then(JSON.parse);
-        const click = async (sel, wait = 1200) => { await ev(`document.querySelector(${JSON.stringify(sel)}).click()`); await sleep(wait); };
+        const click = async (sel, wait = 1200) => { await ev(`document.querySelector(${JSON.stringify(sel)}).click()`); await sleep(wait); await go2(); };
+        const go2 = async () => { for (let i = 0; i < 100 && !(await ev(`document.readyState === 'complete' && !!document.querySelector('main')`).catch(() => false)); i++) await sleep(100); };
         try {
             await as(null);
-            await b.go(BASE + '/campaigns/'); await sleep(500);
+            await go(BASE + '/campaigns/');
             is(`${name} signed out asks to sign in`, (await text('.note'))?.startsWith('Sign in'), true);
             errs('signed out');
 
             // the DM makes a campaign and adds their character
             await as('dm');
-            await b.go(BASE + '/campaigns/'); await sleep(600);
+            await go(BASE + '/campaigns/');
             is(`${name} no campaigns yet`, (await text('main .muted:last-of-type'))?.startsWith("You're not in any"), true);
             await ev(`document.querySelector('#cp-create [name=name]').value = 'Curse of the Crown'`);
             await click('#cp-create .btn.primary', 1500);
@@ -67,7 +73,7 @@ try {
 
             // a player joins by link and adds theirs
             await as('pl');
-            await b.go(link); await sleep(600);
+            await go(link);
             is(`${name} join page names the campaign`, await text('h1'), 'Curse of the Crown');
             await click('[data-act=join]', 1500);
             is(`${name} joined`, await ev(`new URLSearchParams(location.search).get('c')`), id);
@@ -76,33 +82,33 @@ try {
             is(`${name} party of two`, await cards(), ['Brannoc', 'Lock']);
             is(`${name} player opens only their own sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card a.btn')].map((a) => a.getAttribute('href')))`), '["/characters/lock"]');
             is(`${name} player has no DM tools`, await ev(`!document.querySelector('#cp-link, #cp-rename, [data-act=remove]')`), true);
-            await b.go(link); await sleep(600);
+            await go(link);
             is(`${name} join link again goes straight in`, await ev(`new URLSearchParams(location.search).get('c')`), id);
-            await b.go(BASE + '/campaigns/'); await sleep(500);
+            await go(BASE + '/campaigns/');
             is(`${name} listed for the player`, await text('.hub-card b'), 'Curse of the Crown');
             errs('player');
 
             // a stranger sees nothing of it
             await as('st');
-            await b.go(BASE + '/campaigns/?c=' + id); await sleep(500);
+            await go(BASE + '/campaigns/?c=' + id);
             is(`${name} stranger gets not found`, await text('h1'), 'Campaign not found');
             is(`${name} nothing leaks to a stranger`, await ev(`document.documentElement.outerHTML.includes('Lock') || document.documentElement.outerHTML.includes('Curse')`), false);
-            await b.go(BASE + '/characters/lock'); await sleep(1500);
+            await go(BASE + '/characters/lock');
             is(`${name} stranger can't open the sheet`, await text('#hb-sheet h2'), 'Character not found');
 
             // the DM opens the player's sheet read-only; a new link stops the old one; the DM removes the player
             await as('dm');
-            await b.go(BASE + '/characters/lock'); await sleep(2000);
+            await go(BASE + '/characters/lock');
             is(`${name} DM sees the sheet`, await text('.hb-roname'), 'Lock');
             is(`${name} DM's view is read-only`, await ev(`[...document.querySelectorAll('#hb-sheet input')].every((i) => i.disabled)`), true);
             is(`${name} DM's browser keeps no copy`, await ev(`!!JSON.parse(localStorage.getItem('hb-sheet') || '{"chars":{}}').chars.lock`), false);
             errs('DM read-only sheet');
-            await b.go(BASE + '/campaigns/?c=' + id); await sleep(600);
+            await go(BASE + '/campaigns/?c=' + id);
             await click('[data-act=code]', 1500);
             is(`${name} new link`, (await ev(`document.querySelector('#cp-link').value`)) !== link, true);
-            await b.go(link); await sleep(500);
+            await go(link);
             is(`${name} old link stops working`, await text('h1'), "This link doesn't work");
-            await b.go(BASE + '/campaigns/?c=' + id); await sleep(600);
+            await go(BASE + '/campaigns/?c=' + id);
             await click('[data-act=remove]', 300);
             is(`${name} remove asks first`, await ev(`document.querySelector('#cp-ask').open`), true);
             await click('#cp-ask-yes', 1500);

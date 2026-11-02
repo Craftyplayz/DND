@@ -229,6 +229,12 @@ including tests and the dndtest check.
   `compose.yml` (new services `dnd-live`, `dnd-live-test`), `.github/workflows/image.yml` (build a second image
   `ghcr.io/craftyplayz/dnd-live:<sha>`), and `deploy.sh` (move the relay tag with the site tag).
 - Compose and `deploy.sh --compose` changes **ask the owner first** (CLAUDE.md). No volumes are renamed.
+- Built (2026-11-02), simpler than planned: the relay runs **inside each site's container** next to Apache
+  (`docker/start.sh` starts it and starts it again if it stops), so there are no new services, networks or images,
+  live and test are apart by being separate containers, and a normal `deploy.sh test` ships it. Apache proxies
+  `/live/ws`; `live/auth.php` checks membership; `includes/live.php` publishes. Players are known to the relay by a
+  per-campaign key, never their Google id. First use (owner's choice): online dots and a party and player list that
+  update by themselves on the campaign page. Checks: `live-relay.test.js`, `live-page.mjs`.
 - Size: 3 days. Done: two browsers in the same campaign see each other's test pings within 1 s, a third account
   not in the campaign sees nothing, and killing the relay shows "paused" while rolls still save.
 

@@ -1,0 +1,10 @@
+{
+  "name": "dnd-live",
+  "private": true,
+  "description": "Live relay for campaigns (relay.js); runs in the site's container, see docker/start.sh",
+  "main": "relay.js",
+  "type": "commonjs",
+  "dependencies": {
+    "ws": "^8.22.1"
+  }
+}

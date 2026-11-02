@@ -1,0 +1,6 @@
+# Only auth.php is served from here; the relay's own files (relay.js, package.json) aren't web pages.
+# /live/ws is proxied to the relay in docker/site.conf.
+Require all denied
+<Files "auth.php">
+    Require all granted
+</Files>

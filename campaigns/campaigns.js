@@ -66,4 +66,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 async (y) => !!(await send({ act: 'delete' }, y)) && (location.href = '/campaigns/', true));
         }
     });
+
+    // Live (live/relay.js): who's online, and a fresh party and player list whenever anyone changes the campaign.
+    // With the relay down the page says so and checks for changes every 10 s until it's back.
+    const live = $('#main').dataset.live;
+    if (!id || !live) return;
+    let online = [], ws = null, timer = 0;
+    const dots = () => document.querySelectorAll('#cp-players [data-key]').forEach((r) => { r.querySelector('.cp-on').hidden = !online.includes(r.dataset.key); });
+    async function refresh() {
+        try {
+            const r = await fetch(location.href, { cache: 'no-store' });
+            if (r.status === 404) { location.href = '/campaigns/'; return; } // removed, or the campaign was deleted
+            if (!r.ok) return;
+            const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+            for (const sel of ['#cp-head', '#cp-players']) { const fresh = doc.querySelector(sel); if (fresh) $(sel)?.replaceWith(fresh); }
+            dots();
+        } catch (e) { }
+    }
+    function paused(on) {
+        $('#cp-paused').hidden = !on;
+        clearInterval(timer);
+        if (on) timer = setInterval(() => { refresh(); connect(); }, 10000);
+    }
+    function connect() {
+        if (ws) return;
+        const url = new URL(live, location.href);
+        url.protocol = url.protocol === 'https:' ? 'wss:' : url.protocol === 'http:' ? 'ws:' : url.protocol;
+        url.searchParams.set('c', id);
+        ws = new WebSocket(url);
+        ws.onopen = () => { if (!$('#cp-paused').hidden) refresh(); paused(false); }; // catch up on what changed while away
+        ws.onmessage = (e) => {
+            const m = JSON.parse(e.data);
+            if (m.type === 'presence') { online = m.online; dots(); }
+            else if (m.type === 'campaign') refresh();
+        };
+        ws.onclose = (e) => {
+            ws = null; online = []; dots();
+            if (e.code === 4403) refresh(); else if ($('#cp-paused').hidden) paused(true);
+        };
+    }
+    connect();
 });

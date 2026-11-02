@@ -1,9 +1,11 @@
 <?php
 // Campaigns. /campaigns/ lists the campaigns you DM and play in and makes new ones; /campaigns/?c=<id> is one campaign:
 // the party's characters, the players, your characters in it, and for the DM the join link, rename, remove and delete.
-// Changes go through campaigns/api.php (campaigns.js). Only members see a campaign; anyone else gets "not found".
+// Changes go through campaigns/api.php (campaigns.js). With the live relay (includes/live.php) the party, the players and
+// who's online update by themselves; #cp-head and #cp-players are what campaigns.js swaps in from a fresh copy of the page. Only members see a campaign; anyone else gets "not found".
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 require_once SITE_ROOT . '/includes/campaigns.php';
+require_once SITE_ROOT . '/includes/live.php';
 // DND_ACCOUNTS: a stand-in folder for _dev/scripts/campaigns-page.mjs, so the check never touches real accounts
 $accounts = getenv('DND_ACCOUNTS') ?: SITE_ROOT . '/private/dnd/accounts';
 $user = auth_user();
@@ -73,9 +75,11 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
 <body>
     <?php site_header(); ?>
 
-    <main class="page cp" id="main"<?= $c ? ' data-id="' . h($c['id']) . '"' : '' ?>>
+    <main class="page cp" id="main"<?= $c ? ' data-id="' . h($c['id']) . '" data-live="' . h(live_ws()) . '"' : '' ?>>
         <?= site_breadcrumbs(site_current_path()) ?>
 <?php if ($c): ?>
+        <p class="note" id="cp-paused" hidden>Live updates paused. Checking for changes every 10 seconds.</p>
+        <div id="cp-head">
         <h1 class="page-title"><?= h($c['name']) ?></h1>
         <p class="page-lede"><?= h($c['members'][0]['name']) ?> is the DM · <?= $players === 1 ? '1 player' : "$players players" ?></p>
 
@@ -85,6 +89,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
         <?php else: ?>
             <p class="muted">No characters yet. Add yours below.</p>
         <?php endif; ?>
+        </div>
 
         <div class="masonry cp-cards">
             <section class="card">
@@ -104,11 +109,12 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
                 <?php endif; ?>
             </section>
 
-            <section class="card">
+            <section class="card" id="cp-players">
                 <h2>Players <span class="n"><?= count($c['members']) ?></span></h2>
                 <div class="rows">
                     <?php foreach ($c['members'] as $m): ?>
-                        <div class="rowi"><span class="grow"><?= h($m['name']) ?><?= $m['sub'] === $user['sub'] ? ' <span class="muted">(you)</span>' : '' ?></span>
+                        <div class="rowi" data-key="<?= h(live_key($c['id'], $m['sub'])) ?>"><span class="grow"><?= h($m['name']) ?><?= $m['sub'] === $user['sub'] ? ' <span class="muted">(you)</span>' : '' ?></span>
+                            <span class="badge g cp-on" hidden>Online</span>
                             <?php if ($m['sub'] === $c['dm']): ?><span class="badge b">DM</span>
                             <?php elseif ($isDm): ?><button type="button" class="btn small" data-act="remove" data-sub="<?= h($m['sub']) ?>" data-name="<?= h($m['name']) ?>">Remove</button><?php endif; ?>
                         </div>
