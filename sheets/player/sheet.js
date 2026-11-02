@@ -1156,6 +1156,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const g = (n) => String(n.group || '').trim();
             // archived notes (ROADMAP 0.5) are out of play: only search and the Archived list at the bottom show them
             const live = p.notes.filter((n) => !n.archived), arch = p.notes.map((n, i) => [n, i]).filter(([n]) => n.archived);
+            const archGroups = uniq(arch.map(([n]) => g(n)).filter(Boolean)).map((x) => [x, arch.filter(([n]) => g(n) === x).length]).filter(([, c]) => c > 1);
             const count = (fn) => live.filter(fn).length;
             const groups = uniq(live.map(g).filter(Boolean)).sort((a, b) => a.localeCompare(b));
             const opts = [['all', 'All', live.length], ['pinned', 'Pinned', count((n) => n.pinned)], ...groups.map((x) => ['g:' + x, x, count((n) => g(n) === x)])];
@@ -1190,7 +1191,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 ${f(np + '.body', 'Note', { area: true, cls: 'hb-nbody', ph: 'Write anything' })}
                 <small class="muted"><span data-c="nago:${np}"></span> · created ${esc(dateText(n.created))}</small>
             </div>`;
-            const rename = cur.startsWith('g:') ? `<label class="hb-grename">Rename this group <input class="field hb-gname" data-p="${path}" data-g="${esc(cur.slice(2))}" value="${esc(cur.slice(2))}" autocomplete="off"></label>` : '';
+            const rename = cur.startsWith('g:') ? `<label class="hb-grename">Rename this group <input class="field hb-gname" data-p="${path}" data-g="${esc(cur.slice(2))}" value="${esc(cur.slice(2))}" autocomplete="off"></label> <button type="button" class="btn small" data-act="ngarc" data-p="${path}" data-g="${esc(cur.slice(2))}">Archive group</button>` : '';
             return `<div class="hb-ntools">
                     <button type="button" class="btn small" data-act="nnew" data-p="${path}">New note</button>
                     <button type="button" class="btn small" data-act="nsession" data-p="${path}">New session note</button>
@@ -1199,7 +1200,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 </div>
                 ${subtabs(path + '.sub', opts, cur)}${rename}
                 <div class="hb-notes"><div class="hb-nlist">${list || '<p class="muted">No notes here.</p>'}${found}</div>${editor}</div>
-                ${arch.length ? `<details class="hb-narch"><summary>Archived (${arch.length})</summary><div class="rows">${arch.map(([n, i]) => `<div class="rowi"><span class="grow">${esc(n.title || 'Untitled note')}${g(n) ? ` <small class="muted">${esc(g(n))}</small>` : ''}</span>
+                ${arch.length ? `<details class="hb-narch"><summary>Archived (${arch.length})</summary><div class="rows">${archGroups.map(([x, c]) => `<div class="rowi"><span class="grow"><b>${esc(x)}</b> <small class="muted">${c} notes</small></span><button type="button" class="btn small" data-act="ngunarc" data-p="${path}" data-g="${esc(x)}">Restore group</button></div>`).join('')}${arch.map(([n, i]) => `<div class="rowi"><span class="grow">${esc(n.title || 'Untitled note')}${g(n) ? ` <small class="muted">${esc(g(n))}</small>` : ''}</span>
                     <button type="button" class="btn small" data-act="nunarc" data-p="${path}" data-i="${i}">Restore</button></div>`).join('')}</div></details>` : ''}
                 <datalist id="hb-dl-ng-${pi}">${groups.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
         },
@@ -2486,6 +2487,12 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             n.archived = Date.now(); if (P.open === n.id) P.open = '';
             offerUndo(`Archived ${n.title || 'Untitled note'}`, () => { n.archived = 0; P.open = n.id; saveNow(); draw(); });
         }
+        else if (act === 'ngarc') { // the whole group at once, one Undo
+            const P = get(p), hit = P.notes.filter((n) => !n.archived && String(n.group || '').trim() === b.dataset.g), open = P.open;
+            hit.forEach((n) => { n.archived = Date.now(); if (P.open === n.id) P.open = ''; });
+            offerUndo(`Archived group ${b.dataset.g}`, () => { hit.forEach((n) => { n.archived = 0; }); P.open = open; saveNow(); draw(); });
+        }
+        else if (act === 'ngunarc') get(p).notes.forEach((n) => { if (n.archived && String(n.group || '').trim() === b.dataset.g) n.archived = 0; });
         else if (act === 'nunarc') { const n = get(p).notes[i]; n.archived = 0; get(p).open = n.id; }
         else if (act === 'npin') { const n = get(p); n.pinned = !n.pinned; }
         else if (act === 'ndup') {

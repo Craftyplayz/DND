@@ -45,6 +45,24 @@ const start = async (b, sid, db) => {
     await b.ev(`localStorage.clear(); localStorage.setItem('hb-sheet-merged', '1'); ${db ? `localStorage.setItem('hb-sheet', ${JSON.stringify(JSON.stringify(db))});` : ''} document.cookie = 'dndsid=${sid}; path=/'`);
 };
 
+// archive a group, Undo, archive again, Restore group: the notes end up exactly as they started
+const groupCheck = async (b, name, where, getNotes) => {
+    const setGroup = (i, v) => b.ev(`(() => { document.querySelectorAll('.hb-nitem:not(.hb-narc)')[${i}].click(); const f = document.querySelector('.hb-ngroup input'); f.value = ${JSON.stringify(v)}; f.dispatchEvent(new Event('input', { bubbles: true })); f.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    while ((await b.ev(`document.querySelectorAll('.hb-nitem:not(.hb-narc)').length`)) < 2) await click(b, '[data-act=nnew]');
+    await setGroup(0, 'Quest'); await setGroup(1, 'Quest');
+    await b.ev(`[...document.querySelectorAll('.hb-sub [data-act=sub]')].find((x) => x.textContent.trim().startsWith('Quest')).click()`);
+    const before = JSON.stringify(await getNotes());
+    const left = (await getNotes()).filter((n) => n.group === 'Quest' && !n.archived).length;
+    await click(b, '[data-act=ngarc]');
+    is(`${name} ${where} Archive group archives every note in it`, (await getNotes()).filter((n) => n.group === 'Quest' && n.archived).length, left);
+    await click(b, '.hb-undo:last-child button');
+    is(`${name} ${where} Undo restores the whole group`, JSON.stringify(await getNotes()), before);
+    await click(b, '[data-act=ngarc]');
+    is(`${name} ${where} Restore group is offered`, await b.ev(`!!document.querySelector('.hb-narch [data-act=ngunarc]')`), true);
+    await click(b, '.hb-narch [data-act=ngunarc]');
+    is(`${name} ${where} Restore group puts it all back`, JSON.stringify(await getNotes()), before);
+};
+
 try {
     for (const name of ['chrome', 'firefox']) {
         rmSync(TMP, { recursive: true, force: true });
@@ -121,6 +139,8 @@ try {
             await click(b, '.hb-narc [data-act=nunarc]');
             is(`${name} note restored`, (await local(b, id)).panels.find((p) => p.type === 'notes').notes.filter((n) => n.archived).length, 0);
             await b.ev(`(() => { const q = document.querySelector('.hb-nq'); q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+
+            await groupCheck(b, name, 'player sheet', async () => (await local(b, id)).panels.find((p) => p.type === 'notes').notes);
 
             // ---- archive: only "archived" changes; read-only; leaves its campaign ----
             await flush(b);
@@ -216,6 +236,7 @@ try {
             await click(b, '[data-act=narc]');
             is(`${name} monster note archived, kept`, await b.ev(`(() => { const c = Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).find((c) => c.name === 'Orc'); return c.panels.find((p) => p.type === 'notes').notes.map((n) => !!n.archived).join(); })()`), 'true');
             is(`${name} monster note under Archived`, await b.ev(`document.querySelector('.hb-narch summary').textContent`), 'Archived (1)');
+            await groupCheck(b, name, 'monster sheet', () => b.ev(`JSON.stringify(Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).find((c) => c.name === 'Orc').panels.find((p) => p.type === 'notes').notes)`).then(JSON.parse));
             errs(b, name, 'monster sheet');
         } finally { b.close(); }
     }
