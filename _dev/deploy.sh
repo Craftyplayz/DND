@@ -2,6 +2,7 @@
 # Every Portainer action for this site. The stack "dnd" on the Docker server (192.168.16.3) runs two services from
 # compose.yml: dnd = dnd.craftyplayz.com (port 5762) and dnd-test = dndtest.craftyplayz.com (port 5763).
 #   bash _dev/deploy.sh test             point dnd-test at this commit's image (built by .github/workflows/image.yml)
+#   bash _dev/deploy.sh test <sha>       point dnd-test at an older main commit's image (then live can get just that)
 #   bash _dev/deploy.sh live             point dnd at the image dnd-test runs now
 #   bash _dev/deploy.sh test --compose   also send a changed compose.yml (that can recreate the live service too)
 #   bash _dev/deploy.sh import [dir]     copy the server-only data in dir (default: this checkout) into the live volumes,
@@ -108,8 +109,13 @@ test)
   git fetch -q origin main
   [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || fail "Push main first: the image is built from what's on GitHub."
   tag=$(git rev-parse HEAD)
+  # an older commit of main (to send live only part of what's on main): every pushed main commit has an image
+  if [ -n "${2:-}" ] && [ "$2" != --compose ]; then
+    tag=$(git rev-parse -q --verify "$2^{commit}") || fail "No commit $2."
+    git merge-base --is-ancestor "$tag" origin/main || fail "$2 isn't on main, so it has no image."
+  fi
   wait_image "$tag"
-  git show HEAD:compose.yml > "$tmp/compose.yml"
+  git show "$tag:compose.yml" > "$tmp/compose.yml"
   id=$(stack_id)
   if [ -z "$id" ]; then
     # first deploy: the live service starts on the same image, as there is nothing older for it to run
