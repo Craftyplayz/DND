@@ -13,10 +13,11 @@ All Portainer actions go through `_dev/deploy.sh`; don't call the Portainer API 
 ## Workflow for every feature
 
 1. Build it and run the tests (`node _dev/scripts/*.test.js`, `php _dev/scripts/auth-claims.test.php`) and the
-   headless-Chrome checks locally (`php -S 127.0.0.1:8110 -t .`, open http://localhost:8110). If the change touches
-   a sheet, also run the player-data check below; it must pass before anything is pushed.
+   headless-Chrome checks locally (`php -S 127.0.0.1:8110 -t .`, open http://localhost:8110). Run the same checks in
+   headless Firefox too; everything must work in both browsers. If the change touches a sheet, also run the
+   player-data check below; it must pass before anything is pushed.
 2. Commit (small commits), push to main, run `bash _dev/deploy.sh test`, then check https://dndtest.craftyplayz.com
-   loads with no console errors.
+   loads with no console errors in both Chrome and Firefox.
 3. Ask the user with AskUserQuestion: "<feature> is on dndtest.craftyplayz.com. Push it to the live site?"
    Options: "Push to live" / "Not yet".
 4. Only on "Push to live": run `bash _dev/deploy.sh live` and check https://dnd.craftyplayz.com.
@@ -76,6 +77,15 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
   deploy anything else, and tell the user straight away.
 - Test with signed-in sessions as well as signed out: a character must survive sign-in (uploaded), a new browser
   (pulled back from the account) and an edit on another device (newest "updated" wins).
+
+## Design
+
+- /design (design/index.php) is the design guide for every page: read it before building or restyling a page and
+  follow it (tokens, components, layout, writing, checklist). It was copied from craftyplayz.com/design with the
+  parts that aren't about this site taken out.
+- When the user overrides a design choice (asks for something the guide says differently, or that it doesn't
+  cover), do what they asked, then ask with AskUserQuestion whether to make it the new default in the guide.
+  On yes, update design/index.php in the same change.
 
 ## Rules
 
