@@ -12,7 +12,7 @@ All Portainer actions go through `_dev/deploy.sh`; don't call the Portainer API 
 
 ## Workflow for every feature
 
-1. Build it and run the tests (`node _dev/scripts/*.test.js`, `php _dev/scripts/auth-claims.test.php`) and the
+1. Build it and run every test (each `node _dev/scripts/*.test.js` and each `php _dev/scripts/*.test.php`) and the
    headless-Chrome checks locally (`php -S 127.0.0.1:8110 -t .`, open http://localhost:8110). Run the same checks in
    headless Firefox too; everything must work in both browsers. `node _dev/scripts/pages-ok.mjs` opens every page
    in both and must end with `pages ok`; drive either browser from your own checks with `launch('chrome' |
@@ -23,6 +23,12 @@ All Portainer actions go through `_dev/deploy.sh`; don't call the Portainer API 
 3. Ask the user with AskUserQuestion: "<feature> is on dndtest.craftyplayz.com. Push it to the live site?"
    Options: "Push to live" / "Not yet".
 4. Only on "Push to live": run `bash _dev/deploy.sh live` and check https://dnd.craftyplayz.com.
+
+Test a lot before deploying anything, even a small change: friends use this site, and a broken page or lost
+character is worse than a slower release. Run the whole suite above, not just the tests for the part you changed,
+then use what you changed in both browsers the way a player would (click through it, reload, sign in and out),
+and check the pages around it still work. New code gets a new test in `_dev/scripts/` in the same change. If any
+check fails or can't run, don't deploy; fix it or tell the user.
 
 The live site only ever gets the image that is on test (`deploy.sh live` copies TEST_TAG to LIVE_TAG).
 `bash _dev/deploy.sh test` and `bash _dev/deploy.sh live` run without asking; anything else on the server
