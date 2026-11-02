@@ -1,0 +1,26 @@
+.git
+.github
+.claude
+_dev
+README.md
+CLAUDE.md
+Dockerfile
+compose.yml
+.env
+.env.example
+.dockerignore
+# server-only data (lives in volumes) and secrets (mounted from the host)
+includes/config.php
+private/.htpasswd
+private/dnd/backups
+private/dnd/monster-backups
+private/transcripts/*.ogg
+private/transcripts/transcripts
+private/dnd/accounts/*
+!private/dnd/accounts/.htaccess
+private/sessions/*
+!private/sessions/.htaccess
+transcripts/data/*
+!transcripts/data/.htaccess
+characters/cache/*
+!characters/cache/.htaccess

@@ -1,20 +1,14 @@
 # Password protection for everything in /private/
 #
-# One-time setup:
-# 1. Create the password file in Git Bash on your PC (it asks for the password twice):
-#        printf 'crafty:%s\n' "$(openssl passwd -apr1)" > private/.htpasswd
-#    Change "crafty" to whatever username you want. Upload private/.htpasswd to the
-#    server. It is gitignored, so never commit it.
-# 2. Replace the AuthUserFile path below with the full server path to that file.
-#    To find it, upload a file to the site root containing  <?php echo __DIR__;
-#    open it in the browser, then delete it. On IONOS it looks like
-#    /homepages/36/d961561004/htdocs/<web root folder> - add /private/.htpasswd to the end.
-#
-# Until both steps are done, /private/ shows an error instead of opening - it never fails open.
+# The password file: create it in Git Bash on your PC (it asks for the password twice):
+#        printf 'crafty:%s\n' "$(openssl passwd -apr1)" > .htpasswd
+# and put it in the site's host folder on the Docker server (/opt/dnd/live or /opt/dnd/test, see .env.example).
+# The container mounts that folder at /etc/dnd, and private/.htpasswd is a link to /etc/dnd/.htpasswd.
+# Without the file, /private/ shows an error instead of opening - it never fails open.
 
 AuthType Basic
 AuthName "Private"
-AuthUserFile /REPLACE/WITH/FULL/SERVER/PATH/private/.htpasswd
+AuthUserFile /var/www/html/private/.htpasswd
 Require valid-user
 
 # never serve the password file itself
