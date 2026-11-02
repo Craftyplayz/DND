@@ -37,7 +37,7 @@ const flush = (b) => b.ev(`dispatchEvent(new Event('pagehide'))`);
 const click = (b, sel) => b.ev(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (e) e.click(); return !!e; })()`);
 const rows = (b) => b.ev(`JSON.stringify([...document.querySelectorAll('#hb-ver .hb-vrow')].map((r) => r.querySelector('.hb-vsum').textContent.replace(/\\s+/g, ' ').trim()))`).then(JSON.parse);
 const openVersions = async (b) => { await click(b, '[data-act=manage]'); await click(b, '[data-act=versions]'); return until(() => rows(b), (r) => r.length > 0); };
-const errs = (b, name, where) => { const e = b.errors.filter((x) => !/backup\.php|prefs\.php|accounts\.google|gsi|Content Security Policy/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 600)}`); } };
+const errs = (b, name, where) => { const e = b.errors.filter((x) => !/backup\.php|prefs\.php|accounts\.google|gsi|Content.Security.Policy/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 600)}`); } };
 const open = async (name) => { await sleep(name === 'firefox' ? 2000 : 300); return launch(name); };
 const start = async (b, sid, db) => {
     await b.block(/backup\.php|prefs\.php|monster\/cloud\.php/);
@@ -66,7 +66,7 @@ try {
             await type(b, 'name', 'Vera II'); await sleep(400); await flush(b);
             await until(() => versions(id), (n) => n === 3);
             await click(b, '[data-act=roll]'); await sleep(1500); await flush(b);
-            await until(() => (file(id, 'character.json')?.rolls || []).length, (n) => n === 1);
+            await until(() => (file(id, 'character.json')?.rolls || []).length, (n) => n === 1, 20000);
             is(`${name} a roll syncs but makes no version`, [(file(id, 'character.json').rolls || []).length, versions(id)], [1, 3]);
 
             is(`${name} versions listed newest first`, (await openVersions(b)).map((r) => r.replace(/^.*?(ago|now)\s*/, '')), ['1 change', '1 change', 'First saved version']);

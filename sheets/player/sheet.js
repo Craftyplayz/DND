@@ -386,13 +386,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     if (!db.cur) { const c = blank(); db.chars[c.id] = c; db.cur = c.id; }
     let C = db.chars[db.cur];
     let warned = false;
-    // this browser's saved copy of a character (not the one on screen)
-    const stored = (id) => { try { return JSON.parse(localStorage.getItem(KEY)).chars[id] || null; } catch (e) { return null; } };
-    function store(force) {
+    function store() {
         if (RO) return; // someone else's public character: nothing is saved anywhere
-        // an archived character is read-only (ROADMAP 0.5): rolls and clicks on screen are never saved, only (un)archiving is
-        const out = C && C.archived && !force ? { ...db, chars: { ...db.chars, [C.id]: stored(C.id) || C } } : db;
-        try { localStorage.setItem(KEY, JSON.stringify(out)); warned = false; }
+        try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
         catch (e) { if (!warned) toast("Couldn't save: this browser's storage is full or blocked. Export the character so you don't lose it.", 'err'); warned = true; }
     }
     // signed in (data-cloud on <main>): characters are also kept in the account (cloud.php), with this browser's copy for offline use;
@@ -2040,13 +2036,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // syncs like any edit (newest wins); archived, it's read-only, off the character list and out of its campaigns.
     let arcUndo = null;
     function setArchived(on) {
-        if (!on) {
-            if (arcUndo) arcUndo();
-            const s = stored(C.id); // what was clicked while it was read-only isn't kept
-            if (s) C = db.chars[C.id] = normalise(s);
-        }
+        if (!on && arcUndo) arcUndo();
         C.archived = on ? Date.now() : 0; C.updated = Date.now();
-        store(true);
+        store();
         dirty.add(C.id); flushBackups();
         open.manage = false;
         draw();
@@ -2194,6 +2186,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     verDlg.addEventListener('submit', (e) => { e.preventDefault(); nameVersion(+e.target.dataset.n, e.target.elements.name.value); });
     for (const ev of ['online', 'offline']) addEventListener(ev, () => verDlg.open && verDraw());
 
+    // what an archived character still does: look, roll, open things, and come back
+    const VIEW_ACTS = new Set(['skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
+        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions']);
+
     // ---- events ----
     const main = $('.hb');
     // one column in the bottom-left corner: the latest roll above the tray and its button
@@ -2202,6 +2198,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     addEventListener('resize', () => drawLog());
     main.addEventListener('input', (e) => {
         const el = e.target;
+        if (C.archived && el.id !== 'hb-amt') return; // archived: nothing typed is kept
         if (el.dataset.b && dlgMode && dlgMode.parts) {
             const [n, field] = el.dataset.b.split('.'), part = dlgMode.parts[n];
             part[field] = el.value;
@@ -2237,6 +2234,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const el = e.target, k = el.dataset.k || '';
         if (el.dataset.act === 'tablepick') { setTable(el.value); tableWatch(); drawLog(); return drawTray(); }
         if (el.dataset.act === 'pick') return switchTo(db.chars[el.value]);
+        if (C.archived) return;
         if (el.dataset.act === 'vis') {
             return fetch(`${API}cloud.php?id=${encodeURIComponent(C.id)}&visibility=${el.value}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
                 .then((r) => { if (!r.ok) throw r; $('#main').dataset.vis = el.value; toast(el.value === 'public' ? 'Anyone with the link can see this character now.' : 'Only you can see this character now.', 'ok'); })
@@ -2336,6 +2334,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const b = e.target.closest('[data-act]');
         if (!b || b.tagName === 'SELECT' || b.tagName === 'FORM') return;
         const act = b.dataset.act, p = b.dataset.p, i = +b.dataset.i;
+        // archived (ROADMAP 0.5): it can be looked at and rolled, nothing else, until it's unarchived
+        if (C.archived && !VIEW_ACTS.has(act)) return;
         // the click that ends a press and hold opened the menu instead of rolling
         if (held && isD20(b)) { held = false; return; }
         if (act === 'formula') return showDlg({ kind: 'formula', p, t: b.dataset.t, s: !!b.dataset.s, parts: parseParts(get(p)) });

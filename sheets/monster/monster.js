@@ -348,12 +348,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     if (!db.cur) { const c = blank(); db.chars[c.id] = c; db.cur = c.id; }
     let C = db.chars[db.cur];
     let warned = false;
-    // this browser's saved copy of a monster (not the one on screen)
-    const stored = (id) => { try { return JSON.parse(localStorage.getItem(KEY)).chars[id] || null; } catch (e) { return null; } };
-    function store(force) {
-        // an archived monster is read-only (ROADMAP 0.5): rolls and clicks on screen are never saved, only (un)archiving is
-        const out = C && C.archived && !force ? { ...db, chars: { ...db.chars, [C.id]: stored(C.id) || C } } : db;
-        try { localStorage.setItem(KEY, JSON.stringify(out)); warned = false; }
+    function store() {
+        try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
         catch (e) { if (!warned) toast("Couldn't save: this browser's storage is full or blocked. Export the monster so you don't lose it.", 'err'); warned = true; }
     }
     // signed in (data-cloud on <main>): monsters are also kept in the account (cloud.php), with this browser's copy for offline use;
@@ -1134,7 +1130,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (C.archived) return `<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
             <b class="hb-roname">${esc(C.name || 'Unnamed monster')}</b><span class="badge">Archived</span>
             <span class="hb-arcnote">This monster is archived.</span>
-            <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>`;
+            <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>
+            <button type="button" class="btn small" data-act="new">New</button>`;
         return `<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
             <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
             <button type="button" class="btn small" data-act="dup">Duplicate</button>
@@ -1995,13 +1992,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // like any edit (newest wins); archived, it's read-only and waits under Archived in the encounter list.
     let arcUndo = null;
     function setArchived(on) {
-        if (!on) {
-            if (arcUndo) arcUndo();
-            const s = stored(C.id); // what was clicked while it was read-only isn't kept
-            if (s) C = db.chars[C.id] = normalise(s);
-        }
+        if (!on && arcUndo) arcUndo();
         C.archived = on ? Date.now() : 0; C.updated = Date.now();
-        store(true);
+        store();
         dirty.add(C.id); flushBackups();
         open.manage = false;
         draw();
@@ -2015,6 +2008,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         toast('Restored.', 'ok');
     });
 
+    // what an archived monster still does: look, roll, open things, and come back
+    const VIEW_ACTS = new Set(['skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
+        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions']);
+
     // ---- events ----
     const main = $('.hb');
     // one column in the bottom-left corner: the latest roll above the tray and its button
@@ -2023,6 +2020,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     addEventListener('resize', () => drawLog());
     main.addEventListener('input', (e) => {
         const el = e.target;
+        if (C.archived && el.id !== 'hb-amt') return; // archived: nothing typed is kept
         if (el.dataset.b && dlgMode && dlgMode.parts) {
             const [n, field] = el.dataset.b.split('.'), part = dlgMode.parts[n];
             part[field] = el.value;
@@ -2058,6 +2056,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const el = e.target, k = el.dataset.k || '';
         if (el.dataset.act === 'tablepick') { setTable(el.value); tableWatch(); drawLog(); return drawTray(); }
         if (el.dataset.act === 'pick') return switchTo(db.chars[el.value]);
+        if (C.archived) return;
         if (el.classList.contains('hb-tagin')) return addTag(el);
         if (el.classList.contains('hb-gname')) {
             const P = get(el.dataset.p), from = el.dataset.g, to = el.value.trim();
@@ -2127,6 +2126,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const b = e.target.closest('[data-act]');
         if (!b || b.tagName === 'SELECT' || b.tagName === 'FORM') return;
         const act = b.dataset.act, p = b.dataset.p, i = +b.dataset.i;
+        // archived (ROADMAP 0.5): it can be looked at and rolled, nothing else, until it's unarchived
+        if (C.archived && !VIEW_ACTS.has(act)) return;
         if (act === 'formula') return showDlg({ kind: 'formula', p, t: b.dataset.t, s: !!b.dataset.s, parts: parseParts(get(p)) });
         if (act === 'padd' || act === 'pdel') {
             if (act === 'padd') dlgMode.parts.push({ sign: '+', k: 'num', v: '1', cap: '', label: '' }); else dlgMode.parts.splice(i, 1);

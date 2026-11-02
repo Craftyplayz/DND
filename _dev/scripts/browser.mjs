@@ -48,7 +48,10 @@ export async function launch(name = 'chrome') {
                 if (method === 'network.beforeRequestSent' && p.isBlocked) send(blocked.test(p.request.url) ? 'network.failRequest' : 'network.continueRequest', { request: p.request.request }).catch(() => { });
             });
             await send('session.new', { capabilities: {} });
-            const context = (await send('browsingContext.getTree', {})).contexts[0].context;
+            // a fresh Firefox can answer before its first tab exists
+            let context = null;
+            for (let i = 0; i < 10 && !context; i++) { context = (await send('browsingContext.getTree', {})).contexts[0]?.context; if (!context) await sleep(200); }
+            if (!context) context = (await send('browsingContext.create', { type: 'tab' })).context;
             await send('session.subscribe', { events: ['log.entryAdded', 'network.beforeRequestSent'] });
             return {
                 errors, close,
