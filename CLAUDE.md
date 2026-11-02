@@ -14,8 +14,10 @@ All Portainer actions go through `_dev/deploy.sh`; don't call the Portainer API 
 
 1. Build it and run the tests (`node _dev/scripts/*.test.js`, `php _dev/scripts/auth-claims.test.php`) and the
    headless-Chrome checks locally (`php -S 127.0.0.1:8110 -t .`, open http://localhost:8110). Run the same checks in
-   headless Firefox too; everything must work in both browsers. If the change touches a sheet, also run the
-   player-data check below; it must pass before anything is pushed.
+   headless Firefox too; everything must work in both browsers. `node _dev/scripts/pages-ok.mjs` opens every page
+   in both and must end with `pages ok`; drive either browser from your own checks with `launch('chrome' |
+   'firefox')` in `_dev/scripts/browser.mjs`. If the change touches a sheet, also run the player-data check below,
+   in both browsers (add `--firefox`); it must pass before anything is pushed.
 2. Commit (small commits), push to main, run `bash _dev/deploy.sh test`, then check https://dndtest.craftyplayz.com
    loads with no console errors in both Chrome and Firefox.
 3. Ask the user with AskUserQuestion: "<feature> is on dndtest.craftyplayz.com. Push it to the live site?"
@@ -60,6 +62,7 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
   php -S 127.0.0.1:8112 -t ../dnd-live                     # the live code
   php -S 127.0.0.1:8110 -t .                               # your change
   node _dev/scripts/sheet-keeps-data.mjs http://localhost:8110 http://localhost:8112
+  node _dev/scripts/sheet-keeps-data.mjs http://localhost:8110 http://localhost:8112 --firefox
   ```
   It loads every saved character from the local `private/dnd/backups/` into both versions, opens each one and
   compares every value. It must end with `sheet keeps data ok`. Any FAIL is a data-loss bug: fix it, never

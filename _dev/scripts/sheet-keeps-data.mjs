@@ -6,12 +6,13 @@
 //                                                        own upgrades, like hp.max -> hp.base, show up here too)
 // <new> and <old> are base URLs, e.g. http://localhost:8110 (this checkout) and http://localhost:8112 (the live
 // commit in a git worktree); see CLAUDE.md. Backups and cloud saves are blocked, so nothing is written anywhere.
-import { spawn, execSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync, mkdtempSync, existsSync } from 'node:fs';
+// Add --firefox to run it in headless Firefox instead of Chrome.
+import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { launch } from './browser.mjs';
 
-const [NEW = 'http://localhost:8110', OLD] = process.argv.slice(2);
+const args = process.argv.slice(2), BROWSER = args.includes('--firefox') ? 'firefox' : 'chrome';
+const [NEW = 'http://localhost:8110', OLD] = args.filter((a) => !a.startsWith('--'));
 // newest saved version of every character in a backups folder (a renamed character has several folders with the same id)
 function saves(folder) {
     const BK = join(import.meta.dirname, '../../private/dnd', folder), byId = new Map();
@@ -35,32 +36,23 @@ function lost(old, now, path = '') {
     return Object.keys(old).filter((k) => !IGNORE.has(k)).flatMap((k) => lost(old[k], now[k], path ? `${path}.${k}` : k));
 }
 
-const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--remote-debugging-port=9337', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'sheet-check-'))}`, '--host-resolver-rules=MAP localhost 127.0.0.1', 'about:blank'], { stdio: 'ignore' });
+const b = await launch(BROWSER), ev = b.ev;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;
 try {
-    for (let i = 0; i < 50; i++) { try { if ((await fetch('http://127.0.0.1:9337/json/version')).ok) break; } catch { } await sleep(200); }
-    const t = await (await fetch('http://127.0.0.1:9337/json/new?about:blank', { method: 'PUT' })).json();
-    const ws = new WebSocket(t.webSocketDebuggerUrl); await new Promise((r) => ws.addEventListener('open', r));
-    let id = 0; const p = new Map();
-    ws.addEventListener('message', (e) => { const m = JSON.parse(e.data); if (p.has(m.id)) { p.get(m.id)(m); p.delete(m.id); } });
-    const send = (method, params = {}) => new Promise((r) => { const i = ++id; p.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
-    const ev = async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result.result.value;
-    await send('Page.enable');
-    await send('Network.enable');
-    await send('Network.setBlockedURLs', { urls: ['*backup.php*', '*cloud.php*'] });
+    await b.block(/backup\.php|cloud\.php/);
 
     // the saves as one sheet's code leaves them after loading and opening each character
     async function load(base, path, key, chars) {
         // fill localStorage from a page that isn't a sheet: an open sheet saves itself over it when it unloads
-        await send('Page.navigate', { url: base + '/privacy/' }); await sleep(1000);
+        await b.go(base + '/privacy/'); await sleep(1000);
         const db = { cur: chars[0].c.id, chars: Object.fromEntries(chars.map(({ c }) => [c.id, c])) };
         await ev(`localStorage.clear(); localStorage.setItem('hb-sheet-merged', '1'); localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(db))})`);
-        await send('Page.navigate', { url: base + path }); await sleep(2500);
+        await b.go(base + path); await sleep(2500);
         for (const { c } of chars) { await ev(`(() => { const s = document.querySelector('.hb-pick'); s.value = ${JSON.stringify(c.id)}; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await sleep(150); }
         await sleep(800);
         const after = JSON.parse(await ev(`localStorage.getItem(${JSON.stringify(key)})`)).chars;
-        await send('Page.navigate', { url: base + '/privacy/' }); await sleep(500);
+        await b.go(base + '/privacy/'); await sleep(500);
         return after;
     }
 
@@ -73,10 +65,10 @@ try {
             const miss = !before[c.id] ? [] : after[c.id] ? lost(before[c.id], after[c.id]) : ['the whole character'];
             if (miss.length) { failed++; console.log(`FAIL ${path} ${from}: ${miss.length} value(s) changed or gone\n  ` + miss.slice(0, 8).join('\n  ')); }
         }
-        console.log(`${path}: ${chars.length} saved characters checked${OLD ? ' against ' + OLD : ''}`);
+        console.log(`${path}: ${chars.length} saved characters checked in ${BROWSER}${OLD ? ' against ' + OLD : ''}`);
     }
 } finally {
-    try { execSync(`taskkill /PID ${chrome.pid} /T /F`, { stdio: 'ignore' }); } catch { }
+    b.close();
 }
 console.log(failed ? `${failed} character(s) lost data` : 'sheet keeps data ok');
 process.exit(failed ? 1 : 0);
