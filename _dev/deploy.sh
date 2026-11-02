@@ -78,6 +78,29 @@ check() {
   echo "$service runs $tag, but http://$HOST:$port/ gave '$code' from here (is this PC on the LAN?)."
 }
 
+# Player data must never be lost in a deploy: count the files in both services' data folders before and after,
+# and stop loudly if any count went down. Lines are "<service> <folder> <files>".
+DATA='private/dnd/backups private/dnd/monster-backups private/dnd/accounts transcripts/data characters/cache'
+datacount() {
+  local s c ex
+  for s in dnd dnd-test; do
+    c=$(container "$s"); [ -n "$c" ] || continue
+    ex=$(api -X POST -H 'Content-Type: application/json' \
+      --data "{\"AttachStdout\":true,\"Tty\":true,\"Cmd\":[\"sh\",\"-c\",\"cd /var/www/html && for d in $DATA; do echo $s \$d \$(find \$d -type f | wc -l); done\"]}" \
+      "$D/containers/${c%% *}/exec" | js "process.stdout.write(j.Id)")
+    api -X POST -H 'Content-Type: application/json' --data '{"Detach":false,"Tty":true}' "$D/exec/$ex/start" | tr -d '\r'
+  done
+}
+guard_after() {
+  datacount > "$tmp/after"
+  if ! awk 'NR==FNR { n[$1" "$2] = $3; next } ($1" "$2) in n && $3 < n[$1" "$2] { print "  " $1 " " $2 ": " n[$1" "$2] " -> " $3 " files"; bad = 1 } END { exit bad }' "$tmp/before" "$tmp/after" > "$tmp/lost"; then
+    fail "PLAYER DATA WENT MISSING during this deploy:
+$(cat "$tmp/lost")
+Stop and check the volumes before deploying anything else."
+  fi
+  echo "Player data intact: $(awk '{ t += $3 } END { print t }' "$tmp/after") files in the data folders, none lost."
+}
+
 case "${1:-}" in
 test)
   [ "$(git branch --show-current)" = main ] || fail "Switch to main first."
@@ -105,9 +128,11 @@ test)
     # (a live folder that isn't an absolute Linux path can never have worked, so .env's replaces it)
     live_dir=$(envval LIVE_CONFIG_DIR); case $live_dir in /*) ;; *) live_dir=$LIVE_CONFIG_DIR ;; esac
     body "$tmp/compose.yml" "LIVE_TAG=$(envval LIVE_TAG)" "TEST_TAG=$tag" "LIVE_CONFIG_DIR=$live_dir" "TEST_CONFIG_DIR=$TEST_CONFIG_DIR"
+    datacount > "$tmp/before"
     api -X PUT -H 'Content-Type: application/json' --data-binary @"$tmp/body.json" "$P/stacks/$id?endpointId=$ENDPOINT" > /dev/null
   fi
   check dnd-test 5763 "$tag"
+  [ -f "$tmp/before" ] && guard_after
   ;;
 live)
   id=$(stack_id); [ -n "$id" ] || fail "No stack yet: run bash _dev/deploy.sh test first."
@@ -117,8 +142,10 @@ live)
   # the deployed compose file as it is: a live deploy only moves LIVE_TAG (and the live config folder)
   api "$P/stacks/$id/file" | js "process.stdout.write(j.StackFileContent)" > "$tmp/deployed.yml"
   body "$tmp/deployed.yml" "LIVE_TAG=$tag" "TEST_TAG=$tag" "LIVE_CONFIG_DIR=$LIVE_CONFIG_DIR" "TEST_CONFIG_DIR=$(envval TEST_CONFIG_DIR)"
+  datacount > "$tmp/before"
   api -X PUT -H 'Content-Type: application/json' --data-binary @"$tmp/body.json" "$P/stacks/$id?endpointId=$ENDPOINT" > /dev/null
   check dnd 5762 "$tag"
+  guard_after
   ;;
 import)
   # straight to Portainer on the LAN: the recordings are over Cloudflare's 100 MB request limit
