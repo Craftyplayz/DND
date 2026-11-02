@@ -9,6 +9,8 @@
 #   bash _dev/deploy.sh logs test|live   the service's last 40 log lines (peer address, visitor address, request)
 # Needs PORTAINER_URL and PORTAINER_API_KEY in the environment. The key is never printed or put on a command line.
 set -euo pipefail
+# Git Bash would rewrite /opt/... arguments into Windows paths before they reach node
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 cd "$(git rev-parse --show-toplevel)"
 : "${PORTAINER_URL:?Set PORTAINER_URL}" "${PORTAINER_API_KEY:?Set PORTAINER_API_KEY}"
 ENDPOINT=2 STACK=dnd IMAGE=craftyplayz/dnd HOST=192.168.16.3
@@ -16,6 +18,8 @@ ENDPOINT=2 STACK=dnd IMAGE=craftyplayz/dnd HOST=192.168.16.3
 [ -f .env ] && . ./.env
 LIVE_CONFIG_DIR=${LIVE_CONFIG_DIR:-/opt/dnd/live} TEST_CONFIG_DIR=${TEST_CONFIG_DIR:-/opt/dnd/test}
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+# with path rewriting off, curl and node need C:/... for the temp folder
+command -v cygpath > /dev/null && tmp=$(cygpath -m "$tmp")
 ( umask 077; printf 'header = "X-API-Key: %s"\n' "$PORTAINER_API_KEY" > "$tmp/auth" )
 
 fail() { echo "$*" >&2; exit 1; }
@@ -97,7 +101,9 @@ test)
       cp "$tmp/deployed.yml" "$tmp/compose.yml"
     fi
     # only TEST_TAG and the test config folder change, so compose leaves the live service alone
-    body "$tmp/compose.yml" "LIVE_TAG=$(envval LIVE_TAG)" "TEST_TAG=$tag" "LIVE_CONFIG_DIR=$(envval LIVE_CONFIG_DIR)" "TEST_CONFIG_DIR=$TEST_CONFIG_DIR"
+    # (a live folder that isn't an absolute Linux path can never have worked, so .env's replaces it)
+    live_dir=$(envval LIVE_CONFIG_DIR); case $live_dir in /*) ;; *) live_dir=$LIVE_CONFIG_DIR ;; esac
+    body "$tmp/compose.yml" "LIVE_TAG=$(envval LIVE_TAG)" "TEST_TAG=$tag" "LIVE_CONFIG_DIR=$live_dir" "TEST_CONFIG_DIR=$TEST_CONFIG_DIR"
     api -X PUT -H 'Content-Type: application/json' --data-binary @"$tmp/body.json" "$P/stacks/$id?endpointId=$ENDPOINT" > /dev/null
   fi
   check dnd-test 5763 "$tag"
