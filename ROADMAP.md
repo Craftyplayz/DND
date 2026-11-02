@@ -47,7 +47,7 @@ IDs are numeric (`auth_claims_ok` checks this), so named folders can't clash wit
 | `dev/<sub>/<character id>.json` | test sheet characters | exists |
 | `monsters/<sub>/<monster id>.json` | monster sheet monsters | in progress (uncommitted) |
 | `prefs/<sub>.json` | dice choice, Dice Sets page, roll mode | in progress (uncommitted) |
-| `art/<sub>/<character id>.webp` | character portraits | Phase 0 |
+| `characters/<id>/art.<ext>` | character portraits (owner's choice: in the character's folder) | exists (0.4) |
 | `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` exists (1.1); the rest Phase 1 |
 | `homebrew/<sub>/<id>.json` | homebrew items, spells, monsters, classes, races... | Phase 4/5 |
 | `shares/<token>.json` | read-only share links | Phase 6 |
@@ -171,6 +171,8 @@ including tests and the dndtest check.
 - Data safety: removing a limit can't drop data. Check that the sheet's toast for a full browser (localStorage
   quota) still shows.
 - Size: 2 hours. Done: 250 test characters sync. The prefs file grows past 64 KB.
+- Built (2026-11-02): no count limits (characters, monsters); every size cap is 8 MB, the proxy's own limit
+  (cloud saves, backups, prefs, portraits). `characters-cloud.test.php` saves 250 characters.
 
 **0.4 Move character art out of localStorage**
 - What: portraits are uploaded to `accounts/art/<sub>/<character id>.webp`. The character keeps an `artUrl`
@@ -187,6 +189,11 @@ including tests and the dndtest check.
   every backup with inline art still shows its portrait after load, signed in and signed out.
 - Size: 1.5 days. Done: a character with art syncs to a new browser with the portrait, localStorage use drops,
   and no portrait disappears in the data check.
+- Built (2026-11-02), owner's choices: the portrait lives in the character's own folder (`art.<ext>`, old ones in
+  `history/`), served by `sheets/player/art.php` to the owner, the party of a campaign it's in, and anyone when the
+  character is public. Offline: portraits are cached by the browser for good (a new picture gets a new address);
+  guaranteed offline comes with 6.1. Export puts the picture back inside the file. Server backups copy the picture
+  next to the character. Monster art stays inline (not in this item). Check: `_dev/scripts/art-sync.mjs`.
 
 **0.5 Version history and Archive instead of Delete** (designed with the owner, 2026-11-02)
 - What: a **Versions** button in the sheet's top bar (on `/sheets/player/` and `/characters/<id>`) opens a

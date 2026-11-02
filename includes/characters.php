@@ -8,8 +8,6 @@
 // Used by sheets/player/cloud.php (the sheet's saves) and characters/index.php (who may open /characters/<id>).
 // Every function takes the accounts folder, so the test sheet (accounts/dev) and the test script get their own.
 
-const CH_COUNT = 200; // characters per account
-
 function ch_ok_id($id)
 {
     return is_string($id) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id);
@@ -99,7 +97,6 @@ function ch_save($accounts, $sub, $body)
     $meta = ch_json("$dir/meta.json");
     if ($meta && ($meta['owner'] ?? null) !== $sub) return [409, ['taken' => true]];
     if (!$meta) {
-        if (count(ch_list($accounts, $sub)) >= CH_COUNT) return [507, ['error' => 'Your account is full. Delete some characters first.']];
         if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) return [500, ['error' => "Couldn't make the character's folder."]];
         if (!ch_new_meta($dir, $sub, time())) return [500, ['error' => "Couldn't save the character."]];
     }
@@ -127,4 +124,52 @@ function ch_delete($accounts, $sub, $id)
     $gone = "$accounts/characters/.deleted";
     if (!is_dir($gone) && !@mkdir($gone, 0750, true) && !is_dir($gone)) return [500, ['error' => "Couldn't delete the character."]];
     return @rename("$accounts/characters/$id", "$gone/$id-" . time()) ? [200, ['deleted' => true]] : [500, ['error' => "Couldn't delete the character."]];
+}
+
+// ---- portraits (ROADMAP 0.4): <accounts>/characters/<id>/art.<ext>, served by sheets/player/art.php ----
+// The character keeps only the picture's address (artUrl). A replaced picture moves to history/art-<n>.<ext>.
+const CH_ART_TYPES = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif'];
+
+// what the bytes really are (never what the upload says), or null
+function ch_art_kind($bytes)
+{
+    if (strncmp($bytes, "\xFF\xD8\xFF", 3) === 0) return 'jpg';
+    if (strncmp($bytes, "\x89PNG\r\n\x1a\n", 8) === 0) return 'png';
+    if (substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WEBP') return 'webp';
+    if (strncmp($bytes, 'GIF8', 4) === 0) return 'gif';
+    return null;
+}
+
+function ch_art_file($accounts, $id)
+{
+    if (!ch_ok_id($id)) return null;
+    foreach (array_keys(CH_ART_TYPES) as $ext) if (is_file($f = "$accounts/characters/$id/art.$ext")) return $f;
+    return null;
+}
+
+// the address a character keeps; v changes with the picture, so browsers can cache each one for good
+function ch_art_url($id, $file)
+{
+    return '/sheets/player/art.php?id=' . rawurlencode($id) . '&v=' . substr(sha1_file($file), 0, 12);
+}
+
+// the owner's upload: [http code, response]. The caller holds ch_lock().
+function ch_art_save($accounts, $sub, $id, $bytes)
+{
+    $meta = ch_meta($accounts, $id);
+    if (!$meta) return [404, ['error' => 'Save the character to your account first.']];
+    if (($meta['owner'] ?? null) !== $sub) return [404, ['error' => 'No such character.']];
+    $ext = ch_art_kind($bytes);
+    if (!$ext) return [415, ['error' => 'Send a JPEG, PNG, WebP or GIF picture.']];
+    $dir = "$accounts/characters/$id";
+    if ($old = ch_art_file($accounts, $id)) {
+        if (@file_get_contents($old) === $bytes) return [200, ['url' => ch_art_url($id, $old)]];
+        if (!is_dir("$dir/history") && !@mkdir("$dir/history", 0750, true) && !is_dir("$dir/history")) return [500, ['error' => "Couldn't save the picture."]];
+        $n = 0;
+        foreach (glob("$dir/history/art-*") ?: [] as $f) $n = max($n, (int)preg_replace('/^art-(\d+).*$/', '$1', basename($f)));
+        if (!@rename($old, "$dir/history/art-" . ($n + 1) . '.' . pathinfo($old, PATHINFO_EXTENSION))) return [500, ['error' => "Couldn't save the picture."]];
+    }
+    $tmp = "$dir/.art." . getmypid();
+    if (@file_put_contents($tmp, $bytes) === false || !@rename($tmp, "$dir/art.$ext")) return [500, ['error' => "Couldn't save the picture."]];
+    return [200, ['url' => ch_art_url($id, "$dir/art.$ext")]];
 }

@@ -82,7 +82,8 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
   `blank()` in both sheets, or it's thrown away on the next load (this is how the roll log used to vanish).
   Never rename or remove a field without an `upgrade()` step that carries the old value over.
 - A character's folder holds `character.json` (exactly what the sheet saves), `meta.json` (owner, visibility
-  private/public, created, campaigns) and `history/<n>.json` (every saved version). Deleting moves the folder to
+  private/public, created, campaigns), `history/<n>.json` (every saved version) and, once uploaded, the portrait
+  `art.<jpg|png|webp|gif>` (a replaced one moves to `history/art-<n>.<ext>`; the character keeps only `artUrl`). Deleting moves the folder to
   `accounts/characters/.deleted/`; nothing is unlinked. The older `accounts/<sub>/<id>.json` files were copied into
   folders once per account (`.copied` marks it) and stay where they are, no longer written.
 - Never change the localStorage keys, the character folder layout, or the compose volume

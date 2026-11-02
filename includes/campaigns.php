@@ -87,6 +87,16 @@ function cp_dm_sees($accounts, $sub, $charId)
     return false;
 }
 
+// is $sub in a campaign this character is attached to? (its card and portrait show to the whole party)
+function cp_member_sees($accounts, $sub, $charId)
+{
+    foreach (cp_all($accounts) as $c) {
+        if (cp_member($c, $sub) < 0) continue;
+        foreach ($c['members'] as $m) foreach ($m['characters'] ?? [] as $l) if (($l['id'] ?? null) === $charId) return true;
+    }
+    return false;
+}
+
 // the name other players see: the Google name, never the email
 function cp_who($user)
 {

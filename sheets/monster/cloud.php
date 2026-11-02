@@ -8,8 +8,7 @@
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
 require __DIR__ . '/../../includes/auth.php';
 const CL_ACCOUNTS = __DIR__ . '/../../private/dnd/accounts/monsters';
-const CL_MAX = 3 * 1024 * 1024; // art is stored inline, as in backup.php
-const CL_COUNT = 200;           // characters per account
+const CL_MAX = 8 * 1024 * 1024; // only stops a broken client: the proxy turns away requests near 8 MB anyway
 
 function cl_out($code, $data)
 {
@@ -59,7 +58,6 @@ if (strlen($body) > CL_MAX) cl_out(413, ['error' => 'That character is too big t
 $c = json_decode($body, true);
 if (!is_array($c) || !isset($c['abilities']) || !is_array($c['abilities']) || !$okId($c['id'] ?? null) || !is_numeric($c['updated'] ?? null)) cl_out(400, ['error' => "That isn't a character from the sheet."]);
 $file = "$dir/{$c['id']}.json";
-if (!is_file($file) && count(glob("$dir/*.json") ?: []) >= CL_COUNT) cl_out(507, ['error' => 'Your account is full. Delete some characters first.']);
 $have = $updated($file);
 if ($have > (float)$c['updated']) cl_out(409, ['updated' => $have]);
 @file_put_contents($file, $body) !== false ? cl_out(200, ['updated' => (float)$c['updated']]) : cl_out(500, ['error' => "Couldn't save the character."]);

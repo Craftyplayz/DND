@@ -181,7 +181,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     function blank() {
         return {
-            id: uid(), updated: 0, name: '', classes: [ROW.cls()], race: '', alignment: '', age: '', art: '',
+            id: uid(), updated: 0, name: '', classes: [ROW.cls()], race: '', alignment: '', age: '', art: '', artUrl: '',
             abilities: ABIL.map(([key, name]) => ({ key, name, score: 10, save: false, sb: '' })),
             skills: SKILLS.map(([name, ab]) => ({ name, ab, p: 0, b: '' })),
             prof: 'ceil(LEVEL / 4) + 1', ac: '10 + DEX', init: 'DEX',
@@ -325,6 +325,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         out.profs.tools = rows(out.profs.tools, ROW.tool);
         out.conditions = strs(out.conditions);
         if (!/^(data:image\/|https:\/\/)/.test(out.art)) out.art = '';
+        // a portrait kept in the account (art.php); inline art, when there is some, is newer and wins (see pic)
+        if (!/^\/sheets\/player\/art\.php\?id=[\w-]+&v=[a-f0-9]{12}$/.test(out.artUrl)) out.artUrl = '';
         out.id = typeof c.id === 'string' ? c.id : d.id;
         return out;
     }
@@ -386,7 +388,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         toast('You were signed out, so characters are only saved in this browser now. Sign in again to save them to your account.', 'note');
     }
     function cloudSave(id, body) {
-        fetch(API + 'cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
+        return fetch(API + 'cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
             .then(async (r) => {
                 if (r.status === 401) cloudOff();
                 else if (r.status === 409 && (await r.json()).taken) reId(id);
@@ -418,7 +420,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             db.chars[id] = normalise(await g.json());
             got = true;
         }
-        for (const id in db.chars) if (db.chars[id].updated > (chars[id] || 0)) cloudSave(id, JSON.stringify(db.chars[id]));
+        const ups = [];
+        for (const id in db.chars) if (db.chars[id].updated > (chars[id] || 0)) ups.push(cloudSave(id, JSON.stringify(db.chars[id])));
+        Promise.all(ups).then(artSync);
         if (!got) return;
         // the blank character made because this browser had none gives way to the account's
         if (!CHAR && !C.updated && Object.keys(db.chars).length > 1) delete db.chars[C.id];
@@ -441,9 +445,34 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             // keepalive lets a backup finish while the page closes (browsers allow it for bodies up to 64 KB)
             fetch(API + 'backup.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
                 .then((r) => { if (!r.ok && r.status >= 500) dirty.add(id); }).catch(() => dirty.add(id));
-            if (cloud && c.updated) cloudSave(id, body);
+            if (cloud && c.updated) cloudSave(id, body).then(artSync);
         }
     }
+    // Portraits move into the account (art.php, ROADMAP 0.4) so they stop filling this browser's ~5 MB: each character's
+    // inline art is uploaded, and only once the server has it does the character swap it for the picture's address.
+    // If anything fails the inline art stays and it tries again after the next save or load. Signed out, art stays inline.
+    let artBusy = false;
+    async function artSync() {
+        if (!cloud || artBusy) return;
+        artBusy = true;
+        let moved = false;
+        try {
+            for (const c of Object.values(db.chars)) {
+                const art = c.art;
+                if (!c.updated || !art.startsWith('data:image/')) continue;
+                const r = await fetch(API + 'art.php?id=' + encodeURIComponent(c.id), { method: 'POST', headers: { 'Content-Type': art.slice(5, art.indexOf(';')) }, body: await (await fetch(art)).blob() });
+                if (r.status === 401) { cloudOff(); break; }
+                if (!r.ok) continue; // not in the account yet, or a hiccup: next time
+                const { url } = await r.json();
+                if (c.art !== art || db.chars[c.id] !== c) continue; // changed while uploading: that picture goes up next time
+                c.art = ''; c.artUrl = url; c.updated = Date.now();
+                dirty.add(c.id); moved = true;
+            }
+        } catch (e) { }
+        artBusy = false;
+        if (moved) { store(); flushBackups(); }
+    }
+    const pic = (c) => c.art || c.artUrl;
     let undoSnap = null, undoTimer = 0; // undo for deletes, see snap()
     function saveNow(edited = true) {
         if (undoSnap && Date.now() - undoSnap.at > 1000) dropUndo();
@@ -773,7 +802,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 ${i === C.classes.length - 1 ? `<div class="hb-cls-more">${add('classes', 'cls', 'Add a class')}<span class="muted" data-c="lvl"></span></div>` : ''}
             </div>`).join('')}
         </div>`;
-        const art =`<button type="button" class="hb-art" data-act="art" aria-label="${C.art ? 'Change' : 'Add'} character art">${C.art ? `<img src="${esc(C.art)}" alt="" referrerpolicy="no-referrer" width="300" height="300">` : '<span>Add art</span>'}</button>`;
+        const art =`<button type="button" class="hb-art" data-act="art" aria-label="${pic(C) ? 'Change' : 'Add'} character art">${pic(C) ? `<img src="${esc(pic(C))}" alt="" referrerpolicy="no-referrer" width="300" height="300">` : '<span>Add art</span>'}</button>`;
         const abils = `<div class="hb-abils">${C.abilities.map((a, i) => `<div class="hb-abil">
             <span class="hb-lbl" title="${esc(a.name)}">${esc(a.key)}</span>
             ${rollv('mod:' + i, a.name + ' check', ' hb-big')}
@@ -1654,7 +1683,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <label>Who can see this character <select class="field hb-auto" data-act="vis" aria-label="Who can see this character">${[['private', 'Only me'], ['public', 'Anyone with the link (read only)']].map(([v, t]) => `<option value="${v}"${$('#main').dataset.vis === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
             <label class="check">${f('view.noSound', 'Turn off dice sounds', { check: true })} No sound when the dice land</label>
             <label class="check">${f('view.noAnim', 'Turn off thrown dice', { check: true })} Show results straight away instead of throwing 3D dice across the page</label>
-            ${C.art ? '<h3>Art</h3><button type="button" class="btn small" data-act="artdel">Remove art</button>' : ''}`,
+            ${pic(C) ? '<h3>Art</h3><button type="button" class="btn small" data-act="artdel">Remove art</button>' : ''}`,
             panels: () => `<h3>Panels</h3>
             <label class="check">${f('view.all', 'Show every panel at once', { check: true })} Show every panel at once instead of tabs</label>
             <label class="check">${f('view.prep', 'Always show prepared spells', { check: true })} Always show the Prepared tab and checkboxes (for homebrew classes; otherwise only Artificer, Cleric, Druid, Paladin and Wizard get them)</label>
@@ -1792,6 +1821,18 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // switching isn't an edit, so it doesn't touch either character's updated time
     function switchTo(c) { saveNow(false); C = c; db.chars[c.id] = c; db.cur = c.id; if (CHAR) charUrl(c.id); openRows.clear(); saveNow(false); draw(); }
 
+    // an exported file is a full copy on its own: a portrait kept in the account goes back inside it
+    async function exportChar(c) {
+        const out = { ...c };
+        if (!out.art && out.artUrl) {
+            try {
+                const blob = await (await fetch(out.artUrl)).blob();
+                out.art = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(blob); });
+                out.artUrl = '';
+            } catch (e) { toast("Couldn't fetch the portrait, so this file keeps only its link. Export again when you're online.", 'err'); }
+        }
+        download((c.name || 'character').replace(/[^\w -]+/g, '').trim() + '.json', JSON.stringify(out, null, 1));
+    }
     function download(name, text) {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -2027,7 +2068,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         }
         if (act === 'ddb') { showDlg({ kind: 'ddb' }); return $('#hb-ddb-id').focus(); }
         if (act === 'close') return dlg.close();
-        if (act === 'cropsave') { C.art = $('#hb-crop').toDataURL('image/jpeg', 0.85); saveNow(); return dlg.close(); }
+        if (act === 'cropsave') { C.art = $('#hb-crop').toDataURL('image/jpeg', 0.85); C.artUrl = ''; saveNow(); return dlg.close(); }
         if (act === 'rest') return showDlg({ kind: 'rest', r: b.dataset.r });
         if (act === 'doshort' || act === 'dolong') return rest(act === 'dolong' ? 'long' : 'short');
         if (act === 'skill') return skillInfo(+b.dataset.i);
@@ -2200,10 +2241,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         }
         else if (act === 'mv') { const j = i + +b.dataset.d; [C.panels[i], C.panels[j]] = [C.panels[j], C.panels[i]]; }
         else if (act === 'art') return $('#hb-artfile').click();
-        else if (act === 'artdel') { snap(b); C.art = ''; }
+        else if (act === 'artdel') { snap(b); C.art = ''; C.artUrl = ''; }
         else if (act === 'new') return switchTo(blank());
         else if (act === 'import') return $('#hb-file').click();
-        else if (act === 'export') return download((C.name || 'character').replace(/[^\w -]+/g, '').trim() + '.json', JSON.stringify(C, null, 1));
+        else if (act === 'export') return exportChar(C);
         else if (act === 'delete') {
             if (!confirm(`Delete ${C.name || 'this character'} from this browser? Export it first if you want to keep a copy.`)) return;
             snap(b);

@@ -26,6 +26,26 @@ $is('not a character', ch_save($A, '111', '{"id":"x"}')[0], 400);
 $is('bad id', ch_save($A, '111', $char('../x', 1))[0], 400);
 $is('each player lists their own', ch_list($A, '222'), []);
 
+// portraits: owner only, real pictures only, a replaced one is kept in history, an unchanged one isn't copied
+$jpg = "\xFF\xD8\xFF\xE0" . str_repeat('a', 100);
+$png = "\x89PNG\r\n\x1a\n" . str_repeat('b', 100);
+$is('no folder yet: save first', ch_art_save($A, '111', 'nope', $jpg)[0], 404);
+$is("someone else's character refused", ch_art_save($A, '222', 'c1', $jpg)[0], 404);
+$is('not a picture refused', ch_art_save($A, '111', 'c1', '<?php echo 1;')[0], 415);
+[$code, $out] = ch_art_save($A, '111', 'c1', $jpg);
+$is('picture saved', [$code, file_get_contents("$A/characters/c1/art.jpg")], [200, $jpg]);
+$is('address has a version', (bool)preg_match('#^/sheets/player/art\.php\?id=c1&v=[a-f0-9]{12}$#', $out['url']), true);
+$is('same picture again changes nothing', [ch_art_save($A, '111', 'c1', $jpg)[1], count(glob("$A/characters/c1/history/art-*"))], [$out, 0]);
+$new = ch_art_save($A, '111', 'c1', $png)[1]['url'];
+$is('new picture, new address', $new !== $out['url'], true);
+$is('old picture kept in history', [ch_art_file($A, 'c1'), file_get_contents("$A/characters/c1/history/art-1.jpg")], ["$A/characters/c1/art.png", $jpg]);
+$is('the character itself is untouched', json_decode(file_get_contents("$A/characters/c1/character.json"), true)['name'], 'Lock II');
+
+// no count limit: 250 characters all save
+$n = 0;
+for ($i = 0; $i < 250; $i++) $n += ch_save($A, '444', $char("many$i", 1))[0] === 200;
+$is('250 characters save', [$n, count(ch_list($A, '444'))], [250, 250]);
+
 // visibility and delete are owner only; delete moves the folder aside
 $is('stranger cannot publish', ch_set_visibility($A, '222', 'c1', 'public')[0], 404);
 $is('owner publishes', ch_set_visibility($A, '111', 'c1', 'public'), [200, ['visibility' => 'public']]);

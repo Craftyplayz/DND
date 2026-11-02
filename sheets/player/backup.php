@@ -2,10 +2,13 @@
 // Server backups for the homebrew sheet: the sheet POSTs a whole character after each edit and it is kept as a new version in
 //   private/dnd/backups/<ip>/<character name>/<ip>-<version>.json
 // private/ is behind basic auth, the folder is gitignored, and deploy.sh never touches untracked server files.
+// A character whose portrait is in the account (artUrl) gets that picture copied next to it as art-<v>.<ext>, once per
+// picture, so a backup still has the portrait.
 // The Monster Sheet's backup.php sets its own folder and name, then includes this file.
+require_once __DIR__ . '/../../includes/characters.php';
 if (!defined('HB_BACKUPS')) define('HB_BACKUPS', __DIR__ . '/../../private/dnd/backups');
 if (!defined('HB_UNNAMED')) define('HB_UNNAMED', 'Unnamed character');
-const HB_MAX = 3 * 1024 * 1024; // art is stored inline as a data URL, so a character can be a few hundred KB
+const HB_MAX = 8 * 1024 * 1024; // only stops a broken client: the proxy turns away requests near 8 MB anyway
 
 function hb_out($code, $data)
 {
@@ -51,5 +54,10 @@ if ($last && @file_get_contents($dir . '/' . $ip . '-' . $last . '.json') === $j
 }
 $version = $last + 1;
 $ok = @file_put_contents($dir . '/' . $ip . '-' . $version . '.json', $json) !== false;
+if ($ok && preg_match('/[?&]v=([a-f0-9]{12})$/', (string)($c['artUrl'] ?? ''), $m)) {
+    $art = ch_art_file(getenv('DND_ACCOUNTS') ?: __DIR__ . '/../../private/dnd/accounts', $c['id'] ?? '');
+    $copy = $dir . '/art-' . $m[1] . '.' . pathinfo((string)$art, PATHINFO_EXTENSION);
+    if ($art && substr(sha1_file($art), 0, 12) === $m[1] && !is_file($copy)) @copy($art, $copy);
+}
 flock($lock, LOCK_UN);
 $ok ? hb_out(200, ['version' => $version]) : hb_out(500, ['error' => "Couldn't write the backup."]);

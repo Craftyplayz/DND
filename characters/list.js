@@ -23,7 +23,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const level = (c) => (Array.isArray(c.classes) ? c.classes : []).reduce((n, k) => n + (+k.level || 0), 0) || 1;
     const classes = (c) => (Array.isArray(c.classes) ? c.classes : []).map((k) => k.name).filter(Boolean).join(' / ');
     const line = (c) => [`Level ${level(c)}`, c.race, classes(c)].filter(Boolean).join(' | ');
-    const art = (c) => (/^(data:image\/|https:\/\/)/.test(c.art || '') ? `<img src="${esc(c.art)}" alt="" referrerpolicy="no-referrer" width="64" height="64" loading="lazy">` : '<span class="ch-noart" aria-hidden="true"></span>');
+    // inline art, or the portrait kept in the account (sheets/player/art.php)
+    const pic = (c) => (/^(data:image\/|https:\/\/)/.test(c.art || '') ? c.art : /^\/sheets\/player\/art\.php\?/.test(c.artUrl || '') ? c.artUrl : '');
+    const art = (c) => (pic(c) ? `<img src="${esc(pic(c))}" alt="" referrerpolicy="no-referrer" width="64" height="64" loading="lazy">` : '<span class="ch-noart" aria-hidden="true"></span>');
 
     function draw() {
         // shortcut: characters have no "created" stamp, so creation order is the order they were added to this browser

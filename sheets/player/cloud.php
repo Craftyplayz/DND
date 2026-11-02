@@ -10,8 +10,9 @@
 // The test sheet (player-dev/cloud.php) sets its own folder, then includes this file.
 require __DIR__ . '/../../includes/auth.php';
 require __DIR__ . '/../../includes/characters.php';
-if (!defined('CL_ACCOUNTS')) define('CL_ACCOUNTS', __DIR__ . '/../../private/dnd/accounts');
-const CL_MAX = 3 * 1024 * 1024; // art is stored inline, as in backup.php
+// DND_ACCOUNTS: a stand-in folder for the local checks in _dev/scripts/, so they never touch real accounts
+if (!defined('CL_ACCOUNTS')) define('CL_ACCOUNTS', getenv('DND_ACCOUNTS') ?: __DIR__ . '/../../private/dnd/accounts');
+const CL_MAX = 8 * 1024 * 1024; // only stops a broken client: the proxy turns away requests near 8 MB anyway
 
 function cl_out($code, $data)
 {
