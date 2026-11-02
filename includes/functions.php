@@ -106,6 +106,7 @@ function site_footer($path = null, $crumbs = true)
     echo '<a href="https://craftyplayz.com/">craftyplayz.com</a>';
     echo '</nav>';
     echo '<p class="sf-meta">© ' . date('Y') . ' CraftyPlayz</p>';
+    echo '<p class="sf-meta">This work includes material from the <a href="https://dnd.wizards.com/resources/systems-reference-document">System Reference Document 5.1</a> by Wizards of the Coast LLC, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY-4.0</a>.</p>';
     echo '</footer>';
 }
 

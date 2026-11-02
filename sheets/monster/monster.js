@@ -38,6 +38,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const HIT_DIE = { barbarian: 12, fighter: 10, paladin: 10, ranger: 10, sorcerer: 6, wizard: 6, artificer: 8, bard: 8, cleric: 8, druid: 8, monk: 8, rogue: 8, warlock: 8 };
     // suggestion lists for the plain text fields
     const CLASSES = Object.keys(HIT_DIE).map((c) => c[0].toUpperCase() + c.slice(1));
+
+    // SRD hit dice and class/race names come from srd-build.json (fetched once, then browser-cached); the inline lists above are the offline fallback.
+    // hbSrd() resolves with the data, or null when it can't be loaded (4.2+ say "needs a connection once").
+    let srdP = null;
+    const hbSrd = () => srdP || (srdP = fetch('/sheets/player/srd-build.json').then((r) => (r.ok ? r.json() : null)).then((d) => {
+        if (d) for (const [k, c] of Object.entries(d.classes)) { HIT_DIE[k] = c.hit_die; if (!CLASSES.includes(c.name)) CLASSES.push(c.name); }
+        return d;
+    }).catch(() => null));
+    window.hbSrd = hbSrd; hbSrd();
     // suggestions for the Creature type field (the race key)
     const RACES = ['Aberration', 'Beast', 'Celestial', 'Construct', 'Dragon', 'Elemental', 'Fey', 'Fiend', 'Giant', 'Humanoid', 'Monstrosity', 'Ooze', 'Plant', 'Undead'];
     const ALIGNMENTS = ['Lawful Good', 'Neutral Good', 'Chaotic Good', 'Lawful Neutral', 'True Neutral', 'Chaotic Neutral', 'Lawful Evil', 'Neutral Evil', 'Chaotic Evil', 'Unaligned'];

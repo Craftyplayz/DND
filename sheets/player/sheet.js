@@ -39,6 +39,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const RACES = ['Aasimar', 'Bugbear', 'Changeling', 'Dragonborn', 'Dwarf', 'Hill Dwarf', 'Mountain Dwarf', 'Elf', 'High Elf', 'Wood Elf', 'Drow', 'Fairy', 'Firbolg',
         'Genasi', 'Gnome', 'Forest Gnome', 'Rock Gnome', 'Goblin', 'Goliath', 'Half-Elf', 'Half-Orc', 'Halfling', 'Lightfoot Halfling', 'Stout Halfling', 'Harengon',
         'Hobgoblin', 'Human', 'Variant Human', 'Kenku', 'Kobold', 'Lizardfolk', 'Orc', 'Owlin', 'Satyr', 'Tabaxi', 'Tiefling', 'Tortle', 'Triton', 'Warforged', 'Yuan-ti'];
+
+    // SRD hit dice and class/race names come from srd-build.json (fetched once, then browser-cached); the inline lists above are the offline fallback.
+    // hbSrd() resolves with the data, or null when it can't be loaded (4.2+ say "needs a connection once").
+    let srdP = null;
+    const hbSrd = () => srdP || (srdP = fetch('/sheets/player/srd-build.json').then((r) => (r.ok ? r.json() : null)).then((d) => {
+        if (d) for (const [k, c] of Object.entries(d.classes)) { HIT_DIE[k] = c.hit_die; if (!CLASSES.includes(c.name)) CLASSES.push(c.name); }
+        if (d) for (const e of [...Object.values(d.races), ...Object.values(d.subraces)]) if (!RACES.includes(e.name)) RACES.push(e.name);
+        return d;
+    }).catch(() => null));
+    window.hbSrd = hbSrd; hbSrd();
     const ALIGNMENTS = ['Lawful Good', 'Neutral Good', 'Chaotic Good', 'Lawful Neutral', 'True Neutral', 'Chaotic Neutral', 'Lawful Evil', 'Neutral Evil', 'Chaotic Evil', 'Unaligned'];
     const SCHOOLS = ['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation'];
     const DURATIONS = ['Instantaneous', '1 round', '1 minute', '10 minutes', '1 hour', '8 hours', '24 hours', '7 days', '10 days', '30 days', 'Until dispelled', 'Special',
