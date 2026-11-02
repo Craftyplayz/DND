@@ -15,7 +15,9 @@ Two rules sit above every item in this plan (details in CLAUDE.md):
 - **Player data is never lost.** An update may add to a character but never drop or change what's there.
 
 This plan was written from an interview with the owner (2026-11-02). Every "how it should work" below is
-their answer, not a guess. If something here is unclear, the owner's answers recorded in this file decide.
+their answer, not a guess. If something here is unclear, the owner's answers recorded in this file decide; if
+they don't cover it, ask the owner (AskUserQuestion, all open questions in one go) before building. Never fill
+the gap with a guess.
 
 ---
 
@@ -23,15 +25,29 @@ their answer, not a guess. If something here is unclear, the owner's answers rec
 
 The same for every item below (from CLAUDE.md):
 
-1. Build it locally (`php -S 127.0.0.1:8110 -t .`). Run `node _dev/scripts/*.test.js`,
-   `php _dev/scripts/auth-claims.test.php` and a headless-Chrome check with no console errors.
-2. If it touches a sheet: run `_dev/scripts/sheet-keeps-data.mjs` against the live code. It must end with
-   `sheet keeps data ok`. Test signed in and signed out: survives sign-in, a new browser, and an edit on another device.
-3. Player sheet changes go straight into `sheets/player/` (the code `/characters/<id>` runs too) and are tried on
-   dndtest first. The old test copy `/sheets/player-dev/` is archived in `private/archive/sheets/player-dev/`.
-4. Commit in small commits, push to main, run `bash _dev/deploy.sh test`, then check dndtest.craftyplayz.com.
-5. Ask the owner "<feature> is on dndtest.craftyplayz.com. Push it to the live site?" Only on "Push to live",
-   run `bash _dev/deploy.sh live`.
+0. Building or restyling a page: read the design guide at `/design` (`design/index.php`) first and follow it.
+   When the owner overrides it, do what they asked, then ask whether to make it the guide's new default.
+1. Build it locally (`php -S 127.0.0.1:8110 -t .`). New code gets a new test in `_dev/scripts/` in the same
+   change. Run the whole suite, not just the part you changed: every `node _dev/scripts/*.test.js`, every
+   `php _dev/scripts/*.test.php`, and `node _dev/scripts/pages-ok.mjs` (every page in headless Chrome and
+   Firefox; must end with `pages ok`). Everything must work in both browsers (`launch('chrome' | 'firefox')`
+   in `_dev/scripts/browser.mjs`).
+2. If it touches a sheet: run `_dev/scripts/sheet-keeps-data.mjs` against the live code, once plain and once with
+   `--firefox`. Both must end with `sheet keeps data ok`. Player sheet changes also run
+   `node _dev/scripts/characters-page.mjs`. Test signed in and signed out: survives sign-in, a new browser, and
+   an edit on another device.
+3. Use the change in both browsers the way a player would (click through, reload, sign in and out) and check the
+   pages around it. If any check fails or can't run, don't deploy: fix it or tell the owner.
+4. Player sheet changes go straight into `sheets/player/` (the code `/characters/<id>` runs too) and are tried on
+   dndtest first. Never make a test copy of the sheet; the old `/sheets/player-dev/` is archived in
+   `private/archive/sheets/player-dev/`.
+5. Commit in small commits, push to main, run `bash _dev/deploy.sh test` (no need to ask), then check
+   dndtest.craftyplayz.com loads with no console errors in Chrome and Firefox. Tell the owner it's there.
+6. Never deploy to live unless the owner says so in that message ("push it to live"). Don't ask whether to; wait.
+   Then run `bash _dev/deploy.sh live` (it copies the test image to live) and check dnd.craftyplayz.com. Anything
+   else on the server (`--compose`, `import`, `logs`, deleting volumes) asks the owner first.
+
+Files are never deleted: move them with `git mv` into `private/archive/`, keeping their path.
 
 **No limits.** The owner wants no app-imposed limits anywhere: unlimited characters, campaigns, monsters,
 dice presets, homebrew, everything. Don't add count caps. Only real limits stay: the host proxy rejects
@@ -43,11 +59,13 @@ IDs are numeric (`auth_claims_ok` checks this), so named folders can't clash wit
 
 | Path under `private/dnd/accounts/` | Holds | Status |
 |---|---|---|
-| `<sub>/<character id>.json` | player sheet characters | exists |
-| `dev/<sub>/<character id>.json` | test sheet characters | exists |
-| `monsters/<sub>/<monster id>.json` | monster sheet monsters | in progress (uncommitted) |
-| `prefs/<sub>.json` | dice choice, Dice Sets page, roll mode | in progress (uncommitted) |
-| `characters/<id>/art.<ext>` | character portraits (owner's choice: in the character's folder) | exists (0.4) |
+| `characters/<id>/` | player sheet characters: `character.json`, `meta.json` (owner, visibility, created, campaigns), `history/<n>.json` | exists |
+| `characters/<id>/art.<ext>` | character portraits (owner's choice: in the character's folder; replaced ones in `history/art-<n>.<ext>`) | exists (0.4) |
+| `characters/.deleted/` | deleted character folders (moved, never unlinked) | exists |
+| `<sub>/<character id>.json` | the older per-account files, copied into folders once (`.copied`), no longer written | kept as is |
+| `dev/characters/` | the archived test sheet's characters | kept as is |
+| `monsters/<sub>/<monster id>.json` | monster sheet monsters | exists (0.1) |
+| `prefs/<sub>.json` | settings in the `KEYS` list of sync.js / prefs.php | exists (0.1) |
 | `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` exists (1.1); the rest Phase 1 |
 | `homebrew/<sub>/<id>.json` | homebrew items, spells, monsters, classes, races... | Phase 4/5 |
 | `shares/<token>.json` | read-only share links | Phase 6 |
@@ -85,15 +103,18 @@ newer, and 401 when signed out.
 - **Resources:** counter, boxes, slots by level, sorcery points or ki. The max can be a formula, with a short,
   long or no reset.
 - **Rests:** short rest (spend hit dice) and long rest dialogs.
-- **Art:** cropped to 480 px and stored inline in the character, so it counts toward the browser's ~5 MB.
+- **Art:** cropped to 480 px. Signed in, it's uploaded to the character's folder and the character keeps
+  `artUrl` (0.4); signed out, it stays inline in the character.
 - **Undo:** a snapshot before deletes, offered for about a second in a toast.
 - **Roll log:** the last 100 rolls per character, with a side log and a dice tray. Options can turn off rolls,
   the tray, sound and animation.
 - **Import/export:** JSON files. D&D Beyond import (public characters only, through `ddb.php` + `ddb.js`) is a
   one-time copy.
-- **Saving:** localStorage (`hb-sheet`), the Google account (`cloud.php`, newest `updated` wins, currently 3 MB
-  per character and 200 per account), and server backups (`backup.php` → `backups/<ip>/<name>/`). Backups are
+- **Saving:** localStorage (`hb-sheet`), the Google account (`cloud.php` + `includes/characters.php`, a folder
+  per character in `accounts/characters/<id>/` with every saved version in `history/`, newest `updated` wins, no
+  count limit, 8 MB per save), and server backups (`backup.php` → `backups/<ip>/<name>/`). Backups are
   never pruned, and there's no restore button (only the admin backup browser). Planned: 0.5 version history.
+- **My Characters** (`/characters/`): a card list; each character opens at `/characters/<id>` with the same sheet code.
 - **Layout:** two columns from 960 px. There's no phone layout yet. It has ARIA labels, dialogs, Escape to close
   and reduced-motion support.
 
@@ -104,9 +125,8 @@ newer, and 401 when signed out.
   strips lore and images, caches 30 days, and serves the stale copy if a refresh fails. Credits are in `ogl.txt`.
 - HP, conditions, rests, an initiative roll button (no turn order), dice tray and roll log. Legendary actions
   are imported as plain action rows, with no counters. There's no XP or difficulty.
-- Saving: localStorage `monster-sheet` and server backups (`monster-backups/`).
-- **In progress (uncommitted, another session):** account save through `sheets/monster/cloud.php` →
-  `accounts/monsters/<sub>/`, `updated` stamps, and `rolls` added to `blank()`.
+- Saving: localStorage `monster-sheet`, the Google account (`sheets/monster/cloud.php` →
+  `accounts/monsters/<sub>/`, newest `updated` wins) and server backups (`monster-backups/`).
 
 ### Dice (`/dice/`)
 - 10 themed 3D sets (abyss, arcane, clockwork, ember, frost, spectral, starfall, storm, venom, wildwood) and 8
@@ -117,9 +137,9 @@ newer, and 401 when signed out.
 - Pages: Dice Sets (presets, a "Land N" test roll), Quick Rolls (`/dice/rolls/`: nat 1, 2-19, nat 20, coin),
   Dice Fairness Test (`/dice/test/`: 8 panels with a chi-square test, tallies kept in the browser).
 - `dice/choice.js` holds the choice (`dice-choice`), which the sheets read on every roll.
-- **In progress (uncommitted):** `prefs.php` + `assets/js/sync.js` save `dice-choice`, `dice-sets-page`,
-  `dice-sets-sound` and `dnd.rollMode` to `accounts/prefs/<sub>.json` (64 KB cap, newest wins, one reload per
-  session after a pull).
+- `prefs.php` + `assets/js/sync.js` save `dice-choice`, `dice-sets-page`, `dice-sets-sound` and `dnd.rollMode`
+  to `accounts/prefs/<sub>.json` (newest wins, one reload per session after a pull). The fairness test tallies
+  (`dice-test-counts`) stay in the browser only, by the owner's choice.
 
 ### D&D Beyond viewer (`/characters/`)
 - 6 hard-coded public character IDs (`characters.json`), fetched from D&D Beyond's unofficial endpoints and
@@ -152,7 +172,7 @@ including tests and the dndtest check.
 
 ### Phase 0: Finish in-flight work and fix storage risks
 
-**0.1 Finish account sync for the monster sheet and settings** (another session is on this now)
+**0.1 Finish account sync for the monster sheet and settings** (built: `3b25fc0` and the monster `cloud.php`)
 - What: commit the uncommitted monster `cloud.php` and `prefs.php` + `sync.js` work, then tick off
   `monster-sheet`, `dice-choice`, `dice-sets-page`, `dice-sets-sound` and `dnd.rollMode` in CLAUDE.md.
 - Data safety: monsters get `updated` (legacy = 1) and `rolls` in `blank()`. `sheet-keeps-data.mjs` already
@@ -160,9 +180,8 @@ including tests and the dndtest check.
 - Size: whatever is left of that session's work, about half a day.
 - Done: a monster and a dice choice made on one browser appear on a second browser after sign-in. The data check passes.
 
-**0.2 Dice fairness tallies to the account**
-- What: add `dice-test-counts` to the prefs keys (`PF_KEYS` in prefs.php and `KEYS` in sync.js; keep both lists equal).
-- Size: 1 hour. Done: the tallies show up on a second browser.
+**0.2 Dice fairness tallies to the account** (dropped: the owner chose to keep `dice-test-counts` in the
+browser only; see CLAUDE.md and "Not planned")
 
 **0.3 Remove app-imposed limits**
 - What: drop `CL_COUNT` (200 characters) in `sheets/player/cloud.php`. Remove the prefs 64 KB cap. Make the
@@ -299,6 +318,13 @@ including tests and the dndtest check.
 - Where it shows: a log panel on the sheet, the monster sheet (for the DM) and the campaign page.
 - Size: 3 days. Done: a public roll, a hidden DM roll and a whisper each show the right thing to the DM, the
   whisperer and a third player. An offline roll arrives after reconnecting. A finished session can be browsed.
+- Built (2026-11-02), owner's choices: a character's rolls go to one campaign picked in the dice tray ("Rolls go
+  to", saved with the character; automatic when it's in only one; "Nowhere" keeps them private). Other players'
+  rolls pop up as cards and fill a Table tab in the roll log. The Monster Sheet picks one campaign you DM (an
+  account setting). "To DM" (players) and "Hidden" (DM) are a toggle by the tray that stays until switched back.
+  Storage: `campaigns/<id>/sessions/<n>.json` and `sessions/unsorted.json`; `includes/tablelog.php` alone decides
+  what each player sees, for the log and for the relay. Offline rolls wait in the browser (`live-outbox`).
+  Pages share `assets/js/live.js`. Checks: `tablelog.test.php`, `table-log.mjs`.
 
 **1.4 Initiative tracker**
 - What: run by the DM, seen by players. Players' initiative rolls on their sheet add them automatically. The DM
@@ -344,6 +370,9 @@ including tests and the dndtest check.
   their art or initials. Token size follows creature size (Medium 1 square, Large 2 × 2...). Players drag
   their own token. The DM drags any. Moves are sent live. The DM can mark any monster token **hidden**: the DM
   sees it faded, and players and the Table view never receive it until it's revealed.
+- Ruler with joints (requested 2026-11-02): while dragging the ruler, a right click drops a joint at the
+  current point and the ruler carries on from there, so a path around a corner or wall can be measured. The
+  label shows the total distance of the whole line (every leg added up), in feet. Releasing the drag ends it.
 - Where: the DM's screen (full controls), the Table view (1.7, big, read-only), and a Map tab on the player's
   sheet and campaign page (phones included, for online players), where players can move only their own token.
 - How fog stays secret: the server cuts the fog out of the image. For each sent fog state, PHP renders a masked
@@ -396,10 +425,8 @@ including tests and the dndtest check.
   filter one full state and asserts the `table` output has none of those fields. Pulling the network cable and
   reconnecting restores the same screen.
 
-**1.8 Bring live play to `/sheets/player/`**
-- What: copy the tested player-dev changes to the live sheet, keeping the key `hb-sheet` and the account folder
-  `accounts/<sub>/`.
-- Size: half a day. Done: the full data check against live passes, and a campaign session works from `/sheets/player/`.
+**1.8 Bring live play to `/sheets/player/`** (no longer needed: there's one sheet code now, so every live-play
+change already lands in `sheets/player/`. The test copy is archived and must not be used.)
 
 ### Phase 2: Phone and look
 
@@ -408,7 +435,7 @@ including tests and the dndtest check.
   initiative and conditions always stays at the top. A bottom tab bar: Main (abilities, skills, saves, combat),
   Actions, Spells, Items, Notes. Tap targets are at least 44 px. The dice tray and log open as a bottom sheet.
   Desktop stays as it is.
-- Touches: `assets/css/pages/games-dnd-sheet-dev.css`, small markup hooks in `sheet.js`. Then the same for the
+- Touches: `assets/css/pages/games-dnd-sheet.css`, small markup hooks in `sheet.js`. Then the same for the
   monster sheet.
 - Account save: the last tab is part of per-character `view` (already synced).
 - Size: 4 days (both sheets). Done: in headless Chrome at 375 × 812 and 768 × 1024 there's no horizontal scroll,
@@ -416,12 +443,14 @@ including tests and the dndtest check.
 
 **2.2 Every page looks right on phone and laptop**
 - What: tidy spacing and components on the home page, campaigns, dice, transcripts and the D&D Beyond viewer
-  (until it's retired), in both colour schemes. Keep the current style; just make it consistent.
-- Size: 2 days. Done: screenshots at 375, 768 and 1440 wide show no overflow or clipped text on every page in `site_pages()`.
+  (until it's retired), in both colour schemes, following the design guide (`/design`). Keep the current style;
+  just make it consistent.
+- Size: 2 days. Done: screenshots at 375, 768 and 1440 wide, in Chrome and Firefox, show no overflow or clipped
+  text on every page in `site_pages()`.
 
 **2.3 Theme-ready CSS**
-- What: move colours and fonts into CSS variables in `global.css` so user themes (6.3) are only a new set of
-  values later. No visible change now.
+- What: move colours and fonts into CSS variables in `global.css`, matching the design guide's tokens, so user
+  themes (6.3) are only a new set of values later. No visible change now.
 - Size: 1 day. Done: changing the variables re-colours every page, with no colours left hard-coded in page CSS.
 
 ### Phase 3: DM tools
@@ -538,8 +567,8 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 **5.3 Retire the D&D Beyond viewer**
 - What: when the party overview (1.5) is live, import the 6 characters from `characters.json` into their
   owners' homebrew sheets (with each owner, using the existing D&D Beyond import). Then take `/characters/` out
-  of `site_pages()` and make the page a short notice pointing to the campaign page. The D&D Beyond import button
-  on the sheet stays.
+  of `site_pages()` and make the page a short notice pointing to the campaign page (the old page is moved with
+  `git mv` into `private/archive/`, never deleted). The D&D Beyond import button on the sheet stays.
 - Data safety: `characters/cache/` and its volume are left in place (never deleted).
 - Size: half a day, plus time with each player. Done: all 6 characters exist as homebrew sheets on their owners' accounts.
 
@@ -575,6 +604,7 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 | Print / PDF export | Not picked by the owner. The browser's print stays as it is. |
 | Separate accessibility pass | Not picked. Every new feature still keeps today's level: labels, keyboard use, dialogs, reduced motion. |
 | Merging Quick Rolls into Dice Sets | The owner keeps both pages as they are. |
+| Dice fairness tallies in the account (0.2) | The owner's choice: `dice-test-counts` stays in the browser only. |
 | Any count or size limits | The owner wants no limits anywhere; only the proxy's request size is handled, by chunking. |
 | Copying official non-SRD classes, subclasses, races, monsters or spell text | Copyright. Only SRD 5.1 / CC content, plus homebrew. |
 | Removing the 205 extra spells | The owner keeps them and wants them shown everywhere. They are stats only, linking to wikidot for text. No more non-SRD content is added. |
@@ -592,10 +622,12 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 
 ## Open questions
 
-None. Every area was answered in the interview on 2026-11-02. Two steps need the owner's yes when they come up,
-because of CLAUDE.md rather than an open design question:
+None. Every area was answered in the interview on 2026-11-02. These steps need the owner's word when they come
+up, because of CLAUDE.md rather than an open design question:
 
-- The compose change for the live relay (1.2) runs `deploy.sh --compose`, which asks first.
+- Every push to live: only when the owner says so in that message.
+- Any server change beyond `deploy.sh test|live` (`--compose`, `import`, `logs`, volumes) asks first. The live
+  relay (1.2) ended up needing no compose change.
 - Retiring the D&D Beyond viewer (5.3) needs each of the 6 players to import their character first.
 
 ---
@@ -604,8 +636,8 @@ because of CLAUDE.md rather than an open design question:
 
 | Phase | Features | Rough size |
 |---|---|---|
-| 0 Finish in-flight and storage | 5 | ~5.5 days |
-| 1 Live table and campaigns | 8 | ~23.5 days |
+| 0 Finish in-flight and storage | 4 (0.2 dropped) | ~5.5 days |
+| 1 Live table and campaigns | 7 (1.8 not needed) | ~23 days |
 | 2 Phone and look | 3 | ~7 days |
 | 3 DM tools | 4 | ~8 days |
 | 4 Character building | 6 | ~18.5 days |
