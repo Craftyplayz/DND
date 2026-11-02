@@ -64,13 +64,14 @@ for (const name of only) {
                 const i = (y * a.w + x) * a.bpp;
                 if (!same(a, c, i) && (a2.w !== a.w || a2.h !== a.h || same(a, a2, i))) { n++; const k = (x >> 5) + ',' + (y >> 5); if (!cells.has(k)) cells.set(k, [x, y]); }
             }
+            if (process.env.XY) console.log("  n=" + n + " " + label + " @" + width);
             if (!n) continue;
             bad++;
             const who = [];
             for (const [x, y] of [...cells.values()].slice(0, 400)) {
                 const hex = (p, q) => "#" + [0, 1, 2].map((k) => p.data[(y * p.w + x) * p.bpp + k].toString(16).padStart(2, "0")).join("");
                 const el = await b.ev(`(() => { scrollTo(0, ${y} - 100); const e = document.elementFromPoint(${x}, ${y} - scrollY); return e ? e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\\s+/).join('.') : '') : ''; })()`);
-                const w = el + ' ' + hex(a, 0) + '>' + hex(c, 0); if (el && !who.includes(w)) who.push(w);
+                const w = el + ' ' + hex(a, 0) + '>' + hex(c, 0) + (process.env.XY ? ' @' + x + ',' + y : ''); if (el && !who.includes(w)) who.push(w);
             }
             console.log(`DIFF ${name} ${label} @${width}: ${n} px differ; elements: ${who.slice(0, 14).join(' | ')}`);
         }
