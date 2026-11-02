@@ -125,6 +125,8 @@ function page_head()
     echo '<link rel="stylesheet" href="' . h(asset('/assets/css/global.css')) . '">' . "\n";
     if (!empty($p['components'])) echo '<link rel="stylesheet" href="' . h(asset('/assets/css/components.css')) . '">' . "\n";
     foreach (isset($p['css']) ? (array)$p['css'] : [] as $css) echo '<link rel="stylesheet" href="' . h(asset($css)) . '">' . "\n";
+    // signed in: settings follow the Google account; it runs before the page's own scripts so it sees their saves
+    if (auth_user()) echo '<script src="' . h(asset('/assets/js/sync.js')) . '" defer></script>' . "\n";
     if (!empty($p['ui'])) echo '<script src="' . h(asset('/assets/js/ui.js')) . '" defer></script>' . "\n";
     // the test site (SITE_ENV=test in compose.yml) says so at the top of every page and stays out of search engines
     if (getenv('SITE_ENV') === 'test') {
