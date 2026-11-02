@@ -25,6 +25,25 @@ The live site only ever gets the image that is on test (`deploy.sh live` copies 
 `bash _dev/deploy.sh test` and `bash _dev/deploy.sh live` run without asking; anything else on the server
 (`--compose`, `import`, `logs`, other API calls, deleting volumes) asks the user first.
 
+## Everything follows the Google account
+
+The user's goal: open the site on any device, sign in with Google, and everything is back exactly as they left
+it. So every setting and every piece of data a player creates is saved to their account when they're signed in,
+with the browser's copy kept for offline and signed-out use (the newest change wins, as the sheets' cloud saves
+do). Signed out, everything keeps working from the browser alone.
+
+- Every new feature that stores anything in the browser must also save it to the account in the same change,
+  including settings and preferences, not just characters.
+- Already following the account: player sheet characters (`hb-sheet`, `accounts/<sub>/`) and test-sheet
+  characters (`hb-sheet-dev`, `accounts/dev/<sub>/`), each with its roll log and per-character view settings.
+- Still browser-only (bring these over; tick them off here when done):
+  - dice choice: set, sound, trails, nat 1/20 effects, coin (`dice-choice`, dice/choice.js)
+  - monster sheet encounters (`monster-sheet`, sheets/monster/monster.js)
+  - Dice Sets page state (`dice-sets-page`, `dice-sets-sound`, dice/dice.js)
+  - D&D Beyond viewer roll mode (`dnd.rollMode`, characters/dnd.js)
+  - dice fairness test tallies (`dice-test-counts`, dice/test/) - test data, lowest priority
+- Keep the localStorage keys as they are (friends' data is under them); the account copy is added alongside.
+
 ## Player data must never be lost in an update
 
 Friends' characters live in three places: their browser (localStorage `hb-sheet`, `hb-sheet-dev` for the test
