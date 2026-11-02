@@ -1,6 +1,6 @@
 <?php
-// Copy to includes/config.php and fill in. config.php is gitignored and deploy.sh never uploads or deletes it,
-// so put it on the server by hand. Without it, sign-in is switched off and /private/ is closed to everyone.
+// Fill in and save as config.php in the site's host folder on the Docker server (/opt/dnd/live, /opt/dnd/test; see .env.example),
+// which the container mounts at /etc/dnd. Locally, save it as includes/config.php (gitignored). Without it, sign-in is off and /private/ is closed.
 
 // Web client ID from Google Cloud Console > APIs & Services > Credentials
 const GOOGLE_CLIENT_ID = '000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com';

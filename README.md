@@ -10,7 +10,8 @@ Our D&D campaign tools, split out of craftyplayz.com:
 - `/transcripts/` session recordings and transcripts (data in `transcripts/data/`, server only)
 - `/private/` backup browsers and the session importer, behind HTTP basic auth
 
-Plain PHP 7.4+ and Apache (`.htaccess`), no build step. Shared layout is `includes/functions.php`
+Plain PHP 7.4+ and Apache (`.htaccess`), no build step; in production a php:8.3-apache image (`Dockerfile`).
+Shared layout is `includes/functions.php`
 (the page list for the menu lives in `site_pages()`), styles are `assets/css/global.css` and `components.css`.
 
 ## Run it locally
@@ -34,14 +35,16 @@ on http://localhost:8110 (Google accepts localhost origins, not 127.0.0.1). Sign
 
 ## Deploy
 
+Every push to main builds `ghcr.io/craftyplayz/dnd:<commit sha>` (GitHub Actions). The Portainer stack `dnd`
+(`compose.yml`) runs it twice on the Docker server: `dnd` is the live site (port 5762) and `dnd-test` the test site
+(port 5763, red banner, noindex), each with its own data volumes.
+
 ```
-bash _dev/deploy.sh --dry-run   # list what would change
-bash _dev/deploy.sh
+bash _dev/deploy.sh test     # the test site runs this commit (push it first)
+bash _dev/deploy.sh live     # the live site runs what the test site runs
 ```
 
-Uploads committed files over SSH (key `~/.ssh/ionos`) to the IONOS web space. Set `DIR` in the script to the
-subdomain's web-root folder first. It never uploads or deletes the server-only data: sheet backups, session
-recordings, the D&D Beyond cache, cloud saves, sessions, `includes/config.php` and `private/.htpasswd`.
-
-First deploy only: create `private/.htpasswd` on the server and put its full path in `private/.htaccess`
-(instructions are in that file). Until then `/private/` shows an error rather than opening.
+Needs `PORTAINER_URL` and `PORTAINER_API_KEY` in the environment. Each site reads `config.php` and `.htpasswd` from a
+host folder (`.env.example`), mounted read-only at `/etc/dnd`. `bash _dev/deploy.sh import [dir]` copies server-only
+data (backups, cloud saves, transcripts, the D&D Beyond cache) from a local folder into the live volumes, and the
+transcripts and cache on to the test site. See CLAUDE.md for the release workflow.
