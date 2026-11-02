@@ -22,7 +22,15 @@ php -S 127.0.0.1:8110 -t .
 Then open http://127.0.0.1:8110/. PHP needs the curl extension for D&D Beyond, spells and monsters.
 `.htaccess` is ignored by PHP's built-in server, so `/private/` opens without a password locally.
 
-Tests: `node _dev/scripts/dnd-sheet-formula.test.js`, `dnd-sheet-ddb.test.js`, `dnd-monsters-dedupe.test.js`.
+Tests: `node _dev/scripts/dnd-sheet-formula.test.js`, `dnd-sheet-ddb.test.js`, `dnd-monsters-dedupe.test.js`,
+and `php _dev/scripts/auth-claims.test.php`.
+
+## Google sign-in
+
+Copy `includes/config.example.php` to `includes/config.php` (gitignored) and fill in the Google client ID and the
+admin emails allowed into `/private/`. Without it there is no sign-in button and `/private/` is closed. Test sign-in
+on http://localhost:8110 (Google accepts localhost origins, not 127.0.0.1). Signed-in players' characters on
+`/sheets/player-dev/` are also saved in `private/dnd/accounts/<google id>/`.
 
 ## Deploy
 
@@ -33,7 +41,7 @@ bash _dev/deploy.sh
 
 Uploads committed files over SSH (key `~/.ssh/ionos`) to the IONOS web space. Set `DIR` in the script to the
 subdomain's web-root folder first. It never uploads or deletes the server-only data: sheet backups, session
-recordings, the D&D Beyond cache and `private/.htpasswd`.
+recordings, the D&D Beyond cache, cloud saves, sessions, `includes/config.php` and `private/.htpasswd`.
 
 First deploy only: create `private/.htpasswd` on the server and put its full path in `private/.htaccess`
 (instructions are in that file). Until then `/private/` shows an error rather than opening.
