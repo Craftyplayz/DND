@@ -23,12 +23,15 @@
 .fi-e.hid { border-style: dashed; }
 .fi-who { display: flex; flex: 1 1 160px; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
 .fi-who small { flex-basis: 100%; }
-.fi-init { width: 4.5em; text-align: center; }
+.fi-init { flex: none; text-align: center; }
+.fi-e .field.fi-init, .fi-add .field.fi-init, .fi-e .fi-hp .field { flex: none; width: 4.5em; }
 b.fi-init { width: 2.5em; font-size: 18px; }
 .fi-hp, .fi-tools, .fi-add { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.fi-hp .field { width: 4.5em; }
+.fi-hp, .fi-tools { flex: none; }
 .fi-add { margin-top: 8px; }
 .fi-add .field:not(.fi-init) { flex: 1 1 140px; width: auto; }
+/* on phones the Monster Sheet's list is hidden, so the tracker has its own monster picker */
+@media (min-width: 761px) { .mon-fightpick { display: none; } }
 .mon-fight { margin: 0 0 16px; }
 .mon-fight h2, .cp-fight h2 { margin-top: 0; }
 .cp-fight { margin: 0 0 28px; }

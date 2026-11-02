@@ -1757,7 +1757,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
     function tableWatch() {
         // the initiative tracker for the campaign picked here (assets/js/fight.js); it redraws the list's add buttons
-        window.Fight?.panel($('#mon-fight'), camp()?.id || '', { controls: true, onHp: fightHp, onChange: drawSide });
+        window.Fight?.panel($('#mon-fight'), camp()?.id || '', { controls: true, onHp: fightHp, onChange: drawSide, extra: fightPick });
         const id = camp()?.id || '';
         if (id === watchId) return;
         watching?.close();
@@ -1878,6 +1878,12 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (!f) return '';
         if (!c) return '<p><button type="button" class="btn small" data-act="fightadd">Add all in the list</button></p>';
         return f.entries.some((e) => e.mon === c.id) ? '<span class="badge">In fight</span>' : `<button type="button" class="btn small" data-act="fightadd" data-id="${esc(c.id)}" aria-label="Add ${esc(c.name || 'Unnamed monster')} to the fight">Add to fight</button>`;
+    }
+    // the same on phones, where the list is hidden: a picker in the tracker
+    function fightPick() {
+        const f = fightNow(), left = Object.values(db.chars).filter((c) => !c.archived && !f?.entries.some((e) => e.mon === c.id));
+        return f && left.length ? `<div class="fi-add mon-fightpick"><select class="field" id="mon-fightsel" aria-label="Monster to add">${left.map((c) => `<option value="${esc(c.id)}">${esc(c.name || 'Unnamed monster')}</option>`).join('')}</select>
+            <button type="button" class="btn small" data-act="fightadd" data-sel>Add to fight</button><button type="button" class="btn small" data-act="fightadd">Add all in the list</button></div>` : '';
     }
     // each with its own initiative roll (d20 + its initiative) and AC, worked out as the sheet shows them
     async function fightAdd(list, b) {
@@ -2305,7 +2311,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'rollx') { clearTimeout(rollTimer); $('#hb-rolls').innerHTML = ''; return; }
         if (act === 'tray') { tray.open = !tray.open; return drawTray(); }
         if (act === 'rollto') { setRollTo(!rollTo()); return drawTray(); }
-        if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : Object.values(db.chars).filter((c) => !c.archived), b);
+        if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : 'sel' in b.dataset ? [db.chars[$('#mon-fightsel').value]] : Object.values(db.chars).filter((c) => !c.archived), b);
         if (act === 'logtab') { logTab = b.dataset.t; return drawLog(); }
         if (act === 'logclear') { if (confirm('Clear the roll log for this monster?')) { C.rolls = []; saveNow(); drawLog(); } return; }
         if (act === 'die') { tray.pool[b.dataset.n] = (tray.pool[b.dataset.n] || 0) + 1; return drawTray(); }

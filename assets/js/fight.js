@@ -6,7 +6,8 @@
 //   Fight.panel(el, campaignId, {controls, onHp, onChange})   the tracker: on the Monster Sheet with controls (the DM runs
 //                                                it there), on the campaign page without (players see the order; the DM
 //                                                also sees numbers and can change monster HP). onHp(monster id, op) changes
-//                                                HP (default: sheets/monster/cloud.php?hp=); onChange(fight) after each load.
+//                                                HP (default: sheets/monster/cloud.php?hp=); onChange(fight) after each load;
+//                                                extra() adds the page's own controls (the Monster Sheet's monster picker).
 //   Fight.state(campaignId) -> the fight as last loaded, or null
 //   Fight.act(campaignId, op, extra) -> a DM change (refused with "This fight changed, reloaded" if it changed meanwhile)
 //   Fight.tag(campaignId, title, monsterId) -> what an initiative roll adds to the roll it sends ({fight, mon})
@@ -141,10 +142,10 @@ window.Fight = (() => {
             : e.kind === 'pc' && e.hp ? `HP ${e.hp.cur}${e.hp.temp ? ` +${e.hp.temp} temp` : ''}` : '');
         const badges = (e) => status(e) + (e.hidden ? '<span class="badge p">Hidden</span>' : '') + (e.archived ? '<span class="badge">Archived</span>' : '') + (e.missing ? '<span class="badge">Monster gone</span>' : '')
             + (e.kind === 'pc' && e.secret ? '<span class="badge p">to DM</span>' : '');
-        const num = (e) => (ctl ? `<input class="field fi-init" type="number" value="${e.init ?? ''}" data-e="${esc(e.id)}" aria-label="Initiative for ${esc(e.name)}" placeholder="?"${dis}>` : `<b class="fi-init">${e.init ?? '?'}</b>`);
-        const tools = (e, i) => (ctl ? `<span class="fi-tools"><button type="button" class="btn small" data-fi="move" data-e="${esc(e.id)}" data-dir="-1" aria-label="Move ${esc(e.name)} up"${i && !off ? '' : ' disabled'}>↑</button><button type="button" class="btn small" data-fi="move" data-e="${esc(e.id)}" data-dir="1" aria-label="Move ${esc(e.name)} down"${i < f.entries.length - 1 && !off ? '' : ' disabled'}>↓</button>`
-            + (e.kind === 'monster' ? `<button type="button" class="btn small" data-fi="hide" data-e="${esc(e.id)}" aria-pressed="${!!e.hidden}"${dis}>${e.hidden ? 'Reveal' : 'Hide'}</button>` : '')
-            + `<button type="button" class="btn small" data-fi="remove" data-e="${esc(e.id)}"${dis}>Remove</button></span>` : '');
+        const num = (e) => (ctl ? `<input class="field fi-init" type="number" value="${e.init ?? ''}" data-fe="${esc(e.id)}" aria-label="Initiative for ${esc(e.name)}" placeholder="?"${dis}>` : `<b class="fi-init">${e.init ?? '?'}</b>`);
+        const tools = (e, i) => (ctl ? `<span class="fi-tools"><button type="button" class="btn small" data-fi="move" data-fe="${esc(e.id)}" data-dir="-1" aria-label="Move ${esc(e.name)} up"${i && !off ? '' : ' disabled'}>↑</button><button type="button" class="btn small" data-fi="move" data-fe="${esc(e.id)}" data-dir="1" aria-label="Move ${esc(e.name)} down"${i < f.entries.length - 1 && !off ? '' : ' disabled'}>↓</button>`
+            + (e.kind === 'monster' ? `<button type="button" class="btn small" data-fi="hide" data-fe="${esc(e.id)}" aria-pressed="${!!e.hidden}"${dis}>${e.hidden ? 'Reveal' : 'Hide'}</button>` : '')
+            + `<button type="button" class="btn small" data-fi="remove" data-fe="${esc(e.id)}"${dis}>Remove</button></span>` : '');
         el.innerHTML = `<h2>Fight</h2>${note}${head(f)}
             <ol class="fi-list">${f.entries.map((e, i) => `<li class="fi-e${e.id === f.turn ? ' on' : ''}${isDown(e) ? ' down' : ''}${e.hidden ? ' hid' : ''}"${e.id === f.turn ? ' aria-current="true"' : ''}>
                 ${num(e)}${face(e)}<span class="fi-who"><b>${esc(e.name)}</b> ${badges(e)}<small class="muted">${info(e)}</small></span>${hpForm(e)}${tools(e, i)}</li>`).join('') || '<li class="muted">Nobody yet. Players who roll initiative appear here.</li>'}</ol>
@@ -152,6 +153,7 @@ window.Fight = (() => {
                 : `<button type="button" class="btn" data-fi="prev"${dis}>Previous</button><button type="button" class="btn primary" data-fi="next"${dis}>Next turn</button>`}
                 <button type="button" class="btn" data-fi="end"${dis}>End fight</button></div>
             <form class="fi-add" data-fi-add="pc">${f.party.length ? `<select class="field" aria-label="Party character">${f.party.map((x) => `<option value="${esc(x.char)}">${esc(x.name)}</option>`).join('')}</select><button class="btn small"${dis}>Add character</button>` : ''}</form>
+            ${p.opts.extra?.() || ''}
             <form class="fi-add" data-fi-add="plain"><input class="field" name="name" placeholder="Lair action" aria-label="Name of an extra entry"${dis}><input class="field fi-init" name="init" type="number" placeholder="20" aria-label="Its initiative"${dis}><button class="btn small"${dis}>Add entry</button></form>` : ''}`;
     }
     function wire(el) {
@@ -163,13 +165,13 @@ window.Fight = (() => {
             const op = b.dataset.fi, c = p().c;
             if (op === 'end') return confirmEnd(() => act(c, 'end'));
             b.disabled = true;
-            await act(c, op, { e: b.dataset.e, dir: +b.dataset.dir || 0, on: b.getAttribute('aria-pressed') !== 'true' });
+            await act(c, op, { e: b.dataset.fe, dir: +b.dataset.dir || 0, on: b.getAttribute('aria-pressed') !== 'true' });
         });
         el.addEventListener('change', (ev) => {
-            const i = ev.target.closest('.fi-init[data-e]');
+            const i = ev.target.closest('.fi-init[data-fe]');
             if (!i || !p()) return;
             i.blur();
-            act(p().c, 'init', { e: i.dataset.e, value: i.value === '' ? null : +i.value });
+            act(p().c, 'init', { e: i.dataset.fe, value: i.value === '' ? null : +i.value });
         });
         el.addEventListener('submit', async (ev) => {
             ev.preventDefault();

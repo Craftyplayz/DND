@@ -11,9 +11,9 @@ import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { launch } from './browser.mjs';
 
-const ROOT = join(import.meta.dirname, '../..'), WEB = 8120, RELAY = 8099, BASE = `http://localhost:${WEB}`;
+const ROOT = join(import.meta.dirname, '../..'), SHIFT = +process.env.CHECK_PORT_SHIFT || 0, WEB = 8120 + SHIFT, RELAY = 8099 + SHIFT, BASE = `http://localhost:${WEB}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
-const TMP = join(tmpdir(), 'dnd-table-check'), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
+const TMP = join(tmpdir(), 'dnd-table-check' + (process.env.CHECK_PORT_SHIFT || '')), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ser = (o) => `a:${Object.keys(o).length}:{` + Object.entries(o).map(([k, v]) => `s:${Buffer.byteLength(k)}:"${k}";s:${Buffer.byteLength(v)}:"${v}";`).join('') + '}';
 const SID = { dm: 'tablecheckdm0000000000000000000000', pat: 'tablecheckpat000000000000000000000', sam: 'tablechecksam000000000000000000000' };
@@ -56,7 +56,9 @@ try {
 
     // Pat's sheet finds its one campaign; the DM's Monster Sheet finds the one they DM
     await go(pat, BASE + '/characters/lock');
-    is('player sheet: rolls go to its campaign', await until(pat, `(document.querySelector('[data-act=tray]').click(), document.querySelector('[data-act=tablepick]')?.value || '')`, (v) => v === CAMP), CAMP);
+    // one campaign per character: no picker, the tray just says where rolls go
+    is('player sheet: rolls go to its campaign', await until(pat, `(document.querySelector('.hb-tray') || document.querySelector('[data-act=tray]')?.click(), document.querySelector('.hb-trayto')?.textContent.replace(/\\s+/g, ' ').trim() || '')`, (v) => v.startsWith('Rolls go to Table Test')), 'Rolls go to Table Test Everyone');
+    is('player sheet: no campaign picker', await pat.ev(`!document.querySelector('[data-act=tablepick]')`), true);
     await go(dm, BASE + '/sheets/monster/');
     is('Monster Sheet: rolls go to the campaign you DM', await until(dm, `(document.querySelector('.hb-tray') || document.querySelector('[data-act=tray]').click(), document.querySelector('[data-act=tablepick]')?.value || '')`, (v) => v === CAMP), CAMP);
 

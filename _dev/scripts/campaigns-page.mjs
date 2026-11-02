@@ -10,9 +10,9 @@ import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { launch } from './browser.mjs';
 
-const ROOT = join(import.meta.dirname, '../..'), BASE = 'http://localhost:8114';
+const ROOT = join(import.meta.dirname, '../..'), PORT = 8114 + (+process.env.CHECK_PORT_SHIFT || 0), BASE = `http://localhost:${PORT}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
-const TMP = join(tmpdir(), 'dnd-campaigns-check'), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
+const TMP = join(tmpdir(), 'dnd-campaigns-check' + (process.env.CHECK_PORT_SHIFT || '')), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // three players, each with a session file the way PHP writes it ("user|" + serialize(array))
@@ -29,7 +29,7 @@ function setup() {
     }
 }
 
-const server = spawn(PHP, ['-S', '127.0.0.1:8114', '-t', ROOT, join(ROOT, '_dev/router.php')], { env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS }, stdio: 'ignore' });
+const server = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS }, stdio: 'ignore' });
 await sleep(800);
 
 let bad = 0;

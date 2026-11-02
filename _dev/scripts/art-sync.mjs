@@ -11,9 +11,9 @@ import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { launch } from './browser.mjs';
 
-const ROOT = join(import.meta.dirname, '../..'), PORT = 8119, BASE = `http://localhost:${PORT}`;
+const ROOT = join(import.meta.dirname, '../..'), PORT = 8119 + (+process.env.CHECK_PORT_SHIFT || 0), BASE = `http://localhost:${PORT}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
-const TMP = join(tmpdir(), 'dnd-art-check'), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
+const TMP = join(tmpdir(), 'dnd-art-check' + (process.env.CHECK_PORT_SHIFT || '')), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ser = (o) => `a:${Object.keys(o).length}:{` + Object.entries(o).map(([k, v]) => `s:${Buffer.byteLength(k)}:"${k}";s:${Buffer.byteLength(v)}:"${v}";`).join('') + '}';
 const SID = { me: 'artcheckme000000000000000000000000', other: 'artcheckother0000000000000000000000' };

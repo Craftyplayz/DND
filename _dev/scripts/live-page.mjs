@@ -9,9 +9,9 @@ import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { launch } from './browser.mjs';
 
-const ROOT = join(import.meta.dirname, '../..'), WEB = 8118, RELAY = 8098, BASE = `http://localhost:${WEB}`;
+const ROOT = join(import.meta.dirname, '../..'), SHIFT = +process.env.CHECK_PORT_SHIFT || 0, WEB = 8118 + SHIFT, RELAY = 8098 + SHIFT, BASE = `http://localhost:${WEB}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
-const TMP = join(tmpdir(), 'dnd-live-check'), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
+const TMP = join(tmpdir(), 'dnd-live-check' + (process.env.CHECK_PORT_SHIFT || '')), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ser = (o) => `a:${Object.keys(o).length}:{` + Object.entries(o).map(([k, v]) => `s:${Buffer.byteLength(k)}:"${k}";s:${Buffer.byteLength(v)}:"${v}";`).join('') + '}';
 const SID = { dm: 'livecheckdm000000000000000000000', pl: 'livecheckpl000000000000000000000' };
@@ -85,8 +85,8 @@ try {
     // the DM removes the player, whose open page leaves the campaign
     is('DM removes the player', await api(SID.dm, { act: 'remove', id: CAMP, member: '222' }), 200);
     within("removed player's page sent away", await until(pl, 'location.pathname + location.search', '/campaigns/', 3000), 1500);
-    is('no console errors (DM)', dm.errors.filter((e) => !/WebSocket|8098/.test(e)), []);
-    is('no console errors (player)', pl.errors.filter((e) => !/WebSocket|8098/.test(e)), []);
+    is('no console errors (DM)', dm.errors.filter((e) => !/WebSocket/.test(e) && !e.includes(RELAY)), []);
+    is('no console errors (player)', pl.errors.filter((e) => !/WebSocket/.test(e) && !e.includes(RELAY)), []);
 } finally { dm.close(); pl.close(); relay.kill(); web.kill(); rmSync(TMP, { recursive: true, force: true }); }
 console.log(bad ? `${bad} check(s) failed` : 'live page ok');
 process.exit(bad ? 1 : 0);
