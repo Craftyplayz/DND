@@ -12,13 +12,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const TYPE_PLURAL = { spell: 'spells', monster: 'monsters', item: 'items', magic: 'magic items', rule: 'rules' };
     const BATCH = 50, GROUP = 5, SRD = 'SRD 5.1';
     const RARITY = ['Common', 'Uncommon', 'Rare', 'Very Rare', 'Legendary', 'Artifact', 'Varies'];
+    const SIZES = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan', 'Titanic'];
     const CRS = [0, 0.125, 0.25, 0.5, ...Array.from({ length: 30 }, (_, i) => i + 1)];
     const crText = (n) => ({ 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' })[n] || String(n);
     const SECTION = { sense: 'Sense', cond: 'Condition', skill: 'Skill', prop: 'Weapon property', lang: 'Language', armour: 'Armour', dmg: 'Damage type', act: 'Action', spell: 'Spellcasting rule', hp: 'Hit points' };
     // the filters each type has: [name, label, kind]
     const FILTERS = {
         spell: [['level', 'Level'], ['school', 'School'], ['conc', 'Concentration', 'yn'], ['ritual', 'Ritual', 'yn'], ['src', 'Source']],
-        monster: [['crmin', 'Lowest CR', 'cr'], ['crmax', 'Highest CR', 'cr'], ['mtype', 'Type'], ['src', 'Source book']],
+        monster: [['crmin', 'Lowest CR', 'cr'], ['crmax', 'Highest CR', 'cr'], ['size', 'Size'], ['mtype', 'Type'], ['src', 'Source book']],
         item: [['cat', 'Category']],
         magic: [['cat', 'Category'], ['rarity', 'Rarity']],
     };
@@ -47,9 +48,9 @@ document.addEventListener('DOMContentLoaded', () => {
         async monster() {
             const j = await getJson('/sheets/monster/monsters.json');
             sources = j.sources;
-            for (const [id, name, cr, type, src] of j.list) {
+            for (const [id, name, cr, type, src, size] of j.list) {
                 const book = src === 'srd' ? SRD : (j.sources[src] || {}).title || src;
-                addEntry({ t: 'monster', id, name, sub: `CR ${crText(cr)} · ${type}`, hay: type, tags: [[book, src === 'srd' ? 'g' : '']], f: { cr, mtype: type, src: book }, src });
+                addEntry({ t: 'monster', id, name, sub: `CR ${crText(cr)} · ${[size, type].filter(Boolean).join(' ')}`, hay: type, tags: [[book, src === 'srd' ? 'g' : '']], f: { cr, size, mtype: type, src: book }, src });
             }
         },
         async item() {
@@ -99,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!FILTERS[t]) return true;
         const v = e.f;
         if (f.level !== undefined && f.level !== '' && v.level !== +f.level) return false;
-        for (const k of ['school', 'mtype', 'src', 'cat', 'rarity']) if (f[k] && v[k] !== f[k]) return false;
+        for (const k of ['school', 'mtype', 'size', 'src', 'cat', 'rarity']) if (f[k] && v[k] !== f[k]) return false;
         for (const k of ['conc', 'ritual']) if (f[k] && v[k] !== (f[k] === 'yes')) return false;
         if (f.crmin !== undefined && f.crmin !== '' && v.cr < +f.crmin) return false;
         if (f.crmax !== undefined && f.crmax !== '' && v.cr > +f.crmax) return false;
@@ -180,7 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (kind === 'cr') return CRS.flatMap((c) => [c, crText(c)]);
             if (name === 'level') return Array.from({ length: 10 }, (_, i) => [i, i ? 'Level ' + i : 'Cantrip']).flat();
             let vals = [...new Set(pool.map((e) => e.f[name]).filter(Boolean))];
-            vals = name === 'rarity' ? vals.sort((a, b) => RARITY.indexOf(a) - RARITY.indexOf(b)) : vals.sort((a, b) => (a === SRD ? -1 : b === SRD ? 1 : a.localeCompare(b)));
+            vals = name === 'size' ? vals.sort((a, b) => SIZES.indexOf(a) - SIZES.indexOf(b)) : name === 'rarity' ? vals.sort((a, b) => RARITY.indexOf(a) - RARITY.indexOf(b)) : vals.sort((a, b) => (a === SRD ? -1 : b === SRD ? 1 : a.localeCompare(b)));
             return vals.flatMap((v) => [v, v]);
         };
         box.innerHTML = fl.map(([name, label, kind]) => {

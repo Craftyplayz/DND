@@ -27,6 +27,16 @@ async function getJSON(url) {
     }
 }
 
+// --sizes: add the 6th field (size) to the existing monsters.json and change nothing else (no new or removed rows, built date, sources, ogl.txt)
+const SIZES_ONLY = process.argv.includes('--sizes');
+function addSizes(entries) {
+    const old = JSON.parse(fs.readFileSync(OUT, 'utf8')), size = new Map(entries.map((e) => [e.key, e.size]));
+    old.list = old.list.map((r) => [...r.slice(0, 5), size.get(r[0]) || '']);
+    const missing = old.list.filter((r) => !r[5]).length;
+    fs.writeFileSync(OUT, JSON.stringify(old));
+    console.log(`sizes added to ${old.list.length} rows (${missing} without a size) -> ${OUT}`);
+}
+
 async function build() {
     const srdList = (await getJSON('https://www.dnd5eapi.co/api/2014/monsters')).results;
     const srd = [];
@@ -40,16 +50,17 @@ async function build() {
     const open = docs.filter((d) => OPEN.test(d.license));
     const rank = new Map(open.map((d, i) => [d.slug, i + 1]));
     const entries = [
-        ...srd.map((m) => ({ key: 'srd:' + m.index, name: m.name, src: 'srd', rank: 0, type: m.type, cr: +m.challenge_rating })),
+        ...srd.map((m) => ({ key: 'srd:' + m.index, name: m.name, src: 'srd', rank: 0, type: m.type, cr: +m.challenge_rating, size: String(m.size || '').replace(/^./, (c) => c.toUpperCase()) })),
         ...o5e.filter((m) => rank.has(m.document__slug)).map((m) => ({ key: 'o5e:' + m.slug, name: m.name, src: m.document__slug, rank: rank.get(m.document__slug),
-            type: String(m.type || '').toLowerCase(), cr: +m.cr })),
+            type: String(m.type || '').toLowerCase(), cr: +m.cr, size: String(m.size || '').replace(/^./, (c) => c.toUpperCase()) })),
     ].sort((a, b) => a.rank - b.rank);
+    if (SIZES_ONLY) return addSizes(entries);
     const list = dedupe(entries).sort((a, b) => a.name.localeCompare(b.name));
     const used = new Set(list.map((e) => e.src));
     const sources = { srd: { title: 'SRD 5.1', licence: 'CC BY 4.0', url: 'https://www.dndbeyond.com/srd',
         copyright: 'This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd, licensed under the Creative Commons Attribution 4.0 International License.' } };
     for (const d of open) if (used.has(d.slug)) sources[d.slug] = { title: d.title, licence: d.license, url: d.url, copyright: d.copyright || '' };
-    fs.writeFileSync(OUT, JSON.stringify({ built: new Date().toISOString().slice(0, 10), sources, list: list.map((e) => [e.key, e.name, e.cr, e.type, e.src]) }));
+    fs.writeFileSync(OUT, JSON.stringify({ built: new Date().toISOString().slice(0, 10), sources, list: list.map((e) => [e.key, e.name, e.cr, e.type, e.src, e.size || '']) }));
     // the OGL has to travel with OGL content, followed by each book's section 15 notice
     const ogl = (await getJSON('https://api.open5e.com/v2/licenses/ogl-10a/')).desc;
     const notices = Object.values(sources).filter((x) => /open gaming/i.test(x.licence) && x.copyright).map((x) => x.copyright);
