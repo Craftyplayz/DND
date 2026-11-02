@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DM screen - Calm</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--sunken:#1b1b1b;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--btn:#2a6e9e;--btn-line:#4a9ad0;--danger:#e0705f;--gold:#e8c35a;--ok:#7ccf6a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif}
+.cap{font-size:12px;color:var(--muted);padding:6px 24px;border-bottom:1px solid var(--line);display:flex;gap:16px}
+.cap b{color:var(--accent);font-weight:600}.cap a{color:var(--accent);margin-left:auto}
+header{display:flex;align-items:center;gap:24px;padding:20px 32px}
+header h1{font-size:20px;font-weight:500;margin:0;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-left:auto}
+.seg button{background:none;border:0;color:var(--muted);padding:8px 18px;font:inherit;cursor:pointer}
+.seg button.on{background:var(--card);color:var(--text)}
+button.p{background:var(--btn);border:1px solid var(--btn-line);color:#fff;border-radius:8px;padding:10px 20px;font:inherit;cursor:pointer}
+button.g{background:none;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+main{display:grid;grid-template-columns:minmax(260px,320px) 1fr;gap:40px;padding:8px 32px 32px;max-width:1700px;margin:0 auto}
+.now small{color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:12px}
+.now h2{font-size:44px;line-height:1.1;margin:4px 0 4px;font-weight:600}
+.now p{color:var(--muted);margin:0 0 20px}
+.order{list-style:none;margin:28px 0 0;padding:0}
+.order li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);color:var(--muted)}
+.order li.cur{color:var(--text);font-size:20px;font-weight:600}
+.order li.cur::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:-20px;margin-right:12px}
+.order .n{flex:1}.order .hp{font-variant-numeric:tabular-nums}
+.order .low{color:var(--gold)}.order .dn{color:var(--danger)}.order li.hid{opacity:.45;font-style:italic}
+.order .tag{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:0 8px}
+.stage{display:flex;flex-direction:column;gap:12px}
+.mapwrap{background:var(--sunken);border-radius:12px;padding:16px}
+svg{width:100%;height:auto;display:block;border-radius:6px}
+.maptools{display:flex;gap:12px;align-items:center;color:var(--muted);font-size:14px}
+.maptools .sp{margin-left:auto}
+.legend{display:flex;gap:18px;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:8px}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:10px 16px;font:inherit;cursor:pointer}
+.tabs button.on{color:var(--text);border-color:var(--accent)}
+.panel{display:none;padding:16px 4px;min-height:190px}.panel.on{display:block}
+.log div{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid var(--line)}
+.log .w{color:var(--muted);width:110px;flex:none}.log .r{margin-left:auto;font-weight:600;font-variant-numeric:tabular-nums}
+.log .secret{color:var(--gold)}.log .whisper{color:#c9a7ff}
+.log .rollbar{border:0}
+.rollbar{display:flex;gap:12px;align-items:center;margin-top:14px}
+.rollbar input{background:var(--sunken);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 12px;font:inherit;width:140px}
+.party{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.party div{background:var(--card);border-radius:10px;padding:14px}
+.party b{display:block;font-size:18px}.bar{height:6px;background:var(--sunken);border-radius:3px;margin:8px 0}.bar i{display:block;height:100%;background:var(--ok);border-radius:3px}
+.party span{color:var(--muted);font-size:13px}
+textarea{width:100%;min-height:130px;background:var(--sunken);border:1px solid var(--line);border-radius:8px;color:var(--text);font:inherit;padding:12px}
+.between{display:none}body.rest .between{display:block}body.rest .combat{display:none}
+.between h2{font-size:44px;margin:4px 0 8px}
+.between ul{list-style:none;padding:0;margin:0}.between li{padding:12px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between}
+@media(max-width:1500px){main{grid-template-columns:260px 1fr;gap:28px}.now h2{font-size:36px}}
+</style></head><body>
+<div class="cap"><span><b>Direction 07: Calm and minimal.</b> Private DM screen. One thing in focus, the rest in tabs.</span><a href="table.html">Open Table view</a></div>
+<header>
+ <h1>The Sunken Chapel</h1>
+ <div class="seg" role="group" aria-label="State"><button id="bC" class="on">In combat</button><button id="bR">Between combats</button></div>
+</header>
+<main>
+ <section>
+  <div class="combat now">
+   <small>Round 2</small>
+   <h2>Torvin</h2>
+   <p>Fighter, 31 of 44 HP</p>
+   <button class="p">Next turn</button>
+   <ul class="order">
+    <li><span class="n">Mira</span><span class="hp">18 / 27</span></li>
+    <li><span class="n">Goblin A</span><span class="hp">7 / 7</span></li>
+    <li class="cur"><span class="n">Torvin</span><span class="hp">31 / 44</span></li>
+    <li><span class="n">Goblin B</span><span class="hp low">3 / 7</span></li>
+    <li><span class="n">Elowen</span><span class="hp low">9 / 21</span></li>
+    <li class="hid"><span class="n">Bugbear</span><span class="tag">hidden</span><span class="hp">27 / 27</span></li>
+    <li><span class="n">Bram</span><span class="hp">24 / 30</span></li>
+    <li><span class="n">Goblin C</span><span class="hp dn">Down</span></li>
+   </ul>
+  </div>
+  <div class="between">
+   <small style="color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-size:12px">No fight running</small>
+   <h2>Resting</h2>
+   <p style="color:var(--muted)">Table view shows the party and the last handout.</p>
+   <button class="p">Start encounter</button>
+   <ul style="margin-top:28px">
+    <li>Mira<span>18 / 27</span></li><li>Torvin<span>31 / 44</span></li><li>Elowen<span>9 / 21</span></li><li>Bram<span>24 / 30</span></li>
+   </ul>
+  </div>
+ </section>
+ <section class="stage">
+  <div class="mapwrap">
+   <svg viewBox="0 0 640 400" aria-label="Battle map">
+    <defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#4a4a4a" stroke-width="1"/></pattern></defs>
+    <rect width="640" height="400" fill="#33302b"/>
+    <rect x="40" y="40" width="360" height="320" fill="#3e3a33"/>
+    <rect x="400" y="120" width="120" height="120" fill="#3a3630"/>
+    <rect width="640" height="400" fill="url(#g)"/>
+    <rect x="400" y="0" width="240" height="400" fill="#000"/>
+    <rect x="400" y="120" width="120" height="120" fill="#000" fill-opacity=".35" stroke="#66c0f4" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="406" y="136" fill="#66c0f4" font-size="11">draft reveal</text>
+    <g opacity=".4"><circle cx="460" cy="180" r="30" fill="#7a4a3a" stroke="#fff" stroke-dasharray="3 3"/><text x="460" y="186" text-anchor="middle" fill="#fff" font-size="16">Bb</text></g>
+    <g font-size="14" text-anchor="middle" fill="#fff">
+     <circle cx="140" cy="180" r="17" fill="#2a6e9e"/><text x="140" y="185">Mi</text>
+     <circle cx="180" cy="260" r="17" fill="#2a6e9e" stroke="#66c0f4" stroke-width="4"/><text x="180" y="265">To</text>
+     <circle cx="100" cy="260" r="17" fill="#2a6e9e"/><text x="100" y="265">El</text>
+     <circle cx="140" cy="300" r="17" fill="#2a6e9e"/><text x="140" y="305">Br</text>
+     <circle cx="300" cy="180" r="17" fill="#8a3a3a"/><text x="300" y="185">Ga</text>
+     <circle cx="340" cy="260" r="17" fill="#8a3a3a"/><text x="340" y="265">Gb</text>
+     <circle cx="300" cy="300" r="17" fill="#8a3a3a" opacity=".4"/><text x="300" y="305" opacity=".6">Gc</text>
+    </g>
+   </svg>
+  </div>
+  <div class="maptools">
+   <button class="g">Reveal</button><button class="g">Hide</button><button class="g">Hide token</button>
+   <span class="legend sp"><span><i style="background:#000;border:1px solid #555"></i>Sent</span><span><i style="border:2px dashed #66c0f4"></i>Draft, not sent</span></span>
+   <button class="p">Send to table</button>
+  </div>
+
+  <div class="tabs" role="tablist">
+   <button class="on" data-t="log">Dice log</button><button data-t="party">Party</button><button data-t="notes">Notes</button>
+  </div>
+  <div class="panel on log" id="log">
+   <div><span class="w">Mira</span>Sneak attack, Goblin C<span class="r">17 hit, 11 dmg</span></div>
+   <div><span class="w">Goblin A</span>Scimitar vs Elowen<span class="r">9 miss</span></div>
+   <div class="secret"><span class="w">DM, hidden</span>Bugbear Perception (players see only "DM rolled")<span class="r">14</span></div>
+   <div class="whisper"><span class="w">Elowen, whisper</span>Do I recognise the sigil on the altar?<span class="r">Arcana 18</span></div>
+   <div><span class="w">Torvin</span>Initiative<span class="r">14</span></div>
+   <div class="rollbar"><input value="1d20+4" aria-label="Roll"><button class="g" id="vis">Roll: public</button><button class="p">Roll</button></div>
+  </div>
+  <div class="panel" id="party"><div class="party">
+   <div><b>Mira</b><div class="bar"><i style="width:67%"></i></div><span>18 / 27 &middot; AC 15 &middot; PP 14</span></div>
+   <div><b>Torvin</b><div class="bar"><i style="width:70%"></i></div><span>31 / 44 &middot; AC 18 &middot; PP 11</span></div>
+   <div><b>Elowen</b><div class="bar"><i style="width:43%;background:var(--gold)"></i></div><span>9 / 21 &middot; AC 12 &middot; PP 13 &middot; Frightened</span></div>
+   <div><b>Bram</b><div class="bar"><i style="width:80%"></i></div><span>24 / 30 &middot; AC 17 &middot; PP 15</span></div>
+  </div></div>
+  <div class="panel" id="notes"><textarea>Bugbear waits behind the pillar. Reveals on round 3 or when the altar is touched. Sigil = Thalos cult. Elowen gets a clue on Arcana 15+.</textarea></div>
+ </section>
+</main>
+<script>
+const b=document.body;
+bC.onclick=()=>{b.classList.remove('rest');bC.classList.add('on');bR.classList.remove('on')};
+bR.onclick=()=>{b.classList.add('rest');bR.classList.add('on');bC.classList.remove('on')};
+document.querySelectorAll('.tabs button').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tabs button,.panel').forEach(e=>e.classList.remove('on'));t.classList.add('on');document.getElementById(t.dataset.t).classList.add('on')});
+vis.onclick=()=>{vis.textContent=vis.textContent.includes('public')?'Roll: hidden':'Roll: public'};
+</script></body></html>

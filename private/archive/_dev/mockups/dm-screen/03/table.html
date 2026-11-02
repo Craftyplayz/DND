@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Table view - Initiative cockpit</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--card2:#323232;--sunken:#1b1b1b;--line:#3d3d3d;--line2:#555;--text:#ececec;--muted:#a5a5a5;--hi:#ffd84a;--danger-bg:#4a2424;--danger-line:#8a3a3a;--info-bg:#24384a;--info-line:#3a628a;--ok-bg:#2d4a24;--ok-line:#4f8a3a;--gold-bg:#4a3d16;--gold-line:#a8862a;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}
+html{font-size:clamp(14px,1.05vw + 4px,24px)}
+body{margin:0;background:var(--bg);color:var(--text);font:1rem/1.35 var(--font);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.cap{font-size:.65rem;color:var(--muted);padding:2px 12px;background:var(--sunken)}
+.order{display:flex;align-items:stretch;gap:.6rem;padding:.7rem 1rem;background:var(--card);border-bottom:2px solid var(--line)}
+.round{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 1rem;border-right:2px solid var(--line);margin-right:.3rem}
+.round span{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}.round b{font:800 2.6rem/1 var(--mono)}
+.t{flex:1;display:flex;flex-direction:column;align-items:center;gap:.2rem;padding:.4rem .2rem;border-radius:12px;border:3px solid transparent;min-width:0;opacity:.85}
+.t .av{width:4.2rem;height:4.2rem;border-radius:50%;display:grid;place-items:center;font:800 1.5rem var(--font);border:4px solid var(--info-line);background:var(--info-bg)}
+.t.m .av{border-color:var(--danger-line);background:var(--danger-bg)}
+.t .nm{font-weight:700;font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.t .st{font-size:.8rem;font-weight:700;padding:1px .55rem;border-radius:99px}
+.st.b{background:var(--gold-bg);border:1px solid var(--gold-line)}.st.h{background:var(--ok-bg);border:1px solid var(--ok-line)}.st.d{background:var(--danger-bg);border:1px solid var(--danger-line)}
+.t.done{opacity:.45}
+.t.now{opacity:1;border-color:var(--hi);background:#3a3418;transform:scale(1.07);box-shadow:0 0 0 4px rgba(255,216,74,.25)}
+.t.now .nm::before{content:"\25B6  ";color:var(--hi)}
+.body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 24rem;gap:.8rem;padding:.8rem}
+.mapbox{background:#000;border-radius:12px;display:grid;place-items:center;overflow:hidden;min-height:0}
+svg{max-width:100%;max-height:100%;display:block}
+.side{display:flex;flex-direction:column;gap:.8rem;min-height:0}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.7rem .8rem;min-height:0}
+.panel h2{margin:0 0 .5rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.pl{display:grid;grid-template-columns:2.6rem 1fr;gap:.6rem;align-items:center;padding:.4rem 0;border-top:1px solid var(--line)}
+.pl:first-of-type{border-top:0}
+.pl .av{width:2.6rem;height:2.6rem;border-radius:50%;display:grid;place-items:center;font-weight:800;border:3px solid var(--info-line);background:var(--info-bg)}
+.pl b{font-size:1.1rem}.cond{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.15rem}
+.cond span{font-size:.75rem;padding:0 .45rem;border-radius:5px;background:var(--btn2,#3a3a3a);border:1px solid var(--line2)}
+.pl.down{background:var(--danger-bg);margin:0 -.8rem;padding:.4rem .8rem;border-color:var(--danger-line)}
+.pl.down .av{border-color:#d05a4a}
+.ticks{font:700 1rem var(--mono);letter-spacing:.1em}
+.log{flex:1;display:flex;flex-direction:column;gap:.35rem;overflow:hidden}
+.le{padding:.35rem .6rem;border-radius:8px;background:var(--card2);border-left:5px solid var(--line2);display:flex;justify-content:space-between;gap:.5rem;align-items:center;font-size:1rem}
+.le b{font:800 1.5rem var(--mono)}
+.le.dm{border-left-color:var(--hi);background:var(--gold-bg)}.le.dm b{font-size:1rem;font-family:var(--font);color:var(--hi)}
+.le.nat{border-left-color:#5fb04a}
+.le small{display:block;color:var(--muted);font-size:.75rem}
+.dice{display:flex;gap:.6rem;justify-content:center;margin-bottom:.4rem}
+.die{width:3.6rem;height:3.6rem;background:linear-gradient(135deg,#5fb04a,#2d6a1f);clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);display:grid;place-items:center;font:800 1.5rem var(--mono);color:#fff}
+</style></head><body>
+<div class="cap">Mockup 03 &middot; Initiative cockpit &middot; PUBLIC Table view (TV / Discord share). Read-only, role = table.</div>
+<div class="order" aria-label="Initiative order">
+ <div class="round"><span>Round</span><b>2</b></div>
+ <div class="t done"><span class="av">Mi</span><span class="nm">Mira</span></div>
+ <div class="t m now"><span class="av">G1</span><span class="nm">Goblin 1</span><span class="st b">Bloodied</span></div>
+ <div class="t"><span class="av">Th</span><span class="nm">Thorin</span></div>
+ <div class="t m"><span class="av">G2</span><span class="nm">Goblin 2</span><span class="st h">Healthy</span></div>
+ <div class="t"><span class="av">Pi</span><span class="nm">Pip</span></div>
+ <div class="t"><span class="av">Se</span><span class="nm">Sera</span><span class="st d">Down</span></div>
+ <div class="t m"><span class="av">G3</span><span class="nm">Goblin 3</span><span class="st b">Bloodied</span></div>
+</div>
+<div class="body">
+ <div class="mapbox"><svg id="map" viewBox="0 0 800 500" role="img" aria-label="Battle map"></svg></div>
+ <div class="side">
+  <div class="panel">
+   <h2>Party</h2>
+   <div class="pl"><span class="av">Mi</span><div><b>Mira</b></div></div>
+   <div class="pl"><span class="av">Th</span><div><b>Thorin</b></div></div>
+   <div class="pl"><span class="av">Pi</span><div><b>Pip</b><div class="cond"><span>Poisoned</span></div></div></div>
+   <div class="pl down"><span class="av">Se</span><div><b>Sera &middot; Down</b><div class="ticks">&#10003;&#10003;&#9675; &nbsp; &#10007;&#9675;&#9675;</div></div></div>
+  </div>
+  <div class="panel" style="flex:1;display:flex;flex-direction:column">
+   <h2>Dice</h2>
+   <div class="dice"><div class="die">20</div></div>
+   <div class="log">
+    <div class="le"><span>Mira<small>Shortbow vs Goblin 3</small></span><b>11</b></div>
+    <div class="le dm"><span>DM rolled<small>Result hidden</small></span><b>?</b></div>
+    <div class="le nat"><span>Thorin<small>Initiative &middot; natural 20</small></span><b>20</b></div>
+    <div class="le"><span>DM<small>Goblin 2 vs Sera</small></span><b>6</b></div>
+   </div>
+  </div>
+ </div>
+</div>
+<script>
+// only sent fog is drawn; fogged squares are solid black, no hidden tokens exist in the data
+const c=50,s=document.getElementById('map');let h='<rect width="800" height="500" fill="#3a352c"/><rect x="300" y="150" width="50" height="100" fill="#5a4a36"/><rect x="450" y="300" width="100" height="50" fill="#5a4a36"/>';
+for(let i=1;i<16;i++)h+='<line x1="'+i*c+'" y1="0" x2="'+i*c+'" y2="500" stroke="#fff" stroke-opacity=".12"/>';
+for(let i=1;i<10;i++)h+='<line x1="0" y1="'+i*c+'" x2="800" y2="'+i*c+'" stroke="#fff" stroke-opacity=".12"/>';
+h+='<g fill="#000"><rect x="500" y="0" width="300" height="500"/><rect x="0" y="0" width="150" height="100"/></g>';
+const tok=(x,y,l,f,st,ex)=>'<g><circle cx="'+(x*c+25)+'" cy="'+(y*c+25)+'" r="21" fill="'+f+'" stroke="'+st+'" stroke-width="4"/><text x="'+(x*c+25)+'" y="'+(y*c+31)+'" text-anchor="middle" font-size="17" font-weight="800" fill="#fff">'+l+'</text></g>';
+const P='#24527a',PS='#66c0f4',M='#7a2a2a',MS='#e07a6a';
+h+=tok(3,4,'Mi',P,PS)+tok(4,6,'Th',P,PS)+tok(2,7,'Pi',P,PS)+tok(5,7,'Se','#555','#d05a4a');
+h+='<circle cx="375" cy="175" r="30" fill="none" stroke="#ffd84a" stroke-width="4"/>'+tok(7,3,'G1',M,'#ffd84a')+tok(8,5,'G2',M,MS)+tok(8,7,'G3',M,MS);
+s.innerHTML=h;
+</script>
+</body></html>

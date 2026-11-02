@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DM screen - Secret vs shown</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--sunken:#1b1b1b;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--btn:#2a6e9e;--btn-line:#4a9ad0;--danger-bg:#4a2424;--danger-line:#8a3a3a;--ok-bg:#2d4a24;--ok-line:#4f8a3a;--gold-bg:#4a3d16;--gold-line:#a8862a;--secret:#c77dff;--secret-bg:#34244a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,sans-serif}
+.cap{font-size:12px;color:var(--muted);padding:4px 12px;border-bottom:1px solid var(--line)}
+.top{display:flex;gap:12px;align-items:center;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top h1{font-size:18px;margin:0}.sp{flex:1}
+button{background:var(--btn);border:1px solid var(--btn-line);color:#fff;border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer}
+button.g{background:var(--sunken);border-color:var(--line);color:var(--text)}
+button.send{background:#2f7a2f;border-color:#58b058;font-weight:700}
+.main{display:grid;grid-template-columns:300px minmax(0,1fr) 380px;gap:10px;padding:10px;align-items:start}
+@media(max-width:1500px){.main{grid-template-columns:260px minmax(0,1fr) 320px}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.sec{border-color:var(--secret);background:linear-gradient(var(--secret-bg),var(--card) 60%)}
+.badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;border-radius:10px;padding:1px 7px;background:var(--secret-bg);color:var(--secret);border:1px solid var(--secret);white-space:nowrap;text-transform:none;letter-spacing:0}
+.badge.pub{background:var(--ok-bg);color:#9fe07f;border-color:var(--ok-line)}
+.badge.draft{background:var(--gold-bg);color:#ffd84a;border-color:var(--gold-line)}
+.row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;border:1px solid transparent}
+.row.cur{border-color:var(--accent);background:#1d3a50}.row.hid{opacity:.8;border:1px dashed var(--secret);background:var(--secret-bg)}
+.ini{width:22px;color:var(--muted);text-align:right}.nm{flex:1}.bar{width:70px;height:8px;background:var(--sunken);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:#5cb85c}.num{font-variant-numeric:tabular-nums;font-size:13px;min-width:48px;text-align:right}
+.st{font-size:12px;border-radius:4px;padding:0 5px;border:1px solid var(--line)}
+.blood{background:var(--gold-bg);border-color:var(--gold-line)}.down{background:var(--danger-bg);border-color:var(--danger-line)}
+.mapwrap svg{width:100%;height:auto;display:block;border-radius:6px;border:1px solid var(--line)}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--muted);margin:6px 0;flex-wrap:wrap}.legend b{display:inline-block;width:12px;height:12px;vertical-align:-2px;margin-right:4px;border-radius:2px}
+.prev{border:2px solid var(--ok-line);border-radius:8px;padding:6px;background:#000}.prev svg{width:100%;height:auto;display:block}
+.log div{padding:4px 6px;border-radius:5px;font-size:13px;margin-bottom:3px}
+.log .h{background:var(--secret-bg);border:1px solid var(--secret)}.log .w{background:var(--secret-bg);border:1px dashed var(--secret)}
+.log .t{color:var(--muted);font-size:11px}
+.pv{font-size:12px;color:var(--muted);margin:4px 0 0}
+.tg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}.tg button{border:0;border-radius:0;background:var(--sunken);color:var(--muted)}.tg button.on{background:var(--secret-bg);color:var(--secret)}.tg button.on.p{background:var(--ok-bg);color:#9fe07f}
+textarea{width:100%;min-height:70px;background:var(--sunken);color:var(--text);border:1px solid var(--secret);border-radius:6px;padding:6px;font:inherit}
+.eye{width:13px;height:13px;vertical-align:-2px}
+</style></head><body>
+<div class="cap">Mockup 08 - direction: <b>Secret vs shown, side by side</b> (violet = only you see it, green = the table sees it, amber = draft not sent yet)</div>
+<div class="top">
+<h1>Goblin Ambush</h1><span class="badge pub">Round 2</span><span>Turn: <b>Mira (Rogue)</b></span>
+<span class="sp"></span>
+<span class="badge draft">Fog: 1 unsent change</span>
+<button class="g">Discard draft</button><button class="send">Send to table</button>
+<button>Next turn</button><button class="g">End session</button>
+</div>
+<div class="main">
+<div>
+<div class="card"><h2>Initiative <span class="badge pub">order shown to table</span></h2>
+<div class="row"><span class="ini">19</span><span class="nm">Brenna (Fighter)</span></div>
+<div class="row cur"><span class="ini">17</span><span class="nm"><b>Mira (Rogue)</b></span></div>
+<div class="row"><span class="ini">14</span><span class="nm">Goblin A</span></div>
+<div class="row"><span class="ini">12</span><span class="nm">Tomas (Wizard)</span></div>
+<div class="row hid"><span class="ini">11</span><span class="nm">Bugbear Chief</span><span class="badge"><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM4 4l16 16"/></svg>hidden</span></div>
+<div class="row"><span class="ini">9</span><span class="nm">Goblin B</span></div>
+<div class="row"><span class="ini">8</span><span class="nm">Goblin C</span></div>
+<div class="row"><span class="ini">6</span><span class="nm">Oriel (Cleric)</span></div>
+</div>
+<div class="card sec"><h2><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM4 4l16 16"/></svg>Monsters - real HP <span class="badge">table sees only the word</span></h2>
+<div class="row"><span class="nm">Goblin A</span><span class="bar"><i style="width:100%"></i></span><span class="num">7/7</span><span class="st">Healthy</span></div>
+<div class="row"><span class="nm">Goblin B</span><span class="bar"><i style="width:43%;background:#d8a21e"></i></span><span class="num">3/7</span><span class="st blood">Bloodied</span></div>
+<div class="row"><span class="nm">Goblin C</span><span class="bar"><i style="width:0"></i></span><span class="num">0/7</span><span class="st down">Down</span></div>
+<div class="row hid"><span class="nm">Bugbear Chief</span><span class="bar"><i style="width:100%"></i></span><span class="num">27/27</span><span class="badge">not on table</span></div>
+</div>
+<div class="card sec"><h2><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM4 4l16 16"/></svg>Party - HP <span class="badge">private</span></h2>
+<div class="row"><span class="nm">Brenna</span><span class="bar"><i style="width:78%"></i></span><span class="num">31/40</span></div>
+<div class="row"><span class="nm">Mira</span><span class="bar"><i style="width:55%;background:#d8a21e"></i></span><span class="num">14/26</span></div>
+<div class="row"><span class="nm">Tomas</span><span class="bar"><i style="width:100%"></i></span><span class="num">19/19</span></div>
+<div class="row"><span class="nm">Oriel</span><span class="bar"><i style="width:15%;background:#c0392b"></i></span><span class="num">4/27</span></div>
+<p class="pv">Table shows portraits, name and conditions only (Oriel: Poisoned).</p></div>
+</div>
+
+<div>
+<div class="card"><h2>Battle map - your working copy <span class="badge draft">draft fog</span></h2>
+<div class="mapwrap" id="dm"></div>
+<div class="legend"><span><b style="background:#000"></b>fogged (table: black)</span><span><b style="border:2px dashed #ffd84a"></b>revealed in draft, not sent</span><span><b style="background:var(--secret-bg);border:1px dashed var(--secret)"></b>hidden token</span></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="g">Reveal squares</button><button class="g">Re-hide squares</button><button class="g">Reveal rectangle</button><button class="g">Hide token</button><button class="g">Grid</button><button class="g">Map: Cave mouth</button></div>
+</div>
+<div class="card sec"><h2><svg class="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6zM4 4l16 16"/></svg>DM notes <span class="badge">never leaves this screen</span></h2>
+<textarea>Bugbear Chief waits behind the east door. Wakes on noise. Loot: 40 gp, map to the mine. Oriel's poison ends round 4.</textarea></div>
+</div>
+
+<div>
+<div class="card" style="border-color:var(--ok-line)"><h2>Table view right now <span class="badge pub">live copy of what the TV shows</span></h2>
+<div class="prev" id="pv"></div>
+<p class="pv">Same data the Table tab gets. The unsent room, the bugbear, HP numbers and whispers are not in it.</p></div>
+<div class="card"><h2>Dice log</h2>
+<div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">Next roll: <span class="tg" id="tg"><button class="on" data-k="h">Hidden</button><button data-k="p">Public</button></span>
+<span class="badge" id="tgb">table sees "DM rolled"</span></div>
+<div class="log">
+<div class="h"><span class="badge">hidden</span> <b>You</b> Bugbear Perception d20+1 = <b>14</b><br><span class="t">table sees: "DM rolled"</span></div>
+<div>Mira Dagger d20+7 = <b>19</b> - hit, 9 dmg <span class="badge pub">public</span></div>
+<div class="w"><span class="badge">whisper</span> <b>Tomas to DM</b>: "I check the door for traps" <span class="t">table sees nothing</span></div>
+<div><b>You</b> Goblin B Shortbow d20+4 = 8 miss <span class="badge pub">public</span></div>
+<div>Brenna Greataxe d12+3 = <b>11</b> <span class="badge pub">public</span></div>
+</div></div>
+</div>
+</div>
+<script>
+const W=16,H=10,S=48;
+function map(mode){
+ const sent=(c,r)=>c<=8&&r>=2, draft=(c,r)=>(c>=9&&c<=12&&r>=1&&r<=6)||sent(c,r);
+ let s=`<svg viewBox="0 0 ${W*S} ${H*S}"><rect width="${W*S}" height="${H*S}" fill="#4b4234"/>`;
+ s+=`<rect y="${S*2}" width="${S*9}" height="${S*8}" fill="#5a5040"/><rect x="${S*9}" y="${S*4}" width="${S*3}" height="${S}" fill="#5a5040"/>`;
+ if(mode=='dm')s+=`<rect x="${S*9}" y="${S}" width="${S*4}" height="${S*6}" fill="#5a5040"/>`;
+ s+=`<g stroke="#0006">`;for(let i=0;i<=W;i++)s+=`<line x1="${i*S}" y1="0" x2="${i*S}" y2="${H*S}"/>`;for(let i=0;i<=H;i++)s+=`<line y1="${i*S}" x2="${W*S}" y2="${i*S}"/>`;s+=`</g>`;
+ for(let c=0;c<W;c++)for(let r=0;r<H;r++){const x=c*S,y=r*S;
+  if(mode=='table'){if(!sent(c,r))s+=`<rect x="${x}" y="${y}" width="${S}" height="${S}" fill="#000"/>`;}
+  else if(!draft(c,r))s+=`<rect x="${x}" y="${y}" width="${S}" height="${S}" fill="#000" opacity=".72"/>`;
+  else if(!sent(c,r))s+=`<rect x="${x+2}" y="${y+2}" width="${S-4}" height="${S-4}" fill="#000" fill-opacity=".25" stroke="#ffd84a" stroke-width="2" stroke-dasharray="5 4"/>`;}
+ const tok=(c,r,t,f,x='')=>`<g ${x}><circle cx="${c*S+S/2}" cy="${r*S+S/2}" r="19" fill="${f}" stroke="#fff" stroke-width="2"/><text x="${c*S+S/2}" y="${r*S+S/2+5}" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">${t}</text></g>`;
+ s+=tok(3,4,'Br','#2a6e9e')+tok(4,5,'Mi','#2a8e5e')+tok(3,6,'To','#7a4eb0')+tok(5,6,'Or','#b0703e')+tok(8,4,'G','#6a9a3a')+tok(7,7,'G','#6a9a3a')+tok(8,8,'G','#555');
+ if(mode=='dm')s+=`<g opacity=".6"><circle cx="${11*S+S/2}" cy="${3*S+S/2}" r="19" fill="#8a4a2a" stroke="#c77dff" stroke-width="3" stroke-dasharray="4 3"/><text x="${11*S+S/2}" y="${3*S+S/2+5}" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">BC</text></g>`;
+ return s+`</svg>`}
+document.getElementById('dm').innerHTML=map('dm');document.getElementById('pv').innerHTML=map('table');
+const tg=document.getElementById('tg'),tb=document.getElementById('tgb');
+tg.onclick=e=>{const k=e.target.dataset.k;if(!k)return;[...tg.children].forEach(b=>{b.className=b.dataset.k==k?'on'+(k=='p'?' p':''):''});
+ tb.textContent=k=='h'?'table sees "DM rolled"':'table sees the result';tb.className='badge'+(k=='p'?' pub':'')};
+</script></body></html>

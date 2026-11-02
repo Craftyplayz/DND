@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DM screen - Cinematic TV control room</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--card2:#323232;--sunken:#1b1b1b;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--accent-soft:#1d3a50;--btn:#2a6e9e;--btn-line:#4a9ad0;--btn2:#3a3a3a;--highlight:#ffd84a;--danger:#e0584f;--danger-bg:#4a2424;--ok-bg:#2d4a24;--ok-line:#4f8a3a;--gold-bg:#4a3d16;--gold-line:#a8862a;--r:8px;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,Consolas,monospace}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.4 var(--font);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.cap{background:#111;color:var(--muted);font-size:12px;padding:3px 10px}
+button{font:inherit;color:var(--text);background:var(--btn2);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+button:hover{background:#474747}
+button.pri{background:var(--btn);border-color:var(--btn-line);font-weight:700}
+.bar{display:flex;align-items:center;gap:12px;padding:6px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+.bar h1{font-size:16px}.bar .sp{flex:1}
+.live{display:flex;align-items:center;gap:6px;color:#ff8f87;font-weight:800;font-size:12px;letter-spacing:.1em}
+.live i{width:9px;height:9px;border-radius:50%;background:var(--danger);animation:b 1.2s infinite}@keyframes b{50%{opacity:.2}}
+main{flex:1;min-height:0;display:grid;grid-template-columns:300px minmax(0,1fr) 320px;gap:10px;padding:10px}
+.col{display:flex;flex-direction:column;gap:10px;min-height:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;min-height:0}
+.card h2{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
+.scroll{overflow:auto;flex:1}
+.ini{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;border:1px solid transparent}
+.ini.now{background:var(--gold-bg);border-color:var(--gold-line)}
+.ini .n{width:22px;text-align:right;color:var(--muted);font-family:var(--mono)}
+.ini .nm{flex:1}.ini .nm small{color:var(--muted);display:block;font-size:11px}
+.hp{font-family:var(--mono);font-size:12px}
+.bar2{height:5px;border-radius:3px;background:var(--sunken);overflow:hidden;margin-top:3px}.bar2 i{display:block;height:100%;background:#5cb85c}
+.bar2 i.lo{background:#d9a441}.bar2 i.z{background:var(--danger)}
+.pill{font-size:10px;padding:1px 6px;border-radius:9px;background:var(--accent-soft);color:#bfe3fb}
+.pill.warn{background:var(--danger-bg);color:#ff9d96}.pill.dm{background:#3a2a55;color:#d3b8ff}
+.ini.hid{opacity:.5;border:1px dashed #888}
+.tv{font-size:10px;color:var(--muted)}
+/* map */
+.mapwrap{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+.tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tools .seg button.on{background:var(--btn);border-color:var(--btn-line)}
+.map{flex:1;min-height:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:#000}
+.map svg{width:100%;height:100%;display:block}
+.send{display:flex;align-items:center;gap:10px;background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:var(--r);padding:6px 10px}
+.send b{color:var(--highlight)}
+.send button{margin-left:auto;font-size:15px;padding:7px 18px}
+.legend{display:flex;gap:12px;font-size:11px;color:var(--muted)}
+.legend span:before{content:"";display:inline-block;width:10px;height:10px;margin-right:4px;vertical-align:-1px;border:1px solid #888}
+.l1:before{background:#000}.l2:before{background:repeating-linear-gradient(45deg,#66c0f4 0 2px,#000 2px 4px)}.l3:before{border-style:dashed!important}
+/* preview */
+.prev{position:relative;aspect-ratio:16/9;background:#0d0f11;border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:9px}
+.prev .tt{position:absolute;top:0;left:0;right:0;height:18%;display:flex;gap:4px;align-items:center;padding:0 6px;background:#1d2630}
+.prev .tt i{width:14px;height:14px;border-radius:50%;background:#555;display:inline-block}.prev .tt i.n{background:var(--highlight);transform:scale(1.4)}
+.prev .mm{position:absolute;top:18%;bottom:0;left:0;width:72%;background:#2a2620}.prev .mm:after{content:"";position:absolute;inset:0 0 0 62%;background:#000}
+.prev .rr{position:absolute;top:18%;right:0;bottom:0;width:28%;padding:4px;color:var(--muted)}
+.mode{display:flex;gap:4px;margin-top:6px}.mode button{flex:1;font-size:12px;padding:3px}
+/* log */
+.ent{padding:3px 0;border-bottom:1px solid #ffffff10;font-size:13px;display:flex;gap:6px}
+.ent .w{font-weight:700;min-width:58px}.ent .t{margin-left:auto;font-family:var(--mono);font-weight:700}
+.ent.hid{background:#3a2a5522;border-left:3px solid #9b6bff;padding-left:6px}
+.ent.wh{background:#4a3d1622;border-left:3px solid var(--gold-line);padding-left:6px}
+.tag{font-size:10px;padding:0 5px;border-radius:8px;white-space:nowrap}
+.tag.h{background:#3a2a55;color:#d3b8ff}.tag.w{background:var(--gold-bg);color:var(--highlight)}
+.tray{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.tray button{padding:3px 7px;font-family:var(--mono);font-size:12px}
+.tog{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
+.tog button{flex:1;border:0;border-radius:0}.tog button.on{background:#3a2a55;color:#d3b8ff;font-weight:700}.tog button.on.pub{background:var(--ok-bg);color:#b8f0a0}
+textarea{width:100%;flex:1;min-height:60px;background:var(--sunken);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px;font:13px var(--font);resize:none}
+.priv{color:#d3b8ff;font-size:10px;text-transform:none;letter-spacing:0}
+</style></head><body>
+<div class="cap">Direction 09: Cinematic TV | DM screen (private control room for the broadcast)</div>
+<div class="bar">
+ <h1>The Ashen Road</h1><span class="pill">Session 12</span>
+ <div class="live"><i></i> TABLE VIEW LIVE</div>
+ <span class="sp"></span>
+ <button class="pri" onclick="this.textContent='Turn banner played'">Next turn: Gob B &#9654;</button>
+ <button>End fight</button><button>End session</button>
+</div>
+<main>
+ <div class="col">
+  <div class="card" style="flex:1;display:flex;flex-direction:column">
+   <h2>Initiative <span>Round 2</span></h2>
+   <div class="scroll">
+    <div class="ini"><span class="n">21</span><div class="nm">Kesh <small>Rogue, AC 15</small><div class="bar2"><i class="z" style="width:0"></i></div></div><div><span class="pill warn">Down</span> <span class="hp">0/27</span></div></div>
+    <div class="ini"><span class="n">18</span><div class="nm">Goblin A <small>AC 15</small><div class="bar2"><i class="lo" style="width:43%"></i></div></div><div><span class="tv">TV: Bloodied</span><br><span class="hp">3/7</span></div></div>
+    <div class="ini now"><span class="n">16</span><div class="nm">Brannoc <small>Fighter, AC 18</small><div class="bar2"><i style="width:79%"></i></div></div><div><span class="pill">Frightened</span><br><span class="hp">34/43</span></div></div>
+    <div class="ini"><span class="n">14</span><div class="nm">Goblin B <small>AC 15</small><div class="bar2"><i style="width:100%"></i></div></div><div><span class="tv">TV: Healthy</span><br><span class="hp">7/7</span></div></div>
+    <div class="ini"><span class="n">12</span><div class="nm">Sera <small>Cleric, AC 17</small><div class="bar2"><i style="width:90%"></i></div></div><div><span class="hp">26/29</span></div></div>
+    <div class="ini"><span class="n">9</span><div class="nm">Goblin C <small>AC 15</small><div class="bar2"><i class="z" style="width:0"></i></div></div><div><span class="tv">TV: Down</span><br><span class="hp">0/7</span></div></div>
+    <div class="ini"><span class="n">8</span><div class="nm">Ilyra <small>Wizard, AC 12</small><div class="bar2"><i class="lo" style="width:48%"></i></div></div><div><span class="pill">Concentrating</span><br><span class="hp">11/23</span></div></div>
+    <div class="ini hid"><span class="n">7</span><div class="nm">Bugbear <small>HIDDEN, not on TV</small><div class="bar2"><i style="width:100%"></i></div></div><div><span class="pill dm">Hidden</span><br><span class="hp">27/27</span></div></div>
+   </div>
+   <div style="display:flex;gap:6px;margin-top:6px"><button style="flex:1">&minus; Damage</button><button style="flex:1">+ Heal</button><button style="flex:1">+ Add</button></div>
+  </div>
+ </div>
+
+ <div class="col">
+  <div class="mapwrap">
+   <div class="tools">
+    <span class="seg" style="display:flex;gap:2px"><button class="on" onclick="seg(this)">Reveal</button><button onclick="seg(this)">Hide</button><button onclick="seg(this)">Move token</button></span>
+    <button>Grid</button><button>Upload map</button><button>Hide token</button>
+    <span class="legend" style="margin-left:auto"><span class="l1">Fog sent</span><span class="l2">Draft reveal</span><span class="l3">Hidden token</span></span>
+   </div>
+   <div class="map"><svg id="map" viewBox="0 0 640 400" preserveAspectRatio="xMidYMid meet"></svg></div>
+   <div class="send"><div>Draft fog differs from the table: <b>12 squares</b> revealed that players cannot see yet.</div><button class="pri" onclick="this.textContent='Sent to table'">Send to table</button><button>Discard draft</button></div>
+  </div>
+ </div>
+
+ <div class="col">
+  <div class="card">
+   <h2>On the TV <span class="priv">players see this</span></h2>
+   <div class="prev"><div class="tt"><i></i><i></i><i class="n"></i><i></i><i></i><i></i></div><div class="mm"></div><div class="rr">Brannoc<br>Goblin A Bloodied<br>Goblin B Healthy</div></div>
+   <div class="mode"><button>Combat</button><button>Idle screen</button><button>Handout</button></div>
+  </div>
+  <div class="card" style="flex:1;display:flex;flex-direction:column">
+   <h2>Dice log <span class="priv">DM sees all</span></h2>
+   <div class="scroll">
+    <div class="ent"><span class="w">Brannoc</span>Longsword attack<span class="t">19 = 25</span></div>
+    <div class="ent wh"><span class="w">Ilyra</span><span class="tag w">Whisper to DM</span>Insight<span class="t">17</span></div>
+    <div class="ent"><span class="w">Kesh</span>Death save<span class="t" style="color:var(--highlight)">NAT 1</span></div>
+    <div class="ent hid"><span class="w">DM</span><span class="tag h">Hidden</span>Bugbear Stealth<span class="t">22</span></div>
+    <div class="ent"><span class="w">Ilyra</span>Fire Bolt attack<span class="t">17</span></div>
+   </div>
+   <div class="tray"><button>d4</button><button>d6</button><button>d8</button><button>d10</button><button>d12</button><button>d20</button><button>d100</button></div>
+   <div class="tog"><button class="on" onclick="t(this,1)">Hidden</button><button class="pub" onclick="t(this,0)">Public</button></div>
+  </div>
+  <div class="card" style="height:130px;display:flex;flex-direction:column">
+   <h2>DM notes <span class="priv">never on the TV</span></h2>
+   <textarea>Bugbear ambushes from the east door when Sera passes the pillar. Kesh needs a stabilising hit before round 4.</textarea>
+  </div>
+ </div>
+</main>
+<script>
+function seg(b){[].forEach.call(b.parentNode.children,function(x){x.classList.remove('on')});b.classList.add('on')}
+function t(b,h){[].forEach.call(b.parentNode.children,function(x){x.classList.remove('on')});b.classList.add('on')}
+var C=40,s='<defs><pattern id="fl" width="40" height="40" patternUnits="userSpaceOnUse"><rect width="40" height="40" fill="#4a4036"/><rect x="1" y="1" width="38" height="38" fill="#544a3e" opacity=".7"/></pattern><pattern id="dr" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#000" opacity=".55"/><rect width="3" height="8" fill="#66c0f4" opacity=".5"/></pattern></defs><rect width="640" height="400" fill="url(#fl)"/>';
+s+='<rect x="240" y="40" width="80" height="40" fill="#3b2a1c" stroke="#1b120a" stroke-width="3"/><circle cx="200" cy="320" r="16" fill="#3a3a3a"/><circle cx="360" cy="120" r="16" fill="#3a3a3a"/><rect x="560" y="160" width="40" height="80" fill="#6a3a22"/>';
+for(var i=0;i<=16;i++)s+='<line x1="'+i*C+'" y1="0" x2="'+i*C+'" y2="400" stroke="#0005"/>';
+for(i=0;i<=10;i++)s+='<line x1="0" y1="'+i*C+'" x2="640" y2="'+i*C+'" stroke="#0005"/>';
+s+='<rect x="520" y="0" width="120" height="400" fill="#000"/><rect x="400" y="0" width="120" height="400" fill="url(#dr)"/><rect x="400" y="0" width="120" height="400" fill="none" stroke="#66c0f4" stroke-width="2" stroke-dasharray="6 4"/>';
+[["B",2,3,"#b5482e","pc"],["S",2,5,"#2e8a6e","pc"],["K",1,4,"#7a5bb5","pcd"],["I",1,6,"#3b6fb5","pc"],["G",5,3,"#4f7a2a","m"],["G",6,5,"#4f7a2a","m"],["G",4,6,"#4f7a2a","md"],["B",11,4,"#6b3a2a","h"]].forEach(function(t){var cx=t[1]*C+20,cy=t[2]*C+20;s+='<g opacity="'+(t[4]=='md'?.4:t[4]=='h'?.5:1)+'"><circle cx="'+cx+'" cy="'+cy+'" r="18" fill="'+t[3]+'" stroke="'+(t[4]=='h'?'#fff':t[4][0]=='m'?'#e0584f':'#66c0f4')+'" stroke-width="3" '+(t[4]=='h'?'stroke-dasharray="4 3"':'')+'/><text x="'+cx+'" y="'+(cy+6)+'" text-anchor="middle" font-size="17" font-weight="900" fill="#fff">'+t[0]+'</text></g>'});
+s+='<circle cx="100" cy="140" r="23" fill="none" stroke="#ffd84a" stroke-width="3"/>';
+document.getElementById('map').innerHTML=s;
+</script></body></html>

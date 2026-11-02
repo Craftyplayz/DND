@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battle Map (Mira)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="battle.css">
+<style>body:not([data-view=dm]) { grid-template-rows: 1fr; } .top { display: none; }</style>
+</head>
+<body data-view="player" data-me="mira">
+<div class="main">
+  <section class="stage">
+    <div class="viewport"><div class="map"></div></div>
+    <div class="strip"></div>
+    <div class="rail"></div>
+    <div class="who">Playing as <b>Mira</b>. Drag your own token, point, ping, measure, draw.</div>
+    <div class="controls">
+      <div class="pill">
+        <button class="iconbtn" data-zoom="out" title="Zoom out"><svg class="icon"><use href="#i-minus"/></svg></button>
+        <span class="pct">100%</span>
+        <button class="iconbtn" data-zoom="in" title="Zoom in"><svg class="icon"><use href="#i-plus"/></svg></button>
+      </div>
+      <div class="pill">
+        <button class="iconbtn" data-zoom="fit" title="Fit map to screen"><svg class="icon"><use href="#i-fit"/></svg></button>
+        <button class="iconbtn" data-act="fullscreen" title="Full screen"><svg class="icon"><use href="#i-full"/></svg></button>
+      </div>
+    </div>
+  </section>
+</div>
+<script src="battle.js"></script>
+</body>
+</html>

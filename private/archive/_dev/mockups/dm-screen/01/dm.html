@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DM screen (private)</title>
+<link rel="stylesheet" href="../../../../assets/css/global.css">
+<link rel="stylesheet" href="../../../../assets/css/components.css">
+<style>
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 var(--font);display:flex;flex-direction:column;overflow:hidden}
+.cap{padding:3px 12px;background:var(--gold-bg);border-bottom:1px solid var(--gold-line);font-size:12px}
+.top{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+.top h1{margin:0;font-size:18px}
+.top .sp{flex:1}
+.priv{background:var(--danger-bg);border:1px solid var(--danger-line);padding:2px 9px;border-radius:999px;font-size:12px}
+.main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(260px,22%) 1fr minmax(300px,25%);gap:12px;padding:12px}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
+.card{padding:12px}
+.card.fill{flex:1;min-height:0;overflow:auto}
+.card h2{font-size:16px;margin:0 0 8px}
+.init .rowi{padding:5px 8px;font-size:13px}
+.init .rowi.now{background:var(--accent-soft);outline:1px solid var(--btn-line)}
+.init .rowi.hid{opacity:.55;border:1px dashed var(--line-strong)}
+.init .num{width:24px;font-weight:700;text-align:right}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.pc{background:var(--series-1)}.mon{background:var(--danger-line)}
+.hp{height:8px;background:var(--sunken);border-radius:4px;overflow:hidden;min-width:60px}
+.hp i{display:block;height:100%;background:var(--ok-line)}
+.hp.mid i{background:var(--gold-line)}.hp.low i{background:var(--danger-line)}
+.party{display:grid;gap:6px}
+.p{padding:6px 8px;background:var(--card2);border-radius:var(--radius);font-size:13px}
+.p .l1{display:flex;justify-content:space-between;gap:8px}
+.p small{color:var(--muted)}
+.mapcard{display:flex;flex-direction:column;flex:1;min-height:0}
+.tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.stage{flex:1;min-height:0;background:var(--sunken);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.stage svg{width:100%;height:100%;display:block}
+.send{display:flex;align-items:center;gap:10px;margin-top:8px;padding:8px 10px;background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:var(--radius)}
+.send span{flex:1;font-size:13px}
+.log{display:grid;gap:5px;font-size:13px}
+.log div{padding:5px 8px;background:var(--card2);border-radius:var(--radius)}
+.log .hidr{border-left:3px solid var(--danger-line);background:var(--danger-bg)}
+.log .wh{border-left:3px solid #6c4b8f;background:#3d2a4f}
+.log .pub{border-left:3px solid var(--series-1)}
+.log b.t{float:right;color:var(--muted);font-weight:400;font-size:12px}
+.nat{color:var(--highlight);font-weight:700}
+.tray{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:var(--radius);overflow:hidden}
+.seg button{padding:6px 12px;background:var(--btn2);border:0;color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+.seg button.on{background:var(--accent-soft);box-shadow:inset 0 -2px var(--accent)}
+.seg button+button{border-left:1px solid var(--line-strong)}
+textarea.field{min-height:70px;width:100%;box-sizing:border-box}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+@media(max-width:1100px){body{overflow:auto}.main{grid-template-columns:1fr}}
+</style></head><body>
+<div class="cap">Designer 01: Faithful baseline. Three-column dashboard: order and party | map | log and notes. DM-only view.</div>
+<header class="top">
+  <h1>Lost Mine of Phandelver</h1>
+  <span class="badge g">Session 7 running</span>
+  <span class="badge b">Round 2</span>
+  <span class="priv">Private: players never see this screen</span>
+  <span class="sp"></span>
+  <button class="btn small">Add monster</button>
+  <button class="btn small">Start session</button>
+  <button class="btn small">End session</button>
+  <button class="btn primary">Next turn</button>
+</header>
+<div class="main">
+ <div class="col">
+  <section class="card init"><h2>Initiative <span class="n">Round 2</span></h2>
+   <div class="rows">
+    <div class="rowi"><span class="num">19</span><span class="dot pc"></span><span class="grow">Lyra</span><small>done</small></div>
+    <div class="rowi"><span class="num">17</span><span class="dot mon"></span><span class="grow">Goblin A</span><small>7/7</small></div>
+    <div class="rowi now"><span class="num">15</span><span class="dot pc"></span><span class="grow"><b>Thorin</b></span><small>turn</small></div>
+    <div class="rowi"><span class="num">12</span><span class="dot mon"></span><span class="grow">Goblin B</span><small>3/7</small></div>
+    <div class="rowi"><span class="num">11</span><span class="dot pc"></span><span class="grow">Ash</span></div>
+    <div class="rowi"><span class="num">8</span><span class="dot mon"></span><span class="grow">Goblin C</span><small>0/7 down</small></div>
+    <div class="rowi"><span class="num">7</span><span class="dot pc"></span><span class="grow">Pip</span></div>
+    <div class="rowi hid"><span class="num">6</span><span class="dot mon"></span><span class="grow">Bugbear <span class="badge r">Hidden</span></span><small>27/27</small></div>
+   </div>
+   <p class="muted" style="font-size:12px;margin:8px 0 0">The hidden bugbear is left out of the order players see.</p>
+  </section>
+  <section class="card fill"><h2>Party <span class="n">private HP</span></h2>
+   <div class="party">
+    <div class="p"><div class="l1"><b>Thorin</b><span>31/44 &middot; AC 18</span></div><div class="hp"><i style="width:70%"></i></div><small>PP 12</small></div>
+    <div class="p"><div class="l1"><b>Lyra</b><span>18/27 &middot; AC 13</span></div><div class="hp mid"><i style="width:66%"></i></div><small>PP 15 &middot; Concentrating (Bless) &middot; Slots 1st 2/4, 2nd 1/2</small></div>
+    <div class="p"><div class="l1"><b>Ash</b><span>24/30 &middot; AC 15</span></div><div class="hp"><i style="width:80%"></i></div><small>PP 14 &middot; <span class="badge p">Poisoned</span></small></div>
+    <div class="p"><div class="l1"><b>Pip</b><span>0/21 &middot; AC 14</span></div><div class="hp low"><i style="width:0"></i></div><small>PP 11 &middot; <span class="badge r">Down</span> Death saves: 1 pass, 1 fail</small></div>
+   </div>
+  </section>
+ </div>
+
+ <div class="col">
+  <section class="card mapcard"><h2>Battle map: Cragmaw hideout, cave 2</h2>
+   <div class="tools">
+    <div class="seg"><button class="on">Reveal</button><button>Re-hide</button><button>Move token</button></div>
+    <button class="btn small">Square</button><button class="btn small">Rectangle</button>
+    <button class="btn small">Upload map</button><button class="btn small">Fit grid</button>
+    <span class="badge">5 ft / square</span>
+   </div>
+   <div class="stage">
+   <svg viewBox="0 0 720 480" preserveAspectRatio="xMidYMid meet">
+    <defs>
+     <pattern id="h" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="rgb(102 192 244 / .12)"/><line x1="0" y1="0" x2="0" y2="8" stroke="rgb(102 192 244 / .55)" stroke-width="2"/></pattern>
+     <pattern id="g" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M60 0H0V60" fill="none" stroke="rgb(255 255 255 / .12)" stroke-width="1"/></pattern>
+    </defs>
+    <rect width="720" height="480" fill="#3a3326"/>
+    <path d="M0 60H420V420H0Z M420 120H600V360H420Z" fill="#4a4233"/>
+    <rect x="120" y="240" width="60" height="60" fill="#2e281d"/>
+    <rect width="720" height="480" fill="url(#g)"/>
+    <path fill-rule="evenodd" d="M0 0H720V480H0Z M0 60H420V420H0Z" fill="rgb(0 0 0 / .72)"/>
+    <rect x="420" y="120" width="180" height="240" fill="url(#h)" stroke="#66c0f4" stroke-width="3" stroke-dasharray="8 5"/>
+    <text x="510" y="112" text-anchor="middle" fill="#66c0f4" font-size="14" font-weight="700">DRAFT: not sent</text>
+    <text x="210" y="46" text-anchor="middle" fill="#fff" font-size="13" opacity=".7">SENT FOG (players see this)</text>
+    <g font-size="18" font-weight="700" text-anchor="middle" fill="#fff">
+     <circle cx="90" cy="210" r="25" fill="#3987e5" stroke="#fff" stroke-width="3"/><text x="90" y="216">T</text>
+     <circle cx="150" cy="270" r="25" fill="#3987e5"/><text x="150" y="276">L</text>
+     <circle cx="90" cy="330" r="25" fill="#3987e5"/><text x="90" y="336">P</text><path d="M72 312l36 36M108 312l-36 36" stroke="#fff" stroke-width="3"/>
+     <circle cx="210" cy="330" r="25" fill="#3987e5"/><text x="210" y="336">A</text>
+     <circle cx="270" cy="150" r="25" fill="#8a3a3a"/><text x="270" y="156">G1</text>
+     <circle cx="330" cy="210" r="25" fill="#8a3a3a"/><text x="330" y="216">G2</text>
+     <circle cx="330" cy="330" r="25" fill="#8a3a3a" opacity=".45"/><text x="330" y="336" opacity=".6">G3</text>
+     <g opacity=".5"><circle cx="510" cy="210" r="25" fill="#8a3a3a" stroke="#fff" stroke-width="2" stroke-dasharray="5 4"/><text x="510" y="216">B</text></g>
+    </g>
+    <text x="510" y="252" text-anchor="middle" fill="#fff" font-size="12" opacity=".85">hidden bugbear</text>
+   </svg></div>
+   <div class="legend"><span>Tokens: blue = party, red = monsters, faded dashed = hidden (DM only), crossed = down.</span><span>Hatched blue = draft fog change.</span></div>
+   <div class="send"><span><b>1 draft change</b> (room east of the cave). Players and the Table view still see the last sent fog.</span><button class="btn small">Discard draft</button><button class="btn primary">Send to table</button></div>
+  </section>
+ </div>
+
+ <div class="col">
+  <section class="card fill"><h2>Dice log <span class="n">session 7</span></h2>
+   <div class="log">
+    <div class="pub"><b class="t">21:14</b><b>Thorin</b> Greataxe attack: 17 + 6 = <b>23</b></div>
+    <div class="pub"><b class="t">21:14</b><b>Thorin</b> Damage 2d12+4 = <b>19</b></div>
+    <div class="hidr"><b class="t">21:15</b><b>DM</b> Perception for bugbear: 3 + 1 = <b>4</b> <span class="badge r">Hidden</span></div>
+    <div class="wh"><b class="t">21:16</b><b>Pip</b> to DM: "Can I slip a note to the goblin?" <span class="badge p">Whisper</span></div>
+    <div class="pub"><b class="t">21:17</b><b>Lyra</b> Sacred Flame, DEX save: <span class="nat">NAT 20</span></div>
+    <div class="pub"><b class="t">21:18</b><b>Ash</b> Initiative: 4 + 7 = <b>11</b></div>
+    <div class="pub"><b class="t">21:19</b><b>Goblin A</b> Scimitar: <b>1</b> <span class="nat">NAT 1</span></div>
+   </div>
+  </section>
+  <section class="card"><h2>Roll as DM</h2>
+   <div class="tray">
+    <div class="seg" id="vis"><button class="on" data-v="pub">Public</button><button data-v="hid">Hidden</button></div>
+    <button class="btn small">d20</button><button class="btn small">d12</button><button class="btn small">d8</button><button class="btn small">d6</button><button class="btn small">d4</button>
+   </div>
+   <p class="muted" id="visnote" style="font-size:12px;margin:8px 0 0">Public: everyone sees the result.</p>
+  </section>
+  <section class="card"><h2>DM notes <span class="n">only you</span></h2>
+   <label class="form" style="display:block"><textarea class="field">Bugbear ambushes on round 3 if the noise carries. Goblin C carries the key. Pip needs a healing word.</textarea></label>
+  </section>
+ </div>
+</div>
+<script>
+document.querySelectorAll('.seg').forEach(function(s){s.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;s.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b)});
+if(s.id==='vis')document.getElementById('visnote').textContent=b.dataset.v==='hid'?'Hidden: players see only "DM rolled".':'Public: everyone sees the result.'})});
+</script>
+</body></html>

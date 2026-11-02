@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Table view - Cinematic TV</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--accent-soft:#1d3a50;--highlight:#ffd84a;--danger:#e0584f;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,Consolas,monospace}
+*{box-sizing:border-box;margin:0}
+html{font-size:calc(min(100vw,177.78vh)/120)}
+body{background:#000;color:var(--text);font:600 1.3rem/1.2 var(--font);height:100vh;overflow:hidden;display:grid;place-items:center}
+.cap{position:fixed;top:0;left:0;z-index:50;background:#000b;font:12px var(--font);color:var(--muted);padding:4px 10px;border-radius:0 0 8px 0;display:flex;gap:10px;align-items:center}
+.cap button{font:12px var(--font);background:#3a3a3a;color:var(--text);border:1px solid #555;border-radius:6px;padding:2px 8px;cursor:pointer}
+.stage{width:120rem;height:67.5rem;position:relative;overflow:hidden;background:radial-gradient(120% 90% at 50% 0,#26303a 0,#16191d 60%,#0d0f11);display:grid;grid-template-rows:9.5rem minmax(0,1fr) 9rem;grid-template-columns:minmax(0,1fr) 31rem;gap:1.2rem;padding:1.2rem 1.6rem}
+.stage:after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 12rem #000c}
+.top{grid-column:1/3;display:flex;align-items:center;gap:1.6rem}
+.round{background:linear-gradient(#ffd84a,#c99a10);color:#1b1500;border-radius:.8rem;padding:.6rem 1.6rem;text-align:center;font-weight:900;letter-spacing:.12em;text-transform:uppercase;font-size:1rem;box-shadow:0 0 2.5rem #ffd84a55}
+.round b{display:block;font-size:4.2rem;line-height:1;letter-spacing:0}
+.order{display:flex;gap:.9rem;align-items:center;flex:1;padding:0 .5rem}
+.chip{position:relative;display:flex;flex-direction:column;align-items:center;gap:.3rem;opacity:.75;transition:.4s}
+.av{width:5rem;height:5rem;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:1.9rem;color:#fff;border:.25rem solid #0008;background:var(--c)}
+.chip.pc .av{border-color:var(--accent)}.chip.mon .av{border-color:#c4584f}
+.chip small{font-size:1.05rem;color:var(--muted);font-weight:700}
+.chip.now{opacity:1;transform:scale(1.35);margin:0 1.4rem;animation:glow 2.4s ease-in-out infinite}
+.chip.now .av{border-color:var(--highlight)}.chip.now small{color:var(--highlight)}
+.chip.dead .av{filter:grayscale(1) brightness(.5)}
+.chip.dead:after{content:"\2715";position:absolute;top:.6rem;left:50%;transform:translateX(-50%);font-size:2.4rem;color:var(--danger)}
+@keyframes glow{50%{filter:drop-shadow(0 0 1.4rem var(--highlight))}}
+.next{font-size:1.1rem;color:var(--muted);text-transform:uppercase;letter-spacing:.2em}
+.map{position:relative;border-radius:1rem;overflow:hidden;border:.2rem solid #fff1;box-shadow:0 1rem 4rem #000a;background:#0a0a0a}
+.map svg{width:100%;height:100%;display:block}
+.turnring{animation:ring 1.6s ease-out infinite;transform-origin:center;transform-box:fill-box}
+@keyframes ring{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(1.9)}}
+.side{display:flex;flex-direction:column;gap:.8rem;min-height:0}
+.side h3{font-size:.95rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);font-weight:800}
+.row{display:flex;align-items:center;gap:1rem;background:#ffffff0d;border:1px solid #ffffff14;border-radius:.8rem;padding:.55rem .9rem}
+.row .av{width:3.6rem;height:3.6rem;font-size:1.4rem;flex:none}
+.row .n{font-size:1.65rem;font-weight:800;flex:1}
+.row .n small{display:block;font-size:.95rem;color:var(--muted);font-weight:600}
+.cond{font-size:.95rem;background:var(--accent-soft);border-radius:.4rem;padding:.1rem .5rem;color:#bfe3fb}
+.st{font-weight:900;font-size:1.25rem;padding:.2rem .8rem;border-radius:2rem;text-transform:uppercase;letter-spacing:.06em}
+.st.h{background:#1f4d1a;color:#a6f08c}.st.b{background:#5a3a0c;color:#ffc25e}.st.d{background:#4a2424;color:#ff8f87}
+.row.pcdown{border-color:var(--danger);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{background:#e0584f33}}
+.ticks{letter-spacing:.2em;color:#ff8f87}
+.bottom{grid-column:1/3;display:grid;grid-template-columns:minmax(0,1fr) 36rem;gap:1.2rem;min-height:0}
+.log{background:#0008;border-radius:1rem;padding:.8rem 1.4rem;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:.3rem;border:1px solid #ffffff14}
+.ent{font-size:1.4rem;display:flex;gap:1rem;align-items:baseline}
+.ent .w{color:var(--accent);font-weight:800;min-width:9rem}.ent .t{margin-left:auto;font-family:var(--mono);font-weight:900;font-size:1.6rem}
+.ent.old{opacity:.5;font-size:1.15rem}.ent.dm .w{color:#c49bff}.ent.dm .t{color:#c49bff;font-family:var(--font);font-style:italic}
+.nat{color:var(--highlight)}
+.dice{position:relative;border-radius:1rem;background:linear-gradient(135deg,#1d3a50,#10202c);border:.15rem solid var(--accent);display:flex;align-items:center;gap:1.4rem;padding:0 1.6rem;overflow:hidden}
+.dice .who{font-size:1.1rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.dice .what{font-size:1.5rem;font-weight:800}
+.die{width:6.4rem;height:6.4rem;flex:none;position:relative;display:grid;place-items:center;animation:tumble 5s cubic-bezier(.2,.8,.2,1) infinite}
+.die svg{position:absolute;inset:0;width:100%;height:100%}.die b{position:relative;font-size:2.7rem;font-weight:900;color:#1b1500}
+.tot{margin-left:auto;font-size:4rem;font-weight:900;color:var(--highlight);animation:pop 5s infinite;text-shadow:0 0 1.5rem #ffd84a88}
+@keyframes tumble{0%{transform:translateY(-8rem) rotate(-540deg) scale(.4);opacity:0}12%{opacity:1}22%{transform:none}92%{opacity:1}100%{opacity:0}}
+@keyframes pop{0%,20%{opacity:0;transform:scale(.3)}30%{opacity:1;transform:scale(1.3)}38%,92%{opacity:1;transform:scale(1)}100%{opacity:0}}
+.banner{position:absolute;left:0;right:0;top:50%;height:15rem;margin-top:-7.5rem;z-index:20;pointer-events:none;display:flex;align-items:center;justify-content:center;gap:3rem;background:linear-gradient(90deg,#0000,#0a1a26ee 18%,#0a1a26ee 82%,#0000);border-block:.25rem solid var(--highlight);transform:translateX(-110%);animation:sweep 16s ease-in-out infinite}
+.banner.go{animation:sweep 5s ease-in-out 1}
+.banner .av{width:9rem;height:9rem;font-size:3.6rem;border-color:var(--highlight)}
+.banner small{display:block;color:var(--highlight);letter-spacing:.4em;font-size:1.4rem;text-transform:uppercase}
+.banner h2{font-size:7rem;font-weight:900;line-height:1;text-transform:uppercase;letter-spacing:.04em;text-shadow:0 .3rem 2rem #000}
+.banner em{font-style:normal;font-size:1.5rem;color:var(--muted)}
+@keyframes sweep{0%{transform:translateX(-110%);opacity:1}8%,26%{transform:none}34%{transform:translateX(110%)}100%{transform:translateX(110%);opacity:0}}
+.idle{position:absolute;inset:0;z-index:40;background:radial-gradient(90% 80% at 50% 30%,#2b3a4a,#0d1015);display:none;flex-direction:column;align-items:center;justify-content:center;gap:2rem;text-align:center}
+body.isidle .idle{display:flex}
+.idle small{letter-spacing:.5em;color:var(--accent);font-size:1.4rem;text-transform:uppercase}
+.idle h1{font-size:8rem;font-weight:900;letter-spacing:.03em;line-height:1;text-shadow:0 0 4rem #66c0f466}
+.idle .sub{font-size:2rem;color:var(--muted)}
+.idle .party{display:flex;gap:3rem}
+.idle .party div{text-align:center;font-size:1.8rem;font-weight:800;animation:float 6s ease-in-out infinite}
+.idle .party div:nth-child(2){animation-delay:-1.5s}.idle .party div:nth-child(3){animation-delay:-3s}.idle .party div:nth-child(4){animation-delay:-4.5s}
+.idle .party .av{width:11rem;height:11rem;font-size:4.4rem;margin:0 auto .6rem;box-shadow:0 0 3rem #0008}
+.idle .party span{display:block;font-size:1.1rem;color:var(--muted);font-weight:600}
+@keyframes float{50%{transform:translateY(-1rem)}}
+.hand{background:#f1e4c0;color:#3a2a10;font-family:Georgia,serif;padding:1.2rem 2.4rem;transform:rotate(-1.5deg);box-shadow:0 1rem 3rem #000a;border-radius:.3rem;font-size:1.6rem;max-width:44rem;text-align:left;font-weight:400}
+.hand b{display:block;font-size:.95rem;letter-spacing:.25em;text-transform:uppercase;color:#8a6a2a;margin-bottom:.3rem;font-family:var(--font)}
+.idle .dl{display:flex;gap:2rem;justify-content:center;font-size:1.3rem;color:var(--muted)}
+</style></head><body>
+<div class="cap">Direction 09: Cinematic TV | Table view (public, read-only)
+<button onclick="document.body.classList.toggle('isidle')">Toggle between-combats screen</button>
+<button onclick="var b=document.querySelector('.banner');b.classList.remove('go');void b.offsetWidth;b.classList.add('go')">Replay turn banner</button></div>
+
+<div class="stage">
+ <div class="top">
+  <div class="round">Round<b>2</b></div>
+  <div class="order" id="order"></div>
+  <div class="next">Turn: Brannoc</div>
+ </div>
+
+ <div class="map"><svg id="map" viewBox="0 0 640 400" preserveAspectRatio="xMidYMid slice"></svg></div>
+
+ <div class="side">
+  <h3>The party</h3>
+  <div class="row"><div class="av" style="--c:#b5482e">B</div><div class="n">Brannoc<small>Fighter</small></div><span class="cond">Frightened</span></div>
+  <div class="row"><div class="av" style="--c:#2e8a6e">S</div><div class="n">Sera<small>Cleric</small></div></div>
+  <div class="row pcdown"><div class="av" style="--c:#7a5bb5">K</div><div class="n">Kesh<small>Rogue</small></div><span class="st d">Down</span><span class="ticks">&#9679;&#9675;&#9675;</span></div>
+  <div class="row"><div class="av" style="--c:#3b6fb5">I</div><div class="n">Ilyra<small>Wizard</small></div><span class="cond">Concentrating</span></div>
+  <h3 style="margin-top:.6rem">The enemy</h3>
+  <div class="row"><div class="av" style="--c:#4f7a2a">G</div><div class="n">Goblin A</div><span class="st b">Bloodied</span></div>
+  <div class="row"><div class="av" style="--c:#4f7a2a">G</div><div class="n">Goblin B</div><span class="st h">Healthy</span></div>
+  <div class="row"><div class="av" style="--c:#4f7a2a;filter:grayscale(1)">G</div><div class="n">Goblin C</div><span class="st d">Down</span></div>
+ </div>
+
+ <div class="bottom">
+  <div class="log">
+   <div class="ent old"><span class="w">Ilyra</span> Fire Bolt, attack <span class="t">17</span></div>
+   <div class="ent dm"><span class="w">DM</span> rolled <span class="t">a hidden roll</span></div>
+   <div class="ent"><span class="w">Kesh</span> Death save <span class="t nat">Natural 1</span></div>
+   <div class="ent"><span class="w">Brannoc</span> Longsword, attack <span class="t">19</span></div>
+  </div>
+  <div class="dice">
+   <div class="die"><svg viewBox="0 0 100 100"><polygon points="50,3 93,28 93,72 50,97 7,72 7,28" fill="#ffd84a" stroke="#fff6" stroke-width="3"/><polyline points="50,3 50,40 93,72 M50,40 7,72 M7,28 50,40 93,28" fill="none" stroke="#8a6a00" stroke-width="2"/></svg><b>19</b></div>
+   <div><div class="who">Brannoc rolls</div><div class="what">Longsword, d20 + 6</div></div>
+   <div class="tot">25</div>
+  </div>
+ </div>
+
+ <div class="banner"><div class="av" style="--c:#b5482e">B</div><div><small>Round 2 &middot; Your turn</small><h2>Brannoc</h2></div><em>Up next: Goblin B</em></div>
+
+ <div class="idle">
+  <small>Between battles</small>
+  <h1>The Ashen Road</h1>
+  <div class="sub">Session 12 &middot; The goblins are dealt with, the road north is open</div>
+  <div class="party"><div><div class="av" style="--c:#b5482e">B</div>Brannoc<span>Fighter</span></div><div><div class="av" style="--c:#2e8a6e">S</div>Sera<span>Cleric</span></div><div><div class="av" style="--c:#7a5bb5">K</div>Kesh<span>Rogue</span></div><div><div class="av" style="--c:#3b6fb5">I</div>Ilyra<span>Wizard</span></div></div>
+  <div class="hand"><b>Last handout</b>"Travellers beware: the bridge at Karn is out. Take the old mill path, and pay no toll to the masked ones."</div>
+  <div class="dl"><span>Ilyra: Arcana 22</span><span>Sera: Medicine 14</span><span>DM rolled</span></div>
+ </div>
+</div>
+
+<script>
+// Only what a "table" socket receives: no hidden token, no draft fog, no HP numbers.
+var C=40,s='<defs><pattern id="fl" width="40" height="40" patternUnits="userSpaceOnUse"><rect width="40" height="40" fill="#4a4036"/><rect x="1" y="1" width="38" height="38" fill="#544a3e" opacity=".7"/></pattern><radialGradient id="lt"><stop offset="0" stop-color="#ffb347" stop-opacity=".5"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient></defs><rect width="640" height="400" fill="url(#fl)"/>';
+s+='<rect x="240" y="40" width="80" height="40" fill="#3b2a1c" stroke="#1b120a" stroke-width="3"/><circle cx="200" cy="320" r="16" fill="#3a3a3a"/><circle cx="360" cy="120" r="16" fill="#3a3a3a"/><circle cx="260" cy="200" r="90" fill="url(#lt)"/>';
+for(var i=0;i<=16;i++)s+='<line x1="'+i*C+'" y1="0" x2="'+i*C+'" y2="400" stroke="#0005"/>';
+for(i=0;i<=10;i++)s+='<line x1="0" y1="'+i*C+'" x2="640" y2="'+i*C+'" stroke="#0005"/>';
+s+='<rect x="400" y="0" width="240" height="400" fill="#000"/>';
+[["B",2,3,"#b5482e","pc"],["S",2,5,"#2e8a6e","pc"],["K",1,4,"#7a5bb5","pcd"],["I",1,6,"#3b6fb5","pc"],["G",5,3,"#4f7a2a","m"],["G",6,5,"#4f7a2a","m"],["G",4,6,"#4f7a2a","md"]].forEach(function(t){var cx=t[1]*C+20,cy=t[2]*C+20;s+='<g opacity="'+(t[4]=='md'?.4:1)+'">'+(t[4]=='pcd'?'<circle cx="'+cx+'" cy="'+cy+'" r="22" fill="none" stroke="#e0584f" stroke-width="3" stroke-dasharray="4 3"/>':'')+'<circle cx="'+cx+'" cy="'+cy+'" r="18" fill="'+t[3]+'" stroke="'+(t[4][0]=='m'?'#e0584f':'#66c0f4')+'" stroke-width="3"/><text x="'+cx+'" y="'+(cy+6)+'" text-anchor="middle" font-size="17" font-weight="900" fill="#fff">'+t[0]+'</text></g>'});
+s+='<circle class="turnring" cx="100" cy="140" r="20" fill="none" stroke="#ffd84a" stroke-width="4"/>';
+document.getElementById('map').innerHTML=s;
+var ord=[["K","Kesh","#7a5bb5","pc dead"],["G","Gob A","#4f7a2a","mon"],["B","Brannoc","#b5482e","pc now"],["G","Gob B","#4f7a2a","mon"],["S","Sera","#2e8a6e","pc"],["G","Gob C","#4f7a2a","mon dead"],["I","Ilyra","#3b6fb5","pc"]];
+document.getElementById('order').innerHTML=ord.map(function(o){return '<div class="chip '+o[3]+'"><div class="av" style="--c:'+o[2]+'">'+o[0]+'</div><small>'+o[1]+'</small></div>'}).join('');
+</script></body></html>

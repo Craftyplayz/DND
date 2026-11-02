@@ -1,0 +1,109 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DM Screen - Combatant cards</title>
+<link rel="stylesheet" href="/assets/css/global.css"><link rel="stylesheet" href="/assets/css/components.css">
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--card2:#323232;--sunken:#1b1b1b;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--danger:#4a2424;--dl:#8a3a3a;--ok:#4f8a3a;--gold:#ffd84a;--r:8px;--lift:0 12px 28px rgb(0 0 0/.55)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,"Segoe UI",sans-serif}
+.cap{background:#111;color:var(--muted);font-size:12px;padding:4px 16px;border-bottom:1px solid var(--line)}
+.top{display:flex;gap:12px;align-items:center;padding:8px 16px;background:var(--card);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top h1{font-size:17px;margin:0}.rd{font-weight:700;color:var(--gold)}
+.btn{background:#3a3a3a;color:var(--text);border:1px solid #555;border-radius:6px;padding:5px 11px;font:inherit;cursor:pointer}
+.btn:hover{background:#474747}.btn.p{background:#2a6e9e;border-color:#4a9ad0}.btn.p:hover{background:#327bb0}.sp{margin-left:auto}
+.badge{background:var(--danger);border:1px solid var(--dl);border-radius:20px;padding:1px 9px;font-size:12px}
+.wrap{display:grid;grid-template-columns:1fr 340px;gap:12px;padding:12px 16px}
+.hand{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-top:14px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:8px;position:relative;display:grid;gap:5px;transition:.18s}
+.c.act{transform:translateY(-12px) scale(1.03);border-color:var(--gold);box-shadow:var(--lift),0 0 0 2px rgb(255 216 74/.35);z-index:2;background:var(--card2)}
+.c.hid{opacity:.55;border-style:dashed}.c.dead{filter:grayscale(1);opacity:.5}
+.row{display:flex;gap:8px;align-items:center}.por{width:42px;height:42px;border-radius:8px;display:grid;place-items:center;font-weight:700;font-size:16px;flex:none}
+.pc .por{background:#1d3a50;border:1px solid #3a628a}.mo .por{background:#4a2424;border:1px solid var(--dl)}
+.nm{font-weight:700;line-height:1.2}.sub{color:var(--muted);font-size:12px}
+.init{margin-left:auto;font:700 12px ui-monospace,Consolas,monospace;background:var(--sunken);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.ac{font-size:12px;border:1px solid #555;border-radius:50% 50% 50% 50%/10% 10% 60% 60%;padding:1px 7px;background:var(--sunken)}
+.bar{height:10px;background:var(--sunken);border:1px solid var(--line);border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+.bar.mid i{background:#c98500}.bar.low i{background:#c0453a}
+.hp{display:flex;align-items:center;gap:4px}.hp b{font-size:18px;min-width:70px}.hp small{color:var(--muted);font-weight:400;font-size:12px}
+.q{width:26px;height:26px;padding:0;border-radius:5px;font-weight:700}.q.m{background:#4a2424;border-color:var(--dl)}.q.a{background:#2d4a24;border-color:var(--ok)}
+.tags{display:flex;gap:4px;flex-wrap:wrap;min-height:20px}.t{font-size:11px;padding:0 6px;border-radius:10px;background:var(--sunken);border:1px solid #555}
+.t.conc{background:#24384a;border-color:#3a628a}.t.dn{background:var(--danger);border-color:var(--dl)}
+.hidtag{position:absolute;top:-9px;right:8px;background:var(--gold);color:#222;font-size:11px;font-weight:700;padding:0 7px;border-radius:10px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:14px 0 4px}
+.map{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:8px;margin-top:14px}
+.map svg{width:100%;height:auto;display:block;border-radius:6px;background:#15201a}
+.leg{display:flex;gap:14px;font-size:12px;color:var(--muted);padding-top:6px;flex-wrap:wrap}
+.side>section{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:10px;margin-bottom:10px}
+.side h2{margin-top:0}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:13px}
+.log li{padding:5px 8px;border-radius:6px;background:var(--sunken);border-left:3px solid #555}
+.log .h{border-left-color:var(--gold);background:#2a2614}.log .w{border-left-color:#9085e9;background:#26233a}
+.log b.n{font:700 15px ui-monospace,Consolas,monospace;color:var(--accent)}.log small{color:var(--muted)}
+textarea{width:100%;min-height:78px;background:var(--sunken);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit}
+.seg{display:inline-flex;border:1px solid #555;border-radius:6px;overflow:hidden}.seg button{border:0;background:#3a3a3a;color:var(--text);padding:4px 10px;cursor:pointer;font:inherit}.seg button.on{background:#2a6e9e}
+.seg button.on.hi{background:#8a6a10}
+</style></head><body>
+<div class="cap">Mockup 06 of 10 - Direction: Combatant cards (private DM screen)</div>
+<div class="top">
+<h1>Goblin Ambush</h1><span class="rd">Round 2</span><span class="badge">Turn: Brindle (Rogue)</span>
+<button class="btn">&laquo; Prev</button><button class="btn p">Next turn &raquo;</button>
+<button class="btn">+ Add creature</button>
+<span class="sp badge" style="background:var(--sunken);border-color:#555">Table view: connected</span>
+</div>
+<div class="wrap"><main>
+<h2 style="margin-top:6px">Party</h2>
+<div class="hand pc" id="pcs"></div>
+<h2>Monsters</h2>
+<div class="hand mo" id="mos"></div>
+<div class="map"><div class="row" style="margin-bottom:6px;flex-wrap:wrap">
+<b>Cellar of the Rusty Flagon</b><span class="badge" style="background:#4a3d16;border-color:#a8862a">Draft fog differs from table</span>
+<span class="sp row"><button class="btn">Reveal</button><button class="btn">Re-hide</button><button class="btn">Grid</button>
+<button class="btn p">Send to table</button></span></div>
+<svg viewBox="0 0 480 280" id="map"></svg>
+<div class="leg"><span>Black = fog the table sees</span><span style="color:#ffd84a">Gold hatched = draft reveal, not sent</span><span>Faded dashed = hidden token</span></div></div>
+</main>
+<aside class="side">
+<section><h2>Dice log</h2>
+<div class="row" style="margin-bottom:8px;flex-wrap:wrap"><span class="sub">My next roll:</span>
+<span class="seg" id="vis"><button class="on" data-v="pub">Public</button><button data-v="hid">Hidden</button></span>
+<button class="btn p">d20</button></div>
+<ul class="log">
+<li class="h"><small>Hidden (table sees "DM rolled")</small><br>Bugbear Perception <b class="n">17</b> vs Lyra Stealth</li>
+<li class="w"><small>Whisper from Tamsin</small><br>"I pocket the key before anyone looks."</li>
+<li><small>Brindle</small> Shortsword attack <b class="n">19</b> hits &middot; dmg <b class="n">7</b></li>
+<li><small>Goblin B</small> Scimitar vs Orsk <b class="n">11</b> miss</li>
+<li><small>Orsk</small> Greataxe <b class="n">23</b> crit &middot; dmg <b class="n">16</b></li>
+<li><small>Lyra</small> Initiative <b class="n">15</b></li></ul></section>
+<section><h2>DM notes (private)</h2><textarea>Bugbear waits behind the barrels until Lyra opens the north door. Goblin C flees at 3 HP. Key under the stove opens the vault.</textarea></section>
+<section><h2>Only the DM sees</h2><div class="sub">Party HP, monster HP numbers, hidden rolls, whispers, the hidden token, draft fog.</div></section>
+</aside></div>
+<script>
+const pc=[
+["Brindle","BR","Halfling Rogue",16,"18 / 24",75,"",["Hidden"],0,19,1,0],
+["Orsk","OR","Half-orc Barbarian",15,"31 / 52",60,"mid",["Raging","Resist: B/P/S"],0,17,0,0],
+["Lyra","LY","Elf Wizard",12,"9 / 21",43,"low",["Concentrating: Web"],1,15,0,0],
+["Tamsin","TA","Human Cleric",18,"28 / 28",100,"",["Blessed"],0,9,0,0]];
+const mo=[
+["Goblin A","GA","Small humanoid",15,"7 / 7",100,"",[],0,14,0,0],
+["Goblin B","GB","Small humanoid",15,"3 / 7",43,"low",["Prone"],0,12,0,0],
+["Goblin C","GC","Small humanoid",15,"0 / 7",0,"low",["Down"],0,8,0,2],
+["Bugbear","BU","Medium humanoid",16,"27 / 27",100,"",["Surprise round"],0,6,0,1]];
+const card=c=>`<div class="c ${c[10]?'act':''} ${c[11]==1?'hid':''} ${c[11]==2?'dead':''}">
+${c[11]==1?'<span class="hidtag">HIDDEN from table</span>':''}
+<div class="row"><div class="por">${c[1]}</div><div><div class="nm">${c[0]}</div><div class="sub">${c[2]}</div></div><span class="init">${c[9]}</span></div>
+<div class="row"><span class="ac">AC ${c[3]}</span><div class="bar ${c[6]}" style="flex:1"><i style="width:${c[5]}%"></i></div></div>
+<div class="hp"><b>${c[4].split(' / ')[0]}<small> / ${c[4].split(' / ')[1]}</small></b><span style="margin-left:auto" class="row">
+<button class="btn q m">-5</button><button class="btn q m">-1</button><button class="btn q a">+1</button></span></div>
+<div class="tags">${c[7].map(t=>`<span class="t ${t.startsWith('Conc')?'conc':t=='Down'?'dn':''}">${t}</span>`).join('')}</div></div>`;
+pc[0][10]=1;
+pcs.innerHTML=pc.map(card).join("");mos.innerHTML=mo.map(card).join("");
+let s='<defs><pattern id="h" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="8" fill="#ffd84a" opacity=".5"/></pattern></defs><rect width="480" height="280" fill="#22301f"/><rect x="40" y="40" width="200" height="120" fill="#33402c"/><rect x="280" y="80" width="120" height="160" fill="#3a3326"/>';
+for(let i=0;i<=12;i++)s+=`<line x1="${i*40}" y1="0" x2="${i*40}" y2="280" stroke="#000" stroke-opacity=".3"/>`;
+for(let j=0;j<=7;j++)s+=`<line x1="0" y1="${j*40}" x2="480" y2="${j*40}" stroke="#000" stroke-opacity=".3"/>`;
+s+='<g fill="#000" opacity=".78"><rect x="240" y="0" width="240" height="280"/><rect x="0" y="200" width="240" height="80"/></g>';
+s+='<rect x="240" y="80" width="80" height="120" fill="url(#h)" stroke="#ffd84a" stroke-dasharray="5 3" stroke-width="2"/>';
+const tk=(x,y,t,col,ex='')=>`<g ${ex}><circle cx="${x}" cy="${y}" r="16" fill="${col}" stroke="#fff" stroke-width="2"/><text x="${x}" y="${y+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${t}</text></g>`;
+s+=tk(100,100,"BR","#2a6e9e",'stroke="#ffd84a"')+tk(140,60,"OR","#2a6e9e")+tk(60,140,"LY","#2a6e9e")+tk(100,60,"TA","#2a6e9e")
++tk(180,100,"GA","#8a3a3a")+tk(180,140,"GB","#8a3a3a")+tk(220,60,"GC","#555",'opacity=".5"')
++tk(300,140,"BU","#8a3a3a",'opacity=".5"');
+map.innerHTML=s;
+vis.onclick=e=>{if(!e.target.dataset.v)return;[...vis.children].forEach(b=>b.className='');e.target.className='on'+(e.target.dataset.v=='hid'?' hi':'')};
+</script></body></html>

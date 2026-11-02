@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Table View - Combatant cards</title>
+<link rel="stylesheet" href="/assets/css/global.css"><link rel="stylesheet" href="/assets/css/components.css">
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--card2:#323232;--sunken:#1b1b1b;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--gold:#ffd84a;--u:clamp(10px,1.05vw,20px)}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font:calc(var(--u)*1.25)/1.3 system-ui,"Segoe UI",sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.cap{background:#111;color:var(--muted);font-size:12px;padding:3px 16px}
+.order{display:flex;gap:calc(var(--u)*.7);align-items:center;padding:calc(var(--u)*.8) calc(var(--u)*1.2);background:var(--card);border-bottom:2px solid var(--line)}
+.rd{font-size:calc(var(--u)*2);font-weight:800;color:var(--gold);margin-right:calc(var(--u)*1)}.rd small{display:block;font-size:calc(var(--u)*.9);color:var(--muted);font-weight:400}
+.o{display:grid;justify-items:center;gap:2px;opacity:.75;font-size:calc(var(--u)*.95)}
+.o i{width:calc(var(--u)*3.6);height:calc(var(--u)*3.6);border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:calc(var(--u)*1.3);border:3px solid #3a628a;background:#1d3a50}
+.o.m i{background:#4a2424;border-color:#8a3a3a}.o.now{opacity:1;transform:translateY(-4px) scale(1.25);margin:0 calc(var(--u)*.8)}
+.o.now i{border-color:var(--gold);box-shadow:0 0 0 4px rgb(255 216 74/.35),0 12px 28px #000}.o.dn{opacity:.35}
+.main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 31%;gap:calc(var(--u)*.8);padding:calc(var(--u)*.8)}
+.map{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:calc(var(--u)*.5);min-height:0;display:flex}
+.map svg{width:100%;height:100%;border-radius:8px}
+.col{display:flex;flex-direction:column;gap:calc(var(--u)*.6);min-height:0}
+.hand{display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--u)*.6)}
+.c{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:calc(var(--u)*.6);display:flex;gap:calc(var(--u)*.6);align-items:center}
+.c.act{border-color:var(--gold);transform:translateY(-6px) scale(1.04);background:var(--card2);box-shadow:0 12px 28px rgb(0 0 0/.55),0 0 0 4px rgb(255 216 74/.3)}
+.c .por{width:calc(var(--u)*3.2);height:calc(var(--u)*3.2);border-radius:10px;display:grid;place-items:center;font-weight:800;background:#1d3a50;border:2px solid #3a628a;flex:none}
+.mo .por{background:#4a2424;border-color:#8a3a3a}
+.nm{font-weight:800;font-size:calc(var(--u)*1.25)}.st{font-size:calc(var(--u)*1)}
+.hl{color:#7fd35a;font-weight:800}.bl{color:#ffb347;font-weight:800}.dn{color:#ff7b72;font-weight:800}
+.t{display:inline-block;font-size:calc(var(--u)*.85);padding:0 .5em;border-radius:1em;background:var(--sunken);border:1px solid #555;margin-right:3px}
+.sec{font-size:calc(var(--u)*.85);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.dice{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:calc(var(--u)*.6);flex:1;min-height:0;overflow:hidden;display:grid;align-content:start;gap:calc(var(--u)*.35)}
+.big{display:flex;align-items:center;gap:calc(var(--u)*.8);background:var(--sunken);border-radius:10px;padding:calc(var(--u)*.4) calc(var(--u)*.7)}
+.die{width:calc(var(--u)*4);height:calc(var(--u)*4);display:grid;place-items:center;background:#2a6e9e;border:2px solid #66c0f4;border-radius:12px;transform:rotate(8deg);font-weight:800;font-size:calc(var(--u)*2);flex:none}
+.die.q{background:#4a3d16;border-color:#a8862a}
+.l{padding:calc(var(--u)*.25) calc(var(--u)*.6);border-radius:8px;background:var(--sunken);font-size:calc(var(--u)*1.05)}.l b{color:var(--accent)}
+</style></head><body>
+<div class="cap">Mockup 06 of 10 - Direction: Combatant cards (public Table view, read-only)</div>
+<div class="order"><div class="rd">Round 2<small>Goblin Ambush</small></div>
+<div class="o"><i>OR</i>Orsk</div><div class="o now"><i>BR</i>Brindle</div><div class="o"><i>LY</i>Lyra</div><div class="o m"><i>GA</i>Goblin A</div>
+<div class="o m"><i>GB</i>Goblin B</div><div class="o"><i>TA</i>Tamsin</div><div class="o m dn"><i>GC</i>Goblin C</div></div>
+<div class="main">
+<div class="map"><svg id="map" viewBox="0 0 480 280" preserveAspectRatio="xMidYMid meet"></svg></div>
+<div class="col">
+<div class="sec">Party</div>
+<div class="hand">
+<div class="c act"><div class="por">BR</div><div><div class="nm">Brindle</div><div class="st">Their turn</div></div></div>
+<div class="c"><div class="por">OR</div><div><div class="nm">Orsk</div><div class="st"><span class="t">Raging</span></div></div></div>
+<div class="c"><div class="por">LY</div><div><div class="nm">Lyra</div><div class="st"><span class="t">Concentrating</span></div></div></div>
+<div class="c"><div class="por">TA</div><div><div class="nm">Tamsin</div><div class="st"><span class="t">Blessed</span></div></div></div></div>
+<div class="sec">Enemies</div>
+<div class="hand mo">
+<div class="c"><div class="por">GA</div><div><div class="nm">Goblin A</div><div class="st hl">Healthy</div></div></div>
+<div class="c"><div class="por">GB</div><div><div class="nm">Goblin B</div><div class="st bl">Bloodied</div><span class="t">Prone</span></div></div>
+<div class="c" style="opacity:.5"><div class="por">GC</div><div><div class="nm">Goblin C</div><div class="st dn">Down</div></div></div></div>
+<div class="sec">Dice</div>
+<div class="dice">
+<div class="big"><div class="die">19</div><div><b>Brindle</b><br>Shortsword attack</div></div>
+<div class="big"><div class="die q">?</div><div><b>DM rolled</b></div></div>
+<div class="l"><b>Orsk</b> Greataxe 23 - critical hit</div>
+<div class="l"><b>Goblin B</b> Scimitar 11</div></div>
+</div></div>
+<script>
+let s='<rect width="480" height="280" fill="#22301f"/><rect x="40" y="40" width="200" height="120" fill="#33402c"/><rect x="280" y="80" width="120" height="160" fill="#3a3326"/>';
+for(let i=0;i<=12;i++)s+=`<line x1="${i*40}" y1="0" x2="${i*40}" y2="280" stroke="#000" stroke-opacity=".3"/>`;
+for(let j=0;j<=7;j++)s+=`<line x1="0" y1="${j*40}" x2="480" y2="${j*40}" stroke="#000" stroke-opacity=".3"/>`;
+const tk=(x,y,t,c,e='')=>`<g ${e}><circle cx="${x}" cy="${y}" r="16" fill="${c}" stroke="#fff" stroke-width="2"/><text x="${x}" y="${y+4}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${t}</text></g>`;
+s+=tk(100,100,"BR","#2a6e9e",'stroke="#ffd84a"')+tk(140,60,"OR","#2a6e9e")+tk(60,140,"LY","#2a6e9e")+tk(100,60,"TA","#2a6e9e")+tk(180,100,"GA","#8a3a3a")+tk(180,140,"GB","#8a3a3a")+tk(220,60,"GC","#555",'opacity=".5"');
+s+='<g fill="#000"><rect x="240" y="0" width="240" height="280"/><rect x="0" y="200" width="240" height="80"/></g>';
+map.innerHTML=s;
+</script></body></html>

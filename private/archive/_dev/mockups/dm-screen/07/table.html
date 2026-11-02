@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Table view - Calm</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--sunken:#1b1b1b;--line:#3d3d3d;--text:#ececec;--muted:#a8a8a8;--accent:#66c0f4;--gold:#e8c35a;--danger:#e0705f;--ok:#7ccf6a}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:clamp(18px,1.5vw,28px)/1.4 system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.cap{font-size:12px;color:var(--muted);padding:4px 20px;border-bottom:1px solid var(--line);display:flex}
+.cap b{color:var(--accent)}.cap button{margin-left:auto;background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;cursor:pointer}
+.top{display:flex;align-items:center;gap:2vw;padding:1.4vh 2.5vw}
+.round{font-size:clamp(20px,2vw,38px);color:var(--muted);white-space:nowrap}
+.round b{color:var(--text);font-size:1.5em}
+.ini{display:flex;gap:1.2vw;flex:1}
+.ini div{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--muted);font-size:.8em}
+.ini i{width:clamp(48px,5.2vw,100px);aspect-ratio:1;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:600;font-size:1.3em;color:#fff;background:#2a6e9e}
+.ini .m i{background:#8a3a3a}.ini .dn{opacity:.35}
+.ini .cur{color:var(--text);font-size:1em;font-weight:600}.ini .cur i{outline:5px solid var(--accent);outline-offset:3px;transform:scale(1.15)}
+.body{flex:1;display:grid;grid-template-columns:1fr minmax(320px,26vw);gap:2.5vw;padding:0 2.5vw 2vh;min-height:0}
+.map{background:var(--sunken);border-radius:16px;padding:1.2vw;min-height:0;display:flex}
+svg{width:100%;height:100%;display:block}
+aside{display:flex;flex-direction:column;gap:2vh;min-height:0}
+h3{margin:0 0 .5vh;font-size:.7em;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;align-items:center;gap:.8vw;padding:.9vh 0;border-top:1px solid var(--line)}
+.row .n{flex:1}
+.st{font-weight:600}.st.h{color:var(--ok)}.st.b{color:var(--gold)}.st.d{color:var(--danger)}
+.cond{font-size:.7em;color:var(--muted)}
+.log{margin-top:auto}
+.log div{display:flex;padding:.7vh 0;border-top:1px solid var(--line)}
+.log .r{margin-left:auto;font-weight:700;font-size:1.2em;font-variant-numeric:tabular-nums}
+.log .dm{color:var(--gold)}
+.log .big{border:0;gap:1vw;align-items:center;margin-bottom:1vh}
+.die{width:clamp(56px,5vw,96px);aspect-ratio:1;background:#e9e4d6;color:#222;display:grid;place-items:center;font-weight:800;font-size:2em;border-radius:14px;transform:rotate(8deg)}
+.rest{display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:4vh;text-align:center}
+.rest h1{font-size:clamp(40px,5vw,96px);font-weight:600;margin:0}
+.rest .ps{display:flex;gap:4vw}.rest .ps div{display:flex;flex-direction:column;align-items:center;gap:1vh;font-size:1.3em}
+.rest .ps i{width:clamp(90px,10vw,200px);aspect-ratio:1;border-radius:50%;background:#2a6e9e;display:grid;place-items:center;font-style:normal;font-size:2.4em;font-weight:600;color:#fff}
+body.rested .top,body.rested .body{display:none}body.rested .rest{display:flex}
+</style></head><body>
+<div class="cap"><span><b>Direction 07: Calm and minimal.</b> Public Table view (TV / Discord). Read-only, sent fog only.</span><button onclick="document.body.classList.toggle('rested')">Preview: between combats</button></div>
+<div class="top">
+ <div class="round">Round <b>2</b></div>
+ <div class="ini">
+  <div><i>Mi</i>Mira</div>
+  <div class="m"><i>Ga</i>Goblin</div>
+  <div class="cur"><i>To</i>Torvin</div>
+  <div class="m"><i>Gb</i>Goblin</div>
+  <div><i>El</i>Elowen</div>
+  <div><i>Br</i>Bram</div>
+  <div class="m dn"><i>Gc</i>Goblin</div>
+ </div>
+</div>
+<div class="body">
+ <div class="map">
+  <svg viewBox="0 0 640 400" aria-label="Battle map">
+   <defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#4a4a4a"/></pattern></defs>
+   <rect width="640" height="400" fill="#33302b"/>
+   <rect x="40" y="40" width="360" height="320" fill="#3e3a33"/>
+   <rect width="640" height="400" fill="url(#g)"/>
+   <rect x="400" y="0" width="240" height="400" fill="#000"/>
+   <g font-size="15" text-anchor="middle" fill="#fff">
+    <circle cx="140" cy="180" r="18" fill="#2a6e9e"/><text x="140" y="185">Mi</text>
+    <circle cx="180" cy="260" r="18" fill="#2a6e9e" stroke="#66c0f4" stroke-width="4"/><text x="180" y="265">To</text>
+    <circle cx="100" cy="260" r="18" fill="#2a6e9e"/><text x="100" y="265">El</text>
+    <circle cx="140" cy="300" r="18" fill="#2a6e9e"/><text x="140" y="305">Br</text>
+    <circle cx="300" cy="180" r="18" fill="#8a3a3a"/><text x="300" y="185">Ga</text>
+    <circle cx="340" cy="260" r="18" fill="#8a3a3a"/><text x="340" y="265">Gb</text>
+    <circle cx="300" cy="300" r="18" fill="#8a3a3a" opacity=".35"/><text x="300" y="305" opacity=".5">Gc</text>
+   </g>
+  </svg>
+ </div>
+ <aside>
+  <div>
+   <h3>Monsters</h3>
+   <div class="row"><span class="n">Goblin A</span><span class="st h">Healthy</span></div>
+   <div class="row"><span class="n">Goblin B</span><span class="st b">Bloodied</span></div>
+   <div class="row"><span class="n">Goblin C</span><span class="st d">Down</span></div>
+  </div>
+  <div>
+   <h3>Party</h3>
+   <div class="row"><span class="n">Mira</span></div>
+   <div class="row"><span class="n">Torvin</span></div>
+   <div class="row"><span class="n">Elowen</span><span class="cond">Frightened</span></div>
+   <div class="row"><span class="n">Bram</span></div>
+  </div>
+  <div class="log">
+   <h3>Rolls</h3>
+   <div class="big"><div class="die">17</div></div>
+   <div><span>Mira, attack</span><span class="r">17</span></div>
+   <div><span>Goblin A, attack</span><span class="r">9</span></div>
+   <div class="dm"><span>DM rolled</span></div>
+   <div><span>Torvin, initiative</span><span class="r">14</span></div>
+  </div>
+ </aside>
+</div>
+<div class="rest">
+ <h1>The Sunken Chapel</h1>
+ <div class="ps"><div><i>Mi</i>Mira</div><div><i>To</i>Torvin</div><div><i>El</i>Elowen</div><div><i>Br</i>Bram</div></div>
+</div>
+</body></html>

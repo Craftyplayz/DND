@@ -1,0 +1,203 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DM screen - Session workspace</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--sunken:#1b1b1b;--line:#3d3d3d;--line-strong:#555;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--accent-soft:#1d3a50;--btn:#2a6e9e;--btn-line:#4a9ad0;--highlight:#ffd84a;--danger-bg:#4a2424;--danger-line:#8a3a3a;--info-bg:#24384a;--info-line:#3a628a;--ok-bg:#2d4a24;--ok-line:#4f8a3a;--gold-bg:#4a3d16;--gold-line:#a8862a;--radius:8px;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.4 var(--font);display:flex;flex-direction:column}
+.cap{background:var(--sunken);border-bottom:1px solid var(--line);color:var(--muted);font-size:11px;padding:3px 12px;letter-spacing:.04em}
+.top{display:flex;align-items:center;gap:12px;padding:6px 12px;border-bottom:1px solid var(--line);background:var(--card)}
+.top b{font-size:15px}.top .sp{flex:1}
+.pill{border:1px solid var(--line-strong);border-radius:99px;padding:2px 10px;font-size:12px;background:var(--sunken)}
+.pill.live{border-color:var(--ok-line);background:var(--ok-bg)}
+button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line-strong);border-radius:6px;padding:4px 10px;cursor:pointer}
+button.pri{background:var(--btn);border-color:var(--btn-line)}button.on{background:var(--accent-soft);border-color:var(--accent)}button.dng{background:var(--danger-bg);border-color:var(--danger-line)}
+.app{flex:1;display:flex;min-height:0}
+.rail{width:112px;flex:none;background:var(--sunken);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:6px;gap:4px}
+.rail button{text-align:left;padding:9px 8px;border-color:transparent;background:none;font-size:13px}
+.rail button.on{background:var(--accent-soft);border-color:var(--accent)}.rail small{display:block;color:var(--muted);font-size:10px}
+.rail .tv{margin-top:auto;font-size:11px;color:var(--muted);padding:6px}
+.mode{display:none;flex:1;min-width:0;padding:6px;gap:6px}.mode.on{display:flex}
+.col{display:flex;flex-direction:column;gap:6px;min-width:0;min-height:0}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.panel>h2{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:5px 8px;background:var(--sunken);border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;cursor:grab}
+.panel>h2::before{content:"\22EE\22EE";letter-spacing:-3px;color:var(--line-strong)}
+.panel>h2 .r{margin-left:auto;display:flex;gap:4px;text-transform:none;letter-spacing:0}
+.panel .body{padding:8px;overflow:auto;min-height:0;flex:1}
+.split{flex:0 0 5px;background:var(--line);border-radius:3px;cursor:col-resize}.split.h{cursor:row-resize}
+.init li,.party li{list-style:none;display:flex;align-items:center;gap:8px;padding:5px 6px;border:1px solid var(--line);border-radius:6px;margin-bottom:4px;background:var(--sunken)}
+ul{margin:0;padding:0}
+.init li.cur{border-color:var(--highlight);background:var(--gold-bg)}.init li.hid{opacity:.45;border-style:dashed}
+.n{width:24px;text-align:center;font-family:var(--mono);color:var(--muted)}
+.av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:11px;flex:none}
+.pc{background:#2a6e9e}.gob{background:#6b3a24}.bug{background:#6b2424}
+.nm{flex:1;min-width:0}.nm small{display:block;color:var(--muted)}
+.bar{height:6px;background:#111;border-radius:3px;overflow:hidden;margin-top:3px}.bar i{display:block;height:100%;background:var(--ok-line)}.bar i.m{background:var(--gold-line)}.bar i.l{background:#c24a4a}
+.num{font-family:var(--mono);font-size:12px;min-width:54px;text-align:right}
+.tag{font-size:10px;border:1px solid var(--line-strong);border-radius:4px;padding:0 4px;color:var(--muted)}.tag.d{border-color:var(--danger-line);color:#f0a0a0}.tag.i{border-color:var(--info-line);color:#9cc8f0}
+.hp-adj{display:flex;gap:2px}.hp-adj button{padding:0 6px}
+.mapwrap{flex:1;min-height:0;display:grid;background:#111}
+.map{width:100%;height:100%}
+.legend{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--muted);padding:4px 8px;border-top:1px solid var(--line)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:3px}
+.log{font-size:12px}.log div{padding:3px 6px;border-bottom:1px solid var(--line)}
+.log .hid{background:var(--gold-bg);border-left:3px solid var(--gold-line)}.log .wh{background:var(--info-bg);border-left:3px solid var(--info-line)}
+.log b.nat{color:var(--highlight)}.lbl{font-size:10px;color:var(--muted);text-transform:uppercase}
+.tray{display:flex;gap:6px;align-items:center;padding:6px 8px;border-top:1px solid var(--line);flex-wrap:wrap}
+.tray input{width:90px;background:var(--sunken);border:1px solid var(--line-strong);color:var(--text);border-radius:6px;padding:3px 6px;font-family:var(--mono)}
+textarea{width:100%;height:100%;min-height:80px;background:var(--sunken);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit;resize:none}
+.card2{border:1px solid var(--line);border-radius:6px;background:var(--sunken);padding:8px;margin-bottom:6px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.chk li{list-style:none;padding:3px 0}.chk input{margin-right:6px}
+.send{background:var(--btn);border-color:var(--btn-line);font-weight:700}
+.stat{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+@media(max-width:1500px){.rail{width:92px}.w1{flex-basis:260px!important}.w2{flex-basis:280px!important}}
+</style></head><body>
+<div class="cap">Direction 10: Session workspace. Private DM screen. A left rail of modes (Prep / Play / Combat / Notes &amp; handouts / Wrap-up); panels are dockable and resizable (grip + splitters); the Table view follows the mode.</div>
+<div class="top">
+  <b>Lost Mine of Phandelver</b><span class="pill live">Session 7 · live 1:42:10</span>
+  <span class="pill">Round 2</span><span class="pill">Table view shows: <b id="tvm">Combat</b> (follows mode)</span>
+  <span class="sp"></span>
+  <span class="pill live">live updates on</span><button>Open Table view</button><button class="dng">End session</button>
+</div>
+<div class="app">
+<nav class="rail" id="rail">
+  <button data-m="prep">Prep<small>maps, encounters</small></button>
+  <button data-m="play">Play<small>scene, dice</small></button>
+  <button data-m="combat" class="on">Combat<small>round 2</small></button>
+  <button data-m="notes">Notes &amp; handouts<small>2 pushed</small></button>
+  <button data-m="wrap">Wrap-up<small>XP, log</small></button>
+  <div class="tv">Table shows:<br><b id="tvm2">Combat</b></div>
+</nav>
+
+<section class="mode on" id="m-combat">
+  <div class="col w1" style="flex:0 0 300px">
+    <div class="panel" style="flex:1.2"><h2>Initiative · round 2<span class="r"><button>Prev</button><button class="pri">Next turn</button></span></h2>
+      <div class="body init"><ul>
+        <li><span class="n">19</span><span class="av pc">Ly</span><span class="nm">Lyra <small>Rogue 3</small></span><span class="tag d">Poisoned</span></li>
+        <li class="hid"><span class="n">16</span><span class="av bug">B?</span><span class="nm">Bugbear (hidden) <small>not shown to table</small></span><span class="tag">hidden</span></li>
+        <li><span class="n">15</span><span class="av pc">Ma</span><span class="nm">Mara <small>Cleric 3</small></span></li>
+        <li class="cur"><span class="n">13</span><span class="av gob">G2</span><span class="nm">Goblin 2 <small>turn now</small></span><span class="num">4/7</span></li>
+        <li><span class="n">11</span><span class="av pc">Th</span><span class="nm">Thorin <small>Fighter 3</small></span></li>
+        <li><span class="n">9</span><span class="av gob">G1</span><span class="nm">Goblin 1</span><span class="num">7/7</span></li>
+        <li><span class="n">6</span><span class="av pc">Br</span><span class="nm">Bryn <small>Wizard 3</small></span></li>
+        <li><span class="n">4</span><span class="av gob">G3</span><span class="nm">Goblin 3</span><span class="num" style="color:#f0a0a0">0/7 Down</span></li>
+      </ul></div>
+      <div class="tray"><button>+ Add monster</button><button>+ Add player</button><span class="lbl">drag rows to reorder</span></div>
+    </div>
+    <div class="split h"></div>
+    <div class="panel" style="flex:1"><h2>Monsters (exact HP)</h2>
+      <div class="body party"><ul>
+        <li><span class="av gob">G1</span><span class="nm">Goblin 1 · AC 15<div class="bar"><i style="width:100%"></i></div></span><span class="num">7/7</span><span class="hp-adj"><button>-</button><button>+</button></span></li>
+        <li><span class="av gob">G2</span><span class="nm">Goblin 2 · AC 15<div class="bar"><i class="m" style="width:57%"></i></div></span><span class="num">4/7</span><span class="hp-adj"><button>-</button><button>+</button></span></li>
+        <li><span class="av gob">G3</span><span class="nm">Goblin 3 <span class="tag d">Down</span><div class="bar"><i class="l" style="width:0"></i></div></span><span class="num">0/7</span><span class="hp-adj"><button>-</button><button>+</button></span></li>
+        <li style="opacity:.6;border-style:dashed"><span class="av bug">B?</span><span class="nm">Bugbear · AC 16 <span class="tag">hidden</span><div class="bar"><i style="width:100%"></i></div></span><span class="num">27/27</span><button>Reveal</button></li>
+      </ul></div>
+    </div>
+  </div>
+  <div class="split"></div>
+  <div class="col" style="flex:1">
+    <div class="panel" style="flex:1"><h2>Battle map · Cragmaw hideout, cave 1<span class="r">
+      <button class="on">Reveal</button><button>Hide</button><button>Grid</button><button>Maps...</button></span></h2>
+      <div class="mapwrap">
+<svg class="map" viewBox="0 0 704 440" preserveAspectRatio="xMidYMid meet">
+<defs><pattern id="g" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#fff" stroke-opacity=".14"/></pattern></defs>
+<rect width="704" height="440" fill="#3a352c"/><rect width="440" height="440" fill="#4a4336"/><rect x="440" y="150" width="60" height="150" fill="#4a4336"/>
+<rect x="176" y="132" width="44" height="44" fill="#5a4a30"/><circle cx="330" cy="100" r="20" fill="#3d4a3a"/>
+<rect width="704" height="440" fill="url(#g)"/>
+<rect x="440" y="0" width="264" height="440" fill="#000" opacity=".6"/>
+<rect x="0" y="308" width="176" height="132" fill="#000" opacity=".6"/>
+<rect x="440" y="88" width="132" height="132" fill="#66c0f4" fill-opacity=".14" stroke="#66c0f4" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="446" y="82" fill="#66c0f4" font-size="11" font-family="system-ui">draft reveal (not sent)</text>
+<g font-family="system-ui" font-weight="700" font-size="13" text-anchor="middle" fill="#fff">
+<g><circle cx="66" cy="110" r="18" fill="#2a6e9e" stroke="#8cc8ff" stroke-width="2"/><text x="66" y="115">Ma</text></g>
+<g><circle cx="66" cy="198" r="18" fill="#2a6e9e" stroke="#8cc8ff" stroke-width="2"/><text x="66" y="203">Th</text></g>
+<g><circle cx="110" cy="154" r="18" fill="#2a6e9e" stroke="#8cc8ff" stroke-width="2"/><text x="110" y="159">Ly</text></g>
+<g><circle cx="110" cy="242" r="18" fill="#2a6e9e" stroke="#8cc8ff" stroke-width="2"/><text x="110" y="247">Br</text></g>
+<g><circle cx="286" cy="154" r="18" fill="#6b3a24" stroke="#d9894f" stroke-width="2"/><text x="286" y="159">G1</text></g>
+<g><circle cx="330" cy="242" r="18" fill="#6b3a24" stroke="#ffd84a" stroke-width="4"/><text x="330" y="247">G2</text></g>
+<g opacity=".5"><circle cx="286" cy="286" r="18" fill="#6b3a24" stroke="#d9894f" stroke-width="2"/><text x="286" y="291">G3</text><path d="M276 276l20 20M296 276l-20 20" stroke="#fff" stroke-width="2"/></g>
+<g opacity=".5"><circle cx="506" cy="154" r="18" fill="#6b2424" stroke="#e06a6a" stroke-width="2" stroke-dasharray="4 3"/><text x="506" y="159">B?</text></g>
+</g></svg>
+      </div>
+      <div class="legend"><span><i class="sw" style="background:#000;opacity:.6"></i>Sent fog (table sees black)</span><span><i class="sw" style="border:2px dashed #66c0f4"></i>Draft: 9 squares not sent</span><span><i class="sw" style="background:#6b2424;opacity:.5"></i>Hidden token (faded)</span>
+      <span style="margin-left:auto"><button>Discard draft</button> <button class="send">Send to table</button></span></div>
+    </div>
+  </div>
+  <div class="split"></div>
+  <div class="col w2" style="flex:0 0 330px">
+    <div class="panel" style="flex:0 0 auto"><h2>Party (private HP)</h2>
+      <div class="body party"><ul>
+        <li><span class="av pc">Ma</span><span class="nm">Mara · AC 17 · PP 14<div class="bar"><i style="width:80%"></i></div></span><span class="num">20/25</span></li>
+        <li><span class="av pc">Th</span><span class="nm">Thorin · AC 18 · PP 11<div class="bar"><i class="m" style="width:44%"></i></div></span><span class="num">16/36</span></li>
+        <li><span class="av pc">Ly</span><span class="nm">Lyra · AC 15 · PP 15 <span class="tag d">Poisoned</span><div class="bar"><i style="width:90%"></i></div></span><span class="num">18/20</span></li>
+        <li><span class="av pc">Br</span><span class="nm">Bryn · AC 12 · PP 12 <span class="tag i">Slots 3/2/0</span><div class="bar"><i class="l" style="width:22%"></i></div></span><span class="num">4/18</span></li>
+      </ul></div>
+    </div>
+    <div class="split h"></div>
+    <div class="panel" style="flex:1"><h2>Dice log <span class="lbl">DM sees all</span></h2>
+      <div class="body log" style="padding:0">
+        <div><b>Bryn</b> Fire Bolt · 1d20+5 = <b>14</b> hit; 1d10 = 6</div>
+        <div class="hid"><span class="lbl">Hidden (DM only)</span><br><b>DM</b> Bugbear Perception · 1d20+1 = <b>17</b>. Table sees "DM rolled".</div>
+        <div class="wh"><span class="lbl">Whisper from Lyra</span><br>"I try to pocket the key while they argue." Sleight of Hand 1d20+6 = <b class="nat">19</b></div>
+        <div><b>Goblin 2</b> Scimitar · 1d20+4 = <b>11</b> miss</div>
+        <div><b>Thorin</b> Greataxe · 1d20+5 = <b class="nat">20</b> crit! 2d12+3 = 19</div>
+        <div><b>Mara</b> Initiative 1d20+1 = <b>15</b></div>
+      </div>
+      <div class="tray"><input value="1d20+4"><button class="pri">Roll</button>
+        <span class="lbl">Visible to:</span><button class="on" onclick="this.textContent=this.textContent=='Public'?'Hidden (DM only)':'Public'">Public</button></div>
+    </div>
+    <div class="split h"></div>
+    <div class="panel" style="flex:.8"><h2>Quick notes<span class="r"><button>Dock to tab</button></span></h2>
+      <div class="body"><textarea>Bugbear waits behind the east door; wakes if combat noise carries past round 3. Key is in the chest (Lyra took it?). Klarg ransoms Sildar if the party flees.</textarea></div></div>
+  </div>
+</section>
+
+<section class="mode" id="m-prep">
+  <div class="col" style="flex:0 0 300px"><div class="panel" style="flex:1"><h2>Encounters</h2><div class="body">
+    <div class="card2"><b>Cragmaw hideout: cave 1</b><div class="stat"><span class="tag">3 goblins</span><span class="tag">1 bugbear</span><span class="tag d">Medium</span></div><button class="pri" style="margin-top:6px">Send to initiative</button></div>
+    <div class="card2"><b>Goblin ambush (road)</b><div class="stat"><span class="tag">4 goblins</span><span class="tag">Easy</span></div></div>
+    <div class="card2"><b>Klarg's throne room</b><div class="stat"><span class="tag">Klarg + 2 wolves</span><span class="tag d">Hard</span></div></div>
+    <button>+ New encounter</button></div></div></div>
+  <div class="split"></div>
+  <div class="col" style="flex:1"><div class="panel" style="flex:1"><h2>Maps &amp; fog drafts<span class="r"><button>Upload map</button><button>Fit grid</button></span></h2>
+    <div class="body"><div class="grid3">
+      <div class="card2" style="height:140px;background:#3a352c">Cave 1 · 16x10 · <b>draft: 9 squares unsent</b></div>
+      <div class="card2" style="height:140px;background:#44382a">Cave 2 · fully fogged</div>
+      <div class="card2" style="height:140px;background:#2c3a3a">Throne room · no grid yet</div></div></div></div></div>
+  <div class="split"></div>
+  <div class="col" style="flex:0 0 300px"><div class="panel" style="flex:1"><h2>Session checklist</h2><div class="body"><ul class="chk"><li><input type="checkbox" checked>Recap last session</li><li><input type="checkbox" checked>Fog drafted for cave 1</li><li><input type="checkbox" checked>Bugbear token hidden</li><li><input type="checkbox">Prepare Sildar handout</li><li><input type="checkbox">Check party passive Perception</li></ul></div></div></div>
+</section>
+
+<section class="mode" id="m-play">
+  <div class="col" style="flex:1"><div class="panel" style="flex:1"><h2>Scene<span class="r"><button class="on">Idle scene</button><button>Spotlight handout</button><button class="pri">Start combat</button></span></h2>
+    <div class="body"><div class="card2"><b>Cragmaw hideout, entrance</b><p style="color:var(--muted)">Between fights. The Table view shows campaign name, party portraits and the last handout. The dice log keeps running.</p></div>
+    <div class="card2"><b>Party (private)</b> Mara 20/25 · Thorin 16/36 · Lyra 18/20 · Bryn 4/18</div></div></div></div>
+  <div class="split"></div>
+  <div class="col" style="flex:0 0 360px"><div class="panel" style="flex:1"><h2>Dice log</h2><div class="body log" style="padding:0"><div><b>Lyra</b> Stealth 1d20+6 = 17</div><div class="hid"><span class="lbl">Hidden</span> <b>DM</b> Insight 1d20+2 = 8</div></div>
+  <div class="tray"><input value="1d20"><button class="pri">Roll</button><button class="on">Public</button></div></div></div>
+</section>
+
+<section class="mode" id="m-notes">
+  <div class="col" style="flex:1"><div class="panel" style="flex:1"><h2>DM notes (private)</h2><div class="body"><textarea>Session 7: Klarg's goblins hold Sildar. Bugbear is Klarg's lieutenant. Hook: map to Wave Echo Cave in the chest.</textarea></div></div></div>
+  <div class="split"></div>
+  <div class="col" style="flex:0 0 420px"><div class="panel" style="flex:1"><h2>Handouts<span class="r"><button>+ New</button></span></h2><div class="body">
+    <div class="card2"><b>Sildar's letter</b> <span class="tag i">all players</span><div style="margin-top:6px"><button class="on">Spotlight on table</button> <button>Unshare</button></div></div>
+    <div class="card2"><b>Smuggler's map</b> <span class="tag i">Lyra only</span><div style="margin-top:6px"><button>Spotlight on table</button> <button>Unshare</button></div></div>
+    <div class="card2"><b>Wave Echo Cave rumor</b> <span class="tag">not shared</span><div style="margin-top:6px"><button class="pri">Push to all</button> <button>Choose players</button></div></div>
+  </div></div></div>
+</section>
+
+<section class="mode" id="m-wrap">
+  <div class="col" style="flex:1"><div class="panel" style="flex:1"><h2>Wrap-up</h2><div class="body">
+    <div class="card2"><b>Encounter XP</b> 3 goblins (150) + bugbear (200) = 350 XP · 87 each</div>
+    <div class="card2"><b>Session log</b> 64 rolls · 2 nat 20 · 1 hidden · 1 whisper · saved as Session 7 on End session</div>
+    <div class="card2"><b>Next time</b><textarea style="height:80px">Open on the throne room. Sildar needs rescuing.</textarea></div>
+    <button class="pri">Save and end session</button></div></div></div>
+</section>
+</div>
+<script>
+var T={prep:'Idle scene',play:'Idle scene',combat:'Combat',notes:'Handout spotlight',wrap:'Idle scene'};
+document.querySelectorAll('#rail button').forEach(function(b){b.onclick=function(){
+ document.querySelectorAll('#rail button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');
+ document.querySelectorAll('.mode').forEach(function(m){m.classList.remove('on')});document.getElementById('m-'+b.dataset.m).classList.add('on');
+ document.getElementById('tvm').textContent=document.getElementById('tvm2').textContent=T[b.dataset.m];}});
+</script></body></html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Table view - keyboard-first</title>
+<link rel="stylesheet" href="/assets/css/global.css">
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--ok:#6cc24a;--warn:#e0a030;--danger:#e0605a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,"Segoe UI",sans-serif;height:100vh;display:grid;grid-template-rows:auto auto 1fr;overflow:hidden;font-size:clamp(16px,1.7vw,32px)}
+.cap{background:#111;color:var(--muted);font-size:12px;padding:3px 10px}
+.top{display:flex;align-items:baseline;gap:2vw;padding:.4em 1vw;background:var(--card);border-bottom:2px solid var(--line)}
+.top b{font-size:1.4em}.top .t{color:var(--accent);font-weight:700;font-size:1.4em}.sp{flex:1}
+main{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr);gap:1vw;padding:1vw;min-height:0}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.6em .8em;min-height:0;display:flex;flex-direction:column}
+h2{margin:0 0 .3em;font-size:.65em;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.map{flex:1;min-height:0;width:100%;border-radius:8px;background:#000}
+.right{display:flex;flex-direction:column;gap:1vw;min-height:0}
+.init{display:grid;gap:.3em}
+.row{display:flex;align-items:center;gap:.6em;padding:.25em .5em;border-radius:8px;background:#323232}
+.row.cur{background:#1d3a50;outline:3px solid var(--accent)}
+.row .n{flex:1;font-weight:700}
+.s{font-weight:800;padding:0 .5em;font-size:.85em}
+.H{color:var(--ok)}.B{color:var(--warn)}.D{color:var(--danger)}
+.dot{width:.9em;height:.9em;border-radius:50%;display:inline-block}
+.log{display:grid;gap:.3em;font-size:.8em;overflow:hidden}
+.log p{margin:0;padding:.2em .4em;border-bottom:1px solid #3d3d3d}
+.log .dm{color:var(--muted);font-style:italic}
+</style></head><body>
+<div class="cap">Design #05: Keyboard-first power user. Public Table view: read-only, big and simple. Only what players may see.</div>
+<div class="top"><b>Goblin Ambush</b><span>Round 2</span><span class="sp"></span><span>Turn:</span><span class="t">Mira</span></div>
+<main>
+ <div class="panel"><h2>Battle map</h2>
+  <svg class="map" viewBox="0 0 640 400" preserveAspectRatio="xMidYMid meet">
+   <defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#3a3a3a"/></pattern></defs>
+   <rect width="640" height="400" fill="#26301f"/>
+   <rect x="200" y="120" width="120" height="80" fill="#4a3a28"/><text x="260" y="165" fill="#a98" font-size="12" text-anchor="middle">cart</text>
+   <rect width="640" height="400" fill="url(#g)"/>
+   <path d="M360 0H640V400H0V320H360Z" fill="#000"/>
+   <g font-size="13" font-weight="700" text-anchor="middle" fill="#fff">
+    <circle cx="80" cy="140" r="18" fill="#2a6e9e"/><text x="80" y="145">Kor</text>
+    <circle cx="120" cy="180" r="18" fill="#2a6e9e" stroke="#66c0f4" stroke-width="4"/><text x="120" y="185">Mira</text>
+    <circle cx="80" cy="220" r="18" fill="#2a6e9e"/><text x="80" y="225">Thorn</text>
+    <circle cx="40" cy="180" r="18" fill="#2a6e9e"/><text x="40" y="185">Fenn</text>
+    <circle cx="240" cy="100" r="18" fill="#8a3a3a"/><text x="240" y="105">G1</text>
+    <circle cx="280" cy="220" r="18" fill="#8a3a3a"/><text x="280" y="225">G2</text>
+    <circle cx="200" cy="260" r="18" fill="#444" stroke="#888"/><text x="200" y="265">G3</text>
+   </g>
+  </svg>
+ </div>
+ <div class="right">
+  <div class="panel"><h2>Initiative</h2><div class="init">
+   <div class="row"><span class="dot" style="background:#2a6e9e"></span><span class="n">Kor</span><span class="s H">Healthy</span></div>
+   <div class="row cur"><span class="dot" style="background:#2a6e9e"></span><span class="n">&#9654; Mira</span><span class="s H">Healthy</span></div>
+   <div class="row"><span class="dot" style="background:#8a3a3a"></span><span class="n">Goblin 1</span><span class="s H">Healthy</span></div>
+   <div class="row"><span class="dot" style="background:#8a3a3a"></span><span class="n">Goblin 2</span><span class="s B">Bloodied</span></div>
+   <div class="row"><span class="dot" style="background:#2a6e9e"></span><span class="n">Thorn</span><span class="s B">Bloodied</span></div>
+   <div class="row"><span class="dot" style="background:#8a3a3a"></span><span class="n">Goblin 3</span><span class="s D">Down</span></div>
+   <div class="row"><span class="dot" style="background:#2a6e9e"></span><span class="n">Fenn</span><span class="s H">Healthy</span></div>
+  </div></div>
+  <div class="panel" style="flex:1"><h2>Dice</h2><div class="log">
+   <p><b>Mira</b> Longbow 22 hit, 9 damage</p>
+   <p class="dm"><b>DM rolled</b></p>
+   <p><b>Goblin 2</b> Scimitar 8 miss</p>
+   <p><b>Thorn</b> Dex save 9 fail</p>
+   <p><b>Kor</b> Greataxe 11 damage</p>
+  </div></div>
+ </div>
+</main>
+</body></html>

@@ -1,0 +1,124 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DM Screen - Folding Screen</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--card2:#323232;--sunken:#1b1b1b;--line:#3d3d3d;--line-strong:#555;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--accent-soft:#1d3a50;--btn:#2a6e9e;--btn-line:#4a9ad0;--btn2:#3a3a3a;--highlight:#ffd84a;--danger-bg:#4a2424;--danger-line:#8a3a3a;--info-bg:#24384a;--info-line:#3a628a;--ok-bg:#2d4a24;--ok-line:#4f8a3a;--gold-bg:#4a3d16;--gold-line:#a8862a;--r:8px;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.4 var(--font);display:flex;flex-direction:column;overflow:hidden}
+.cap{flex:none;font-size:11px;color:var(--muted);padding:3px 12px;background:var(--sunken);border-bottom:1px solid var(--line)}
+.cap b{color:var(--accent)}
+.screen{flex:1;min-height:0;display:grid;gap:0;padding:8px;grid-template-columns:minmax(0,.85fr) minmax(0,1.6fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+.panel{display:flex;flex-direction:column;min-height:0;background:var(--card);border:1px solid var(--line-strong);padding:10px;overflow:hidden}
+.panel+.panel{border-left:3px double var(--line-strong)}
+.panel:first-of-type{border-radius:var(--r) 0 0 var(--r)}.panel:last-of-type{border-radius:0 var(--r) var(--r) 0}
+.panel>h2{flex:none;margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.panel>h2 .n{margin-left:auto;color:var(--muted);font-weight:400;font-size:13px}
+.scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.btn{font:inherit;font-size:13px;padding:5px 11px;border-radius:var(--r);border:1px solid #4d4d4d;background:var(--btn2);color:var(--text);cursor:pointer}
+.btn.primary{background:var(--btn);border-color:var(--btn-line);color:#fff}
+.btn.on{background:var(--accent-soft);border-color:var(--accent)}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid #4d4d4d;background:var(--btn2);font-size:12px;white-space:nowrap}
+.badge.g{background:var(--ok-bg);border-color:var(--ok-line)}.badge.r{background:var(--danger-bg);border-color:var(--danger-line)}.badge.y{background:var(--gold-bg);border-color:var(--gold-line)}.badge.b{background:var(--info-bg);border-color:var(--info-line)}.badge.p{background:#3d2a4f;border-color:#6c4b8f}
+.av{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;border:2px solid;background:var(--sunken)}
+.mapwrap{flex:1;min-height:0;display:grid;place-items:center;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r);padding:6px}
+.mapwrap svg{max-width:100%;max-height:100%;width:100%;height:100%}
+.log{font-size:13px}.log .row{padding:5px 8px;border-radius:6px;background:var(--card2);border-left:3px solid var(--line-strong)}
+.log .row.hid{border-left-color:#6c4b8f;background:#2f2638}.log .row.wh{border-left-color:var(--gold-line);background:var(--gold-bg)}
+.log .t{float:right;font-family:var(--mono);font-weight:700}.log .nat{color:var(--highlight)}
+.muted{color:var(--muted)}
+.ref{grid-column:1/-1;margin-top:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--sunken);border:1px solid var(--line-strong);border-radius:var(--r);padding:8px 10px;font-size:12px}
+.ref>div{padding:0 10px;border-left:1px solid var(--line)}.ref>div:first-child{border:0;padding-left:0}
+.ref h3{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.ref table{width:100%;border-collapse:collapse}.ref td{padding:1px 0}.ref td:last-child{text-align:right;font-family:var(--mono)}
+.ref .cond{display:flex;flex-wrap:wrap;gap:4px}
+@media(max-height:800px){.ref{padding:5px 10px;font-size:11px}.ref h3{margin-bottom:2px}.panel{padding:8px}}
+
+.pc{display:flex;gap:9px;align-items:center;padding:8px;background:var(--card2);border:1px solid var(--line);border-radius:var(--r)}
+.pc .nm{font-weight:600}
+.hp{height:9px;background:var(--sunken);border-radius:5px;overflow:hidden;margin:4px 0 2px}.hp i{display:block;height:100%;background:var(--ok-line)}.hp i.lo{background:#c98500}.hp i.cr{background:var(--danger-line)}
+.pc .body{flex:1;min-width:0}.hpn{font-family:var(--mono);font-size:12px}
+.pips{display:inline-flex;gap:2px;vertical-align:middle}.pips i{width:9px;height:9px;border-radius:50%;border:1px solid var(--muted)}.pips i.f{background:var(--text)}.pips i.x{background:var(--danger-line);border-color:var(--danger-line)}
+.init{display:flex;gap:6px;flex:none;margin-bottom:8px}
+.init .t{flex:1;text-align:center;padding:4px 2px;border:1px solid var(--line);border-radius:6px;background:var(--card2);font-size:11px;min-width:0}
+.init .t b{display:block;font-size:15px}.init .t.cur{border-color:var(--highlight);background:var(--gold-bg)}.init .t.hid{opacity:.5;border-style:dashed}
+.mon{padding:8px;background:var(--card2);border:1px solid var(--line);border-radius:var(--r)}
+.mon.hid{opacity:.65;border-style:dashed}.mon .top{display:flex;gap:8px;align-items:center}.mon .nm{font-weight:600}
+.mon .acts{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}.mon .acts .btn{padding:2px 8px;font-size:12px}
+.tools{flex:none;display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}.tools .sp{margin-left:auto}
+.legend{flex:none;display:flex;gap:12px;font-size:12px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:12px;vertical-align:-2px;margin-right:4px;border:1px solid var(--line-strong)}
+.notes{flex:none;margin-top:8px;padding:8px;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r);font-size:12px}
+.notes h3{margin:0 0 3px;font-size:12px;color:var(--accent)}
+.roll{flex:none;display:flex;gap:6px;align-items:center;margin-top:8px}
+.roll input{flex:1;min-width:0;font:inherit;padding:5px 8px;background:var(--sunken);border:1px solid var(--line-strong);border-radius:var(--r);color:var(--text)}
+.seg{display:inline-flex}.seg .btn:first-child{border-radius:var(--r) 0 0 var(--r)}.seg .btn:last-child{border-radius:0 var(--r) var(--r) 0;margin-left:-1px}
+</style></head><body>
+<div class="cap">Mockup 04: <b>The folding DM screen</b>: three panels (party | map | monsters &amp; log) plus a quick-reference strip. PRIVATE DM screen.</div>
+<main class="screen">
+
+<section class="panel" aria-label="Party">
+<h2>Party <span class="badge b">Round 2</span><span class="n">private HP</span></h2>
+<div class="scroll">
+<div class="pc"><div class="av" style="border-color:#3987e5;color:#3987e5">TH</div><div class="body"><div class="nm">Thornik <span class="muted">Fighter 3</span></div><div class="hp"><i style="width:78%"></i></div><div class="hpn">28 / 36 &middot; AC 18 &middot; PP 11</div></div></div>
+<div class="pc" style="border-color:var(--highlight)"><div class="av" style="border-color:#c98500;color:#c98500">MI</div><div class="body"><div class="nm">Mira <span class="muted">Rogue 3</span> <span class="badge y">turn</span></div><div class="hp"><i class="lo" style="width:36%"></i></div><div class="hpn">9 / 25 &middot; AC 15 &middot; PP 16</div><span class="badge r">Poisoned</span></div></div>
+<div class="pc"><div class="av" style="border-color:#9085e9;color:#9085e9">PI</div><div class="body"><div class="nm">Pip <span class="muted">Wizard 3</span> <span class="badge r">Down</span></div><div class="hp"><i class="cr" style="width:0"></i></div><div class="hpn">0 / 18 &middot; AC 12 &middot; PP 13</div><div class="hpn">Saves <span class="pips"><i class="f"></i><i></i><i></i></span> <span class="pips"><i class="x"></i><i></i><i></i></span> &middot; Slots 1st 2/4</div></div></div>
+<div class="pc"><div class="av" style="border-color:#4f8a3a;color:#4f8a3a">BR</div><div class="body"><div class="nm">Bram <span class="muted">Cleric 3</span></div><div class="hp"><i style="width:100%"></i></div><div class="hpn">24 / 24 &middot; AC 17 &middot; PP 14</div><span class="badge b">Bless (conc.)</span> <span class="badge">Exhaustion 1</span></div></div>
+</div>
+<div class="notes"><h3>DM notes (private)</h3>Pip is down: goblin 2 targets whoever is closest. Bugbear joins on round 3 from the east door.</div>
+</section>
+
+<section class="panel" aria-label="Battle map">
+<h2>Goblin Ambush: Cellar <span class="n"><span class="badge y">Draft fog differs from table</span></span></h2>
+<div class="init"><div class="t">Mira<b>19</b></div><div class="t cur">Gob 1<b>16</b></div><div class="t">Thornik<b>14</b></div><div class="t">Gob 2<b>12</b></div><div class="t">Bram<b>11</b></div><div class="t">Gob 3<b>9</b></div><div class="t">Pip<b>7</b></div><div class="t hid">Bugbear<b>6</b></div></div>
+<div class="tools"><span class="seg"><button class="btn on">Reveal</button><button class="btn">Hide</button></span><button class="btn">Rectangle</button><button class="btn">Upload map</button><button class="btn">Fit grid</button><button class="btn primary sp">Send to table</button><button class="btn">Next turn &rarr;</button></div>
+<div class="mapwrap">
+<svg viewBox="0 0 800 560" role="img" aria-label="Battle map: sent fog covers all but the cellar; a dashed gold draft area in the east is not yet shown to players">
+<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#fff" stroke-opacity=".12"/></pattern></defs>
+<rect width="800" height="560" fill="#2d3a2e"/>
+<rect x="80" y="80" width="400" height="320" fill="#3b3a35"/><rect x="480" y="120" width="240" height="200" fill="#3a3530"/>
+<rect x="160" y="120" width="40" height="40" fill="#4a3d16"/><rect x="360" y="320" width="80" height="40" fill="#2a2f3a"/>
+<rect width="800" height="560" fill="url(#g)"/>
+<path fill="#000" fill-opacity=".72" fill-rule="evenodd" d="M0 0H800V560H0Z M80 80H480V400H80Z"/>
+<rect x="480" y="120" width="240" height="200" fill="#ffd84a" fill-opacity=".1" stroke="#ffd84a" stroke-width="3" stroke-dasharray="10 6"/>
+<text x="600" y="108" fill="#ffd84a" font-size="15" text-anchor="middle" font-family="system-ui">DRAFT, not sent</text>
+<g font-family="system-ui" font-weight="700" font-size="15" text-anchor="middle">
+<circle cx="140" cy="180" r="17" fill="#1b1b1b" stroke="#3987e5" stroke-width="3"/><text x="140" y="185" fill="#3987e5">TH</text>
+<circle cx="180" cy="260" r="17" fill="#1b1b1b" stroke="#c98500" stroke-width="3"/><text x="180" y="265" fill="#c98500">MI</text>
+<circle cx="140" cy="300" r="17" fill="#1b1b1b" stroke="#8a3a3a" stroke-width="3" stroke-dasharray="4 3"/><text x="140" y="305" fill="#9b9b9b">PI</text>
+<circle cx="220" cy="340" r="17" fill="#1b1b1b" stroke="#4f8a3a" stroke-width="3"/><text x="220" y="345" fill="#4f8a3a">BR</text>
+<circle cx="340" cy="180" r="17" fill="#4a2424" stroke="#c9544a" stroke-width="3"/><text x="340" y="185" fill="#ececec">G1</text>
+<circle cx="380" cy="260" r="17" fill="#4a2424" stroke="#c9544a" stroke-width="3"/><text x="380" y="265" fill="#ececec">G2</text>
+<circle cx="300" cy="340" r="17" fill="#4a2424" stroke="#c9544a" stroke-width="3"/><text x="300" y="345" fill="#ececec">G3</text>
+<circle cx="580" cy="220" r="34" fill="#4a2424" fill-opacity=".45" stroke="#c9544a" stroke-opacity=".7" stroke-width="3" stroke-dasharray="6 4"/><text x="580" y="226" fill="#ececec" fill-opacity=".7">BB</text>
+</g>
+<text x="580" y="270" fill="#ececec" font-size="12" text-anchor="middle" font-family="system-ui">hidden</text>
+</svg></div>
+<div class="legend"><span><i style="background:#000"></i>Sent fog (table sees)</span><span><i style="background:rgba(255,216,74,.2);border:1px dashed #ffd84a"></i>Draft reveal</span><span><i style="background:#4a2424;opacity:.5;border-style:dashed"></i>Hidden token (DM only)</span><span>1 square = 5 ft</span></div>
+</section>
+
+<section class="panel" aria-label="Monsters and log">
+<h2>Monsters <span class="n">DM sees HP numbers</span></h2>
+<div class="scroll" style="flex:1.2">
+<div class="mon"><div class="top"><span class="av" style="width:30px;height:30px;font-size:12px">G1</span><span class="nm">Goblin 1 <span class="muted">AC 15</span></span><span class="badge g" style="margin-left:auto">Healthy</span></div><div class="hp"><i style="width:100%"></i></div><div class="hpn">7 / 7</div></div>
+<div class="mon"><div class="top"><span class="av" style="width:30px;height:30px;font-size:12px">G2</span><span class="nm">Goblin 2 <span class="muted">AC 15</span></span><span class="badge y" style="margin-left:auto">Bloodied</span></div><div class="hp"><i class="lo" style="width:43%"></i></div><div class="hpn">3 / 7</div><div class="acts"><button class="btn">-1</button><button class="btn">-5</button><button class="btn">+1</button><button class="btn">Condition</button></div></div>
+<div class="mon"><div class="top"><span class="av" style="width:30px;height:30px;font-size:12px">G3</span><span class="nm">Goblin 3 <span class="muted">AC 15</span></span><span class="badge r" style="margin-left:auto">Down</span></div><div class="hp"><i class="cr" style="width:0"></i></div><div class="hpn">0 / 7</div></div>
+<div class="mon hid"><div class="top"><span class="av" style="width:30px;height:30px;font-size:12px">BB</span><span class="nm">Bugbear <span class="muted">AC 16</span></span><span class="badge p" style="margin-left:auto">Hidden</span></div><div class="hp"><i style="width:100%"></i></div><div class="hpn">27 / 27</div><div class="acts"><button class="btn">Reveal token</button><button class="btn">Add to table order</button></div></div>
+</div>
+<h2 style="margin-top:8px">Dice log <span class="n"><span class="badge p">DM sees all</span></span></h2>
+<div class="scroll log" style="flex:1">
+<div class="row"><span class="t">17</span>Mira: Stealth <span class="muted">d20+7</span></div>
+<div class="row"><span class="t nat">20</span>Thornik: Longsword attack <span class="nat">nat 20</span></div>
+<div class="row hid"><span class="t">14 / 9</span>DM (hidden): Bugbear Perception <span class="badge p">hidden</span></div>
+<div class="row wh"><span class="t">-</span>Whisper from Mira: "I pick the lock while they argue." <span class="badge y">to DM</span></div>
+<div class="row"><span class="t">8</span>Goblin 2: Shortbow vs Pip</div>
+</div>
+<div class="roll"><input value="2d6+3" aria-label="Dice"><span class="seg"><button class="btn on" id="pub" onclick="tg(0)">Public</button><button class="btn" id="hid" onclick="tg(1)">Hidden</button></span><button class="btn primary">Roll</button></div>
+</section>
+
+<div class="ref" aria-label="Quick reference">
+<div><h3>Conditions</h3><div class="cond"><span class="badge">Blinded</span><span class="badge">Charmed</span><span class="badge">Frightened</span><span class="badge">Grappled</span><span class="badge">Poisoned</span><span class="badge">Prone</span><span class="badge">Restrained</span><span class="badge">Stunned</span></div></div>
+<div><h3>Typical DCs</h3><table><tr><td>Very easy</td><td>5</td></tr><tr><td>Easy / Medium</td><td>10 / 15</td></tr><tr><td>Hard / Very hard</td><td>20 / 25</td></tr></table></div>
+<div><h3>Cover</h3><table><tr><td>Half</td><td>+2 AC, DEX</td></tr><tr><td>Three-quarters</td><td>+5 AC, DEX</td></tr><tr><td>Total</td><td>no target</td></tr></table></div>
+<div><h3>Death saves &amp; rest</h3><table><tr><td>Stabilise</td><td>3 successes</td></tr><tr><td>Die</td><td>3 failures</td></tr><tr><td>Short / long rest</td><td>1 h / 8 h</td></tr></table></div>
+</div>
+</main>
+<script>function tg(h){pub.classList.toggle('on',!h);hid.classList.toggle('on',!!h)}</script>
+</body></html>

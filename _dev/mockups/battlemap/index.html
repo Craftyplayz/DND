@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battle Map (DM)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Roboto+Condensed:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="battle.css">
+</head>
+<body data-view="dm">
+
+<header class="top">
+  <h1>Initiative Order</h1>
+  <button class="iconbtn" data-act="panel" title="Show or hide the initiative list"><svg class="icon"><use href="#i-panel"/></svg></button>
+  <button class="outline small" data-act="maps" title="All maps: show one to the players, or set one up privately">Maps</button>
+  <button class="outline small" data-act="grid" hidden>Fit grid</button>
+  <input type="file" id="mapfile" accept="image/*" hidden>
+  <span class="spacer"></span>
+  <button class="outline" data-act="start-top">Start combat</button>
+  <button class="outline" onclick="window.open('player.html','player')" title="The map as the player Mira sees it">Player view</button>
+  <button class="outline" onclick="window.open('table.html','table')" title="Open the Table view: drag it to the TV or share it on Discord"><svg class="icon"><use href="#i-tv"/></svg>Table view</button>
+</header>
+
+<div class="main">
+  <aside class="panel">
+    <div class="list"></div>
+    <div class="foot"></div>
+  </aside>
+  <section class="stage">
+    <div class="viewport"><div class="map"></div></div>
+    <div class="strip"></div>
+    <div class="rail"></div>
+    <div class="banner" hidden></div>
+    <div class="fitbar" hidden>
+      <span>Drag the map until the red lines sit on the map's own squares. Change the square size until they match.</span>
+      <button class="iconbtn" data-sq="-1" title="Smaller squares"><svg class="icon"><use href="#i-minus"/></svg></button>
+      <input type="number" step="0.5" min="10" title="Square size in image pixels">
+      <button class="iconbtn" data-sq="1" title="Bigger squares"><svg class="icon"><use href="#i-plus"/></svg></button>
+      <button class="redbtn" data-act="grid-done">Done</button>
+    </div>
+    <div class="controls">
+      <div class="pill">
+        <button class="iconbtn" data-zoom="out" title="Zoom out"><svg class="icon"><use href="#i-minus"/></svg></button>
+        <span class="pct">100%</span>
+        <button class="iconbtn" data-zoom="in" title="Zoom in"><svg class="icon"><use href="#i-plus"/></svg></button>
+      </div>
+      <div class="pill">
+        <button class="iconbtn" data-zoom="fit" title="Fit map to screen"><svg class="icon"><use href="#i-fit"/></svg></button>
+        <button class="iconbtn" data-act="fullscreen" title="Full screen"><svg class="icon"><use href="#i-full"/></svg></button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<dialog id="start">
+  <form method="dialog">
+    <h2>Start combat</h2>
+    <h4>Monsters</h4>
+    <label class="opt"><input type="radio" name="mode" value="auto" checked> Roll initiative for me</label>
+    <label class="opt"><input type="radio" name="mode" value="manual"> I'll type what I rolled</label>
+    <div class="grid npcs"></div>
+    <h4>Players</h4>
+    <div class="grid pcs"></div>
+    <p>Leave a player blank and they're added when they roll initiative on their sheet. You can also type it in later.</p>
+    <div class="actions">
+      <button class="ghost" value="cancel">Cancel</button>
+      <button class="redbtn" value="go">Start combat</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="battle.js"></script>
+</body>
+</html>

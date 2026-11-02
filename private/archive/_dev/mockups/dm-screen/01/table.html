@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Table view (public)</title>
+<link rel="stylesheet" href="../../../../assets/css/global.css">
+<style>
+/* everything in rem; 1rem = 1/80 of the width, so 1366 and 1920 both fill the screen */
+html{font-size:calc(100vw / 80)}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:1rem/1.3 var(--font);display:flex;flex-direction:column;overflow:hidden}
+.cap{padding:.15rem .8rem;background:var(--gold-bg);border-bottom:1px solid var(--gold-line);font-size:.7rem}
+.order{display:flex;align-items:center;gap:.7rem;padding:.6rem 1rem;background:var(--card);border-bottom:1px solid var(--line)}
+.round{padding:.3rem .9rem;background:var(--accent-soft);border:1px solid var(--btn-line);border-radius:var(--radius);font-size:1.5rem;font-weight:700;white-space:nowrap}
+.pt{display:flex;flex-direction:column;align-items:center;gap:.2rem;padding:.3rem .5rem;border-radius:var(--radius-lg);border:.18rem solid transparent;min-width:5rem}
+.pt i{display:grid;place-items:center;width:3.4rem;height:3.4rem;border-radius:50%;font-style:normal;font-size:1.5rem;font-weight:700;color:#fff}
+.pt.pc i{background:var(--series-1)}.pt.mon i{background:var(--danger-line)}
+.pt span{font-size:1.05rem;font-weight:600}
+.pt.now{border-color:var(--highlight);background:var(--gold-bg)}
+.pt.now span::before{content:"Turn: ";color:var(--highlight)}
+.pt.done{opacity:.4}
+.arrow{color:var(--muted);font-size:1.4rem}
+.main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 22rem;gap:1rem;padding:1rem}
+.map{min-height:0;background:var(--sunken);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden}
+.map svg{width:100%;height:100%;display:block}
+.side{display:flex;flex-direction:column;gap:.8rem;min-height:0}
+.card{padding:.8rem 1rem;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg)}
+.card h2{margin:0 0 .5rem;font-size:1.2rem}
+.who{display:flex;align-items:center;gap:.7rem;padding:.35rem 0;font-size:1.25rem;font-weight:600}
+.who + .who{border-top:1px solid var(--line)}
+.who small{margin-left:auto;font-size:1.1rem;font-weight:700}
+.st{padding:.1rem .7rem;border-radius:999px;font-size:1.05rem;font-weight:700;border:1px solid}
+.st.h{background:var(--ok-bg);border-color:var(--ok-line)}
+.st.b{background:var(--gold-bg);border-color:var(--gold-line)}
+.st.d{background:var(--danger-bg);border-color:var(--danger-line)}
+.cond{font-size:.95rem;color:var(--muted);font-weight:400}
+.ticks{letter-spacing:.15rem}
+.log{flex:1;min-height:0;overflow:hidden}
+.log div{padding:.4rem .6rem;margin-bottom:.35rem;background:var(--card2);border-radius:var(--radius);font-size:1.1rem}
+.log .dm{border-left:.25rem solid var(--muted);color:var(--muted)}
+.nat{color:var(--highlight);font-weight:700}
+.dice{display:flex;gap:.5rem;align-items:center;font-size:1.1rem;margin-bottom:.4rem}
+.die{display:grid;place-items:center;width:3.2rem;height:3.2rem;background:var(--highlight);color:#202020;border-radius:.6rem;font-size:1.7rem;font-weight:800;transform:rotate(-8deg);box-shadow:var(--lift)}
+</style></head><body>
+<div class="cap">Designer 01: Faithful baseline. Table view: order strip on top, big map left, status and public log right. Read-only.</div>
+<header class="order" aria-label="Initiative order">
+  <div class="round">Round 2</div>
+  <div class="pt pc done"><i>L</i><span>Lyra</span></div><span class="arrow">&rsaquo;</span>
+  <div class="pt mon done"><i>G</i><span>Goblin A</span></div><span class="arrow">&rsaquo;</span>
+  <div class="pt pc now"><i>T</i><span>Thorin</span></div><span class="arrow">&rsaquo;</span>
+  <div class="pt mon"><i>G</i><span>Goblin B</span></div><span class="arrow">&rsaquo;</span>
+  <div class="pt pc"><i>A</i><span>Ash</span></div><span class="arrow">&rsaquo;</span>
+  <div class="pt mon"><i>G</i><span>Goblin C</span></div><span class="arrow">&rsaquo;</span>
+  <div class="pt pc"><i>P</i><span>Pip</span></div>
+</header>
+<div class="main">
+  <div class="map">
+   <svg viewBox="0 0 720 480" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Battle map, partly hidden by fog">
+    <defs><pattern id="g" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M60 0H0V60" fill="none" stroke="rgb(255 255 255 / .14)" stroke-width="1"/></pattern></defs>
+    <rect width="720" height="480" fill="#3a3326"/>
+    <rect x="0" y="60" width="420" height="360" fill="#4a4233"/>
+    <rect x="120" y="240" width="60" height="60" fill="#2e281d"/>
+    <rect width="720" height="480" fill="url(#g)"/>
+    <path fill-rule="evenodd" d="M0 0H720V480H0Z M0 60H420V420H0Z" fill="#000"/>
+    <g font-size="20" font-weight="700" text-anchor="middle" fill="#fff">
+     <circle cx="90" cy="210" r="27" fill="#3987e5" stroke="#ffd84a" stroke-width="5"/><text x="90" y="217">T</text>
+     <circle cx="150" cy="270" r="27" fill="#3987e5"/><text x="150" y="277">L</text>
+     <circle cx="90" cy="330" r="27" fill="#3987e5"/><text x="90" y="337">P</text><path d="M70 310l40 40M110 310l-40 40" stroke="#fff" stroke-width="4"/>
+     <circle cx="210" cy="330" r="27" fill="#3987e5"/><text x="210" y="337">A</text>
+     <circle cx="270" cy="150" r="27" fill="#8a3a3a"/><text x="270" y="157">G1</text>
+     <circle cx="330" cy="210" r="27" fill="#8a3a3a"/><text x="330" y="217">G2</text>
+     <circle cx="330" cy="330" r="27" fill="#8a3a3a" opacity=".45"/><text x="330" y="337" opacity=".6">G3</text>
+    </g>
+   </svg>
+  </div>
+  <aside class="side">
+   <section class="card"><h2>Monsters</h2>
+    <div class="who">Goblin A <small class="st h">Healthy</small></div>
+    <div class="who">Goblin B <small class="st b">Bloodied</small></div>
+    <div class="who">Goblin C <small class="st d">Down</small></div>
+   </section>
+   <section class="card"><h2>Party</h2>
+    <div class="who">Thorin</div>
+    <div class="who">Lyra <span class="cond">Concentrating</span></div>
+    <div class="who">Ash <span class="cond">Poisoned</span></div>
+    <div class="who">Pip <small class="st d">Down <span class="ticks">&#10003;&#10007;&#9675;</span></small></div>
+   </section>
+   <section class="card log"><h2>Dice log</h2>
+    <div class="dice"><span class="die">20</span><span><b>Lyra</b> rolled a <span class="nat">natural 20</span></span></div>
+    <div><b>Thorin</b> Greataxe attack <b>23</b></div>
+    <div><b>Thorin</b> Damage <b>19</b></div>
+    <div class="dm"><b>DM</b> rolled</div>
+    <div><b>Ash</b> Initiative <b>11</b></div>
+    <div><b>Goblin A</b> Scimitar <b>1</b> <span class="nat">natural 1</span></div>
+   </section>
+  </aside>
+</div>
+</body></html>

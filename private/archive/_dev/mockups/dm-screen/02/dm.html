@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DM screen - Map-first</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--sunken:#1b1b1b;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--btn:#2a6e9e;--btn-line:#4a9ad0;--hl:#ffd84a;--ok:#4f8a3a;--gold:#a8862a;--goldbg:#4a3d16}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--text);font:14px/1.4 system-ui,sans-serif}
+#map{position:fixed;inset:0;width:100%;height:100%}
+.cap{position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:9;font-size:11px;color:var(--muted);background:#000a;padding:2px 10px;border-radius:10px}
+.ov{position:fixed;background:#1b1b1bee;border:1px solid var(--line);border-radius:8px;z-index:5}
+.ov h2{margin:0;padding:6px 10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;cursor:pointer}
+.ov .b{padding:6px 10px}.ov.shut .b{display:none}.ov.shut h2{border:0}
+#init{top:30px;left:10px;width:230px}
+#party{top:30px;right:10px;width:260px}
+#log{bottom:60px;right:10px;width:310px}
+#mon{bottom:60px;left:10px;width:250px}
+#notes{top:30px;left:50%;transform:translateX(-50%);width:300px}
+.row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #2f2f2f}.row:last-child{border:0}
+.row b{flex:1;font-weight:600}.n{font-variant-numeric:tabular-nums;color:var(--muted)}
+.cur{background:#1d3a50;margin:0 -10px;padding:3px 10px;border-left:3px solid var(--accent)}
+.hid{opacity:.55;font-style:italic}
+.bar{height:6px;background:#111;border-radius:3px;overflow:hidden;width:60px}.bar i{display:block;height:100%;background:var(--ok)}.bar i.w{background:var(--hl)}.bar i.d{background:#c04a4a}
+.tag{font-size:10px;padding:1px 6px;border-radius:9px;border:1px solid var(--line);font-style:normal}
+.tag.dm{background:var(--goldbg);border-color:var(--gold);color:var(--hl)}.tag.wh{background:#3a2a4a;border-color:#7a5a9a}
+.logline{padding:3px 0;font-size:13px;border-bottom:1px solid #2f2f2f}
+.logline.h{background:var(--goldbg);margin:0 -10px;padding:3px 10px}
+button{font:inherit;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer}
+button.p{background:var(--btn);border-color:var(--btn-line)}button.on{border-color:var(--hl);color:var(--hl)}
+#bar{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);z-index:6;display:flex;gap:8px;align-items:center;background:#1b1b1bf0;border:1px solid var(--line);border-radius:30px;padding:6px 12px;white-space:nowrap}
+#bar .sep{width:1px;height:22px;background:var(--line)}
+#notes textarea{width:100%;height:60px;background:var(--sunken);color:var(--text);border:1px solid var(--line);border-radius:4px;font:inherit}
+.legend{font-size:12px;color:var(--muted)}.draft{font-size:12px;color:var(--hl)}
+@media(max-width:1500px){#notes{display:none}}
+</style></head><body>
+<div class="cap">Direction 02: Map-first (DM screen, private)</div>
+<svg id="map" viewBox="0 0 24 14" preserveAspectRatio="xMidYMid slice">
+<defs><pattern id="g" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="#fff3" stroke-width=".03"/></pattern>
+<pattern id="hatch" width=".3" height=".3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V.3" stroke="#ffd84a77" stroke-width=".08"/></pattern></defs>
+<rect width="24" height="14" fill="#3b352c"/>
+<rect x="1" y="1" width="12" height="12" fill="#5a5144"/><rect x="13" y="5" width="3" height="3" fill="#5a5144"/><rect x="16" y="1" width="7" height="12" fill="#4d473d"/>
+<rect x="5" y="4" width="2" height="2" fill="#6b4a2c"/><rect x="9" y="8" width="1" height="3" fill="#6b4a2c"/><circle cx="19.5" cy="9" r="1.2" fill="#2a4a5a"/>
+<rect width="24" height="14" fill="url(#g)"/>
+<path d="M1 1H13V5M13 8V13H1ZM16 1H23V13H16V8M16 5V1" fill="none" stroke="#111" stroke-width=".25"/>
+<path d="M16 0H24V14H16Z" fill="#000" opacity=".55"/>
+<text x="20" y="12.6" font-size=".4" fill="#fff" text-anchor="middle" opacity=".7">sent fog (DM sees through)</text>
+<path d="M0 10H8V14H0Z" fill="url(#hatch)" stroke="#ffd84a" stroke-width=".06" stroke-dasharray=".25 .15"/>
+<text x="1.2" y="12.6" font-size=".4" fill="#ffd84a">draft fog: not sent yet</text>
+<g font-size=".4" text-anchor="middle" fill="#fff" font-weight="700" stroke="#000" stroke-width=".02">
+<circle cx="4.5" cy="7.5" r=".42" fill="#3a8fd0"/><text x="4.5" y="7.65">T</text>
+<circle cx="5.5" cy="8.5" r=".42" fill="#3a8fd0"/><text x="5.5" y="8.65">L</text>
+<circle cx="3.5" cy="8.5" r=".42" fill="#3a8fd0"/><text x="3.5" y="8.65">B</text>
+<circle cx="7.5" cy="6.5" r=".42" fill="#3a8fd0" stroke="#66c0f4" stroke-width=".1"/><text x="7.5" y="6.65">P</text>
+<circle cx="8.5" cy="4.5" r=".42" fill="#b04040"/><text x="8.5" y="4.65">G1</text>
+<circle cx="10.5" cy="6.5" r=".42" fill="#b04040"/><text x="10.5" y="6.65">G2</text>
+<circle cx="9.5" cy="9.5" r=".42" fill="#b04040"/><text x="9.5" y="9.65">G3</text>
+<circle cx="18.5" cy="4.5" r=".6" fill="#b04040" opacity=".45" stroke="#ffd84a" stroke-width=".06" stroke-dasharray=".15 .1"/><text x="18.5" y="4.65" opacity=".7">Bu</text>
+</g>
+<text x="18.5" y="3.6" font-size=".35" fill="#ffd84a" text-anchor="middle">hidden bugbear (players can't see)</text>
+</svg>
+
+<div class="ov" id="init"><h2 onclick="this.parentNode.classList.toggle('shut')"><span>Initiative - Round 2</span><span>&#8211;</span></h2><div class="b">
+<div class="row"><span class="n">19</span><b>Thorn</b></div>
+<div class="row cur"><span class="n">17</span><b>Pip</b><span class="tag">turn</span></div>
+<div class="row"><span class="n">14</span><b>Goblin 1</b></div>
+<div class="row"><span class="n">12</span><b>Lyra</b></div>
+<div class="row hid"><span class="n">11</span><b>Bugbear</b><span class="tag dm">hidden</span></div>
+<div class="row"><span class="n">9</span><b>Goblin 2</b></div>
+<div class="row"><span class="n">7</span><b>Brom</b></div>
+<div class="row"><span class="n">4</span><b>Goblin 3</b></div>
+<div style="margin-top:6px;display:flex;gap:6px"><button class="p">Next turn</button><button>Add</button><button>Roll all</button></div></div></div>
+
+<div class="ov" id="notes"><h2 onclick="this.parentNode.classList.toggle('shut')"><span>DM notes (private)</span><span>&#8211;</span></h2><div class="b"><textarea>Bugbear ambushes from the east door when the party opens the chest. Goblin 1 flees at 0 HP.</textarea></div></div>
+
+<div class="ov" id="party"><h2 onclick="this.parentNode.classList.toggle('shut')"><span>Party</span><span>&#8211;</span></h2><div class="b">
+<div class="row"><b>Thorn</b><span class="n">AC 18</span><div class="bar"><i style="width:85%"></i></div><span class="n">44/52</span></div>
+<div class="row"><b>Lyra</b><span class="n">AC 12</span><div class="bar"><i class="w" style="width:40%"></i></div><span class="n">9/22</span></div>
+<div class="row"><b>Brom</b><span class="n">AC 16</span><div class="bar"><i style="width:90%"></i></div><span class="n">27/30</span></div>
+<div class="row"><b>Pip</b><span class="n">AC 14</span><div class="bar"><i class="d" style="width:15%"></i></div><span class="n">4/26</span></div>
+<div class="legend" style="margin-top:4px">Passive Perception: 14 / 11 / 16 / 15</div></div></div>
+
+<div class="ov" id="mon"><h2 onclick="this.parentNode.classList.toggle('shut')"><span>Monsters (exact HP)</span><span>&#8211;</span></h2><div class="b">
+<div class="row"><b>Goblin 1</b><div class="bar"><i class="d" style="width:43%"></i></div><span class="n">3/7</span><button>-</button></div>
+<div class="row"><b>Goblin 2</b><div class="bar"><i style="width:100%"></i></div><span class="n">7/7</span><button>-</button></div>
+<div class="row"><b>Goblin 3</b><div class="bar"><i class="w" style="width:71%"></i></div><span class="n">5/7</span><button>-</button></div>
+<div class="row hid"><b>Bugbear</b><div class="bar"><i style="width:100%"></i></div><span class="n">27/27</span><span class="tag dm">hidden</span></div></div></div>
+
+<div class="ov" id="log"><h2 onclick="this.parentNode.classList.toggle('shut')"><span>Dice log</span><span>&#8211;</span></h2><div class="b">
+<div class="logline h"><span class="tag dm">hidden</span> Bugbear Perception d20+1 = <b>17</b></div>
+<div class="logline"><span class="tag wh">whisper to Lyra</span> "The runes glow faintly."</div>
+<div class="logline">Pip: Sneak Attack 3d6+3 = <b>14</b></div>
+<div class="logline">Pip: attack d20+6 = <b>19</b> hits Goblin 1</div>
+<div class="logline">Goblin 3: attack d20+4 = <b>8</b> misses Brom</div></div></div>
+
+<div id="bar">
+<button class="p">Send to table</button>
+<span class="draft">1 fog change not sent</span><span class="sep"></span>
+<span class="legend">Next roll:</span><button class="on" onclick="var h=this.textContent=='Hidden';this.textContent=h?'Public':'Hidden';this.classList.toggle('on',!h)">Hidden</button>
+<button>d20</button><span class="sep"></span>
+<button>Fog: reveal</button><button>Fog: hide</button><button>Token +</button><span class="sep"></span>
+<button onclick="document.querySelectorAll('.ov').forEach(o=>o.classList.toggle('shut'))">Collapse all</button>
+</div>
+</body></html>

@@ -1,0 +1,120 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Table View - Folding Screen</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--card2:#323232;--sunken:#1b1b1b;--line:#3d3d3d;--line-strong:#555;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4;--accent-soft:#1d3a50;--btn:#2a6e9e;--btn-line:#4a9ad0;--btn2:#3a3a3a;--highlight:#ffd84a;--danger-bg:#4a2424;--danger-line:#8a3a3a;--info-bg:#24384a;--info-line:#3a628a;--ok-bg:#2d4a24;--ok-line:#4f8a3a;--gold-bg:#4a3d16;--gold-line:#a8862a;--r:8px;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,Consolas,monospace}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.4 var(--font);display:flex;flex-direction:column;overflow:hidden}
+.cap{flex:none;font-size:11px;color:var(--muted);padding:3px 12px;background:var(--sunken);border-bottom:1px solid var(--line)}
+.cap b{color:var(--accent)}
+.screen{flex:1;min-height:0;display:grid;gap:0;padding:8px;grid-template-columns:minmax(0,.85fr) minmax(0,1.6fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+.panel{display:flex;flex-direction:column;min-height:0;background:var(--card);border:1px solid var(--line-strong);padding:10px;overflow:hidden}
+.panel+.panel{border-left:3px double var(--line-strong)}
+.panel:first-of-type{border-radius:var(--r) 0 0 var(--r)}.panel:last-of-type{border-radius:0 var(--r) var(--r) 0}
+.panel>h2{flex:none;margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.panel>h2 .n{margin-left:auto;color:var(--muted);font-weight:400;font-size:13px}
+.scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.btn{font:inherit;font-size:13px;padding:5px 11px;border-radius:var(--r);border:1px solid #4d4d4d;background:var(--btn2);color:var(--text);cursor:pointer}
+.btn.primary{background:var(--btn);border-color:var(--btn-line);color:#fff}
+.btn.on{background:var(--accent-soft);border-color:var(--accent)}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid #4d4d4d;background:var(--btn2);font-size:12px;white-space:nowrap}
+.badge.g{background:var(--ok-bg);border-color:var(--ok-line)}.badge.r{background:var(--danger-bg);border-color:var(--danger-line)}.badge.y{background:var(--gold-bg);border-color:var(--gold-line)}.badge.b{background:var(--info-bg);border-color:var(--info-line)}.badge.p{background:#3d2a4f;border-color:#6c4b8f}
+.av{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;border:2px solid;background:var(--sunken)}
+.mapwrap{flex:1;min-height:0;display:grid;place-items:center;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r);padding:6px}
+.mapwrap svg{max-width:100%;max-height:100%;width:100%;height:100%}
+.log{font-size:13px}.log .row{padding:5px 8px;border-radius:6px;background:var(--card2);border-left:3px solid var(--line-strong)}
+.log .row.hid{border-left-color:#6c4b8f;background:#2f2638}.log .row.wh{border-left-color:var(--gold-line);background:var(--gold-bg)}
+.log .t{float:right;font-family:var(--mono);font-weight:700}.log .nat{color:var(--highlight)}
+.muted{color:var(--muted)}
+.ref{grid-column:1/-1;margin-top:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--sunken);border:1px solid var(--line-strong);border-radius:var(--r);padding:8px 10px;font-size:12px}
+.ref>div{padding:0 10px;border-left:1px solid var(--line)}.ref>div:first-child{border:0;padding-left:0}
+.ref h3{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.ref table{width:100%;border-collapse:collapse}.ref td{padding:1px 0}.ref td:last-child{text-align:right;font-family:var(--mono)}
+.ref .cond{display:flex;flex-wrap:wrap;gap:4px}
+@media(max-height:800px){.ref{padding:5px 10px;font-size:11px}.ref h3{margin-bottom:2px}.panel{padding:8px}}
+
+body{font-size:clamp(16px,1.35vw,26px)}
+.cap{font-size:11px}
+.screen{grid-template-rows:auto minmax(0,1fr);grid-template-columns:minmax(0,.8fr) minmax(0,1.8fr) minmax(0,1fr)}
+.top{grid-column:1/-1;display:flex;gap:10px;align-items:stretch;margin-bottom:8px}
+.top .round{flex:none;padding:6px 18px;background:var(--info-bg);border:2px solid var(--info-line);border-radius:var(--r);text-align:center;font-size:1em;color:var(--muted)}
+.top .round b{display:block;font-size:2em;line-height:1;color:var(--text)}
+.top .turns{flex:1;display:flex;gap:10px}
+.turn{flex:1;display:flex;align-items:center;gap:10px;padding:6px 12px;background:var(--card);border:2px solid var(--line);border-radius:var(--r);font-weight:600;min-width:0}
+.turn .av{width:2.4em;height:2.4em;font-size:.9em}
+.turn.cur{border-color:var(--highlight);background:var(--gold-bg);box-shadow:0 0 0 3px rgb(255 216 74/.25)}
+.turn.cur::after{content:"NOW";margin-left:auto;color:var(--highlight);font-size:.75em}
+.row2{display:flex;align-items:center;gap:12px;padding:12px;background:var(--card2);border:1px solid var(--line);border-radius:var(--r)}
+.row2 .av{width:2.6em;height:2.6em;font-size:1em}.row2 .nm{font-weight:700;font-size:1.15em}
+.big{display:inline-block;padding:3px 14px;border-radius:999px;border:2px solid;font-weight:700;font-size:1em;margin-left:auto}
+.big.g{background:var(--ok-bg);border-color:var(--ok-line)}.big.y{background:var(--gold-bg);border-color:var(--gold-line)}.big.r{background:var(--danger-bg);border-color:var(--danger-line)}
+.sm{font-size:.75em;color:var(--muted)}
+.pips{display:inline-flex;gap:4px;vertical-align:middle}.pips i{width:.8em;height:.8em;border-radius:50%;border:2px solid var(--muted)}.pips i.f{background:var(--text)}.pips i.x{background:var(--danger-line);border-color:var(--danger-line)}
+.panel>h2{font-size:1.1em}
+.log{font-size:1em}.log .row{padding:10px 12px;font-size:1.05em}
+.dice{display:flex;gap:12px;align-items:center;padding:12px;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px}
+.die{width:3.4em;height:3.4em;display:grid;place-items:center;font-size:1.2em;font-weight:800;background:var(--card2);border:3px solid var(--accent);border-radius:14px;transform:rotate(8deg);font-family:var(--mono)}
+.die.n{border-color:var(--highlight);color:var(--highlight)}
+.foot{grid-column:1/-1}
+</style></head><body>
+<div class="cap">Mockup 04: <b>The folding DM screen</b>: PUBLIC table view, same three panels, read-only. Nothing private is sent here.</div>
+<main class="screen">
+
+<div class="top">
+<div class="round">Round<b>2</b></div>
+<div class="turns">
+<div class="turn"><span class="av" style="border-color:#c98500;color:#c98500">MI</span>Mira</div>
+<div class="turn cur"><span class="av" style="border-color:#c9544a">G1</span>Goblin 1</div>
+<div class="turn"><span class="av" style="border-color:#3987e5;color:#3987e5">TH</span>Thornik</div>
+<div class="turn"><span class="av" style="border-color:#c9544a">G2</span>Goblin 2</div>
+<div class="turn"><span class="av" style="border-color:#4f8a3a;color:#4f8a3a">BR</span>Bram</div>
+<div class="turn"><span class="av" style="border-color:#c9544a">G3</span>Goblin 3</div>
+<div class="turn"><span class="av" style="border-color:#9085e9;color:#9085e9">PI</span>Pip</div>
+</div></div>
+
+<section class="panel" aria-label="Party">
+<h2>The party</h2>
+<div class="scroll" style="justify-content:space-around">
+<div class="row2"><div class="av" style="border-color:#3987e5;color:#3987e5">TH</div><div><div class="nm">Thornik</div><div class="sm">Fighter</div></div></div>
+<div class="row2" style="border-color:var(--highlight)"><div class="av" style="border-color:#c98500;color:#c98500">MI</div><div><div class="nm">Mira</div><span class="badge r">Poisoned</span></div></div>
+<div class="row2" style="background:var(--danger-bg);border-color:var(--danger-line)"><div class="av" style="border-color:#9085e9;color:#9085e9">PI</div><div><div class="nm">Pip</div><span class="pips"><i class="f"></i><i></i><i></i></span> <span class="pips"><i class="x"></i><i></i><i></i></span></div><span class="big r">Down</span></div>
+<div class="row2"><div class="av" style="border-color:#4f8a3a;color:#4f8a3a">BR</div><div><div class="nm">Bram</div><span class="badge b">Blessed</span></div></div>
+</div>
+</section>
+
+<section class="panel" aria-label="Battle map">
+<h2>Goblin Ambush: Cellar</h2>
+<div class="mapwrap">
+<svg viewBox="0 0 800 560" role="img" aria-label="Battle map with only the revealed cellar visible">
+<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#fff" stroke-opacity=".14"/></pattern></defs>
+<rect width="800" height="560" fill="#000"/>
+<rect x="80" y="80" width="400" height="320" fill="#3b3a35"/>
+<rect x="160" y="120" width="40" height="40" fill="#4a3d16"/><rect x="360" y="320" width="80" height="40" fill="#2a2f3a"/>
+<rect x="80" y="80" width="400" height="320" fill="url(#g)"/>
+<g font-family="system-ui" font-weight="700" font-size="16" text-anchor="middle">
+<circle cx="140" cy="180" r="18" fill="#1b1b1b" stroke="#3987e5" stroke-width="4"/><text x="140" y="186" fill="#3987e5">TH</text>
+<circle cx="180" cy="260" r="18" fill="#1b1b1b" stroke="#c98500" stroke-width="4"/><text x="180" y="266" fill="#c98500">MI</text>
+<circle cx="140" cy="300" r="18" fill="#1b1b1b" stroke="#8a3a3a" stroke-width="4" stroke-dasharray="4 3"/><text x="140" y="306" fill="#9b9b9b">PI</text>
+<circle cx="220" cy="340" r="18" fill="#1b1b1b" stroke="#4f8a3a" stroke-width="4"/><text x="220" y="346" fill="#4f8a3a">BR</text>
+<circle cx="340" cy="180" r="18" fill="#4a2424" stroke="#c9544a" stroke-width="4"/><text x="340" y="186" fill="#ececec">G1</text>
+<circle cx="380" cy="260" r="18" fill="#4a2424" stroke="#c9544a" stroke-width="4"/><text x="380" y="266" fill="#ececec">G2</text>
+<circle cx="300" cy="340" r="18" fill="#4a2424" stroke="#c9544a" stroke-width="4"/><text x="300" y="346" fill="#ececec">G3</text>
+</g></svg></div>
+</section>
+
+<section class="panel" aria-label="Monsters and dice">
+<h2>Monsters</h2>
+<div class="scroll" style="flex:none;margin-bottom:8px">
+<div class="row2"><div class="av" style="border-color:#c9544a">G1</div><span class="nm">Goblin 1</span><span class="big g">Healthy</span></div>
+<div class="row2"><div class="av" style="border-color:#c9544a">G2</div><span class="nm">Goblin 2</span><span class="big y">Bloodied</span></div>
+<div class="row2" style="opacity:.6"><div class="av" style="border-color:#c9544a">G3</div><span class="nm">Goblin 3</span><span class="big r">Down</span></div>
+</div>
+<h2>Dice</h2>
+<div class="dice"><div class="die n">20</div><div><b>Thornik</b> Longsword attack<br><span class="sm">natural 20!</span></div></div>
+<div class="scroll log">
+<div class="row"><span class="t">17</span>Mira: Stealth</div>
+<div class="row"><span class="t nat">20</span>Thornik: Longsword <span class="nat">nat 20</span></div>
+<div class="row hid"><span class="t">?</span>DM rolled</div>
+<div class="row"><span class="t">8</span>Goblin 2: Shortbow</div>
+</div>
+</section>
+</main>
+</body></html>
