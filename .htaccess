@@ -1,0 +1,12 @@
+# there is no /sheets/ page; the breadcrumbs on the test sheet link to it
+RedirectMatch 301 ^/sheets/?$ /
+
+# Browser caching for static files outside /assets (those aren't versioned, so keep it short)
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "public, max-age=86400"
+    </FilesMatch>
+    <FilesMatch "\.(png|jpe?g|gif|webp|avif|svg|ico|mp3|mp4|ogg|glb|woff2?)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+</IfModule>

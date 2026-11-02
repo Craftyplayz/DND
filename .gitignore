@@ -9,3 +9,4 @@ transcripts/data/*
 characters/cache/*
 !characters/cache/.gitignore
 !characters/cache/.htaccess
+private/.htpasswd
