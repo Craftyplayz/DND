@@ -33,3 +33,9 @@
 .mon-credit { margin-top: 20px; color: var(--muted); font-size: 13px; }
 .mon-credit summary { cursor: pointer; }
 .mon-credit li { margin: 4px 0; }
+/* archived monsters (ROADMAP 0.5) */
+.mon-arch { margin-top: 12px; }
+.mon-arch summary { color: var(--muted); font-size: 14px; cursor: pointer; }
+.mon-arch .mon-list { margin-top: 8px; }
+.mon-arcrow { display: grid; gap: 4px; }
+.mon-arcrow .btn { justify-self: start; }

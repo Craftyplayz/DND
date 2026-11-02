@@ -94,7 +94,7 @@ $is('names kept beside the history', (array)ch_versions($A, '555', 'v1', 0, 20)[
 $is('names are not versions', count(ch_versions($A, '555', 'v1', 0, 20)[1]['versions']), 2);
 [$code, $out] = ch_restore($A, '555', 'v1', 1, json_encode(['hp' => ['cur' => 10]] + json_decode($v(10), true)));
 $is('restore adds a version', [$code, $out['before'], $out['version'], count(glob("$A/characters/v1/history/*.json"))], [200, 2, 3, 3 + 2]);
-$is('restore remembered', (array)ch_versions($A, '555', 'v1', 0, 20)[1]['restored'], [3 => 1]);
+$is('restore remembered', (array)ch_versions($A, '555', 'v1', 0, 20)[1]['restored'], [3 => ['from' => 1, 'at' => 1]]);
 $is('older versions untouched', json_decode(file_get_contents("$A/characters/v1/history/2.json"), true)['hp']['cur'], 7);
 $is('restore of another character refused', ch_restore($A, '555', 'v1', 1, $char('zz', 99))[0], 400);
 $is('restore of a missing version refused', ch_restore($A, '555', 'v1', 99, $v(11))[0], 404);

@@ -3,3 +3,7 @@
 .ch-bar .ch-q { flex: 1 1 260px; }
 .ch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; margin: 16px 0; }
 .ch-grid > p { grid-column: 1 / -1; }
+.ch-arc { margin: 28px 0 16px; }
+.ch-arc summary.sec-h { display: list-item; cursor: pointer; }
+/* Undo after archiving, as on the sheet */
+.hb-undo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 14px; border-radius: var(--radius); font-size: 14px; background: var(--info-bg); border: 1px solid var(--info-line); }

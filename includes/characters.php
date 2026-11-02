@@ -4,7 +4,7 @@
 //   meta.json        {"owner": <google sub>, "visibility": "private" | "public", "created": <unix time>, "campaigns": []}
 //   history/<n>.json every saved version; a save that changes only the roll log or view settings makes no new one
 //   history/names.json    {"<n>": "Before session 12"}, the names players give versions (ROADMAP 0.5); version files never change
-//   history/restored.json {"<n>": <the version it was restored from>}
+//   history/restored.json {"<n>": {"from": <the version it was restored from>, "at": <that version's "updated">}}
 // Players archive characters (an "archived" time on the character, copied into meta.json); nothing is deleted. Folders that
 // an older version of the site deleted sit in <accounts>/characters/.deleted/<id>-<time>/, for the admin only.
 // Characters saved before the folders (<accounts>/<sub>/<id>.json) are copied in once per account and left in place.
@@ -301,6 +301,6 @@ function ch_restore($accounts, $sub, $id, $n, $body)
     }
     $r = ch_save($accounts, $sub, $body, $new);
     if ($r[0] !== 200) return $r;
-    if ($new) { $res = ch_side($dir, 'restored'); $res[$new] = (int)$n; ch_side_put($dir, 'restored', $res); }
+    if ($new) { $res = ch_side($dir, 'restored'); $res[$new] = ['from' => (int)$n, 'at' => ch_updated("$dir/history/$n.json")]; ch_side_put($dir, 'restored', $res); }
     return [200, $r[1] + ['before' => $before, 'version' => $new]];
 }

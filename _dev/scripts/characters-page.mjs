@@ -1,5 +1,6 @@
 // Checks My Characters (/characters/ and /characters/<id>) signed out, in headless Chrome and Firefox: the cards, search,
-// sort, delete with its confirmation, opening and editing one character, Create, and an unknown id.
+// sort, archive (no delete: ROADMAP 0.5) with Undo and the Archived section, opening and editing one character, an archived
+// one read-only with Unarchive, Create, and an unknown id.
 //   node _dev/scripts/characters-page.mjs [base URL, default http://localhost:8110]
 // Needs the local server with the router (php -S 127.0.0.1:8110 -t . _dev/router.php). Cloud saves and backups are blocked.
 // Start that server with DND_ACCOUNTS=<this script's temp folder, printed below> to check public and private characters too:
@@ -40,15 +41,33 @@ for (const name of ['chrome', 'firefox']) {
         is(`${name} search`, await cards(), ['Jo']);
         await ev(`(() => { const q = document.querySelector('#ch-q'); q.value = ''; q.dispatchEvent(new Event('input')); const s = document.querySelector('#ch-sort'); s.value = 'name'; s.dispatchEvent(new Event('change')); })()`);
         is(`${name} sort by name`, await cards(), ['Jo', 'Lock']);
-        await ev(`document.querySelector('[data-act=del][data-id=bbb]').click()`);
-        is(`${name} delete asks first`, await ev(`document.querySelector('#ch-del').open`), true);
-        await ev(`document.querySelector('#ch-del-no').click()`);
-        is(`${name} cancel keeps it`, Object.keys((await store()).chars).sort(), ['aaa', 'bbb', 'ccc']);
-        await ev(`document.querySelector('[data-act=del][data-id=bbb]').click()`);
-        await ev(`document.querySelector('#ch-del-yes').click()`);
-        is(`${name} deleted`, await cards(), ['Lock']);
+        is(`${name} no Delete anywhere`, await ev(`!/Delete/.test(document.querySelector('#main').textContent)`), true);
+        is(`${name} no Archived section yet`, await ev(`document.querySelector('#ch-arc').hidden`), true);
+        await ev(`document.querySelector('[data-act=arc][data-id=bbb]').click()`);
+        const arcd = (await store()).chars.bbb;
+        is(`${name} archived, nothing else changed`, [arcd.archived > 0, { ...arcd, archived: 0, updated: 0 }], [true, { ...db.chars.bbb, archived: 0, updated: 0 }]);
+        is(`${name} archived leaves the grid`, await ev(`JSON.stringify([...document.querySelectorAll('#ch-grid .ch-card b')].map((b) => b.textContent))`).then(JSON.parse), ['Lock']);
+        is(`${name} count leaves out archived`, await ev(`document.querySelector('#ch-count').textContent`), '1 character');
+        is(`${name} Archived section, folded`, await ev(`[!document.querySelector('#ch-arc').hidden, document.querySelector('#ch-arc').open, document.querySelector('#ch-arc summary').textContent.replace(/\s+/g, ' ').trim()].join()`), 'true,false,Archived (1)');
+        await ev(`[...document.querySelectorAll('.hb-undo button')].pop().click()`);
+        is(`${name} undo unarchives`, [(await store()).chars.bbb.archived, await ev(`document.querySelector('#ch-arc').hidden`)], [0, true]);
+        await ev(`document.querySelector('[data-act=arc][data-id=bbb]').click()`);
+        await ev(`document.querySelector('[data-act=unarc][data-id=bbb]').click()`);
+        is(`${name} unarchive`, [(await store()).chars.bbb.archived, (await cards()).length], [0, 2]);
+        await ev(`document.querySelector('[data-act=arc][data-id=bbb]').click()`);
         is(`${name} others untouched`, (await store()).chars.aaa, db.chars.aaa);
         errs('/characters/');
+
+        // an archived character opens read-only, with Unarchive; rolls work but aren't saved
+        await b.go(BASE + '/characters/bbb'); await sleep(2000);
+        is(`${name} archived opens read-only`, await ev(`[!!document.querySelector('.hb-arcnote'), [...document.querySelectorAll('#hb-sheet input')].every((i) => i.disabled), !document.querySelector('[data-act=custom]')].join()`), 'true,true,true');
+        const before = (await store()).chars.bbb;
+        await ev(`document.querySelector('[data-act=roll]')?.click()`); await sleep(1500);
+        is(`${name} archived roll not saved`, (await store()).chars.bbb, before);
+        await ev(`document.querySelector('[data-act=unarchive]').click()`); await sleep(300);
+        const un = (await store()).chars.bbb;
+        is(`${name} unarchived on the sheet`, [un.archived, un.name, (un.rolls || []).length, await ev(`[...document.querySelectorAll('#hb-sheet input')].some((i) => !i.disabled)`)], [0, before.name, (before.rolls || []).length, true]);
+        errs('/characters/bbb');
 
         await b.go(BASE + '/characters/aaa'); await sleep(2000);
         is(`${name} opens the character`, await ev(`document.querySelector('[data-k=name]').value`), 'Lock');

@@ -2,11 +2,13 @@
 // each opening at /characters/<id>. Signed in, the account's newer characters come down first, the same rule as
 // sheets/player/sheet.js (the newer "updated" wins), so a new device shows everything. The sheet tidies (normalises)
 // characters when it opens them, so this page stores what the account sends as it is.
+// Characters are archived, never deleted (ROADMAP 0.5): an "archived" time on the character, synced like any edit. Archived
+// ones wait in a folded "Archived" section under the grid, with Unarchive.
 document.addEventListener('DOMContentLoaded', async () => {
     'use strict';
     const { $, esc, toast } = UI;
     const KEY = 'hb-sheet', API = '/sheets/player/cloud.php';
-    const grid = $('#ch-grid'), q = $('#ch-q'), sort = $('#ch-sort'), dlg = $('#ch-del');
+    const grid = $('#ch-grid'), q = $('#ch-q'), sort = $('#ch-sort'), arcBox = $('#ch-arc'), arcGrid = $('#ch-arc-grid');
     const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
     let cloud = 'cloud' in $('#main').dataset;
     // read fresh before every change, so a sheet open in another tab doesn't lose its edits to this page's older copy
@@ -37,34 +39,50 @@ document.addEventListener('DOMContentLoaded', async () => {
             name: (a, b) => (a.c.name || '').localeCompare(b.c.name || ''), '-level': (a, b) => level(b.c) - level(a.c),
         }[sort.value];
         shown.sort(by);
-        $('#ch-count').textContent = all.length === 1 ? '1 character' : `${all.length} characters`;
-        grid.innerHTML = shown.map(({ c }) => {
+        const live = all.filter(({ c }) => !c.archived), arch = all.filter(({ c }) => c.archived);
+        $('#ch-count').textContent = live.length === 1 ? '1 character' : `${live.length} characters`;
+        const card = ({ c }) => {
             const url = '/characters/' + encodeURIComponent(c.id), name = c.name || 'Unnamed character';
+            const act = c.archived ? 'unarc' : 'arc';
             return `<article class="ch-card">
                 <a class="ch-top" href="${url}">${art(c)}<span class="ch-who"><b>${esc(name)}</b><small>${esc(line(c))}</small></span></a>
-                <div class="ch-acts"><a class="btn small" href="${url}">View</a><button type="button" class="btn small" data-act="del" data-id="${esc(c.id)}" data-name="${esc(name)}">Delete</button></div>
+                <div class="ch-acts"><a class="btn small" href="${url}">View</a><button type="button" class="btn small" data-act="${act}" data-id="${esc(c.id)}">${c.archived ? 'Unarchive' : 'Archive'}</button></div>
             </article>`;
-        }).join('') || `<p class="muted">${all.length ? 'No characters match that search.' : 'No characters yet. Create one to get started.'}</p>`;
+        };
+        const liveShown = shown.filter(({ c }) => !c.archived), arcShown = shown.filter(({ c }) => c.archived);
+        grid.innerHTML = liveShown.map(card).join('') || `<p class="muted">${live.length ? 'No characters match that search.' : 'No characters yet. Create one to get started.'}</p>`;
+        arcBox.hidden = !arch.length;
+        $('#ch-arc-n').textContent = `(${arch.length})`;
+        arcGrid.innerHTML = arcShown.map(card).join('') || '<p class="muted">No archived characters match that search.</p>';
     }
 
-    let gone = '';
-    grid.addEventListener('click', (e) => {
-        const b = e.target.closest('[data-act=del]');
-        if (!b) return;
-        gone = b.dataset.id;
-        $('#ch-del-title').textContent = `Delete ${b.dataset.name}?`;
-        $('#ch-del-text').textContent = 'This removes the character from this browser' + (cloud ? ' and from your account.' : '. Open it and use Export first if you want to keep a copy.');
-        dlg.showModal();
-    });
-    $('#ch-del-no').addEventListener('click', () => dlg.close());
-    $('#ch-del-yes').addEventListener('click', () => {
-        dlg.close();
-        const db = load();
-        delete db.chars[gone];
-        if (db.cur === gone) db.cur = '';
-        if (!store(db)) return;
-        if (cloud) fetch(API + '?id=' + encodeURIComponent(gone), { method: 'DELETE' }).catch(() => toast("Couldn't delete it from your account. Try again later.", 'err'));
+    // archive or unarchive: stamped as an edit, so it wins on every device; the account gets it straight away
+    function setArchived(id, on) {
+        const db = load(), c = db.chars[id];
+        if (!c) return null;
+        c.archived = on ? Date.now() : 0; c.updated = Date.now();
+        if (!store(db)) return null;
+        if (cloud) fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c) }).catch(() => { }); // missed: the sheet sends it next time
         draw();
+        return c;
+    }
+    // the same 15-second Undo as the sheet's
+    function offerUndo(text, fn) {
+        const el = document.createElement('div');
+        el.className = 'hb-undo';
+        el.innerHTML = `<span>${esc(text)}</span><button type="button" class="btn small">Undo</button>`;
+        let box = $('.toasts');
+        if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
+        box.appendChild(el);
+        const t = setTimeout(() => el.remove(), 15000);
+        el.querySelector('button').addEventListener('click', () => { clearTimeout(t); el.remove(); fn(); });
+    }
+    $('#main').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]');
+        if (!b) return;
+        const id = b.dataset.id;
+        if (b.dataset.act === 'arc') { const c = setArchived(id, true); if (c) offerUndo(`Archived ${c.name || 'the character'}`, () => setArchived(id, false)); }
+        if (b.dataset.act === 'unarc') setArchived(id, false);
     });
     q.addEventListener('input', draw);
     sort.addEventListener('change', draw);

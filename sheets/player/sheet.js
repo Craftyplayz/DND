@@ -149,7 +149,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // non-SRD spells (srd: 'wd:<slug>') carry stats only; their text is linked on dnd5e.wikidot.com
     const wdUrl = (r) => (String(r.srd || '').startsWith('wd:') ? 'https://dnd5e.wikidot.com/spell:' + r.srd.slice(3) : '');
     const SRD_CREDIT = 'From the <a href="https://dnd.wizards.com/resources/systems-reference-document" target="_blank" rel="noopener">System Reference Document 5.1 and 5.2</a> by Wizards of the Coast, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC-BY-4.0</a>.';
-    const uid = () => Math.random().toString(36).slice(2, 10);
+    // uidSeed > 0: ids made up for a version in the Versions dialog are the same each time, so its upgrades never show as changes
+    let uidSeed = 0;
+    const uid = () => (uidSeed ? 'v' + (uidSeed++).toString(36) : Math.random().toString(36).slice(2, 10));
     // read a number out of whatever was typed ("30 ft" -> 30)
     const nm = (x) => parseFloat(x) || 0;
     const ROW = {
@@ -171,7 +173,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         ability: () => ({ key: 'NEW', name: 'New ability', score: 10, save: false, sb: '' }),
         skill: () => ({ name: 'New skill', ab: 'STR', p: 0, b: '' }),
         passive: () => ({ name: 'Passive', f: '10', unit: '' }),
-        note: () => ({ id: uid(), title: '', group: '', body: '', pinned: false, created: Date.now(), updated: Date.now() }),
+        note: () => ({ id: uid(), title: '', group: '', body: '', pinned: false, archived: 0, created: Date.now(), updated: Date.now() }),
     };
     const PANEL_ROW = { attacks: ROW.attack, spells: ROW.spell, items: ROW.item, list: ROW.list, trackers: ROW.tracker, homebrew: ROW.hb };
 
@@ -191,7 +193,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     function blank() {
         return {
-            id: uid(), updated: 0, name: '', classes: [ROW.cls()], race: '', alignment: '', age: '', art: '', artUrl: '',
+            id: uid(), updated: 0, archived: 0, name: '', classes: [ROW.cls()], race: '', alignment: '', age: '', art: '', artUrl: '',
             abilities: ABIL.map(([key, name]) => ({ key, name, score: 10, save: false, sb: '' })),
             skills: SKILLS.map(([name, ab]) => ({ name, ab, p: 0, b: '' })),
             prof: 'ceil(LEVEL / 4) + 1', ac: '10 + DEX', init: 'DEX',
@@ -360,7 +362,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             localStorage.setItem(KEY, JSON.stringify(db));
             localStorage.setItem('hb-sheet-merged', '1');
         }
-    } catch (e) { }    
+    } catch (e) { }
+    
     // on /characters/<id> (characters/index.php): that character only. The page inlines the account's copy for its owner
     // (taken when newer than this browser's) or, read-only, a public character someone else owns; "new" makes a blank one.
     // a public character that is also in this browser is this player's own (signed out on their own device), so it stays editable
@@ -383,9 +386,13 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     if (!db.cur) { const c = blank(); db.chars[c.id] = c; db.cur = c.id; }
     let C = db.chars[db.cur];
     let warned = false;
-    function store() {
+    // this browser's saved copy of a character (not the one on screen)
+    const stored = (id) => { try { return JSON.parse(localStorage.getItem(KEY)).chars[id] || null; } catch (e) { return null; } };
+    function store(force) {
         if (RO) return; // someone else's public character: nothing is saved anywhere
-        try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
+        // an archived character is read-only (ROADMAP 0.5): rolls and clicks on screen are never saved, only (un)archiving is
+        const out = C && C.archived && !force ? { ...db, chars: { ...db.chars, [C.id]: stored(C.id) || C } } : db;
+        try { localStorage.setItem(KEY, JSON.stringify(out)); warned = false; }
         catch (e) { if (!warned) toast("Couldn't save: this browser's storage is full or blocked. Export the character so you don't lose it.", 'err'); warned = true; }
     }
     // signed in (data-cloud on <main>): characters are also kept in the account (cloud.php), with this browser's copy for offline use;
@@ -469,7 +476,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         try {
             for (const c of Object.values(db.chars)) {
                 const art = c.art;
-                if (!c.updated || !art.startsWith('data:image/')) continue;
+                if (!c.updated || c.archived || !art.startsWith('data:image/')) continue;
                 const r = await fetch(API + 'art.php?id=' + encodeURIComponent(c.id), { method: 'POST', headers: { 'Content-Type': art.slice(5, art.indexOf(';')) }, body: await (await fetch(art)).blob() });
                 if (r.status === 401) { cloudOff(); break; }
                 if (!r.ok) continue; // not in the account yet, or a hiccup: next time
@@ -484,15 +491,21 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
     const pic = (c) => c.art || c.artUrl;
     let undoSnap = null, undoTimer = 0; // undo for deletes, see snap()
+    // what makes a version (as ch_plain in includes/characters.php): everything but save stamps, the roll log, view settings
+    // and which note or tab is open
+    const plain = (c) => JSON.stringify(c, (k, v) => (['updated', 'open', 'sub', 'rolls', 'view'].includes(k) ? undefined : v));
+    let restoreUndo = null; // { plain, drop }: a restore's Undo, dropped by the next real edit (not a roll or a tab switch)
     function saveNow(edited = true) {
+        if (C && C.archived) return; // read-only until it's unarchived
         if (undoSnap && Date.now() - undoSnap.at > 1000) dropUndo();
+        if (restoreUndo && C && plain(C) !== restoreUndo.plain) restoreUndo.drop();
         if (edited && C) C.updated = Date.now();
         store();
         if (C) { dirty.add(C.id); clearTimeout(backupTimer); backupTimer = setTimeout(flushBackups, 4000); }
     }
     // the edit is stamped straight away, so switching character before the save runs still stamps the right one
     const saveLater = debounce(() => saveNow(false), 250);
-    const save = () => { if (C) C.updated = Date.now(); saveLater(); };
+    const save = () => { if (C && !C.archived) C.updated = Date.now(); saveLater(); };
     addEventListener('pagehide', () => { store(); flushBackups(); });
 
     const get = (path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), C);
@@ -876,7 +889,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     // notes pinned to the sheet: always on screen, editable in place
     function pinned() {
-        const pins = C.panels.flatMap((p, pi) => (p.type === 'notes' && p.on ? p.notes.map((n, i) => [n, `panels.${pi}.notes.${i}`, pi]).filter(([n]) => n.pinned) : []));
+        const pins = C.panels.flatMap((p, pi) => (p.type === 'notes' && p.on ? p.notes.map((n, i) => [n, `panels.${pi}.notes.${i}`, pi]).filter(([n]) => n.pinned && !n.archived) : []));
         return pins.length ? `<div class="hb-pins">${pins.map(([n, np, pi]) => `<div class="hb-pin">
             <div class="hb-pin-h"><button type="button" class="hb-link" data-act="ngo" data-i="${pi}" data-id="${esc(n.id)}" data-c="ntitle:${np}" title="Open in notes"></button>
                 <button type="button" class="hb-x" data-act="npin" data-p="${np}" aria-label="Unpin ${esc(n.title || 'note')}" title="Unpin">&times;</button></div>
@@ -1145,14 +1158,16 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         // notes: a list (search, groups as sub-tabs, sort) beside the open note
         notes: (p, path, pi) => {
             const g = (n) => String(n.group || '').trim();
-            const count = (fn) => p.notes.filter(fn).length;
-            const groups = uniq(p.notes.map(g).filter(Boolean)).sort((a, b) => a.localeCompare(b));
-            const opts = [['all', 'All', p.notes.length], ['pinned', 'Pinned', count((n) => n.pinned)], ...groups.map((x) => ['g:' + x, x, count((n) => g(n) === x)])];
+            // archived notes (ROADMAP 0.5) are out of play: only search and the Archived list at the bottom show them
+            const live = p.notes.filter((n) => !n.archived), arch = p.notes.map((n, i) => [n, i]).filter(([n]) => n.archived);
+            const count = (fn) => live.filter(fn).length;
+            const groups = uniq(live.map(g).filter(Boolean)).sort((a, b) => a.localeCompare(b));
+            const opts = [['all', 'All', live.length], ['pinned', 'Pinned', count((n) => n.pinned)], ...groups.map((x) => ['g:' + x, x, count((n) => g(n) === x)])];
             if (groups.length && count((n) => !g(n))) opts.push(['none', 'No group', count((n) => !g(n))]);
             const cur = pickSub(p, opts);
             const inSub = (n) => cur === 'all' || (cur === 'pinned' ? n.pinned : cur === 'none' ? !g(n) : g(n) === cur.slice(2));
             const by = { created: (a, b) => b.created - a.created, title: (a, b) => (a.title || '').localeCompare(b.title || '') }[p.sort] || ((a, b) => b.updated - a.updated);
-            const shown = p.notes.map((n, i) => [n, i]).filter(([n]) => inSub(n)).sort(([a], [b]) => (b.pinned - a.pinned) || by(a, b));
+            const shown = p.notes.map((n, i) => [n, i]).filter(([n]) => !n.archived && inSub(n)).sort(([a], [b]) => (b.pinned - a.pinned) || by(a, b));
             const list = shown.map(([n, i]) => {
                 const rp = `${path}.notes.${i}`, s = `${n.title} ${n.group} ${n.body}`.toLowerCase();
                 return `<button type="button" class="hb-nitem${n.id === p.open ? ' on' : ''}" data-act="nopen" data-p="${path}" data-id="${esc(n.id)}" data-s="${esc(s)}" aria-pressed="${n.id === p.open}"${noteQ && !s.includes(noteQ) ? ' hidden' : ''}>
@@ -1161,14 +1176,20 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                     <small>${g(n) ? esc(g(n)) + ' · ' : ''}<span data-c="nago:${rp}"></span></small>
                 </button>`;
             }).join('');
-            const oi = p.notes.findIndex((n) => n.id === p.open), n = p.notes[oi], np = `${path}.notes.${oi}`;
-            const editor = !n ? `<p class="muted hb-nempty">${p.notes.length ? 'Pick a note, or make a new one.' : 'No notes yet. Make one with New note.'}</p>` : `<div class="hb-nedit">
+            const found = arch.map(([n, i]) => {
+                const s = `${n.title} ${n.group} ${n.body}`.toLowerCase();
+                return `<div class="hb-nitem hb-narc" data-s="${esc(s)}"${noteQ && s.includes(noteQ) ? '' : ' hidden'}>
+                    <span class="hb-ntitle"><b>${esc(n.title || 'Untitled note')}</b><span class="badge">Archived</span></span>
+                    <button type="button" class="btn small" data-act="nunarc" data-p="${path}" data-i="${i}">Restore</button></div>`;
+            }).join('');
+            const oi = p.notes.findIndex((n) => n.id === p.open && !n.archived), n = p.notes[oi], np = `${path}.notes.${oi}`;
+            const editor = !n ? `<p class="muted hb-nempty">${live.length ? 'Pick a note, or make a new one.' : 'No notes yet. Make one with New note.'}</p>` : `<div class="hb-nedit">
                 ${f(np + '.title', 'Note title', { cls: 'hb-ntitle-in', ph: 'Untitled note' })}
                 <div class="hb-nbar">
                     <label class="hb-ngroup">Group ${f(np + '.group', 'Group', { list: 'hb-dl-ng-' + pi, ph: 'No group' })}</label>
                     <button type="button" class="btn small" data-act="npin" data-p="${np}" aria-pressed="${n.pinned}">${n.pinned ? 'Unpin from sheet' : 'Pin to sheet'}</button>
                     <button type="button" class="btn small" data-act="ndup" data-p="${path}" data-i="${oi}">Duplicate</button>
-                    <button type="button" class="btn small" data-act="ndel" data-p="${path}" data-i="${oi}">Delete</button>
+                    <button type="button" class="btn small" data-act="narc" data-p="${path}" data-i="${oi}">Archive</button>
                 </div>
                 ${f(np + '.body', 'Note', { area: true, cls: 'hb-nbody', ph: 'Write anything' })}
                 <small class="muted"><span data-c="nago:${np}"></span> · created ${esc(dateText(n.created))}</small>
@@ -1181,7 +1202,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                     ${sel(path + '.sort', 'Sort notes', [['edited', 'Recently edited'], ['created', 'Newest first'], ['title', 'Title A to Z']])}
                 </div>
                 ${subtabs(path + '.sub', opts, cur)}${rename}
-                <div class="hb-notes"><div class="hb-nlist">${list || '<p class="muted">No notes here.</p>'}</div>${editor}</div>
+                <div class="hb-notes"><div class="hb-nlist">${list || '<p class="muted">No notes here.</p>'}${found}</div>${editor}</div>
+                ${arch.length ? `<details class="hb-narch"><summary>Archived (${arch.length})</summary><div class="rows">${arch.map(([n, i]) => `<div class="rowi"><span class="grow">${esc(n.title || 'Untitled note')}${g(n) ? ` <small class="muted">${esc(g(n))}</small>` : ''}</span>
+                    <button type="button" class="btn small" data-act="nunarc" data-p="${path}" data-i="${i}">Restore</button></div>`).join('')}</div></details>` : ''}
                 <datalist id="hb-dl-ng-${pi}">${groups.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
         },
 
@@ -1204,11 +1227,17 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     // ---- toolbar ----
     const clsText = (c) => c.classes.map((x) => [x.name, x.level].filter(Boolean).join(' ')).filter(Boolean).join(' / ');
-    const pickOpts = () => Object.values(db.chars).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((c) =>
+    const pickOpts = () => Object.values(db.chars).filter((c) => !c.archived || c === C).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((c) =>
         `<option value="${esc(c.id)}"${c.id === C.id ? ' selected' : ''}>${esc(c.name || 'Unnamed character')}${clsText(c) ? ' — ' + esc(clsText(c)) : ''}</option>`).join('');
     // the top line: which character, who they are, and (behind Edit) the buttons to make, import, export or delete one
     function bar() {
-        if (RO) return `<a class="btn small" href="/characters/">My Characters</a><b class="hb-roname">${esc(C.name || 'Unnamed character')}</b><span class="muted">${esc(clsText(C))} · read only</span>`;
+        const arc = C.archived ? '<span class="badge">Archived</span>' : '';
+        if (RO) return `<a class="btn small" href="/characters/">My Characters</a><b class="hb-roname">${esc(C.name || 'Unnamed character')}</b>${arc}<span class="muted">${esc(clsText(C))} · read only</span>`;
+        // your own archived character: read-only until it's unarchived (ROADMAP 0.5)
+        if (C.archived) return `<a class="btn small" href="/characters/">My Characters</a><b class="hb-roname">${esc(C.name || 'Unnamed character')}</b>${arc}
+            <span class="hb-arcnote">This character is archived.</span>
+            <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>
+            <button type="button" class="btn small" data-act="versions">Versions</button>`;
         return `${CHAR ? '<a class="btn small" href="/characters/">My Characters</a>' : `<select class="field hb-pick" data-act="pick" aria-label="Character">${pickOpts()}</select>`}
             <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
             <span class="hb-manage" id="hb-manage"${open.manage ? '' : ' hidden'}>
@@ -1216,7 +1245,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <button type="button" class="btn small" data-act="import">Import</button>
                 <button type="button" class="btn small" data-act="ddb">From D&amp;D Beyond</button>
                 <button type="button" class="btn small" data-act="export">Export</button>
-                <button type="button" class="btn small" data-act="delete">Delete</button>
+                <button type="button" class="btn small" data-act="versions">Versions</button>
+                <button type="button" class="btn small" data-act="archive">Archive</button>
             </span>
             <label class="hb-name">Name ${f('name', 'Name')}</label>
             <label class="hb-race">Race ${f('race', 'Race', { list: 'hb-dl-race' })}</label>
@@ -1771,7 +1801,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const el = $('#hb-rolls').firstElementChild;
             setTimeout(() => el.remove(), 12000);
             // the roll log keeps the last 100 rolls with the character
-            (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
+            if (!C.archived) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
@@ -1896,7 +1926,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         drawTray(); drawLog();
         if (dlg.open && dlgMode && !['rest', 'ddb', 'crop'].includes(dlgMode.kind)) { dlgBody.innerHTML = dlgHTML(); }
         // read-only: everything can be looked at and rolled, nothing typed in
-        if (RO) for (const el of root.querySelectorAll('input, select, textarea')) el.disabled = true;
+        if (RO || C.archived) for (const el of root.querySelectorAll('input, select, textarea')) el.disabled = true;
         refresh();
     }
     function showDlg(mode) { dlgMode = mode; dlg.classList.toggle('hb-custdlg', mode === 'custom'); dlgBody.innerHTML = dlgHTML(); dlg.showModal(); refresh(); }
@@ -1993,6 +2023,177 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         toast('Restored.', 'ok');
     });
 
+    // ---- a 15-second Undo for archiving and restoring (ROADMAP 0.5), beside the delete Undo above; returns a function that drops it ----
+    function offerUndo(text, fn) {
+        const el = document.createElement('div');
+        el.className = 'hb-undo';
+        el.innerHTML = `<span>${esc(text)}</span><button type="button" class="btn small">Undo</button>`;
+        let box = $('.toasts');
+        if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
+        box.appendChild(el);
+        const t = setTimeout(() => el.remove(), 15000), drop = () => { clearTimeout(t); el.remove(); };
+        el.querySelector('button').addEventListener('click', () => { drop(); fn(); });
+        return drop;
+    }
+
+    // ---- archive (ROADMAP 0.5): players never delete a character. It keeps everything and gets an "archived" time, which
+    // syncs like any edit (newest wins); archived, it's read-only, off the character list and out of its campaigns.
+    let arcUndo = null;
+    function setArchived(on) {
+        if (!on) {
+            if (arcUndo) arcUndo();
+            const s = stored(C.id); // what was clicked while it was read-only isn't kept
+            if (s) C = db.chars[C.id] = normalise(s);
+        }
+        C.archived = on ? Date.now() : 0; C.updated = Date.now();
+        store(true);
+        dirty.add(C.id); flushBackups();
+        open.manage = false;
+        draw();
+        if (on) arcUndo = offerUndo(`Archived ${C.name || 'the character'}`, () => { arcUndo = null; setArchived(false); });
+    }
+
+    // ---- Versions (ROADMAP 0.5): every saved version of this character in the account (cloud.php), newest first, 20 at a
+    // time as you scroll. A version that changed only the roll log, view settings, the sheet's own upgrades or where the
+    // portrait is kept isn't listed (its file stays). Restore saves the old version as a new one, so it can be undone too.
+    const verDlg = document.createElement('dialog');
+    verDlg.className = 'dlg hb-dlg hb-ver'; verDlg.id = 'hb-ver'; verDlg.setAttribute('aria-labelledby', 'hb-ver-h');
+    document.body.appendChild(verDlg);
+    let V = null; // { list: [{n, c}] newest first, more, names, restored, named, busy, error, open: Set, naming }
+    const vReset = () => { V = { list: [], more: true, names: {}, restored: {}, named: V ? V.named : false, busy: false, error: false, open: new Set(), naming: 0, norm: new Map() }; };
+    // versions are normalised the way the sheet would open them, with made-up ids that are the same each time
+    const vNorm = (v) => {
+        if (!V.norm.has(v.n)) { uidSeed = 1; try { V.norm.set(v.n, normalise(JSON.parse(JSON.stringify(v.c)))); } finally { uidSeed = 0; } }
+        return V.norm.get(v.n);
+    };
+    // characters saved before "updated" was kept have no time
+    const vTime = (ms) => (ms > 1e11 ? `<time title="${esc(UI.when(ms))}">${esc(UI.ago(ms))}</time>` : '<span>Saved before times were kept</span>');
+    function vRows() {
+        const out = [];
+        V.list.forEach((v, i) => {
+            const prev = V.list[i + 1];
+            if (!prev && V.more) return; // the one before it isn't loaded yet
+            const changes = prev ? hbChanges(vNorm(prev), vNorm(v)) : null;
+            if (changes && !changes.length) return;
+            out.push({ v, changes });
+        });
+        return out;
+    }
+    function verDraw() {
+        const head = `<div class="hb-verhead"><h2 id="hb-ver-h">Versions</h2>${cloud ? `<button type="button" class="btn small" data-act="vnamed" aria-pressed="${V.named}">Named only</button>` : ''}
+            <button type="button" class="btn small" data-act="vclose">Close</button></div>`;
+        if (!cloud) {
+            verDlg.innerHTML = head + '<p>Sign in to keep every version of your characters.</p><div class="hb-ver-signin" id="hb-ver-signin"></div>';
+            const el = $('#hb-ver-signin');
+            if (window.google && google.accounts && google.accounts.id) google.accounts.id.renderButton(el, { type: 'standard', size: 'medium', theme: 'filled_black', shape: 'pill', text: 'signin' });
+            else el.innerHTML = '<p class="muted">Sign in at the top of the page.</p>';
+            return;
+        }
+        const rows = vRows(), shown = V.named ? rows.filter(({ v }) => V.names[v.n]) : rows, newest = rows.length && rows[0].v.n;
+        const can = !C.archived, off = !navigator.onLine;
+        const line = (x) => (x.old !== undefined ? `<li><details><summary>${esc(x.t)}</summary><div class="hb-vtext"><b>Before</b><pre>${esc(x.old) || '<span class="muted">blank</span>'}</pre><b>After</b><pre>${esc(x.new) || '<span class="muted">blank</span>'}</pre></div></details></li>` : `<li>${esc(x.t)}</li>`);
+        const row = ({ v, changes }) => {
+            const name = V.names[v.n] || '', from = V.restored[v.n], isOpen = V.open.has(v.n);
+            const what = [from ? (from.at > 1e11 ? `Restored from ${UI.when(from.at)}` : 'Restored from an older version') : '',
+                changes ? `${changes.length} change${changes.length === 1 ? '' : 's'}` : 'First saved version'].filter(Boolean).join(' · ');
+            return `<li class="hb-vrow">
+                <div class="hb-vline">
+                    <button type="button" class="hb-vsum" data-act="vopen" data-n="${v.n}" aria-expanded="${isOpen}"${changes ? '' : ' disabled'}>
+                        <span class="hb-vtime">${vTime(v.c.updated)}</span>${name ? `<b class="hb-vname">${esc(name)}</b>` : ''}<small class="muted">${esc(what)}</small></button>
+                    ${can ? `<span class="hb-vacts">${v.n === newest ? '<span class="badge">Current</span>' : `<button type="button" class="btn small" data-act="vrestore" data-n="${v.n}"${off ? ' disabled title="You\'re offline"' : ''}>Restore</button>`}
+                        <button type="button" class="btn small" data-act="vname" data-n="${v.n}">${name ? 'Rename' : 'Name'}</button></span>` : ''}
+                </div>
+                ${V.naming === v.n ? `<form class="hb-vform" data-n="${v.n}"><input class="field" name="name" maxlength="80" value="${esc(name)}" aria-label="Version name" placeholder="Before session 12" autocomplete="off">
+                    <button type="submit" class="btn small primary">Save name</button>${name ? '<button type="button" class="btn small" data-act="vunname">Clear name</button>' : ''}</form>` : ''}
+                ${isOpen && changes ? `<ul class="hb-vchanges">${changes.map(line).join('')}</ul>` : ''}
+            </li>`;
+        };
+        const lowestNamed = Math.min(...Object.keys(V.names).map(Number));
+        const more = V.more && !V.error && !(V.named && V.list.length && V.list[V.list.length - 1].n <= lowestNamed);
+        verDlg.innerHTML = head + (off && can ? '<p class="muted">You\'re offline</p>' : '') + (V.error ? '<p class="err">Couldn\'t load the versions. Try again in a minute.</p>' : '')
+            + (!shown.length && !more && !V.error ? `<p class="muted">${V.named ? 'No named versions yet. Name one with its Name button.' : 'No saved versions yet. Versions start after your next edit.'}</p>` : '')
+            + `<ol class="hb-vlist">${shown.map(row).join('')}</ol>` + (more ? '<p class="muted hb-vmore">Loading...</p>' : '');
+        const sentinel = verDlg.querySelector('.hb-vmore');
+        if (sentinel) vSeen.observe(sentinel);
+    }
+    // more versions load when "Loading..." scrolls into view
+    const vSeen = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) verLoad(); }, { root: verDlg });
+    async function verLoad() {
+        if (V.busy || !V.more) return;
+        V.busy = true;
+        const id = C.id, last = V.list[V.list.length - 1];
+        try {
+            const r = await fetch(`${API}cloud.php?id=${encodeURIComponent(id)}&versions=1${last ? '&before=' + last.n : ''}`);
+            if (r.status === 401) cloudOff();
+            if (!r.ok) throw r;
+            const j = await r.json();
+            if (id !== C.id) return;
+            V.list.push(...j.versions); V.more = j.more; V.names = j.names; V.restored = j.restored;
+        } catch (e) { V.error = true; }
+        finally { V.busy = false; }
+        vSeen.disconnect();
+        if (verDlg.open) verDraw();
+    }
+    function openVersions() {
+        vReset();
+        open.manage = false;
+        verDraw();
+        verDlg.showModal();
+        if (cloud) verLoad();
+    }
+    async function restoreVersion(n, undo) {
+        if (!navigator.onLine) return toast("You're offline.", 'err');
+        const id = C.id;
+        try {
+            // edits this browser hasn't sent yet go first, so they're a version of their own
+            const up = await fetch(API + 'cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(C) });
+            if (up.status === 401) cloudOff();
+            if (!up.ok && up.status !== 409) throw up;
+            dirty.delete(id);
+            const g = await fetch(`${API}cloud.php?id=${encodeURIComponent(id)}&version=${n}`);
+            if (!g.ok) throw g;
+            const v = normalise(await g.json()), at = v.updated;
+            // a restore never changes the roll log, view settings or whether it's archived
+            Object.assign(v, { id, rolls: C.rolls, view: C.view, archived: C.archived, updated: Date.now() });
+            const r = await fetch(`${API}cloud.php?id=${encodeURIComponent(id)}&restore=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(v) });
+            if (!r.ok) throw r;
+            const { before } = await r.json();
+            if (C.id !== id) return;
+            C = db.chars[id] = v;
+            store(); draw();
+            if (restoreUndo) restoreUndo.drop();
+            if (undo) toast('Restore undone.', 'ok');
+            else if (before) {
+                const drop = offerUndo(at > 1e11 ? `Restored the version from ${UI.when(at)}` : 'Restored an older version', () => { restoreUndo = null; restoreVersion(before, true); });
+                restoreUndo = { plain: plain(C), drop: () => { drop(); restoreUndo = null; } };
+            }
+            if (verDlg.open) { vReset(); verDraw(); verLoad(); }
+        } catch (e) { toast("Couldn't restore that version. Try again in a minute.", 'err'); }
+    }
+    async function nameVersion(n, name) {
+        try {
+            const r = await fetch(`${API}cloud.php?id=${encodeURIComponent(C.id)}&version=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+            if (!r.ok) throw r;
+            const j = await r.json();
+            if (j.name) V.names[n] = j.name; else delete V.names[n];
+            V.naming = 0;
+        } catch (e) { toast("Couldn't save the name. Try again in a minute.", 'err'); }
+        verDraw();
+    }
+    verDlg.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]');
+        if (!b) return;
+        const act = b.dataset.act, n = +b.dataset.n;
+        if (act === 'vclose') return verDlg.close();
+        if (act === 'vnamed') { V.named = !V.named; return verDraw(); }
+        if (act === 'vopen') { V.open.has(n) ? V.open.delete(n) : V.open.add(n); return verDraw(); }
+        if (act === 'vname') { V.naming = V.naming === n ? 0 : n; verDraw(); return verDlg.querySelector('.hb-vform input')?.focus(); }
+        if (act === 'vunname') return nameVersion(+b.closest('form').dataset.n, '');
+        if (act === 'vrestore') { b.disabled = true; b.textContent = 'Restoring...'; return restoreVersion(n); }
+    });
+    verDlg.addEventListener('submit', (e) => { e.preventDefault(); nameVersion(+e.target.dataset.n, e.target.elements.name.value); });
+    for (const ev of ['online', 'offline']) addEventListener(ev, () => verDlg.open && verDraw());
+
     // ---- events ----
     const main = $('.hb');
     // one column in the bottom-left corner: the latest roll above the tray and its button
@@ -2013,7 +2214,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         }
         if (el.classList.contains('hb-nq')) {
             noteQ = el.value.trim().toLowerCase();
-            for (const it of el.closest('.hb-panel').querySelectorAll('.hb-nitem')) it.hidden = !!noteQ && !it.dataset.s.includes(noteQ);
+            // archived notes show only as search results
+            for (const it of el.closest('.hb-panel').querySelectorAll('.hb-nitem')) it.hidden = it.classList.contains('hb-narc') ? !noteQ || !it.dataset.s.includes(noteQ) : !!noteQ && !it.dataset.s.includes(noteQ);
             return;
         }
         const k = el.dataset.k;
@@ -2063,7 +2265,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (/^panels\.\d+\.(rows|meta)\.\d+\.name$/.test(k) && rowFill(k)) return;
         if (/\.(time|lvl)$/.test(k) || /\.cost\.(what|amt)$/.test(k) || /^classes\.\d+\.(name|level|die)$/.test(k) || /^(lists\.|condList|exhaustion)/.test(k) || /^speeds\./.test(k) && /\.type$/.test(k)) return dlg.open ? null : draw();
         // a new name shows in the character list; only its options are redrawn, so typing in the bar isn't interrupted
-        if ((k === 'name' || /\.(name|key|title)$/.test(k)) && !dlg.open) $('.hb-pick').innerHTML = pickOpts();
+        if ((k === 'name' || /\.(name|key|title)$/.test(k)) && !dlg.open && $('.hb-pick')) $('.hb-pick').innerHTML = pickOpts(); // /characters/<id> has no picker
     });
     main.addEventListener('focusin', (e) => { if (e.target.getAttribute('list') === 'hb-dl-srd') loadSrdList(); if (e.target.getAttribute('list') === 'hb-dl-gear') loadEqList(); if (e.target.dataset.multi) multiList(e.target); });
     main.addEventListener('keydown', (e) => {
@@ -2278,12 +2480,13 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const el = $('#hb-p-' + P.id);
             return el && el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-        if (act === 'ndel') {
+        // notes are archived, never deleted (ROADMAP 0.5): out of the list and off the sheet, kept under Archived with Restore
+        if (act === 'narc') {
             const P = get(p), n = P.notes[i];
-            if (!confirm(`Delete the note "${n.title || 'Untitled note'}"?`)) return;
-            snap(b);
-            P.notes.splice(i, 1); if (P.open === n.id) P.open = '';
+            n.archived = Date.now(); if (P.open === n.id) P.open = '';
+            offerUndo(`Archived ${n.title || 'Untitled note'}`, () => { n.archived = 0; P.open = n.id; saveNow(); draw(); });
         }
+        else if (act === 'nunarc') { const n = get(p).notes[i]; n.archived = 0; get(p).open = n.id; }
         else if (act === 'npin') { const n = get(p); n.pinned = !n.pinned; }
         else if (act === 'ndup') {
             const P = get(p), n = Object.assign({}, P.notes[i], { id: uid(), title: (P.notes[i].title || 'Untitled note') + ' (copy)', pinned: false, created: Date.now(), updated: Date.now() });
@@ -2332,15 +2535,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (act === 'new') return switchTo(blank());
         else if (act === 'import') return $('#hb-file').click();
         else if (act === 'export') return exportChar(C);
-        else if (act === 'delete') {
-            if (!confirm(`Delete ${C.name || 'this character'} from this browser? Export it first if you want to keep a copy.`)) return;
-            snap(b);
-            // Undo brings it back and the next save puts it in the account again
-            if (cloud) fetch(API + 'cloud.php?id=' + encodeURIComponent(C.id), { method: 'DELETE' }).catch(() => {});
-            delete db.chars[C.id];
-            if (CHAR) { store(); return location.assign('/characters/'); }
-            return switchTo(Object.values(db.chars)[0] || blank());
-        } else return;
+        else if (act === 'archive') return setArchived(true);
+        else if (act === 'unarchive') return setArchived(false);
+        else if (act === 'versions') return openVersions();
+        else return;
         saveNow(); draw();
     });
 

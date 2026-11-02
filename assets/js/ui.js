@@ -41,8 +41,10 @@
         }
         return 'just now';
     }
+    // the full date and time for a title="" beside UI.ago: "20 Oct 2026, 2:05 pm" (the site's 12-hour clock)
+    const when = (ms) => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 
     const num = (n, d = 0) => (typeof n === 'number' ? n.toLocaleString(undefined, { maximumFractionDigits: d }) : n);
 
-    window.UI = { $, $$, esc, store, debounce, toast, copy, ago, num };
+    window.UI = { $, $$, esc, store, debounce, toast, copy, ago, when, num };
 })();

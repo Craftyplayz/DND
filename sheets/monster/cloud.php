@@ -4,7 +4,7 @@
 //   GET              -> {"chars": {"<id>": <updated>, ...}}
 //   GET ?id=<id>     -> that character
 //   POST a character -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"})
-//   DELETE ?id=<id>  -> removed
+//   DELETE ?id=<id>  -> archives it (players can't delete monsters, ROADMAP 0.5): the monster gets "archived", nothing is removed
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
 require __DIR__ . '/../../includes/auth.php';
 const CL_ACCOUNTS = __DIR__ . '/../../private/dnd/accounts/monsters';
@@ -47,8 +47,15 @@ if (!$lock || !flock($lock, LOCK_EX)) cl_out(500, ['error' => "Couldn't lock the
 
 if ($method === 'DELETE') {
     if (!$okId($_GET['id'] ?? null)) cl_out(400, ['error' => 'Bad character id.']);
-    @unlink("$dir/{$_GET['id']}.json");
-    cl_out(200, ['deleted' => true]);
+    $file = "$dir/{$_GET['id']}.json";
+    $c = is_file($file) ? json_decode((string)file_get_contents($file), true) : null;
+    if (is_array($c) && empty($c['archived'])) {
+        $now = round(microtime(true) * 1000);
+        $c['archived'] = $now;
+        $c['updated'] = max($now, (float)($c['updated'] ?? 0) + 1);
+        if (@file_put_contents($file, json_encode($c)) === false) cl_out(500, ['error' => "Couldn't archive the monster."]);
+    }
+    cl_out(200, ['archived' => true]);
 }
 if ($method !== 'POST') cl_out(405, ['error' => 'Use GET, POST or DELETE.']);
 

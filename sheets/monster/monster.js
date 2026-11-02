@@ -171,7 +171,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         ability: () => ({ key: 'NEW', name: 'New ability', score: 10, save: false, sb: '' }),
         skill: () => ({ name: 'New skill', ab: 'STR', p: 0, b: '' }),
         passive: () => ({ name: 'Passive', f: '10', unit: '' }),
-        note: () => ({ id: uid(), title: '', group: '', body: '', pinned: false, created: Date.now(), updated: Date.now() }),
+        note: () => ({ id: uid(), title: '', group: '', body: '', pinned: false, archived: 0, created: Date.now(), updated: Date.now() }),
     };
     const PANEL_ROW = { attacks: ROW.attack, spells: ROW.spell, items: ROW.item, list: ROW.list, trackers: ROW.tracker, homebrew: ROW.hb };
 
@@ -191,7 +191,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     function blank() {
         return {
-            id: uid(), updated: 0, name: '', classes: [ROW.cls()], race: '', cr: '0', alignment: '', age: '', art: '',
+            id: uid(), updated: 0, archived: 0, name: '', classes: [ROW.cls()], race: '', cr: '0', alignment: '', age: '', art: '',
             abilities: ABIL.map(([key, name]) => ({ key, name, score: 10, save: false, sb: '' })),
             skills: SKILLS.map(([name, ab]) => ({ name, ab, p: 0, b: '' })),
             prof: 'max(2, ceil(CR / 4) + 1)', ac: '10 + DEX', init: 'DEX',
@@ -348,8 +348,12 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     if (!db.cur) { const c = blank(); db.chars[c.id] = c; db.cur = c.id; }
     let C = db.chars[db.cur];
     let warned = false;
-    function store() {
-        try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
+    // this browser's saved copy of a monster (not the one on screen)
+    const stored = (id) => { try { return JSON.parse(localStorage.getItem(KEY)).chars[id] || null; } catch (e) { return null; } };
+    function store(force) {
+        // an archived monster is read-only (ROADMAP 0.5): rolls and clicks on screen are never saved, only (un)archiving is
+        const out = C && C.archived && !force ? { ...db, chars: { ...db.chars, [C.id]: stored(C.id) || C } } : db;
+        try { localStorage.setItem(KEY, JSON.stringify(out)); warned = false; }
         catch (e) { if (!warned) toast("Couldn't save: this browser's storage is full or blocked. Export the monster so you don't lose it.", 'err'); warned = true; }
     }
     // signed in (data-cloud on <main>): monsters are also kept in the account (cloud.php), with this browser's copy for offline use;
@@ -405,6 +409,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
     let undoSnap = null, undoTimer = 0; // undo for deletes, see snap()
     function saveNow(edited = true) {
+        if (C && C.archived) return; // read-only until it's unarchived
         if (undoSnap && Date.now() - undoSnap.at > 1000) dropUndo();
         if (edited && C) C.updated = Date.now();
         store();
@@ -413,7 +418,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
     // the edit is stamped straight away, so switching monster before the save runs still stamps the right one
     const saveLater = debounce(() => saveNow(false), 250);
-    const save = () => { if (C) C.updated = Date.now(); saveLater(); };
+    const save = () => { if (C && !C.archived) C.updated = Date.now(); saveLater(); };
     addEventListener('pagehide', () => { store(); flushBackups(); });
 
     const get = (path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), C);
@@ -788,7 +793,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     // notes pinned to the sheet: always on screen, editable in place
     function pinned() {
-        const pins = C.panels.flatMap((p, pi) => (p.type === 'notes' && p.on ? p.notes.map((n, i) => [n, `panels.${pi}.notes.${i}`, pi]).filter(([n]) => n.pinned) : []));
+        const pins = C.panels.flatMap((p, pi) => (p.type === 'notes' && p.on ? p.notes.map((n, i) => [n, `panels.${pi}.notes.${i}`, pi]).filter(([n]) => n.pinned && !n.archived) : []));
         return pins.length ? `<div class="hb-pins">${pins.map(([n, np, pi]) => `<div class="hb-pin">
             <div class="hb-pin-h"><button type="button" class="hb-link" data-act="ngo" data-i="${pi}" data-id="${esc(n.id)}" data-c="ntitle:${np}" title="Open in notes"></button>
                 <button type="button" class="hb-x" data-act="npin" data-p="${np}" aria-label="Unpin ${esc(n.title || 'note')}" title="Unpin">&times;</button></div>
@@ -1052,14 +1057,16 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         // notes: a list (search, groups as sub-tabs, sort) beside the open note
         notes: (p, path, pi) => {
             const g = (n) => String(n.group || '').trim();
-            const count = (fn) => p.notes.filter(fn).length;
-            const groups = uniq(p.notes.map(g).filter(Boolean)).sort((a, b) => a.localeCompare(b));
-            const opts = [['all', 'All', p.notes.length], ['pinned', 'Pinned', count((n) => n.pinned)], ...groups.map((x) => ['g:' + x, x, count((n) => g(n) === x)])];
+            // archived notes (ROADMAP 0.5) are out of play: only search and the Archived list at the bottom show them
+            const live = p.notes.filter((n) => !n.archived), arch = p.notes.map((n, i) => [n, i]).filter(([n]) => n.archived);
+            const count = (fn) => live.filter(fn).length;
+            const groups = uniq(live.map(g).filter(Boolean)).sort((a, b) => a.localeCompare(b));
+            const opts = [['all', 'All', live.length], ['pinned', 'Pinned', count((n) => n.pinned)], ...groups.map((x) => ['g:' + x, x, count((n) => g(n) === x)])];
             if (groups.length && count((n) => !g(n))) opts.push(['none', 'No group', count((n) => !g(n))]);
             const cur = pickSub(p, opts);
             const inSub = (n) => cur === 'all' || (cur === 'pinned' ? n.pinned : cur === 'none' ? !g(n) : g(n) === cur.slice(2));
             const by = { created: (a, b) => b.created - a.created, title: (a, b) => (a.title || '').localeCompare(b.title || '') }[p.sort] || ((a, b) => b.updated - a.updated);
-            const shown = p.notes.map((n, i) => [n, i]).filter(([n]) => inSub(n)).sort(([a], [b]) => (b.pinned - a.pinned) || by(a, b));
+            const shown = p.notes.map((n, i) => [n, i]).filter(([n]) => !n.archived && inSub(n)).sort(([a], [b]) => (b.pinned - a.pinned) || by(a, b));
             const list = shown.map(([n, i]) => {
                 const rp = `${path}.notes.${i}`, s = `${n.title} ${n.group} ${n.body}`.toLowerCase();
                 return `<button type="button" class="hb-nitem${n.id === p.open ? ' on' : ''}" data-act="nopen" data-p="${path}" data-id="${esc(n.id)}" data-s="${esc(s)}" aria-pressed="${n.id === p.open}"${noteQ && !s.includes(noteQ) ? ' hidden' : ''}>
@@ -1068,14 +1075,20 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                     <small>${g(n) ? esc(g(n)) + ' · ' : ''}<span data-c="nago:${rp}"></span></small>
                 </button>`;
             }).join('');
-            const oi = p.notes.findIndex((n) => n.id === p.open), n = p.notes[oi], np = `${path}.notes.${oi}`;
-            const editor = !n ? `<p class="muted hb-nempty">${p.notes.length ? 'Pick a note, or make a new one.' : 'No notes yet. Make one with New note.'}</p>` : `<div class="hb-nedit">
+            const found = arch.map(([n, i]) => {
+                const s = `${n.title} ${n.group} ${n.body}`.toLowerCase();
+                return `<div class="hb-nitem hb-narc" data-s="${esc(s)}"${noteQ && s.includes(noteQ) ? '' : ' hidden'}>
+                    <span class="hb-ntitle"><b>${esc(n.title || 'Untitled note')}</b><span class="badge">Archived</span></span>
+                    <button type="button" class="btn small" data-act="nunarc" data-p="${path}" data-i="${i}">Restore</button></div>`;
+            }).join('');
+            const oi = p.notes.findIndex((n) => n.id === p.open && !n.archived), n = p.notes[oi], np = `${path}.notes.${oi}`;
+            const editor = !n ? `<p class="muted hb-nempty">${live.length ? 'Pick a note, or make a new one.' : 'No notes yet. Make one with New note.'}</p>` : `<div class="hb-nedit">
                 ${f(np + '.title', 'Note title', { cls: 'hb-ntitle-in', ph: 'Untitled note' })}
                 <div class="hb-nbar">
                     <label class="hb-ngroup">Group ${f(np + '.group', 'Group', { list: 'hb-dl-ng-' + pi, ph: 'No group' })}</label>
                     <button type="button" class="btn small" data-act="npin" data-p="${np}" aria-pressed="${n.pinned}">${n.pinned ? 'Unpin from sheet' : 'Pin to sheet'}</button>
                     <button type="button" class="btn small" data-act="ndup" data-p="${path}" data-i="${oi}">Duplicate</button>
-                    <button type="button" class="btn small" data-act="ndel" data-p="${path}" data-i="${oi}">Delete</button>
+                    <button type="button" class="btn small" data-act="narc" data-p="${path}" data-i="${oi}">Archive</button>
                 </div>
                 ${f(np + '.body', 'Note', { area: true, cls: 'hb-nbody', ph: 'Write anything' })}
                 <small class="muted"><span data-c="nago:${np}"></span> · created ${esc(dateText(n.created))}</small>
@@ -1088,7 +1101,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                     ${sel(path + '.sort', 'Sort notes', [['edited', 'Recently edited'], ['created', 'Newest first'], ['title', 'Title A to Z']])}
                 </div>
                 ${subtabs(path + '.sub', opts, cur)}${rename}
-                <div class="hb-notes"><div class="hb-nlist">${list || '<p class="muted">No notes here.</p>'}</div>${editor}</div>
+                <div class="hb-notes"><div class="hb-nlist">${list || '<p class="muted">No notes here.</p>'}${found}</div>${editor}</div>
+                ${arch.length ? `<details class="hb-narch"><summary>Archived (${arch.length})</summary><div class="rows">${arch.map(([n, i]) => `<div class="rowi"><span class="grow">${esc(n.title || 'Untitled note')}${g(n) ? ` <small class="muted">${esc(g(n))}</small>` : ''}</span>
+                    <button type="button" class="btn small" data-act="nunarc" data-p="${path}" data-i="${i}">Restore</button></div>`).join('')}</div></details>` : ''}
                 <datalist id="hb-dl-ng-${pi}">${groups.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`;
         },
 
@@ -1111,10 +1126,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     // ---- toolbar ----
     const clsText = (c) => (String(c.cr || '').trim() ? 'CR ' + c.cr : '');
-    const pickOpts = () => Object.values(db.chars).map((c) =>
+    const pickOpts = () => Object.values(db.chars).filter((c) => !c.archived || c === C).map((c) =>
         `<option value="${esc(c.id)}"${c.id === C.id ? ' selected' : ''}>${esc(c.name || 'Unnamed monster')}${clsText(c) ? ' — ' + esc(clsText(c)) : ''}</option>`).join('');
     // the top line: which character, who they are, and (behind Edit) the buttons to make, import, export or delete one
     function bar() {
+        // an archived monster: read-only until it's unarchived (ROADMAP 0.5)
+        if (C.archived) return `<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
+            <b class="hb-roname">${esc(C.name || 'Unnamed monster')}</b><span class="badge">Archived</span>
+            <span class="hb-arcnote">This monster is archived.</span>
+            <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>`;
         return `<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
             <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
             <button type="button" class="btn small" data-act="dup">Duplicate</button>
@@ -1123,7 +1143,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <button type="button" class="btn small" data-act="find">Import monster</button>
                 <button type="button" class="btn small" data-act="import">Import file</button>
                 <button type="button" class="btn small" data-act="export">Export</button>
-                <button type="button" class="btn small" data-act="delete">Delete</button>
+                <button type="button" class="btn small" data-act="archive">Archive</button>
             </span>
             <label class="hb-name">Name ${f('name', 'Name')}</label>
             <label class="hb-race">Creature type ${f('race', 'Creature type', { list: 'hb-dl-race' })}</label>
@@ -1612,7 +1632,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <span class="hb-rolldice">${strike(shown)}</span><span class="hb-rolltot">${total}</span></button>`;
             clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, 12000);
             // the roll log keeps the last 100 rolls with the character
-            (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
+            if (!C.archived) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
@@ -1741,6 +1761,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         root.innerHTML = top() + `<div class="hb-top-panels">${panels()}</div><div hidden>${datalists()}</div>`;
         drawTray(); drawLog();
         if (dlg.open && dlgMode && !['rest', 'crop'].includes(dlgMode.kind)) { dlgBody.innerHTML = dlgHTML(); }
+        if (C.archived) for (const el of root.querySelectorAll('input, select, textarea')) el.disabled = true;
         refresh();
     }
     function showDlg(mode) { dlgMode = mode; dlgBody.innerHTML = dlgHTML(); dlg.showModal(); refresh(); }
@@ -1759,12 +1780,16 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function drawSide() {
         const box = $('#mon-side');
         if (!box) return;
-        const list = Object.values(db.chars);
-        box.innerHTML = `<h2>Encounter <span class="n">${list.length}</span></h2><div class="mon-list">${list.map((c) => {
+        const all = Object.values(db.chars), list = all.filter((c) => !c.archived), arch = all.filter((c) => c.archived);
+        const item = (c) => {
             const max = nm(c.hp.base) + nm(c.hp.mod), on = c === C;
             return `<button type="button" class="mon-item${on ? ' on' : ''}${nm(c.hp.cur) <= 0 ? ' down' : ''}" data-act="side" data-id="${esc(c.id)}"${on ? ' aria-current="true"' : ''}>
                 <b>${esc(c.name || 'Unnamed monster')}</b><small>HP ${nm(c.hp.cur)}/${max}${String(c.cr).trim() ? ' · CR ' + esc(c.cr) : ''}</small></button>`;
-        }).join('')}</div>`;
+        };
+        // archived monsters (ROADMAP 0.5) wait at the bottom, folded away, each with Unarchive
+        box.innerHTML = `<h2>Encounter <span class="n">${list.length}</span></h2><div class="mon-list">${list.map(item).join('')}</div>`
+            + (arch.length ? `<details class="mon-arch"${arch.includes(C) ? ' open' : ''}><summary>Archived (${arch.length})</summary><div class="mon-list">${arch.map((c) => `<div class="mon-arcrow">${item(c)}
+                <button type="button" class="btn small" data-act="monunarc" data-id="${esc(c.id)}">Unarchive</button></div>`).join('')}</div></details>` : '');
     }
     // a copy with full hit points, straight after the original in the encounter
     function dupMonster() {
@@ -1954,6 +1979,34 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         box.appendChild(undoBox); undoBox.hidden = false;
         clearTimeout(undoTimer); undoTimer = setTimeout(dropUndo, 15000);
     }
+    // ---- a 15-second Undo for archiving (ROADMAP 0.5), beside the delete Undo above; returns a function that drops it ----
+    function offerUndo(text, fn) {
+        const el = document.createElement('div');
+        el.className = 'hb-undo';
+        el.innerHTML = `<span>${esc(text)}</span><button type="button" class="btn small">Undo</button>`;
+        let box = $('.toasts');
+        if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('role', 'status'); document.body.appendChild(box); }
+        box.appendChild(el);
+        const t = setTimeout(() => el.remove(), 15000), drop = () => { clearTimeout(t); el.remove(); };
+        el.querySelector('button').addEventListener('click', () => { drop(); fn(); });
+        return drop;
+    }
+    // ---- archive (ROADMAP 0.5): players never delete a monster. It keeps everything and gets an "archived" time, which syncs
+    // like any edit (newest wins); archived, it's read-only and waits under Archived in the encounter list.
+    let arcUndo = null;
+    function setArchived(on) {
+        if (!on) {
+            if (arcUndo) arcUndo();
+            const s = stored(C.id); // what was clicked while it was read-only isn't kept
+            if (s) C = db.chars[C.id] = normalise(s);
+        }
+        C.archived = on ? Date.now() : 0; C.updated = Date.now();
+        store(true);
+        dirty.add(C.id); flushBackups();
+        open.manage = false;
+        draw();
+        if (on) arcUndo = offerUndo(`Archived ${C.name || 'the monster'}`, () => { arcUndo = null; setArchived(false); });
+    }
     undoBox.addEventListener('click', (e) => {
         if (!e.target.closest('button') || !undoSnap) return;
         const s = undoSnap;
@@ -1982,7 +2035,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         }
         if (el.classList.contains('hb-nq')) {
             noteQ = el.value.trim().toLowerCase();
-            for (const it of el.closest('.hb-panel').querySelectorAll('.hb-nitem')) it.hidden = !!noteQ && !it.dataset.s.includes(noteQ);
+            // archived notes show only as search results
+            for (const it of el.closest('.hb-panel').querySelectorAll('.hb-nitem')) it.hidden = it.classList.contains('hb-narc') ? !noteQ || !it.dataset.s.includes(noteQ) : !!noteQ && !it.dataset.s.includes(noteQ);
             return;
         }
         const k = el.dataset.k;
@@ -2205,12 +2259,13 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const el = $('#hb-p-' + P.id);
             return el && el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-        if (act === 'ndel') {
+        // notes are archived, never deleted (ROADMAP 0.5): out of the list and off the sheet, kept under Archived with Restore
+        if (act === 'narc') {
             const P = get(p), n = P.notes[i];
-            if (!confirm(`Delete the note "${n.title || 'Untitled note'}"?`)) return;
-            snap(b);
-            P.notes.splice(i, 1); if (P.open === n.id) P.open = '';
+            n.archived = Date.now(); if (P.open === n.id) P.open = '';
+            offerUndo(`Archived ${n.title || 'Untitled note'}`, () => { n.archived = 0; P.open = n.id; saveNow(); draw(); });
         }
+        else if (act === 'nunarc') { const n = get(p).notes[i]; n.archived = 0; get(p).open = n.id; }
         else if (act === 'npin') { const n = get(p); n.pinned = !n.pinned; }
         else if (act === 'ndup') {
             const P = get(p), n = Object.assign({}, P.notes[i], { id: uid(), title: (P.notes[i].title || 'Untitled note') + ' (copy)', pinned: false, created: Date.now(), updated: Date.now() });
@@ -2262,14 +2317,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (act === 'find') return openFind();
         else if (act === 'import') return $('#hb-file').click();
         else if (act === 'export') return download((C.name || 'monster').replace(/[^\w -]+/g, '').trim() + '.json', JSON.stringify(C, null, 1));
-        else if (act === 'delete') {
-            if (!confirm(`Delete ${C.name || 'this monster'} from this browser? Export it first if you want to keep a copy.`)) return;
-            snap(b);
-            // Undo brings it back and the next save puts it in the account again
-            if (cloud) fetch('cloud.php?id=' + encodeURIComponent(C.id), { method: 'DELETE' }).catch(() => {});
-            delete db.chars[C.id];
-            return switchTo(Object.values(db.chars)[0] || blank());
-        } else return;
+        else if (act === 'archive') return setArchived(true);
+        else if (act === 'unarchive') return setArchived(false);
+        else if (act === 'monunarc') { switchTo(db.chars[b.dataset.id]); return setArchived(false); }
+        else return;
         saveNow(); draw();
     });
 

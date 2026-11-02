@@ -56,13 +56,11 @@ $site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/c
             <span class="muted" id="ch-count"></span>
         </div>
         <div class="grid ch-grid" id="ch-grid"><noscript><p class="err">This page needs JavaScript.</p></noscript></div>
+        <?php // archived characters (ROADMAP 0.5), folded away; list.js shows it when there are some ?>
+        <details class="ch-arc" id="ch-arc" hidden><summary class="sec-h">Archived <span class="n" id="ch-arc-n"></span></summary>
+            <div class="grid ch-grid" id="ch-arc-grid"></div>
+        </details>
         <p class="muted"><?= auth_user() ? 'Characters are saved in this browser and in your account.' : 'Signed out, characters are saved in this browser only. Sign in to keep them in your Google account.' ?></p>
-
-        <dialog class="dlg" id="ch-del" aria-labelledby="ch-del-title">
-            <h2 id="ch-del-title">Delete this character?</h2>
-            <p id="ch-del-text"></p>
-            <div class="actions"><button type="button" class="btn" value="cancel" id="ch-del-no">Cancel</button><button type="button" class="btn primary" id="ch-del-yes">Delete</button></div>
-        </dialog>
     </main>
 
     <?php site_footer(); ?>
