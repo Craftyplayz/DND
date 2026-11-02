@@ -17,7 +17,7 @@ for (const name of ['chrome', 'firefox']) {
     const b = await launch(name);
     try {
         await b.block(/backup\.php|cloud\.php|prefs\.php/);
-        await b.go(BASE + '/sheets/player/'); await sleep(1500);
+        await b.go(BASE + '/characters/new'); await sleep(1500);
         // results straight away: headless Chrome stalls on the thrown 3D dice (the live sheet too)
         await b.ev(`document.querySelector('[data-act="custom"]').click()`); await sleep(300);
         await b.ev(`document.querySelector('[data-k="view.noAnim"]').click()`);

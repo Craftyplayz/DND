@@ -28,7 +28,6 @@ function site_pages()
         '/sheets/monster/' => ['Monster Sheet', 'Editable monster stat blocks for an encounter, with HP tracking and clickable dice rolls', true],
         '/campaigns/' => ['Campaigns', 'Make a campaign, invite your players with a link and keep the party together', true],
         // still open by link, just not in the menu or on the landing page
-        '/sheets/player/' => ['Homebrew Sheet', 'Every character in this browser on one page, with a character picker', false],
         '/dice/test/' => ['Dice Fairness Test', "Rolls the Homebrew Sheet's 3D dice over and over in four panels to check they are fair", false],
         '/dice/' => ['Dice Sets', 'Ten 3D dice sets with moving parts and 35 sounds to pick from, with a test roll that lands on any number', false],
         '/dice/rolls/' => ['Quick Rolls', 'Four buttons that roll a nat 1, anything from 2 to 19 or a nat 20, or flip a coin, with the dice chosen on Dice Sets', false],

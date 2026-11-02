@@ -48,15 +48,19 @@ try {
         await b.go(base + '/privacy/'); await sleep(1000);
         const db = { cur: chars[0].c.id, chars: Object.fromEntries(chars.map(({ c }) => [c.id, c])) };
         await ev(`localStorage.clear(); localStorage.setItem('hb-sheet-merged', '1'); localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(JSON.stringify(db))})`);
-        await b.go(base + path); await sleep(2500);
-        for (const { c } of chars) { await ev(`(() => { const s = document.querySelector('.hb-pick'); s.value = ${JSON.stringify(c.id)}; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await sleep(150); }
+        // player characters open one by one at /characters/<id>, as players open them; monsters through the sheet's picker
+        if (path === '/characters/') for (const { c } of chars) { await b.go(base + path + encodeURIComponent(c.id)); await sleep(1500); }
+        else {
+            await b.go(base + path); await sleep(2500);
+            for (const { c } of chars) { await ev(`(() => { const s = document.querySelector('.hb-pick'); s.value = ${JSON.stringify(c.id)}; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await sleep(150); }
+        }
         await sleep(800);
         const after = JSON.parse(await ev(`localStorage.getItem(${JSON.stringify(key)})`)).chars;
         await b.go(base + '/privacy/'); await sleep(500);
         return after;
     }
 
-    for (const [path, key, folder] of [['/sheets/player/', 'hb-sheet', 'backups'], ['/sheets/monster/', 'monster-sheet', 'monster-backups']]) {
+    for (const [path, key, folder] of [['/characters/', 'hb-sheet', 'backups'], ['/sheets/monster/', 'monster-sheet', 'monster-backups']]) {
         const chars = saves(folder);
         if (!chars.length) { console.log(`${path}: no saves in private/dnd/${folder}/ to check`); continue; }
         const before = OLD ? await load(OLD, path, key, chars) : Object.fromEntries(chars.map(({ c }) => [c.id, c]));

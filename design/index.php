@@ -282,7 +282,7 @@ PHP;
                     <table class="table">
                         <tr><th>Kind of page</th><th>Reference</th><th>What to copy</th></tr>
                         <tr><td>Landing page</td><td><a href="/">Home</a></td><td>Title, one line, then <code>site_hub()</code> cards from <code>site_pages()</code></td></tr>
-                        <tr><td>Heavy tool</td><td><a href="/sheets/player/">My Characters</a>, <a href="/sheets/monster/">Monster Sheet</a></td><td>Full-screen tool, no site header (owner's choice), drawers and native dialogs, libraries loaded on first use, saves to the browser and the account</td></tr>
+                        <tr><td>Heavy tool</td><td><a href="/characters/">My Characters</a>, <a href="/sheets/monster/">Monster Sheet</a></td><td>Full-screen tool, no site header (owner's choice), drawers and native dialogs, libraries loaded on first use, saves to the browser and the account</td></tr>
                         <tr><td>3D / heavy library</td><td><a href="/dice/">Dice Sets</a></td><td>three.js and cannon-es loaded only when needed, a plain fallback, reduced motion respected</td></tr>
                         <tr><td>List and long text</td><td><a href="/transcripts/">Session Transcripts</a></td><td>A list of sessions, then one long readable page per session</td></tr>
                         <tr><td>Server-fetched API</td><td><code>characters/index.php</code>, <code>sheets/monster/monsters.php</code>, <code>sheets/player/spells.php</code></td><td>Disk cache, stale fallback when a refresh fails, only the fields the page needs</td></tr>

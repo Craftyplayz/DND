@@ -1,5 +1,9 @@
 <?php
-// The homebrew sheet. characters/index.php includes this page for /characters/<id> with $hb set:
+// The homebrew sheet. It only opens through /characters/<id> (characters/index.php includes this page with $hb set);
+// the old all-characters page at /sheets/player/ is retired and goes to My Characters, which lists the same browser storage.
+// The files stay here: saves (cloud.php), portraits (art.php) and backups keep their addresses.
+if (!isset($hb)) { header('Location: /characters/', true, 301); exit; }
+// $hb:
 //   char: the character to open ("new" makes one), readonly: someone else's public character,
 //   inline: the account's copy of it as JSON (owner or public only), vis: private or public
 $hb = ($hb ?? []) + ['char' => '', 'readonly' => false, 'inline' => null, 'vis' => 'private'];
