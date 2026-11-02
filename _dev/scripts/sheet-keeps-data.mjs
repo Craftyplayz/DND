@@ -1,5 +1,5 @@
 // Checks that a sheet update never loses player data. Real saved characters (the newest version of each in
-// private/dnd/backups/, server-only data that stays on this PC) are loaded into the sheet, and every character is
+// private/dnd/backups/ and monster-backups/, server-only data that stays on this PC) are loaded into the sheet, and every character is
 // opened once. Then:
 //   node _dev/scripts/sheet-keeps-data.mjs <new> <old>   everything the old code keeps, the new code must keep too
 //   node _dev/scripts/sheet-keeps-data.mjs <new>         every value in the saves must survive (strict: the sheet's
@@ -12,19 +12,19 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const [NEW = 'http://localhost:8110', OLD] = process.argv.slice(2);
-const BK = join(import.meta.dirname, '../../private/dnd/backups');
-if (!existsSync(BK)) { console.log('No private/dnd/backups/ here, nothing to check.'); process.exit(0); }
-
-// newest saved version of every character (a renamed character has several folders with the same id)
-const byId = new Map();
-for (const ip of readdirSync(BK)) for (const name of readdirSync(join(BK, ip))) {
+// newest saved version of every character in a backups folder (a renamed character has several folders with the same id)
+function saves(folder) {
+    const BK = join(import.meta.dirname, '../../private/dnd', folder), byId = new Map();
+    if (!existsSync(BK)) return [];
+    for (const ip of readdirSync(BK)) for (const name of readdirSync(join(BK, ip))) {
     const dir = join(BK, ip, name);
     const files = readdirSync(dir).filter((f) => /-\d+\.json$/.test(f)).sort((a, b) => +b.match(/-(\d+)\.json$/)[1] - +a.match(/-(\d+)\.json$/)[1]);
     if (!files[0]) continue;
     const file = join(dir, files[0]), t = statSync(file).mtimeMs, c = JSON.parse(readFileSync(file, 'utf8'));
     if (!byId.has(c.id) || byId.get(c.id).t < t) byId.set(c.id, { from: `${ip}/${name}`, c, t });
+    }
+    return [...byId.values()];
 }
-const chars = [...byId.values()];
 
 // every leaf of `old` must be in `now` unchanged; returns the paths that aren't. "updated" is the sheet's own stamp;
 // comparing two code versions also skips id and created, which an upgrade makes fresh each time it runs
@@ -51,7 +51,7 @@ try {
     await send('Network.setBlockedURLs', { urls: ['*backup.php*', '*cloud.php*'] });
 
     // the saves as one sheet's code leaves them after loading and opening each character
-    async function load(base, path, key) {
+    async function load(base, path, key, chars) {
         // fill localStorage from a page that isn't a sheet: an open sheet saves itself over it when it unloads
         await send('Page.navigate', { url: base + '/privacy/' }); await sleep(1000);
         const db = { cur: chars[0].c.id, chars: Object.fromEntries(chars.map(({ c }) => [c.id, c])) };
@@ -64,9 +64,11 @@ try {
         return after;
     }
 
-    for (const [path, key] of [['/sheets/player/', 'hb-sheet'], ['/sheets/player-dev/', 'hb-sheet-dev']]) {
-        const before = OLD ? await load(OLD, path, key) : Object.fromEntries(chars.map(({ c }) => [c.id, c]));
-        const after = await load(NEW, path, key);
+    for (const [path, key, folder] of [['/sheets/player/', 'hb-sheet', 'backups'], ['/sheets/player-dev/', 'hb-sheet-dev', 'backups'], ['/sheets/monster/', 'monster-sheet', 'monster-backups']]) {
+        const chars = saves(folder);
+        if (!chars.length) { console.log(`${path}: no saves in private/dnd/${folder}/ to check`); continue; }
+        const before = OLD ? await load(OLD, path, key, chars) : Object.fromEntries(chars.map(({ c }) => [c.id, c]));
+        const after = await load(NEW, path, key, chars);
         for (const { from, c } of chars) {
             const miss = !before[c.id] ? [] : after[c.id] ? lost(before[c.id], after[c.id]) : ['the whole character'];
             if (miss.length) { failed++; console.log(`FAIL ${path} ${from}: ${miss.length} value(s) changed or gone\n  ` + miss.slice(0, 8).join('\n  ')); }

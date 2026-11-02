@@ -34,14 +34,17 @@ do). Signed out, everything keeps working from the browser alone.
 
 - Every new feature that stores anything in the browser must also save it to the account in the same change,
   including settings and preferences, not just characters.
-- Already following the account: player sheet characters (`hb-sheet`, `accounts/<sub>/`) and test-sheet
-  characters (`hb-sheet-dev`, `accounts/dev/<sub>/`), each with its roll log and per-character view settings.
-- Still browser-only (bring these over; tick them off here when done):
-  - dice choice: set, sound, trails, nat 1/20 effects, coin (`dice-choice`, dice/choice.js)
-  - monster sheet encounters (`monster-sheet`, sheets/monster/monster.js)
-  - Dice Sets page state (`dice-sets-page`, `dice-sets-sound`, dice/dice.js)
-  - D&D Beyond viewer roll mode (`dnd.rollMode`, characters/dnd.js)
-  - dice fairness test tallies (`dice-test-counts`, dice/test/) - test data, lowest priority
+- Following the account, each with its roll log and per-character view settings:
+  - player sheet characters (`hb-sheet`, `accounts/<sub>/`, sheets/player/cloud.php)
+  - test-sheet characters (`hb-sheet-dev`, `accounts/dev/<sub>/`)
+  - monster sheet monsters (`monster-sheet`, `accounts/monsters/<sub>/`)
+  - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
+    Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`)
+- Not synced, by the user's choice: dice fairness test tallies (`dice-test-counts`).
+- How to add more: a list of things a player builds up (characters, monsters) gets per-item sync like the
+  sheets (a cloud.php wrapper with its own `CL_ACCOUNTS` folder, `updated` stamped on edits only); a setting
+  goes in the KEYS list of both sync.js and prefs.php. sync.js watches localStorage, so the page's own code
+  doesn't change.
 - Keep the localStorage keys as they are (friends' data is under them); the account copy is added alongside.
 
 ## Player data must never be lost in an update
