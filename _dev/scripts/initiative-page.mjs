@@ -148,6 +148,10 @@ try {
     await fetch(`${BASE}/sheets/monster/cloud.php?hp=gob`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.dm, 'Content-Type': 'application/json' }, body: JSON.stringify({ op: { k: 'dmg', n: 1 } }) });
     await sleep(2500);
     is('every change counted on the server', goblin().hp.cur, 3);
+    const twice = () => fetch(`${BASE}/sheets/monster/cloud.php?hp=gob`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.dm, 'Content-Type': 'application/json' }, body: JSON.stringify({ q: 'samechange0001', op: { k: 'heal', n: 1 } }) });
+    await twice(); await twice();
+    is('the same change sent twice counts once', goblin().hp.cur, 4);
+    await fetch(`${BASE}/sheets/monster/cloud.php?hp=gob`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.dm, 'Content-Type': 'application/json' }, body: JSON.stringify({ op: { k: 'dmg', n: 1 } }) });
     is('Monster Sheet 2 caught up live', await until(pat, `JSON.parse(localStorage.getItem('monster-sheet')).chars.gob.hp.cur`, (v) => v === 3), 3);
     is('campaign page shows the same HP', (await until(dm, text('#cp-fight'), (t) => t.includes('HP 3/7'))).includes('HP 3/7'), true);
     // an old copy saved whole never puts old HP back
@@ -159,6 +163,11 @@ try {
     // ending: a yes/no first, then kept in fights/1.json
     await go(dm, BASE + '/sheets/monster/');
     await until(dm, `!!document.querySelector('[data-fi=end]')`, Boolean);
+    // the DM's connection drops: the controls pause
+    await dm.ev(`(() => { const f = window.fetch; window.fetch = (u, o) => (window.cut && String(u).includes('fight.php') ? Promise.reject(new TypeError('offline')) : f(u, o)); window.cut = true; return Fight.load('${CAMP}').then(() => 1); })()`);
+    is('offline: controls paused', [(await dm.ev(panel)).includes('Offline, changes paused'), await dm.ev(`document.querySelector('[data-fi=next]').disabled`)], [true, true]);
+    await dm.ev(`window.cut = false; Fight.load('${CAMP}').then(() => 1)`);
+    is('back online: controls back', await until(dm, `document.querySelector('[data-fi=next]')?.disabled === false`, Boolean), true);
     await click(dm, '[data-fi=end]');
     is('end asks first', await until(dm, `!!document.querySelector('#fi-ask[open]')`, Boolean), true);
     await click(dm, '#fi-ask button[value=yes]');

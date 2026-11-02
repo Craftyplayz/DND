@@ -460,7 +460,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         hpBusy = true;
         for (const item of hpQueue()) {
             let r;
-            try { r = await fetch('cloud.php?hp=' + encodeURIComponent(item.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: item.op }) }); } catch (e) { break; }
+            try { r = await fetch('cloud.php?hp=' + encodeURIComponent(item.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: item.q, op: item.op }) }); } catch (e) { break; }
             if (r.status === 401) { cloudOff(); break; }
             if (r.status >= 500 || r.status === 429) break;
             hpKeep(hpQueue().filter((x) => x.q !== item.q)); // done, or turned down for good (404: not in the account; its save carries it)

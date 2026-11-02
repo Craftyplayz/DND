@@ -76,11 +76,18 @@ if (isset($_GET['hp'])) {
     $id = $_GET['hp'];
     $c = $okId($id) ? $read("$dir/$id.json") : null;
     if (!$c) cl_out(404, ['error' => 'Save the monster to your account first.']);
-    $hp = fi_hp(is_array($c['hp'] ?? null) ? $c['hp'] : [], json_decode((string)file_get_contents('php://input', false, null, 0, 64 * 1024), true)['op'] ?? null);
-    if ($hp === null) cl_out(400, ['error' => "That isn't a hit point change."]);
-    $c['hp'] = array_merge(is_array($c['hp'] ?? null) ? $c['hp'] : [], $hp);
-    $c['hpAt'] = max(round(microtime(true) * 1000), $stamp($c, 'hpAt') + 1);
-    if (@file_put_contents("$dir/$id.json", json_encode($c, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) === false) cl_out(500, ['error' => "Couldn't save the hit points."]);
+    $in = json_decode((string)file_get_contents('php://input', false, null, 0, 64 * 1024), true);
+    // a change sent twice (a lost answer, or two tabs sharing one outbox) counts once: the last 500 change ids are kept
+    $q = is_string($in['q'] ?? null) && preg_match('/^[\w-]{8,40}$/', $in['q']) ? $in['q'] : null;
+    $seen = $read("$dir/.hp-changes") ?? [];
+    if ($q === null || !in_array($q, $seen, true)) {
+        $hp = fi_hp(is_array($c['hp'] ?? null) ? $c['hp'] : [], $in['op'] ?? null);
+        if ($hp === null) cl_out(400, ['error' => "That isn't a hit point change."]);
+        $c['hp'] = array_merge(is_array($c['hp'] ?? null) ? $c['hp'] : [], $hp);
+        $c['hpAt'] = max(round(microtime(true) * 1000), $stamp($c, 'hpAt') + 1);
+        if (@file_put_contents("$dir/$id.json", json_encode($c, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) === false) cl_out(500, ['error' => "Couldn't save the hit points."]);
+        if ($q !== null) @file_put_contents("$dir/.hp-changes", json_encode(array_slice([...$seen, $q], -500)));
+    }
     flock($lock, LOCK_UN);
     $out = ['id' => $id, 'hp' => $c['hp'], 'hpAt' => $c['hpAt']];
     // the DM's open Monster Sheets, then every fight this monster is in (players load what they may see)

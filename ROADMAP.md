@@ -66,7 +66,7 @@ IDs are numeric (`auth_claims_ok` checks this), so named folders can't clash wit
 | `dev/characters/` | the archived test sheet's characters | kept as is |
 | `monsters/<sub>/<monster id>.json` | monster sheet monsters | exists (0.1) |
 | `prefs/<sub>.json` | settings in the `KEYS` list of sync.js / prefs.php | exists (0.1) |
-| `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` exists (1.1); the rest Phase 1 |
+| `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` (1.1), `sessions/` (1.3), `initiative.json` and `fights/` (1.4) exist; the rest Phase 1 |
 | `homebrew/<sub>/<id>.json` | homebrew items, spells, monsters, classes, races... | Phase 4/5 |
 | `shares/<token>.json` | read-only share links | Phase 6 |
 
@@ -287,6 +287,13 @@ browser only; see CLAUDE.md and "Not planned")
   the character builder (Phase 3), since nothing reads them before that.
 - Built: `includes/campaigns.php`, `campaigns/` (pages, `api.php`, `join/`), checks `_dev/scripts/campaigns.test.php`
   and `campaigns-page.mjs`. Attaching writes nothing to the character: the campaign is the only record of the link.
+- One campaign per character (owner's rule, 2026-11-02): attaching a character that's already in a campaign is
+  refused with a message and a "Clone character" button. The clone (`clone` in `campaigns/api.php`) is a new character
+  of the same owner made through the normal folder layout: the current sheet and portrait, named "<name> (copy)", a
+  fresh roll log and history, attached to that campaign, separate from then on. Characters already in two or more
+  campaigns keep them all until the owner picks in a notice on the sheet: "Keep in X" (it leaves the others, `keep`)
+  or "Clone for Y" (a copy takes its place in Y). Until then its rolls (and the fight it shows) go to the campaign it
+  last rolled to, its stored "Rolls go to" pick, or nowhere without one. Checks: `campaigns.test.php`, `initiative-page.mjs`.
 - Campaign settings (DM, later): house rules. HP on level-up: roll or average. Ability scores: point buy / standard
   array / 4d6 drop lowest / manual allowed. Spell points variant on or off. Which homebrew is shared. When a
   character isn't in any campaign, the player picks these themselves.
@@ -345,6 +352,10 @@ browser only; see CLAUDE.md and "Not planned")
   Storage: `campaigns/<id>/sessions/<n>.json` and `sessions/unsorted.json`; `includes/tablelog.php` alone decides
   what each player sees, for the log and for the relay. Offline rolls wait in the browser (`live-outbox`).
   Pages share `assets/js/live.js`. Checks: `tablelog.test.php`, `table-log.mjs`.
+- Changed (2026-11-02, one campaign per character, see 1.1): the player sheet has no "Rolls go to" picker any more. A
+  character's rolls go to its one campaign, and a character in none rolls privately. The stored pick (`view.table`)
+  stays in the character and is only read for one still in several campaigns. The Monster Sheet keeps its picker
+  (a DM can run several campaigns).
 
 **1.4 Initiative tracker**
 - What: run by the DM, seen by players. Players' initiative rolls on their sheet add them automatically. The DM
@@ -359,6 +370,32 @@ browser only; see CLAUDE.md and "Not planned")
 - Reconnect: the full current order is sent on join.
 - Size: 3 days. Done: three players roll in, the DM adds two monsters, advances two rounds and damages a
   monster. Players see Bloodied but not numbers, and a reload on any device shows the same state.
+- Built (2026-11-02), owner's answers: the DM runs it in a Fight panel on the Monster Sheet (for the campaign its rolls
+  go to): Start fight, a rolling-in phase where the order sorts live, Start round 1, Next / Previous, a round counter
+  and the time since round 1 (everyone sees it), End fight (asks first; moves the fight to
+  `campaigns/<id>/fights/<n>.json`). Only "Fight started" and "Fight ended" go in the table log. One fight per
+  campaign, independent of sessions. Players get a notice with a Roll button; characters that roll join, each with
+  its own entry; the DM can add or remove any party character (a removed one's rolls are then ignored), type a
+  number, move entries up and down, and add plain named entries. A re-roll replaces the old one while rolling in;
+  after round 1 only a first roll counts, and late arrivals slot in by number without moving the turn. An offline
+  roll joins only if it was rolled in the same fight. Ties: higher initiative bonus first, then a silent d20 roll-off.
+  Monsters: "Add to fight" beside each one in the list, "Add all in the list" (and a picker in the panel on phones),
+  each auto-rolled; the Initiative button rolls one in. Hidden monsters are never sent to players. Down monsters
+  (≤ 0 HP) stay greyed and are skipped by Next; archived or gone ones stay, marked, until removed. Players see the
+  order as portraits (no numbers, no player health, monsters as Healthy / Bloodied / Down), "You're up next", a
+  "Your turn, <name>" banner on that character's sheet and the tab title in the background; no sound. The campaign
+  page shows the same; the DM also sees numbers, player HP (read-only), monster HP and AC, and can change monster HP
+  there. While the DM is offline the controls say "Offline, changes paused"; a change from an older copy of the
+  fight is refused with "This fight changed, reloaded".
+- Monster HP from anywhere: once changed through `sheets/monster/cloud.php?hp=`, a monster's HP only changes as
+  single changes (damage and healing as amounts, typed numbers as the numbers that changed), applied in order by
+  the server to the DM's monster save (`hpAt` stamps it; the monster `blank()` has it). A whole-monster save keeps
+  the saved HP, so an old open sheet can't put old HP back. Every change goes live to the DM's open Monster Sheets
+  (the relay's own room per account, `?c=me`) and to fights with that monster. Changes made offline wait in
+  `monster-hp-outbox`.
+- Files: `includes/initiative.php` (storage, rules and what each person sees: `fi_view`, which 1.7 can reuse),
+  `campaigns/fight.php`, `assets/js/fight.js`, `assets/css/pages/fight.css`. Checks: `initiative.test.php`,
+  `initiative-page.mjs` (both browsers, `--firefox` swaps them).
 
 **1.5 DM view of party sheets and party overview**
 - What: the campaign page shows a party overview: name, HP bar, AC, passive Perception, conditions,
