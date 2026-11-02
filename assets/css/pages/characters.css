@@ -1,0 +1,14 @@
+/* My Characters (/characters/): a toolbar and a card per character with its art, name, level line, View and Delete. */
+.ch-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.ch-bar .ch-q { flex: 1 1 260px; }
+.ch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin: 16px 0; }
+.ch-grid > p { grid-column: 1 / -1; }
+.ch-card { display: grid; overflow: hidden; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.ch-top { display: flex; align-items: center; gap: 12px; padding: 14px; color: var(--text); text-decoration: none; }
+.ch-top:hover { background: var(--card2); text-decoration: none; }
+.ch-top img, .ch-noart { flex: none; width: 64px; height: 64px; border-radius: var(--radius); object-fit: cover; background: var(--card2); }
+.ch-who { display: grid; gap: 2px; min-width: 0; }
+.ch-who b { overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.ch-who small { color: var(--muted); font-size: 13px; }
+.ch-acts { display: flex; gap: 8px; padding: 10px 14px; background: var(--sunken); border-top: 1px solid var(--line); }
+.ch-acts .btn { flex: 1; justify-content: center; }

@@ -4,7 +4,7 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 
 // D&D Beyond has no public API. These are the unofficial endpoints its own character sheet uses:
 // they only return public characters, need no key, and rate-limit heavy use, so every answer is cached.
-const DND_CACHE = __DIR__ . '/cache';
+const DND_CACHE = SITE_ROOT . '/characters/cache'; // the cache volume stays mounted there
 const DND_CHAR_TTL = 600;     // 10 minutes
 const DND_RULES_TTL = 86400;  // rule data barely changes
 
@@ -115,7 +115,7 @@ function dnd_chooser($picker)
             . ($av ? '<img class="dnd-av" src="' . h($av) . '" width="300" height="300" alt="" loading="lazy" referrerpolicy="no-referrer">' : '<span class="dnd-av">' . h(mb_substr($p['name'], 0, 1)) . '</span>')
             . '<b>' . h($p['name']) . '</b><small>' . h($p['summary']) . '</small></a>';
     }
-    echo '<form class="dnd-card dnd-other" method="get" action="/characters/"><label for="dnd-other"><b>Another character</b><small>Any public D&amp;D Beyond character</small></label>'
+    echo '<form class="dnd-card dnd-other" method="get" action="/private/archive/characters/"><label for="dnd-other"><b>Another character</b><small>Any public D&amp;D Beyond character</small></label>'
         . '<input id="dnd-other" class="field" name="id" placeholder="Link or ID" required autocomplete="off"><button class="btn" type="submit">Open</button></form>';
     echo '</div>';
 }
@@ -126,7 +126,7 @@ function dnd_chooser($picker)
 <head>
     <?php page_head(); ?>
     <link rel="preconnect" href="https://www.dndbeyond.com">
-    <?php if ($d): ?><script src="<?= h(asset('/characters/dnd.js')) ?>" defer></script><?php endif; ?>
+    <?php if ($d): ?><script src="<?= h(asset('/private/archive/characters/dnd.js')) ?>" defer></script><?php endif; ?>
 </head>
 
 <body>
@@ -139,7 +139,7 @@ function dnd_chooser($picker)
             <p class="page-lede">Pick a character to open their sheet.</p>
             <?php dnd_chooser($picker); ?>
         <?php else: ?>
-            <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="crumbs-sep">›</span> <a href="/characters/">D&amp;D Characters</a> <span class="crumbs-sep">›</span> <span aria-current="page"><?= h($d ? ($d['name'] ?? 'Unnamed') : $id) ?></span></nav>
+            <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="crumbs-sep">›</span> <a href="/private/archive/characters/">D&amp;D Characters</a> <span class="crumbs-sep">›</span> <span aria-current="page"><?= h($d ? ($d['name'] ?? 'Unnamed') : $id) ?></span></nav>
             <?php if (!$d): ?>
                 <h1 class="page-title">D&amp;D Character</h1>
                 <?php if ($char['status'] === 403): ?>

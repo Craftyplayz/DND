@@ -1,0 +1,5 @@
+# /characters/<id> opens that character (characters/index.php); real files (list.js) and folders (cache/) are served as they are
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([A-Za-z0-9_-]+)/?$ index.php?id=$1 [L,QSA]

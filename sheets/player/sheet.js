@@ -348,36 +348,72 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             localStorage.setItem(KEY, JSON.stringify(db));
             localStorage.setItem('hb-sheet-merged', '1');
         }
-    } catch (e) { }    if (!db.chars[db.cur]) db.cur = Object.keys(db.chars)[0] || '';
+    } catch (e) { }    
+    // on /characters/<id> (characters/index.php): that character only. The page inlines the account's copy for its owner
+    // (taken when newer than this browser's) or, read-only, a public character someone else owns; "new" makes a blank one.
+    // a public character that is also in this browser is this player's own (signed out on their own device), so it stays editable
+    const CHAR = $('#main').dataset.char || '', RO = 'readonly' in $('#main').dataset && !db.chars[CHAR];
+    const inline = (() => { try { return JSON.parse($('#hb-char')?.textContent || 'null'); } catch (e) { return null; } })();
+    const charUrl = (id) => history.replaceState(null, '', '/characters/' + encodeURIComponent(id));
+    if (RO) db = { cur: CHAR, chars: { [CHAR]: normalise(inline) } };
+    else if (inline && (!db.chars[CHAR] || db.chars[CHAR].updated < inline.updated)) db.chars[CHAR] = normalise(inline);
+    // a created character is a real one straight away (shown on the list, kept on reload), unlike the sheet's placeholder blank
+    if (CHAR === 'new') {
+        const c = Object.assign(blank(), { updated: Date.now() });
+        db.chars[c.id] = c; db.cur = c.id; charUrl(c.id);
+        try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { }
+    }
+    else if (CHAR && !db.chars[CHAR]) {
+        root.innerHTML = '<div class="card"><h2>Character not found</h2><p>It isn\'t saved in this browser or in your account. Sign in with the account that made it, or open it on the device it was made on.</p><p><a class="btn" href="/characters/">My Characters</a></p></div>';
+        return;
+    } else if (CHAR) db.cur = CHAR;
+    if (!db.chars[db.cur]) db.cur = Object.keys(db.chars)[0] || '';
     if (!db.cur) { const c = blank(); db.chars[c.id] = c; db.cur = c.id; }
     let C = db.chars[db.cur];
     let warned = false;
     function store() {
+        if (RO) return; // someone else's public character: nothing is saved anywhere
         try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
         catch (e) { if (!warned) toast("Couldn't save: this browser's storage is full or blocked. Export the character so you don't lose it.", 'err'); warned = true; }
     }
     // signed in (data-cloud on <main>): characters are also kept in the account (cloud.php), with this browser's copy for offline use;
     // whichever copy has the newer "updated" wins. Untouched blanks (updated 0) stay in this browser.
-    let cloud = 'cloud' in $('#main').dataset;
+    let cloud = 'cloud' in $('#main').dataset && !RO;
+    const API = '/sheets/player/'; // absolute, so /characters/<id> saves through the same files
     function cloudOff() {
         if (!cloud) return;
         cloud = false;
         toast('You were signed out, so characters are only saved in this browser now. Sign in again to save them to your account.', 'note');
     }
     function cloudSave(id, body) {
-        fetch('cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
-            .then((r) => { if (r.status === 401) cloudOff(); else if (!r.ok && r.status !== 409) dirty.add(id); }).catch(() => dirty.add(id));
+        fetch(API + 'cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
+            .then(async (r) => {
+                if (r.status === 401) cloudOff();
+                else if (r.status === 409 && (await r.json()).taken) reId(id);
+                else if (!r.ok && r.status !== 409) dirty.add(id);
+            }).catch(() => dirty.add(id));
+    }
+    // another player's account already has this id (an import that kept it): this copy becomes a new character
+    function reId(id) {
+        const c = db.chars[id];
+        if (!c) return;
+        delete db.chars[id];
+        c.id = uid(); c.updated = Date.now();
+        db.chars[c.id] = c;
+        if (db.cur === id) { db.cur = c.id; if (CHAR) charUrl(c.id); }
+        store();
+        cloudSave(c.id, JSON.stringify(c));
     }
     // on load: take the account's newer characters and send up the ones this browser has newer (on first sign-in, all of them)
     if (cloud) (async () => {
-        const r = await fetch('cloud.php');
+        const r = await fetch(API + 'cloud.php');
         if (r.status === 401) return cloudOff();
         if (!r.ok) return;
         const { chars } = await r.json();
         let got = false;
         for (const [id, up] of Object.entries(chars)) {
             if (db.chars[id] && db.chars[id].updated >= up) continue;
-            const g = await fetch('cloud.php?id=' + encodeURIComponent(id));
+            const g = await fetch(API + 'cloud.php?id=' + encodeURIComponent(id));
             if (!g.ok) continue;
             db.chars[id] = normalise(await g.json());
             got = true;
@@ -385,7 +421,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         for (const id in db.chars) if (db.chars[id].updated > (chars[id] || 0)) cloudSave(id, JSON.stringify(db.chars[id]));
         if (!got) return;
         // the blank character made because this browser had none gives way to the account's
-        if (!C.updated && Object.keys(db.chars).length > 1) delete db.chars[C.id];
+        if (!CHAR && !C.updated && Object.keys(db.chars).length > 1) delete db.chars[C.id];
         C = db.chars[db.cur] || Object.values(db.chars)[0];
         db.cur = C.id;
         store(); draw();
@@ -396,13 +432,14 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     let backupTimer = 0;
     function flushBackups() {
         clearTimeout(backupTimer);
+        if (RO) return;
         for (const id of [...dirty]) {
             const c = db.chars[id];
             dirty.delete(id);
             if (!c) continue;
             const body = JSON.stringify(c);
             // keepalive lets a backup finish while the page closes (browsers allow it for bodies up to 64 KB)
-            fetch('backup.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
+            fetch(API + 'backup.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
                 .then((r) => { if (!r.ok && r.status >= 500) dirty.add(id); }).catch(() => dirty.add(id));
             if (cloud && c.updated) cloudSave(id, body);
         }
@@ -1132,7 +1169,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         `<option value="${esc(c.id)}"${c.id === C.id ? ' selected' : ''}>${esc(c.name || 'Unnamed character')}${clsText(c) ? ' — ' + esc(clsText(c)) : ''}</option>`).join('');
     // the top line: which character, who they are, and (behind Edit) the buttons to make, import, export or delete one
     function bar() {
-        return `<select class="field hb-pick" data-act="pick" aria-label="Character">${pickOpts()}</select>
+        if (RO) return `<a class="btn small" href="/characters/">My Characters</a><b class="hb-roname">${esc(C.name || 'Unnamed character')}</b><span class="muted">${esc(clsText(C))} · read only</span>`;
+        return `${CHAR ? '<a class="btn small" href="/characters/">My Characters</a>' : `<select class="field hb-pick" data-act="pick" aria-label="Character">${pickOpts()}</select>`}
             <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
             <span class="hb-manage" id="hb-manage"${open.manage ? '' : ' hidden'}>
                 <button type="button" class="btn small" data-act="new">New</button>
@@ -1263,7 +1301,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     };
     function loadEqList() {
         if (eqList) return eqList;
-        eqList = fetch('spells.php?eqlist=1').then((r) => (r.ok ? r.json() : Promise.reject())).then((list) => {
+        eqList = fetch(API + 'spells.php?eqlist=1').then((r) => (r.ok ? r.json() : Promise.reject())).then((list) => {
             eqNames = list.map(([, n]) => natural(n));
             $('#hb-dl-gear').innerHTML = gearNames().map((n) => `<option value="${esc(n)}">`).join('');
             return list;
@@ -1276,7 +1314,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const hit = (await loadEqList()).find(([, n]) => natural(n).toLowerCase() === want);
         if (!hit) return;
         try {
-            const res = await fetch('spells.php?eq=' + encodeURIComponent(hit[0]));
+            const res = await fetch(API + 'spells.php?eq=' + encodeURIComponent(hit[0]));
             if (!res.ok) throw 0;
             const s = await res.json();
             if (!r.props.length) r.props = s.props || [];
@@ -1302,7 +1340,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function loadSrdList() {
         if (srdList) return srdList;
         // ?list=N: bump N when the list changes, browsers cache it for a day
-        srdList = fetch('spells.php?list=2').then((r) => (r.ok ? r.json() : Promise.reject())).then((list) => {
+        srdList = fetch(API + 'spells.php?list=2').then((r) => (r.ok ? r.json() : Promise.reject())).then((list) => {
             // the label carries the name too: Firefox shows only the label, Chrome shows the value beside it
             $('#hb-dl-srd').innerHTML = list.map(([, n, l]) => `<option value="${esc(n)}" label="${esc(n + ' · ' + (l ? ordinal(l) + ' level' : 'cantrip'))}"></option>`).join('');
             return list;
@@ -1341,7 +1379,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const textOnly = hit && r.srd === hit[0];
         if (!hit || (textOnly && !needsFill(r))) return;
         try {
-            const res = await fetch('spells.php?i=' + encodeURIComponent(hit[0]));
+            const res = await fetch(API + 'spells.php?i=' + encodeURIComponent(hit[0]));
             if (!res.ok) throw 0;
             const s = await res.json();
             if (!textOnly) fromSrd(s, r);
@@ -1513,7 +1551,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (!/\d{4,}/.test(v)) return say('err', 'Paste a D&D Beyond character link or its ID number.');
         btn.disabled = true; btn.textContent = 'Importing...'; say('note', 'Fetching the character from D&D Beyond...');
         try {
-            const res = await fetch('ddb.php?id=' + encodeURIComponent(v));
+            const res = await fetch(API + 'ddb.php?id=' + encodeURIComponent(v));
             const j = await res.json().catch(() => ({}));
             if (!res.ok || !j.character) return say('err', j.error || "Couldn't reach D&D Beyond right now. Try again in a minute.");
             let c;
@@ -1536,7 +1574,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function loadSenses() {
         if (senseLoaded) return;
         senseLoaded = true;
-        fetch('ddb.php?rules=1').then((r) => (r.ok ? r.json() : Promise.reject())).then((j) => {
+        fetch(API + 'ddb.php?rules=1').then((r) => (r.ok ? r.json() : Promise.reject())).then((j) => {
             if (Array.isArray(j.senses) && j.senses.length) senseNames = j.senses;
             const pick = $('#hb-sense-pick');
             if (pick) pick.innerHTML = senseOptions();
@@ -1608,6 +1646,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <label class="check">${f('view.noRoll', 'Turn off click to roll', { check: true })} Roll your own dice: don't roll when an ability, save, skill or tool bonus is clicked</label>
             <label class="check">${f('view.noTray', 'Hide the dice button', { check: true })} Hide the dice button in the bottom-left corner</label>
             <p class="hb-dicelink"><a class="btn" href="/dice/">Customise dice</a> <span class="muted">Pick the dice, their sounds, trails and nat 1 and nat 20 effects on the Dice Sets page; they apply here straight away.</span></p>
+            <p class="hb-dicelink">${C.view.dice
+                ? '<button type="button" class="btn" data-act="diceown">Use the Dice Sets page\'s dice</button> <span class="muted">This character rolls its own dice, kept from when you chose them.</span>'
+                : '<button type="button" class="btn" data-act="diceown" data-on="1">Keep these dice for this character</button> <span class="muted">Saves the dice picked on the Dice Sets page to this character, so changing them later for another character doesn\'t change this one.</span>'}</p>
+            ${CHAR && cloud ? `<h3>Sharing</h3>
+            <label>Who can see this character <select class="field hb-auto" data-act="vis" aria-label="Who can see this character">${[['private', 'Only me'], ['public', 'Anyone with the link (read only)']].map(([v, t]) => `<option value="${v}"${$('#main').dataset.vis === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
             <label class="check">${f('view.noSound', 'Turn off dice sounds', { check: true })} No sound when the dice land</label>
             <label class="check">${f('view.noAnim', 'Turn off thrown dice', { check: true })} Show results straight away instead of throwing 3D dice across the page</label>
             <h3>Panels</h3>
@@ -1641,13 +1684,14 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const dlgHTML = () => (dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : dlgMode.kind === 'ddb' ? ddbDlg() : formulaDlg(dlgMode));
     // ---- dice: a card for each roll and the dice tray in the bottom-left corner ----
     const DICE = [4, 6, 8, 10, 12, 20, 100], tray = { open: false, pool: {} };
+    // this character's own dice (C.view.dice, a copy of a Dice Sets choice kept from Customise), else
     // the dice chosen on the Dice Sets page (/dice/, choice.js), read at every roll so a change there applies here straight away;
     // with no choice yet, the style this sheet had picked before (C.view.diceStyle). Plain purple if any of it fails to load.
     let choiceP = null;
     const chosenStyle = (m) => (choiceP ||= import(`/dice/choice.js${(($('script[src*="/sheet.js"]')?.src || '').match(/\?v=\d+/) || [''])[0]}`)
         .catch((e) => { choiceP = null; throw e; }))
         .then((c) => { const k = C.view.diceStyle || 'purple';
-            return c.styleFrom(c.readChoice() || { set: m.STYLES[k] ? { key: k, builtin: true } : { key: k, url: `./sets/${k}.js` } }, m); })
+            return c.styleFrom(C.view.dice || c.readChoice() || { set: m.STYLES[k] ? { key: k, builtin: true } : { key: k, url: `./sets/${k}.js` } }, m); })
         .catch(() => 'purple');
     const die = (n) => { const a = new Uint32Array(1); crypto.getRandomValues(a); return (a[0] % n) + 1; };
     let rollTimer = 0;
@@ -1727,13 +1771,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         root.innerHTML = top() + `<div class="hb-top-panels">${panels()}</div><div hidden>${datalists()}</div>`;
         drawTray(); drawLog();
         if (dlg.open && dlgMode && !['rest', 'ddb', 'crop'].includes(dlgMode.kind)) { dlgBody.innerHTML = dlgHTML(); }
+        // read-only: everything can be looked at and rolled, nothing typed in
+        if (RO) for (const el of root.querySelectorAll('input, select, textarea')) el.disabled = true;
         refresh();
     }
     function showDlg(mode) { dlgMode = mode; dlgBody.innerHTML = dlgHTML(); dlg.showModal(); refresh(); }
     dlg.addEventListener('close', () => { dlgMode = null; draw(); });
 
     // switching isn't an edit, so it doesn't touch either character's updated time
-    function switchTo(c) { saveNow(false); C = c; db.chars[c.id] = c; db.cur = c.id; openRows.clear(); saveNow(false); draw(); }
+    function switchTo(c) { saveNow(false); C = c; db.chars[c.id] = c; db.cur = c.id; if (CHAR) charUrl(c.id); openRows.clear(); saveNow(false); draw(); }
 
     function download(name, text) {
         const a = document.createElement('a');
@@ -1852,6 +1898,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     main.addEventListener('change', (e) => {
         const el = e.target, k = el.dataset.k || '';
         if (el.dataset.act === 'pick') return switchTo(db.chars[el.value]);
+        if (el.dataset.act === 'vis') {
+            return fetch(`${API}cloud.php?id=${encodeURIComponent(C.id)}&visibility=${el.value}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+                .then((r) => { if (!r.ok) throw r; $('#main').dataset.vis = el.value; toast(el.value === 'public' ? 'Anyone with the link can see this character now.' : 'Only you can see this character now.', 'ok'); })
+                .catch(() => { el.value = $('#main').dataset.vis; toast("Couldn't change who can see it. Edit the character once so it's in your account, then try again.", 'err'); });
+        }
         if (el.classList.contains('hb-tagin')) return addTag(el);
         if (el.classList.contains('hb-gname')) {
             const P = get(el.dataset.p), from = el.dataset.g, to = el.value.trim();
@@ -1929,6 +1980,13 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             dlgBody.innerHTML = formulaDlg(dlgMode); saveNow(); return refresh();
         }
         if (act === 'custom') { loadSenses(); return showDlg('custom'); }
+        if (act === 'diceown') {
+            let pick = null;
+            try { pick = JSON.parse(localStorage.getItem('dice-choice')); } catch (e) { }
+            if (b.dataset.on && !pick) return toast('Pick some dice on the Dice Sets page first.', 'note');
+            if (b.dataset.on) C.view.dice = pick; else delete C.view.dice;
+            saveNow(); return draw();
+        }
         if (act === 'ddb') { showDlg({ kind: 'ddb' }); return $('#hb-ddb-id').focus(); }
         if (act === 'close') return dlg.close();
         if (act === 'cropsave') { C.art = $('#hb-crop').toDataURL('image/jpeg', 0.85); saveNow(); return dlg.close(); }
@@ -2111,8 +2169,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             if (!confirm(`Delete ${C.name || 'this character'} from this browser? Export it first if you want to keep a copy.`)) return;
             snap(b);
             // Undo brings it back and the next save puts it in the account again
-            if (cloud) fetch('cloud.php?id=' + encodeURIComponent(C.id), { method: 'DELETE' }).catch(() => {});
+            if (cloud) fetch(API + 'cloud.php?id=' + encodeURIComponent(C.id), { method: 'DELETE' }).catch(() => {});
             delete db.chars[C.id];
+            if (CHAR) { store(); return location.assign('/characters/'); }
             return switchTo(Object.values(db.chars)[0] || blank());
         } else return;
         saveNow(); draw();

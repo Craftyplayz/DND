@@ -1,5 +1,9 @@
 <?php
-$site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css']];
+// The homebrew sheet. characters/index.php includes this page for /characters/<id> with $hb set:
+//   char: the character to open ("new" makes one), readonly: someone else's public character,
+//   inline: the account's copy of it as JSON (owner or public only), vis: private or public
+$hb = ($hb ?? []) + ['char' => '', 'readonly' => false, 'inline' => null, 'vis' => 'private'];
+$site_page = ($site_page ?? []) + ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 ?>
 <!DOCTYPE html>
@@ -12,13 +16,15 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 <body>
     <?php // no site header or footer here: the sheet and its dice use the whole screen (owner's choice) ?>
 
-    <main class="page hb" id="main"<?= auth_user() ? ' data-cloud' : '' ?>>
-        <?= site_breadcrumbs(site_current_path()) ?>
+    <main class="page hb" id="main"<?= auth_user() ? ' data-cloud' : '' ?><?= $hb['char'] !== '' ? ' data-char="' . h($hb['char']) . '" data-vis="' . h($hb['vis']) . '"' : '' ?><?= $hb['readonly'] ? ' data-readonly' : '' ?>>
+        <?= $hb['char'] === '' ? site_breadcrumbs(site_current_path()) : '' ?>
         <h1 class="hb-sr">Homebrew Character Sheet</h1>
 
         <div class="bar hb-bar" id="hb-bar"><span class="hb-barin" id="hb-barin"></span><?= auth_button() ?></div>
         <div class="hb-sheet" id="hb-sheet"><noscript><p class="err">This sheet needs JavaScript.</p></noscript></div>
-        <p class="muted hb-hint"><?= auth_user() ? 'Characters are saved in this browser and in your account.' : 'Characters are saved in this browser only. Use Export to back one up or move it to another device.' ?></p>
+        <p class="muted hb-hint"><?= $hb['readonly'] ? 'You are looking at someone else\'s character. Nothing you change here is saved.' : (auth_user() ? 'Characters are saved in this browser and in your account.' : 'Characters are saved in this browser only. Use Export to back one up or move it to another device.') ?></p>
+        <?php // the account's copy, as text: "</" can't end the script early because JSON escapes "/" by default ?>
+        <?php if ($hb['inline'] !== null): ?><script type="application/json" id="hb-char"><?= json_encode(json_decode($hb['inline'])) ?></script><?php endif; ?>
 
         <dialog class="dlg hb-dlg" id="hb-dlg" aria-label="Sheet settings"><div id="hb-dlg-body"></div></dialog>
         <aside class="drawer hb-drawer" id="hb-drawer" aria-label="Details" aria-hidden="true" tabindex="-1">

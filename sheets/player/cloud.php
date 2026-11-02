@@ -1,15 +1,17 @@
 <?php
-// Cloud saves for signed-in players: one file per character in private/dnd/accounts/<google sub>/<character id>.json.
-//   GET              -> {"chars": {"<id>": <updated>, ...}}
-//   GET ?id=<id>     -> that character
-//   POST a character -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"})
-//   DELETE ?id=<id>  -> removed
+// Cloud saves for signed-in players: one folder per character in private/dnd/accounts/characters/<id>/ (includes/characters.php).
+//   GET                         -> {"chars": {"<id>": <updated>, ...}}, the characters this player owns
+//   GET ?id=<id>                -> that character
+//   POST a character            -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"});
+//                                  an id another player owns gets 409 {"taken": true}
+//   POST ?id=<id>&visibility=   -> private or public
+//   DELETE ?id=<id>             -> the folder moves to characters/.deleted/
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
 // The test sheet (player-dev/cloud.php) sets its own folder, then includes this file.
 require __DIR__ . '/../../includes/auth.php';
+require __DIR__ . '/../../includes/characters.php';
 if (!defined('CL_ACCOUNTS')) define('CL_ACCOUNTS', __DIR__ . '/../../private/dnd/accounts');
 const CL_MAX = 3 * 1024 * 1024; // art is stored inline, as in backup.php
-const CL_COUNT = 200;           // characters per account
 
 function cl_out($code, $data)
 {
@@ -22,44 +24,29 @@ function cl_out($code, $data)
 
 $user = auth_user();
 if (!$user) cl_out(401, ['error' => 'Sign in to save characters to your account.']);
-$dir = CL_ACCOUNTS . '/' . $user['sub'];
-$okId = function ($id) { return is_string($id) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id); };
-$updated = function ($file) {
-    $c = is_file($file) ? json_decode((string)file_get_contents($file), true) : null;
-    return is_array($c) && isset($c['updated']) && is_numeric($c['updated']) ? (float)$c['updated'] : 0;
-};
+$sub = $user['sub'];
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$id = $_GET['id'] ?? null;
 
-if ($method === 'GET') {
-    if (isset($_GET['id'])) {
-        $file = $okId($_GET['id']) ? "$dir/{$_GET['id']}.json" : '';
-        $file && is_file($file) ? cl_out(200, (string)file_get_contents($file)) : cl_out(404, ['error' => 'No such character.']);
-    }
-    $list = [];
-    foreach (glob("$dir/*.json") ?: [] as $f) $list[basename($f, '.json')] = $updated($f);
-    cl_out(200, ['chars' => (object)$list]);
+if ($method === 'GET' && $id !== null) {
+    $meta = ch_meta(CL_ACCOUNTS, $id);
+    ($meta['owner'] ?? null) === $sub ? cl_out(200, (string)file_get_contents(CL_ACCOUNTS . "/characters/$id/character.json")) : cl_out(404, ['error' => 'No such character.']);
 }
+if ($method === 'POST' && stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) cl_out(415, ['error' => 'Send the character as JSON.']);
+$lock = ch_lock(CL_ACCOUNTS);
+if (!$lock) cl_out(500, ['error' => "Couldn't lock the characters folder."]);
 
-if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0 && $method === 'POST') cl_out(415, ['error' => 'Send the character as JSON.']);
-if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) cl_out(500, ['error' => "Couldn't make the account folder."]);
-// one writer at a time per account, so the "newer wins" check and the write can't interleave
-$lock = fopen("$dir/.lock", 'c');
-if (!$lock || !flock($lock, LOCK_EX)) cl_out(500, ['error' => "Couldn't lock the account folder."]);
-
+// before anything else this player does, so a save can't beat their older characters into the folders
+ch_copy_in(CL_ACCOUNTS, $sub);
+if ($method === 'GET') cl_out(200, ['chars' => (object)ch_list(CL_ACCOUNTS, $sub)]);
 if ($method === 'DELETE') {
-    if (!$okId($_GET['id'] ?? null)) cl_out(400, ['error' => 'Bad character id.']);
-    @unlink("$dir/{$_GET['id']}.json");
-    cl_out(200, ['deleted' => true]);
+    if (!ch_ok_id($id)) cl_out(400, ['error' => 'Bad character id.']);
+    cl_out(...ch_delete(CL_ACCOUNTS, $sub, $id));
 }
 if ($method !== 'POST') cl_out(405, ['error' => 'Use GET, POST or DELETE.']);
+if (isset($_GET['visibility'])) cl_out(...ch_set_visibility(CL_ACCOUNTS, $sub, $id, $_GET['visibility']));
 
 $body = file_get_contents('php://input', false, null, 0, CL_MAX + 1);
 if ($body === false || $body === '') cl_out(400, ['error' => 'No character was sent.']);
 if (strlen($body) > CL_MAX) cl_out(413, ['error' => 'That character is too big to save.']);
-$c = json_decode($body, true);
-if (!is_array($c) || !isset($c['abilities']) || !is_array($c['abilities']) || !$okId($c['id'] ?? null) || !is_numeric($c['updated'] ?? null)) cl_out(400, ['error' => "That isn't a character from the sheet."]);
-$file = "$dir/{$c['id']}.json";
-if (!is_file($file) && count(glob("$dir/*.json") ?: []) >= CL_COUNT) cl_out(507, ['error' => 'Your account is full. Delete some characters first.']);
-$have = $updated($file);
-if ($have > (float)$c['updated']) cl_out(409, ['updated' => $have]);
-@file_put_contents($file, $body) !== false ? cl_out(200, ['updated' => (float)$c['updated']]) : cl_out(500, ['error' => "Couldn't save the character."]);
+cl_out(...ch_save(CL_ACCOUNTS, $sub, $body));

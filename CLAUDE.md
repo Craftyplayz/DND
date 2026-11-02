@@ -38,8 +38,9 @@ do). Signed out, everything keeps working from the browser alone.
 - Every new feature that stores anything in the browser must also save it to the account in the same change,
   including settings and preferences, not just characters.
 - Following the account, each with its roll log and per-character view settings:
-  - player sheet characters (`hb-sheet`, `accounts/<sub>/`, sheets/player/cloud.php)
-  - test-sheet characters (`hb-sheet-dev`, `accounts/dev/<sub>/`)
+  - player sheet characters (`hb-sheet`, a folder per character in `accounts/characters/<id>/`,
+    sheets/player/cloud.php + includes/characters.php; open at /characters/<id>)
+  - test-sheet characters (`hb-sheet-dev`, `accounts/dev/characters/<id>/`)
   - monster sheet monsters (`monster-sheet`, `accounts/monsters/<sub>/`)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
     Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`)
@@ -53,7 +54,7 @@ do). Signed out, everything keeps working from the browser alone.
 ## Player data must never be lost in an update
 
 Friends' characters live in three places: their browser (localStorage `hb-sheet`, `hb-sheet-dev` for the test
-sheet), their Google account (`private/dnd/accounts/<sub>/`, the test sheet in `accounts/dev/<sub>/`) and the
+sheet), their Google account (`private/dnd/accounts/characters/<id>/`, the test sheet in `accounts/dev/characters/`) and the
 server backups (`private/dnd/backups/<ip>/`). An update may add to a character, never drop or change what's there.
 
 - **Before pushing any sheet change**, prove the new code keeps everything the live code keeps:
@@ -73,7 +74,11 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
 - `normalise()` in sheet.js keeps only the keys that `blank()` has. A new field on a character must be added to
   `blank()` in both sheets, or it's thrown away on the next load (this is how the roll log used to vanish).
   Never rename or remove a field without an `upgrade()` step that carries the old value over.
-- Never change the localStorage keys, the `accounts/<sub>/<character id>.json` layout, or the compose volume
+- A character's folder holds `character.json` (exactly what the sheet saves), `meta.json` (owner, visibility
+  private/public, created, campaigns) and `history/<n>.json` (every saved version). Deleting moves the folder to
+  `accounts/characters/.deleted/`; nothing is unlinked. The older `accounts/<sub>/<id>.json` files were copied into
+  folders once per account (`.copied` marks it) and stay where they are, no longer written.
+- Never change the localStorage keys, the character folder layout, or the compose volume
   names (a renamed volume is a new, empty one).
 - `deploy.sh test` and `deploy.sh live` count the files in every data folder of both services before and after
   the deploy and stop with "PLAYER DATA WENT MISSING" if any count went down. If that happens, stop, don't
@@ -101,7 +106,9 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
   private/dnd/accounts, private/sessions, transcripts/data, characters/cache, includes/config.php, .htpasswd, .env.
 - Changes to the player sheet land on /sheets/player-dev/ first (localStorage key hb-sheet-dev); /sheets/player/
   keeps the key hb-sheet so friends' characters still load. The two sheets' account saves stay in separate folders,
-  so a newer test sheet can never sync fields into the live one that it would drop.
+  so a newer test sheet can never sync fields into the live one that it would drop. My Characters (/characters/)
+  runs the live sheet code; changes to it are tried on dndtest (its own browser storage and volumes) and must pass
+  the player-data check and `node _dev/scripts/characters-page.mjs` first.
 - Never print or commit PORTAINER_API_KEY.
 - Never delete a file. Move it with `git mv` into `private/archive/`, keeping its path (`index.php` ->
   `private/archive/index.php`, a second copy gets a date: `index.2026-11-02.php`). `private/` is behind the site
