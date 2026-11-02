@@ -37,11 +37,12 @@ container() {
     --data-urlencode "filters={\"label\":[\"com.docker.compose.project=$STACK\",\"com.docker.compose.service=$1\"]}" |
     js "const c=j[0];process.stdout.write(c?c.Id+' '+c.Image+' '+c.State:'')"
 }
-# PUT/POST body: {StackFileContent, Env, ...} from the compose text in $1 and KEY=value pairs after it
+# PUT/POST body: {StackFileContent, Env, ...} from the compose text in $1 and KEY=value pairs after it.
+# PullImage stays off: it makes Portainer recreate every service, and a new tag isn't on the server yet, so it's pulled anyway.
 body() {
   local file=$1; shift
   node -e "const fs=require('fs');const [f,...kv]=process.argv.slice(1);
-    process.stdout.write(JSON.stringify({Name:'$STACK',StackFileContent:fs.readFileSync(f,'utf8'),Prune:false,PullImage:true,
+    process.stdout.write(JSON.stringify({Name:'$STACK',StackFileContent:fs.readFileSync(f,'utf8'),Prune:false,PullImage:false,
       Env:kv.map((p)=>({name:p.slice(0,p.indexOf('=')),value:p.slice(p.indexOf('=')+1)}))}))" "$file" "$@" > "$tmp/body.json"
 }
 
