@@ -76,7 +76,7 @@ function site_breadcrumbs($path)
     return '<nav class="crumbs" aria-label="Breadcrumb">' . implode(' <span class="crumbs-sep">›</span> ', $crumbs) . '</nav>';
 }
 
-// The site header: logo and the menu pages from site_pages()
+// The site header: logo, the menu pages from site_pages() and the sign-in button (auth.php)
 function site_header()
 {
     $current = site_norm(site_current_path());
@@ -88,7 +88,7 @@ function site_header()
         $here = strpos($current, $url) === 0;
         echo '<li class="sh-item' . ($here ? ' is-active' : '') . '"><a class="sh-top" href="' . h($url) . '"' . ($here ? ' aria-current="page"' : '') . '>' . h($page[0]) . '</a></li>';
     }
-    echo '</ul></nav></div></header>';
+    echo '</ul></nav>' . auth_button() . '</div></header>';
 }
 
 // The site footer. $crumbs prints the breadcrumbs here too (pages normally print them under the header).

@@ -10,3 +10,10 @@ characters/cache/*
 !characters/cache/.gitignore
 !characters/cache/.htaccess
 private/.htpasswd
+includes/config.php
+private/sessions/*
+!private/sessions/.gitignore
+!private/sessions/.htaccess
+private/dnd/accounts/*
+!private/dnd/accounts/.gitignore
+!private/dnd/accounts/.htaccess

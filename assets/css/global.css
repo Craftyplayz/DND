@@ -80,6 +80,13 @@ body {
 .site-header .sh-top:hover { color: #fff; text-decoration: none; }
 .site-header .sh-item.is-active .sh-top { color: #fff; border-bottom-color: var(--accent); }
 
+/* ---------- sign-in (auth_button() in auth.php): in the header and on the sheets' top bar ---------- */
+.auth { display: flex; flex: none; align-self: center; align-items: center; gap: 8px; min-height: 32px; margin: 0 0 0 auto; color: var(--muted); font: 400 13px/1.2 var(--font); }
+.auth-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth button { margin: 0; padding: 5px 12px; background: var(--btn2); border: 1px solid var(--line-strong); border-radius: 999px; color: var(--text); font: inherit; cursor: pointer; }
+.auth button:hover { background: var(--btn2-hover); }
+@media (max-width: 600px) { .auth-name { display: none; } }
+
 /* ---------- footer ---------- */
 .site-footer {
     display: block; flex: none; align-self: stretch; box-sizing: border-box; width: 100%; margin: 32px 0 0; padding: 20px 16px 24px;
