@@ -84,9 +84,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const S = { tab: 'all', q: '', f: {}, sel: null };
     S.tab = TABS.some(([k]) => k === (params.get('tab') || saved.tab)) ? params.get('tab') || saved.tab : 'all';
     S.q = params.get('q') || '';
-    S.f = Object.assign({}, saved.f || {});
-    for (const [k, v] of params) if (k.startsWith('f.')) S.f[k.slice(2)] = v;
     if (params.get('t') && params.get('i') && !params.get('tab') && TABS.some(([k]) => k === params.get('t'))) S.tab = params.get('t');
+    S.f = S.tab === saved.tab ? Object.assign({}, saved.f || {}) : {};
+    for (const [k, v] of params) if (k.startsWith('f.')) S.f[k.slice(2)] = v;
     let want = params.get('t') && params.get('i') ? params.get('t') + ':' + params.get('i') : '';
 
     const favs = () => store.get('compendium-favs', []).filter((k) => typeof k === 'string');
@@ -137,11 +137,12 @@ document.addEventListener('DOMContentLoaded', () => {
         grouped = S.tab === 'all';
         $('#cp-count').textContent = total ? `${num(total)} ${total === 1 ? 'result' : 'results'}` : '';
         let html = '';
-        for (const t of Object.keys(loaders)) if (failed.has(t) && (S.tab === 'all' || S.tab === t)) {
-            html += `<p class="err">Couldn't load the ${TYPE_PLURAL[t]} list. <button type="button" class="btn small" data-retry="${t}">Try again</button></p>`;
+        for (const t of Object.keys(loaders)) if (failed.has(t) && (S.tab === 'all' || S.tab === t || (t === 'item' && S.tab === 'magic'))) {
+            html += `<p class="err">Couldn't load the ${t === 'item' ? 'items and magic items' : TYPE_PLURAL[t]} list. <button type="button" class="btn small" data-retry="${t}">Try again</button></p>`;
         }
         if (grouped) {
-            for (const t of Object.keys(loaders)) {
+            // while searching, the type with the best match comes first
+            for (const t of S.q.trim() ? [...new Set(all.map((e) => e.t))] : Object.keys(TYPE_NAME)) {
                 const g = all.filter((e) => e.t === t);
                 if (!g.length) continue;
                 html += `<h2 class="cp-gh">${TYPE_NAME[t] === 'Rule' ? 'Rules' : TYPE_NAME[t] + 's'} <span class="n">${num(g.length)}</span></h2>${g.slice(0, GROUP).map(row).join('')}`;
@@ -200,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (S.sel) { const e = byKey.get(S.sel); if (e) { p.set('t', e.t); p.set('i', e.id); } }
         history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : ''));
     }
-    function setTab(t) { S.tab = t; drawTabs(); refresh(); persist(); }
+    function setTab(t) { S.tab = t; S.f = {}; drawTabs(); refresh(); persist(); }
 
     $('#cp-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
     $('#cp-q').value = S.q;
