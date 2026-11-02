@@ -3,8 +3,8 @@
 # Usage: bash _dev/deploy.sh [--dry-run]
 # Uploads every file in HEAD whose committed contents differ from the server, and removes
 # files deleted in git since the last deploy. Untracked server files (private/.htpasswd, sheet
-# backups, session recordings, the D&D Beyond cache) are never touched, and the server-only
-# data folders below are filtered out of both lists as a second guard.
+# backups, cloud saves, sessions, session recordings, the D&D Beyond cache, includes/config.php) are
+# never touched, and the server-only data folders below are filtered out of both lists as a second guard.
 set -euo pipefail
 HOST=u112162320@access961561004.webspace-data.io
 DIR=   # the subdomain's web-root folder, relative to the SFTP home, e.g. dnd.craftyplayz.com
@@ -19,7 +19,7 @@ dry=; [ "${1:-}" = --dry-run ] && dry=1
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 
 # never upload or delete: dev files, and the folders the live site writes to itself
-SKIP='(_dev/|README\.md$|\.gitignore$|private/dnd/backups/|private/dnd/monster-backups/|private/transcripts/transcripts/|private/transcripts/[^/]*\.ogg$|transcripts/data/[^.]|characters/cache/[^.])'
+SKIP='(_dev/|README\.md$|\.gitignore$|includes/config\.php$|private/sessions/[^.]|private/dnd/accounts/[^.]|private/dnd/backups/|private/dnd/monster-backups/|private/transcripts/transcripts/|private/transcripts/[^/]*\.ogg$|transcripts/data/[^.]|characters/cache/[^.])'
 
 # compare git blob hashes, not files on disk: the PC checks out CRLF, the server has the committed LF
 # shortcut: paths with quotes, backslashes or newlines come out quoted and get skipped; use -z if one appears
