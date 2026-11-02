@@ -185,7 +185,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             abilities: ABIL.map(([key, name]) => ({ key, name, score: 10, save: false, sb: '' })),
             skills: SKILLS.map(([name, ab]) => ({ name, ab, p: 0, b: '' })),
             prof: 'ceil(LEVEL / 4) + 1', ac: '10 + DEX', init: 'DEX',
-            hp: { cur: 10, base: 10, temp: 0, mod: 0 }, insp: false,
+            hp: { cur: 10, base: 10, temp: 0, mod: 0 }, insp: false, rolls: [],
             speeds: [{ type: 'Walk', ft: 30, hover: false }], conditions: [], exhaustion: 0, condList: CONDITIONS, res: '', imm: '', vul: '',
             passives: [['Passive Perception', '10 + Perception'], ['Passive Investigation', '10 + Investigation'], ['Passive Insight', '10 + Insight']].map(([name, f]) => ({ name, f })),
             senses: '',
