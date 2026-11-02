@@ -45,7 +45,7 @@ function cp_roll_html($e)
     $nat = ($e['nat'] ?? '') === '20' ? ' cp-nat20' : (($e['nat'] ?? '') === '1' ? ' cp-nat1' : '');
     return '<li class="cp-roll' . $nat . '"><span class="cp-rh"><b>' . h($e['name']) . '</b> ' . ($hidden ? 'rolled' : h($e['title'] ?? '')) . $tags
         . '<small title="' . h(date('j M Y H:i:s', (int)($e['at'] / 1000))) . '">' . h(date('H:i', (int)($e['at'] / 1000))) . '</small></span>'
-        . ($hidden ? '' : '<span class="cp-rd">' . h(trim(($e['expr'] ?? '') . ' · ' . ($e['shown'] ?? ''), ' ·')) . '</span><span class="cp-rt">' . h((string)($e['total'] ?? '')) . '</span>') . '</li>';
+        . ($hidden ? '' : '<span class="cp-rd">' . preg_replace('/~([^~]*)~/', '<s>$1</s>', h(trim(($e['expr'] ?? '') . ' · ' . ($e['shown'] ?? ''), ' ·'))) . '</span><span class="cp-rt">' . h((string)($e['total'] ?? '')) . '</span>') . '</li>';
 }
 
 $past = $c && isset($_GET['s']) ? tl_read($accounts, $c['id'], $_GET['s']) : null;

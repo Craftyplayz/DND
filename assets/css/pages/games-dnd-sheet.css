@@ -447,5 +447,6 @@ dialog.hb-dlg.hb-custdlg { height: min(720px, calc(100dvh - 32px)); overflow-y: 
 .hb-trayto label { display: flex; flex: 1 1 200px; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 13px; }
 .hb-trayto .field { flex: 1; min-width: 0; }
 .hb-trayto [aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
-.hb-logtabs { margin: 8px 0; }
+.hb-logtabs { margin: 0 auto 0 8px; }
+.hb-rolldice s, .hb-logd s { color: var(--muted); }
 .hb-rollcard.hb-other { border-left-color: var(--series-2); }

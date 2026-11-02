@@ -1600,7 +1600,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             $('#hb-rolls').style.top = (getComputedStyle(hbBar).position === 'sticky' ? Math.max(76, hbBar.offsetHeight + 12) : 16) + 'px';
             $('#hb-rolls').innerHTML = `<button type="button" class="hb-rollcard${nat}${hits ? ' hb-each' : ''}" data-act="rollx" aria-label="Dismiss roll">
                 <span class="hb-rollhead"><b>${esc(title)}</b><small>${esc(expr + to)}</small></span>
-                <span class="hb-rolldice">${esc(shown)}</span><span class="hb-rolltot">${total}</span></button>`;
+                <span class="hb-rolldice">${strike(shown)}</span><span class="hb-rolltot">${total}</span></button>`;
             clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, 12000);
             // the roll log keeps the last 100 rolls with the character
             (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
@@ -1669,6 +1669,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             onMessage(m) { if (m.type === 'removed') loadCamps(); },
         });
     }
+    const strike = (t) => esc(t).replace(/~([^~]*)~/g, '<s>$1</s>');
     const hiddenRoll = (e) => e.vis === 'hidden' && e.total === undefined;
     const natCls = (e) => (e.nat === '20' ? ' hb-nat20' : e.nat === '1' ? ' hb-nat1' : '');
     const tableNote = (e) => (e.vis === 'dm' ? ' · to DM' : e.vis === 'hidden' && !hiddenRoll(e) ? ' · hidden' : '') + (e.offline ? ' · offline roll' : '');
@@ -1676,11 +1677,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const h = hiddenRoll(e);
         putCard(`<button type="button" class="hb-rollcard hb-other${natCls(e)}" data-act="rollx" aria-label="Dismiss roll">
             <span class="hb-rollhead"><b>${esc(e.name)}${h ? ' rolled' : ': ' + esc(e.title)}</b><small>${h ? 'A hidden roll' : esc(e.expr + tableNote(e))}</small></span>
-            <span class="hb-rolldice">${h ? '' : esc(e.shown)}</span><span class="hb-rolltot">${h ? '?' : esc(String(e.total))}</span></button>`);
+            <span class="hb-rolldice">${h ? '' : strike(e.shown)}</span><span class="hb-rolltot">${h ? '?' : esc(String(e.total))}</span></button>`);
     }
     const tableRows = (n) => `<ol class="hb-logl">${tlog.slice(-n).reverse().map((e) => `<li class="hb-logi${natCls(e)}">
         <span class="hb-logh"><b>${esc(e.name)}${hiddenRoll(e) ? ' rolled' : ': ' + esc(e.title)}</b><small title="${esc(new Date(e.at).toLocaleString())}">${esc(logTime(e.at))}</small></span>
-        <span class="hb-logd">${hiddenRoll(e) ? 'A hidden roll' : esc(e.expr + ' · ' + e.shown)}${esc(tableNote(e))}</span><span class="hb-logt">${hiddenRoll(e) ? '?' : esc(String(e.total))}</span></li>`).join('')}</ol>`;
+        <span class="hb-logd">${hiddenRoll(e) ? 'A hidden roll' : esc(e.expr) + ' · ' + strike(e.shown)}${esc(tableNote(e))}</span><span class="hb-logt">${hiddenRoll(e) ? '?' : esc(String(e.total))}</span></li>`).join('')}</ol>`;
     const tablePick = () => (camps.length ? `<div class="hb-trayrow hb-trayto"><label>Rolls go to <select class="field" data-act="tablepick">${camps.map((x) => `<option value="${esc(x.id)}"${camp()?.id === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="none"${camp() ? '' : ' selected'}>Nowhere (only you)</option></select></label>
         ${camp() ? `<button type="button" class="btn small" data-act="rollto" aria-pressed="${rollTo()}" title="${camp().dm ? 'Hidden rolls show to players only as rolled' : 'Only you and the DM see rolls sent to the DM'}">${camp().dm ? (rollTo() ? 'Hidden' : 'Public') : (rollTo() ? 'To DM' : 'Everyone')}</button>` : ''}</div>` : '');
 
@@ -1707,7 +1708,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const logTime = (ms) => { const d = new Date(ms); return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : dateText(ms); };
     const logRows = (n) => `<ol class="hb-logl">${(C.rolls || []).slice(0, n).map((r) => `<li class="hb-logi${r.nat ? ' ' + r.nat : ''}">
         <span class="hb-logh"><b>${esc(r.title)}</b><small title="${esc(new Date(r.at).toLocaleString())}">${esc(logTime(r.at))}</small></span>
-        <span class="hb-logd">${esc(r.expr)} · ${esc(r.shown)}</span><span class="hb-logt${String(r.total).includes(',') ? ' hb-each' : ''}">${esc(String(r.total))}</span></li>`).join('')}</ol>`;
+        <span class="hb-logd">${esc(r.expr)} · ${strike(r.shown)}</span><span class="hb-logt${String(r.total).includes(',') ? ' hb-each' : ''}">${esc(String(r.total))}</span></li>`).join('')}</ol>`;
     function drawLog() {
         const box = $('#hb-log'), left = root.getBoundingClientRect().left;
         box.hidden = !!C.view.noRoll || !logSide();
@@ -1715,8 +1716,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         box.style.width = Math.min(360, left - 32) + 'px';
         if (!camp()) logTab = 'mine';
         const tabs = camp() ? `<div class="stabs hb-logtabs"><button type="button" data-act="logtab" data-t="mine" class="${logTab === 'mine' ? 'on' : ''}">Mine</button><button type="button" data-act="logtab" data-t="table" class="${logTab === 'table' ? 'on' : ''}">Table</button></div>` : '';
-        if (logTab === 'table') return void (box.innerHTML = `<div class="hb-logbar"><h2>Roll log</h2></div>${tabs}${tlog.length ? tableRows(200) : '<p class="muted">Rolls at the table show up here.</p>'}`);
-        box.innerHTML = `<div class="hb-logbar"><h2>Roll log</h2>${(C.rolls || []).length ? '<button type="button" class="btn small" data-act="logclear">Clear</button>' : ''}</div>${tabs}
+        if (logTab === 'table') return void (box.innerHTML = `<div class="hb-logbar"><h2>Roll log</h2>${tabs}</div>${tlog.length ? tableRows(200) : '<p class="muted">Rolls at the table show up here.</p>'}`);
+        box.innerHTML = `<div class="hb-logbar"><h2>Roll log</h2>${tabs}${(C.rolls || []).length ? '<button type="button" class="btn small" data-act="logclear">Clear</button>' : ''}</div>
             ${(C.rolls || []).length ? logRows(100) : '<p class="muted">Your dice rolls show up here.</p>'}`;
     }
     const D20 = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 2 21 7v10l-9 5-9-5V7zM12 2 7.5 9.5h9zM3 7l4.5 2.5L12 17l4.5-7.5L21 7M7.5 9.5 3 17M16.5 9.5 21 17M12 17v5M3 17h18"/></svg>';

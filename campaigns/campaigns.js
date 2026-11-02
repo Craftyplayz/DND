@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hidden = e.vis === 'hidden' && e.total === undefined;
         const tags = (e.vis === 'dm' ? '<span class="badge p">to DM</span>' : e.vis === 'hidden' ? '<span class="badge p">hidden</span>' : '') + (e.offline ? '<span class="badge">offline roll</span>' : '');
         return `<li class="cp-roll${e.nat === '20' ? ' cp-nat20' : e.nat === '1' ? ' cp-nat1' : ''}"><span class="cp-rh"><b>${esc(e.name)}</b> ${hidden ? 'rolled' : esc(e.title || '')}${tags}<small title="${esc(new Date(e.at).toLocaleString())}">${time(e.at)}</small></span>`
-            + (hidden ? '' : `<span class="cp-rd">${esc([e.expr, e.shown].filter(Boolean).join(' · '))}</span><span class="cp-rt">${esc(String(e.total ?? ''))}</span>`) + '</li>';
+            + (hidden ? '' : `<span class="cp-rd">${[esc(e.expr), esc(e.shown).replace(/~([^~]*)~/g, '<s>$1</s>')].filter(Boolean).join(' · ')}</span><span class="cp-rt">${esc(String(e.total ?? ''))}</span>`) + '</li>';
     }
     function drawLog() {
         $('#cp-log').innerHTML = rolls.length ? rolls.slice(-200).reverse().map(cpRoll).join('') : '<li class="muted cp-empty">Rolls made on a character in this campaign show up here.</li>';
