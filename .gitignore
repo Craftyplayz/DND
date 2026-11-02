@@ -3,9 +3,9 @@ private/dnd/backups/
 private/dnd/monster-backups/
 private/transcripts/*.ogg
 private/transcripts/transcripts/
-games/dnd/transcripts/data/*
-!games/dnd/transcripts/data/.gitignore
-!games/dnd/transcripts/data/.htaccess
-games/dnd/characters/cache/*
-!games/dnd/characters/cache/.gitignore
-!games/dnd/characters/cache/.htaccess
+transcripts/data/*
+!transcripts/data/.gitignore
+!transcripts/data/.htaccess
+characters/cache/*
+!characters/cache/.gitignore
+!characters/cache/.htaccess
