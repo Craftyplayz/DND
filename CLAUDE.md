@@ -89,6 +89,11 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
 
 ## Rules
 
+- Ask, don't guess. When something about a request is unclear, could mean more than one thing, or needs a choice
+  the user hasn't made (what it should look like, how it should behave, which option, what to call it), ask with
+  AskUserQuestion before building it. Never fill the gap with an assumption and carry on. Put all the open
+  questions in one AskUserQuestion call (up to 4), each standing on its own, with the options you see and your
+  recommendation first.
 - Never commit, delete or overwrite server-only data: private/dnd/backups, private/dnd/monster-backups,
   private/dnd/accounts, private/sessions, transcripts/data, characters/cache, includes/config.php, .htpasswd, .env.
 - Changes to the player sheet land on /sheets/player-dev/ first (localStorage key hb-sheet-dev); /sheets/player/
