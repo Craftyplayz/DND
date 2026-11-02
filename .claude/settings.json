@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash _dev/deploy.sh test)",
+      "Bash(bash _dev/deploy.sh live)"
+    ]
+  }
+}
