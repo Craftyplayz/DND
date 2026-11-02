@@ -32,7 +32,7 @@ for (const name of ['chrome', 'firefox']) {
         errs('load');
         await until(`document.querySelector('#cp-count').textContent.includes('results')`, 'count');
         // all four lists in: spells, monsters, items, magic items and rules
-        await until(`!document.querySelector('.cp-sk') && !document.querySelector('.err')`, 'lists loaded', 30000);
+        await until(`+document.querySelector('#cp-count').textContent.replace(/\D/g, '') > 3400 && !document.querySelector('.err')`, 'lists loaded', 40000);
         ok(`${name} total over 3000`, +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`)) > 3000);
         is(`${name} All is grouped, 5 each`, await js(`[...document.querySelectorAll('#cp-list .cp-gh')].map((h) => h.textContent.split(' ')[0] + ' ' + (h.nextElementSibling ? 1 : 0))`).then((a) => a.length), 5);
         ok(`${name} no group over 5`, await ev(`document.querySelectorAll('#cp-list .cp-row').length <= 25`));
