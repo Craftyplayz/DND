@@ -5,7 +5,9 @@
 //   POST a character -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"})
 //   DELETE ?id=<id>  -> removed
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
+// The test sheet (player-dev/cloud.php) sets its own folder, then includes this file.
 require __DIR__ . '/../../includes/auth.php';
+if (!defined('CL_ACCOUNTS')) define('CL_ACCOUNTS', __DIR__ . '/../../private/dnd/accounts');
 const CL_MAX = 3 * 1024 * 1024; // art is stored inline, as in backup.php
 const CL_COUNT = 200;           // characters per account
 
@@ -20,7 +22,7 @@ function cl_out($code, $data)
 
 $user = auth_user();
 if (!$user) cl_out(401, ['error' => 'Sign in to save characters to your account.']);
-$dir = __DIR__ . '/../../private/dnd/accounts/' . $user['sub'];
+$dir = CL_ACCOUNTS . '/' . $user['sub'];
 $okId = function ($id) { return is_string($id) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id); };
 $updated = function ($file) {
     $c = is_file($file) ? json_decode((string)file_get_contents($file), true) : null;
