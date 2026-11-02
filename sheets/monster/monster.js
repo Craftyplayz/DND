@@ -1584,6 +1584,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function rollShow(title, groups, mod = 0, each = 1) {
         const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails');
         const card = (rolls) => {
+            const c = camp(), to = c && rollTo() ? (c.dm ? ' · hidden' : ' · to DM') : '';
             const tail = (m) => (m ? ` ${m < 0 ? '−' : '+'} ${Math.abs(m)}` : '');
             // separate results: result i takes its share of every group's dice
             const hits = each > 1 && !coin ? Array.from({ length: each }, (_, i) => rolls.flatMap(([, r]) => r.slice(i * r.length / each, (i + 1) * r.length / each))) : null;
@@ -1598,13 +1599,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const hbBar = $('#hb-bar');
             $('#hb-rolls').style.top = (getComputedStyle(hbBar).position === 'sticky' ? Math.max(76, hbBar.offsetHeight + 12) : 16) + 'px';
             $('#hb-rolls').innerHTML = `<button type="button" class="hb-rollcard${nat}${hits ? ' hb-each' : ''}" data-act="rollx" aria-label="Dismiss roll">
-                <span class="hb-rollhead"><b>${esc(title)}</b><small>${esc(expr)}</small></span>
+                <span class="hb-rollhead"><b>${esc(title)}</b><small>${esc(expr + to)}</small></span>
                 <span class="hb-rolldice">${esc(shown)}</span><span class="hb-rolltot">${total}</span></button>`;
             clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, 12000);
             // the roll log keeps the last 100 rolls with the character
             (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
             saveNow(); drawLog(); if (tray.open) drawTray();
+            // and to the campaign's table log (live.js keeps it until it's sent, offline too)
+            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm' }));
         };
         const quick =() => card(groups.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
         if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return quick();
@@ -1614,6 +1617,73 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         dice3d().then(async (m) => m.throwDice(groups, { style: await chosenStyle(m), accent: css.getPropertyValue('--btn').trim() || '#5b3f8f', sound: !C.view.noSound }))
             .then(card, () => { dice3dP = null; quick(); });
     }
+    // ---- the table (ROADMAP 1.3): signed in, rolls are shared to a campaign's table log (assets/js/live.js) ----
+    // "Rolls go to" in the dice tray picks the campaign ("none" keeps them to yourself, "" means its only one); the toggle
+    // next to it sends a player's rolls to the DM only, or hides the DM's. Everyone else's rolls pop up as cards and fill
+    // the Table tab of the roll log. What each player may see is decided on the server (includes/tablelog.php).
+    // for the whole sheet: which campaign you DM gets its rolls, and public or hidden. Settings that follow the account
+    // (monster-table, monster-roll-vis in assets/js/sync.js and prefs.php).
+    const pref = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+    const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { } };
+    const tableChoice = () => pref('monster-table');
+    const setTable = (v) => setPref('monster-table', v);
+    const rollTo = () => pref('monster-roll-vis') === 'hidden';
+    const setRollTo = (on) => setPref('monster-roll-vis', on ? 'hidden' : '');
+    const CAMPS_Q = () => 'dm=1';
+    const CHAR_ID = () => '';
+    const tableReady = () => true;
+    // someone else's roll takes the card's place, as your own rolls do here
+    function putCard(html) {
+        const hbBar = $('#hb-bar');
+        $('#hb-rolls').style.top = (getComputedStyle(hbBar).position === 'sticky' ? Math.max(76, hbBar.offsetHeight + 12) : 16) + 'px';
+        $('#hb-rolls').innerHTML = html;
+        clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, 12000);
+    }
+    let camps = [], tlog = [], watching = null, watchId = '', logTab = 'mine';
+    const sent = new Set();
+    const camp = () => (tableChoice() === 'none' ? null : camps.find((x) => x.id === tableChoice()) || (camps.length === 1 && !tableChoice() ? camps[0] : null));
+    async function loadCamps() {
+        camps = [];
+        if (cloud && window.Live && tableReady()) {
+            try { const r = await fetch('/campaigns/log.php?' + CAMPS_Q()); if (r.ok) camps = (await r.json()).campaigns; } catch (e) { }
+        }
+        tableWatch(); drawTray(); drawLog();
+    }
+    function tableWatch() {
+        const id = camp()?.id || '';
+        if (id === watchId) return;
+        watching?.close();
+        watching = null; watchId = id; tlog = [];
+        if (!id) { logTab = 'mine'; return; }
+        watching = Live.watch(id, {
+            onRolls(list, all) {
+                if (all) tlog = list;
+                else for (const e of list) {
+                    const i = tlog.findIndex((x) => x.id === e.id);
+                    if (i >= 0) tlog[i] = e; else { tlog.push(e); if (!sent.has(e.id)) tableCard(e); }
+                }
+                tlog.sort((a, b) => a.at - b.at);
+                if (tlog.length > 200) tlog = tlog.slice(-200);
+                drawLog(); if (tray.open) drawTray();
+            },
+            onMessage(m) { if (m.type === 'removed') loadCamps(); },
+        });
+    }
+    const hiddenRoll = (e) => e.vis === 'hidden' && e.total === undefined;
+    const natCls = (e) => (e.nat === '20' ? ' hb-nat20' : e.nat === '1' ? ' hb-nat1' : '');
+    const tableNote = (e) => (e.vis === 'dm' ? ' · to DM' : e.vis === 'hidden' && !hiddenRoll(e) ? ' · hidden' : '') + (e.offline ? ' · offline roll' : '');
+    function tableCard(e) {
+        const h = hiddenRoll(e);
+        putCard(`<button type="button" class="hb-rollcard hb-other${natCls(e)}" data-act="rollx" aria-label="Dismiss roll">
+            <span class="hb-rollhead"><b>${esc(e.name)}${h ? ' rolled' : ': ' + esc(e.title)}</b><small>${h ? 'A hidden roll' : esc(e.expr + tableNote(e))}</small></span>
+            <span class="hb-rolldice">${h ? '' : esc(e.shown)}</span><span class="hb-rolltot">${h ? '?' : esc(String(e.total))}</span></button>`);
+    }
+    const tableRows = (n) => `<ol class="hb-logl">${tlog.slice(-n).reverse().map((e) => `<li class="hb-logi${natCls(e)}">
+        <span class="hb-logh"><b>${esc(e.name)}${hiddenRoll(e) ? ' rolled' : ': ' + esc(e.title)}</b><small title="${esc(new Date(e.at).toLocaleString())}">${esc(logTime(e.at))}</small></span>
+        <span class="hb-logd">${hiddenRoll(e) ? 'A hidden roll' : esc(e.expr + ' · ' + e.shown)}${esc(tableNote(e))}</span><span class="hb-logt">${hiddenRoll(e) ? '?' : esc(String(e.total))}</span></li>`).join('')}</ol>`;
+    const tablePick = () => (camps.length ? `<div class="hb-trayrow hb-trayto"><label>Rolls go to <select class="field" data-act="tablepick">${camps.map((x) => `<option value="${esc(x.id)}"${camp()?.id === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="none"${camp() ? '' : ' selected'}>Nowhere (only you)</option></select></label>
+        ${camp() ? `<button type="button" class="btn small" data-act="rollto" aria-pressed="${rollTo()}" title="${camp().dm ? 'Hidden rolls show to players only as rolled' : 'Only you and the DM see rolls sent to the DM'}">${camp().dm ? (rollTo() ? 'Hidden' : 'Public') : (rollTo() ? 'To DM' : 'Everyone')}</button>` : ''}</div>` : '');
+
     // shortcut: dice3d.js and dice/choice.js reuse monster.js's ?v= version, so a change to either alone needs monster.js touched too (last: coins fly in from any side, 31 Oct 2026)
     let dice3dP = null;
     const dice3d = () => dice3dP || (dice3dP = import(new URL('/dice/dice3d.js' + (($('script[src*="/monster.js"]')?.src || '').match(/\?v=\d+/) || [''])[0], location.href).href));
@@ -1626,7 +1696,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <div class="hb-traydice">${DICE.map((n) => `<button type="button" class="hb-die" data-act="die" data-n="${n}" aria-label="Add a d${n}" title="Right-click to remove one">d${n}${tray.pool[n] ? `<small>${tray.pool[n]}</small>` : ''}</button>`).join('')}</div>
                 <div class="hb-trayrow"><span class="muted">${groups.length ? groups.map(([n, c]) => `${c}d${n}`).join(' + ') : 'Click dice to add them'}</span>
                     <button type="button" class="btn small" data-act="coin">Flip a coin</button><button type="button" class="btn small" data-act="dieclear"${groups.length ? '' : ' disabled'}>Clear</button><button type="button" class="btn small primary" data-act="dieroll"${groups.length ? '' : ' disabled'}>Roll</button></div>
+                ${tablePick()}
                 ${!logSide() && !C.view.noRoll && (C.rolls || []).length ? `<div class="hb-traylog"><span class="muted">Recent rolls</span>${logRows(5)}</div>` : ''}
+                ${!logSide() && !C.view.noRoll && tlog.length ? `<div class="hb-traylog"><span class="muted">At the table</span>${tableRows(5)}</div>` : ''}
             </div>` : ''}<button type="button" class="hb-dicebtn" data-act="tray" aria-expanded="${tray.open}" aria-label="${tray.open ? 'Close' : 'Open'} the dice tray" title="Dice">${D20}</button>`;
     }
     // ---- roll log: in the empty space left of the sheet when there is room, otherwise the last few in the dice tray ----
@@ -1641,7 +1713,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         box.hidden = !!C.view.noRoll || !logSide();
         if (box.hidden) return;
         box.style.width = Math.min(360, left - 32) + 'px';
-        box.innerHTML = `<div class="hb-logbar"><h2>Roll log</h2>${(C.rolls || []).length ? '<button type="button" class="btn small" data-act="logclear">Clear</button>' : ''}</div>
+        if (!camp()) logTab = 'mine';
+        const tabs = camp() ? `<div class="stabs hb-logtabs"><button type="button" data-act="logtab" data-t="mine" class="${logTab === 'mine' ? 'on' : ''}">Mine</button><button type="button" data-act="logtab" data-t="table" class="${logTab === 'table' ? 'on' : ''}">Table</button></div>` : '';
+        if (logTab === 'table') return void (box.innerHTML = `<div class="hb-logbar"><h2>Roll log</h2></div>${tabs}${tlog.length ? tableRows(200) : '<p class="muted">Rolls at the table show up here.</p>'}`);
+        box.innerHTML = `<div class="hb-logbar"><h2>Roll log</h2>${(C.rolls || []).length ? '<button type="button" class="btn small" data-act="logclear">Clear</button>' : ''}</div>${tabs}
             ${(C.rolls || []).length ? logRows(100) : '<p class="muted">Your dice rolls show up here.</p>'}`;
     }
     const D20 = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" d="M12 2 21 7v10l-9 5-9-5V7zM12 2 7.5 9.5h9zM3 7l4.5 2.5L12 17l4.5-7.5L21 7M7.5 9.5 3 17M16.5 9.5 21 17M12 17v5M3 17h18"/></svg>';
@@ -1917,6 +1992,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     });
     main.addEventListener('change', (e) => {
         const el = e.target, k = el.dataset.k || '';
+        if (el.dataset.act === 'tablepick') { setTable(el.value); tableWatch(); drawLog(); return drawTray(); }
         if (el.dataset.act === 'pick') return switchTo(db.chars[el.value]);
         if (el.classList.contains('hb-tagin')) return addTag(el);
         if (el.classList.contains('hb-gname')) {
@@ -2048,6 +2124,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'roll') { const v = value(b.dataset.k, vars()); return rollShow(b.dataset.t, [[20, 1]], Number.isFinite(+v.v) ? +v.v : 0); }
         if (act === 'rollx') { clearTimeout(rollTimer); $('#hb-rolls').innerHTML = ''; return; }
         if (act === 'tray') { tray.open = !tray.open; return drawTray(); }
+        if (act === 'rollto') { setRollTo(!rollTo()); return drawTray(); }
+        if (act === 'logtab') { logTab = b.dataset.t; return drawLog(); }
         if (act === 'logclear') { if (confirm('Clear the roll log for this monster?')) { C.rolls = []; saveNow(); drawLog(); } return; }
         if (act === 'die') { tray.pool[b.dataset.n] = (tray.pool[b.dataset.n] || 0) + 1; return drawTray(); }
         if (act === 'dieclear') { tray.pool = {}; return drawTray(); }
@@ -2199,4 +2277,5 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     $('#hb-artfile').addEventListener('change', (e) => { const file = e.target.files[0]; e.target.value = ''; if (file) loadArt(file); });
 
     draw();
+    loadCamps();
 });

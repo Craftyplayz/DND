@@ -8,3 +8,14 @@
 .cp-link { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .cp-link .field { flex: 1 1 240px; }
 .cp-cards .muted { font-size: 14px; }
+/* the table log: newest roll on top, name and roll on the left, the total on the right */
+.cp-log { display: grid; gap: 6px; max-height: 480px; margin: 0 0 28px; padding: 0; overflow-y: auto; list-style: none; }
+.cp-roll { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; padding: 8px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
+.cp-rh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.cp-rh small { margin-left: auto; color: var(--muted); font-size: 12px; }
+.cp-rd { grid-column: 1; color: var(--muted); font-size: 13px; }
+.cp-rt { grid-row: 1 / span 2; grid-column: 2; font-size: 22px; font-weight: 700; }
+.cp-nat20 { background: var(--gold-bg); border-color: var(--gold-line); }
+.cp-nat1 { background: var(--danger-bg); border-color: var(--danger-line); }
+.cp-empty { padding: 8px 0; }
+.cp-past a { margin-right: 8px; }

@@ -15,6 +15,8 @@ function asset($path)
     return $path . (is_file($file) ? '?v=' . filemtime($file) : '');
 }
 
+require_once __DIR__ . '/live.php';
+
 const SITE_NAME = 'Crafty Playz';
 
 // url => [title, description, in the header menu and on the landing page]
@@ -129,6 +131,8 @@ function page_head()
     foreach (isset($p['css']) ? (array)$p['css'] : [] as $css) echo '<link rel="stylesheet" href="' . h(asset($css)) . '">' . "\n";
     // signed in: settings follow the Google account; it runs before the page's own scripts so it sees their saves
     if (auth_user()) echo '<script src="' . h(asset('/assets/js/sync.js')) . '" defer></script>' . "\n";
+    // the live relay's address for assets/js/live.js (pages that share rolls load that script themselves)
+    if (auth_user() && live_ws() !== '') echo '<meta name="dnd-live" content="' . h(live_ws()) . '">' . "\n";
     if (!empty($p['ui'])) echo '<script src="' . h(asset('/assets/js/ui.js')) . '" defer></script>' . "\n";
     // the test site (SITE_ENV=test in compose.yml) says so at the top of every page and stays out of search engines
     if (getenv('SITE_ENV') === 'test') {

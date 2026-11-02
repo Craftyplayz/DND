@@ -4,7 +4,7 @@
 // It only tells you about yourself, so it's harmless if called from outside.
 require __DIR__ . '/../includes/auth.php';
 require __DIR__ . '/../includes/campaigns.php';
-require __DIR__ . '/../includes/live.php';
+require_once __DIR__ . '/../includes/live.php';
 $accounts = getenv('DND_ACCOUNTS') ?: __DIR__ . '/../private/dnd/accounts';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

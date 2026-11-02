@@ -2,7 +2,7 @@
 // campaigns/api.php, then the page reloads (or opens the campaign), so what you see is always what's saved.
 document.addEventListener('DOMContentLoaded', () => {
     'use strict';
-    const { $, toast } = UI;
+    const { $, toast, esc } = UI;
     const id = $('#main').dataset.id;
     async function send(change, btn) {
         if (btn) btn.disabled = true;
@@ -67,11 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Live (live/relay.js): who's online, and a fresh party and player list whenever anyone changes the campaign.
-    // With the relay down the page says so and checks for changes every 10 s until it's back.
-    const live = $('#main').dataset.live;
-    if (!id || !live) return;
-    let online = [], ws = null, timer = 0;
+    // Live (assets/js/live.js): who's online, the table log, and a fresh party, session and player list whenever anyone
+    // changes the campaign. With the relay down the page says so and checks every 10 s until it's back.
+    if (!id || !window.Live) return;
+    let online = [], rolls = [], paused = 0;
     const dots = () => document.querySelectorAll('#cp-players [data-key]').forEach((r) => { r.querySelector('.cp-on').hidden = !online.includes(r.dataset.key); });
     async function refresh() {
         try {
@@ -79,31 +78,42 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r.status === 404) { location.href = '/campaigns/'; return; } // removed, or the campaign was deleted
             if (!r.ok) return;
             const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-            for (const sel of ['#cp-head', '#cp-players']) { const fresh = doc.querySelector(sel); if (fresh) $(sel)?.replaceWith(fresh); }
+            for (const sel of ['#cp-head', '#cp-sess', '#cp-players']) { const fresh = doc.querySelector(sel); if (fresh) $(sel)?.replaceWith(fresh); }
             dots();
         } catch (e) { }
     }
-    function paused(on) {
-        $('#cp-paused').hidden = !on;
-        clearInterval(timer);
-        if (on) timer = setInterval(() => { refresh(); connect(); }, 10000);
+    // one roll, as cp_roll_html() in index.php draws it
+    const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    function cpRoll(e) {
+        const hidden = e.vis === 'hidden' && e.total === undefined;
+        const tags = (e.vis === 'dm' ? '<span class="badge p">to DM</span>' : e.vis === 'hidden' ? '<span class="badge p">hidden</span>' : '') + (e.offline ? '<span class="badge">offline roll</span>' : '');
+        return `<li class="cp-roll${e.nat === '20' ? ' cp-nat20' : e.nat === '1' ? ' cp-nat1' : ''}"><span class="cp-rh"><b>${esc(e.name)}</b> ${hidden ? 'rolled' : esc(e.title || '')}${tags}<small title="${esc(new Date(e.at).toLocaleString())}">${time(e.at)}</small></span>`
+            + (hidden ? '' : `<span class="cp-rd">${esc([e.expr, e.shown].filter(Boolean).join(' · '))}</span><span class="cp-rt">${esc(String(e.total ?? ''))}</span>`) + '</li>';
     }
-    function connect() {
-        if (ws) return;
-        const url = new URL(live, location.href);
-        url.protocol = url.protocol === 'https:' ? 'wss:' : url.protocol === 'http:' ? 'ws:' : url.protocol;
-        url.searchParams.set('c', id);
-        ws = new WebSocket(url);
-        ws.onopen = () => { if (!$('#cp-paused').hidden) refresh(); paused(false); }; // catch up on what changed while away
-        ws.onmessage = (e) => {
-            const m = JSON.parse(e.data);
+    function drawLog() {
+        $('#cp-log').innerHTML = rolls.length ? rolls.slice(-200).reverse().map(cpRoll).join('') : '<li class="muted cp-empty">Rolls made on a character in this campaign show up here.</li>';
+    }
+    Live.watch(id, {
+        onRolls(list, all) {
+            if (all) rolls = list;
+            else for (const e of list) { const i = rolls.findIndex((x) => x.id === e.id); if (i >= 0) rolls[i] = e; else rolls.push(e); }
+            rolls.sort((a, b) => a.at - b.at);
+            drawLog();
+        },
+        onMessage(m) {
             if (m.type === 'presence') { online = m.online; dots(); }
-            else if (m.type === 'campaign') refresh();
-        };
-        ws.onclose = (e) => {
-            ws = null; online = []; dots();
-            if (e.code === 4403) refresh(); else if ($('#cp-paused').hidden) paused(true);
-        };
-    }
-    connect();
+            else if (m.type === 'campaign' || m.type === 'session' || m.type === 'removed') refresh();
+        },
+        // live.js checks the log every 10 s while paused; the party and players are checked here
+        onPaused(on) {
+            $('#cp-paused').hidden = !on;
+            clearInterval(paused);
+            if (on) { online = []; dots(); paused = setInterval(refresh, 10000); } else refresh();
+        },
+    });
+    // the session button posts like everything else, then the page refreshes when the relay says so
+    document.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-act=session]');
+        if (b && await send({ act: 'session', start: !!b.dataset.start }, b)) refresh();
+    });
 });

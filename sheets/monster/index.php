@@ -54,6 +54,7 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
     <?php // the formula parser and rules text are the player sheet's own files ?>
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/rules.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/monster/monster.js')) ?>" defer></script>
 </body>
 

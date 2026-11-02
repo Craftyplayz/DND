@@ -2,9 +2,11 @@
 // Campaigns. /campaigns/ lists the campaigns you DM and play in and makes new ones; /campaigns/?c=<id> is one campaign:
 // the party's characters, the players, your characters in it, and for the DM the join link, rename, remove and delete.
 // Changes go through campaigns/api.php (campaigns.js). With the live relay (includes/live.php) the party, the players and
-// who's online update by themselves; #cp-head and #cp-players are what campaigns.js swaps in from a fresh copy of the page. Only members see a campaign; anyone else gets "not found".
+// who's online update by themselves; #cp-head, #cp-sess and #cp-players are what campaigns.js swaps in from a fresh copy of
+// the page. The table log (ROADMAP 1.3) fills #cp-log live (assets/js/live.js); ?c=<id>&s=<n> shows a past session's rolls.
+// Only members see a campaign; anyone else gets "not found".
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
-require_once SITE_ROOT . '/includes/campaigns.php';
+require_once SITE_ROOT . '/includes/tablelog.php';
 require_once SITE_ROOT . '/includes/live.php';
 // DND_ACCOUNTS: a stand-in folder for _dev/scripts/campaigns-page.mjs, so the check never touches real accounts
 $accounts = getenv('DND_ACCOUNTS') ?: SITE_ROOT . '/private/dnd/accounts';
@@ -34,8 +36,28 @@ function cp_card_html($card, $who, $href)
         . '<div class="ch-acts"><span class="muted cp-owner">' . h($who) . '</span>' . ($href ? '<a class="btn small" href="' . h($href) . '">View</a>' : '') . '</div></article>';
 }
 
-if ($c) {
+// one roll in the table log; campaigns.js draws live ones the same way (cpRoll)
+function cp_roll_html($e)
+{
+    $hidden = ($e['vis'] ?? '') === 'hidden' && !isset($e['total']);
+    $tags = ($e['vis'] ?? '') === 'dm' ? '<span class="badge p">to DM</span>' : (($e['vis'] ?? '') === 'hidden' ? '<span class="badge p">hidden</span>' : '');
+    if (!empty($e['offline'])) $tags .= '<span class="badge">offline roll</span>';
+    $nat = ($e['nat'] ?? '') === '20' ? ' cp-nat20' : (($e['nat'] ?? '') === '1' ? ' cp-nat1' : '');
+    return '<li class="cp-roll' . $nat . '"><span class="cp-rh"><b>' . h($e['name']) . '</b> ' . ($hidden ? 'rolled' : h($e['title'] ?? '')) . $tags
+        . '<small title="' . h(date('j M Y H:i:s', (int)($e['at'] / 1000))) . '">' . h(date('H:i', (int)($e['at'] / 1000))) . '</small></span>'
+        . ($hidden ? '' : '<span class="cp-rd">' . h(trim(($e['expr'] ?? '') . ' · ' . ($e['shown'] ?? ''), ' ·')) . '</span><span class="cp-rt">' . h((string)($e['total'] ?? '')) . '</span>') . '</li>';
+}
+
+$past = $c && isset($_GET['s']) ? tl_read($accounts, $c['id'], $_GET['s']) : null;
+if ($past) {
+    $site_page = ['title' => ($_GET['s'] === 'unsorted' ? 'Rolls outside sessions' : 'Session ' . (int)$_GET['s']) . ' · ' . $c['name'], 'components' => true, 'css' => ['/assets/css/pages/campaigns.css']];
+    header('X-Robots-Tag: noindex');
+    $rolls = tl_tail($c, $user['sub'], $past, PHP_INT_MAX);
+}
+elseif ($c) {
     $site_page = ['title' => $c['name'], 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/campaigns.css']];
+    $sessions = tl_sessions($accounts, $c['id']);
+    $unsorted = tl_read($accounts, $c['id'], 'unsorted');
     header('X-Robots-Tag: noindex');
     $me = $c['members'][cp_member($c, $user['sub'])];
     $mineIds = array_column($me['characters'] ?? [], 'id');
@@ -76,9 +98,14 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
 <body>
     <?php site_header(); ?>
 
-    <main class="page cp" id="main"<?= $c ? ' data-id="' . h($c['id']) . '" data-live="' . h(live_ws()) . '"' : '' ?>>
+    <main class="page cp" id="main"<?= $c && !$past ? ' data-id="' . h($c['id']) . '"' : '' ?>>
         <?= site_breadcrumbs(site_current_path()) ?>
-<?php if ($c): ?>
+<?php if ($past): ?>
+        <h1 class="page-title"><?= $_GET['s'] === 'unsorted' ? 'Rolls outside sessions' : 'Session ' . (int)$_GET['s'] ?></h1>
+        <p class="page-lede"><a href="/campaigns/?c=<?= h($c['id']) ?>"><?= h($c['name']) ?></a><?php if (!empty($past['started'])): ?> · <?= h(date('j M Y, H:i', $past['started'])) ?><?= !empty($past['ended']) ? ' to ' . h(date('H:i', $past['ended'])) : ' · running now' ?><?php endif; ?> · <?= count($rolls) === 1 ? '1 roll' : count($rolls) . ' rolls' ?></p>
+        <?php if ($rolls): ?><ol class="cp-log"><?= implode('', array_map('cp_roll_html', array_reverse($rolls))) ?></ol>
+        <?php else: ?><p class="muted">No rolls in this one.</p><?php endif; ?>
+<?php elseif ($c): ?>
         <p class="note" id="cp-paused" hidden>Live updates paused. Checking for changes every 10 seconds.</p>
         <div id="cp-head">
         <h1 class="page-title"><?= h($c['name']) ?></h1>
@@ -91,6 +118,16 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
             <p class="muted">No characters yet. Add yours below.</p>
         <?php endif; ?>
         </div>
+
+        <div id="cp-sess">
+            <h2 class="sec-h">Table log <span class="n"><?= isset($c['session']['n']) ? 'Session ' . (int)$c['session']['n'] . ' since ' . h(date('H:i', $c['session']['started'])) : 'No session running' ?></span></h2>
+            <?php if ($isDm): ?><p><button type="button" class="btn small" data-act="session" data-start="<?= isset($c['session']['n']) ? '' : '1' ?>"><?= isset($c['session']['n']) ? 'End session' : 'Start session' ?></button>
+                <span class="muted"><?= isset($c['session']['n']) ? 'Rolls are kept with this session.' : "Rolls go into this session's own log until you end it." ?></span></p><?php endif; ?>
+            <?php if ($sessions || $unsorted): ?><p class="cp-past muted">Past rolls:
+                <?php foreach ($sessions as $s): ?><a href="/campaigns/?c=<?= h($c['id']) ?>&amp;s=<?= $s['n'] ?>">Session <?= $s['n'] ?></a> <?php endforeach; ?>
+                <?php if ($unsorted): ?><a href="/campaigns/?c=<?= h($c['id']) ?>&amp;s=unsorted">Outside sessions</a><?php endif; ?></p><?php endif; ?>
+        </div>
+        <ol class="cp-log" id="cp-log"><li class="muted cp-empty">Rolls made on a character in this campaign show up here.</li></ol>
 
         <div class="masonry cp-cards">
             <section class="card">
@@ -187,7 +224,8 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
     </main>
 
     <?php site_footer(); ?>
-    <?php if ($c || ($user && !isset($_GET['c']))): ?><script src="<?= h(asset('/campaigns/campaigns.js')) ?>" defer></script><?php endif; ?>
+    <?php if ($c && !$past): ?><script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script><?php endif; ?>
+    <?php if (($c && !$past) || ($user && !isset($_GET['c']))): ?><script src="<?= h(asset('/campaigns/campaigns.js')) ?>" defer></script><?php endif; ?>
 </body>
 
 </html>
