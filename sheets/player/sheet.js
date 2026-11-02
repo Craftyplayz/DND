@@ -1803,7 +1803,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             C.rolls.length = Math.min(C.rolls.length, 100);
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
-            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm' }));
+            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', ...window.Fight?.tag(c.id, title) }));
         };
         const quick =() => card(thrown.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
         if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return quick();
@@ -1834,13 +1834,38 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
     let camps = [], tlog = [], watching = null, watchId = '', logTab = 'mine';
     const sent = new Set();
-    const camp = () => (tableChoice() === 'none' ? null : camps.find((x) => x.id === tableChoice()) || (camps.length === 1 && !tableChoice() ? camps[0] : null));
+    // one campaign per character (owner's rule, 2 Nov 2026): rolls go to it, and none means private. One still in several
+    // (attached before the rule) keeps its last "Rolls go to" pick (view.table) until the owner picks in campNote()
+    const camp = () => (camps.length === 1 ? camps[0] : camps.find((x) => x.id === tableChoice()) || null);
     async function loadCamps() {
         camps = [];
         if (cloud && window.Live && tableReady()) {
             try { const r = await fetch('/campaigns/log.php?' + CAMPS_Q()); if (r.ok) camps = (await r.json()).campaigns; } catch (e) { }
         }
-        tableWatch(); drawTray(); drawLog();
+        tableWatch(); drawTray(); drawLog(); campNote();
+        // the fight in its campaign (ROADMAP 1.4, assets/js/fight.js): a strip under the top bar while one runs
+        window.Fight?.strip(camp()?.id || '', C.id, () => rollShow('Initiative', [[20, 1]], d20Mod($('[data-k="fs:init"]') || { dataset: { k: 'fs:init' } })));
+    }
+    // a character still in several campaigns: the owner keeps it in one, or clones it for another
+    function campNote() {
+        $('#hb-camps')?.remove();
+        if (camps.length < 2) return;
+        $('#hb-bar').insertAdjacentHTML('afterend', `<div class="note hb-camps" id="hb-camps"><p><b>${esc(C.name || 'This character')} is in ${camps.length} campaigns.</b>
+            A character can be in one campaign now. Keep it in one (it leaves the others), or clone it for a campaign: the clone is a separate character from then on.
+            Until you pick, rolls go to ${camp() ? esc(camp().name) : 'nobody but you'}.</p>
+            ${camps.map((x) => `<p class="hb-campi"><b>${esc(x.name)}</b> <button type="button" class="btn small" data-act="campkeep" data-c="${esc(x.id)}">Keep in ${esc(x.name)}</button>
+                <button type="button" class="btn small" data-act="campclone" data-c="${esc(x.id)}">Clone for ${esc(x.name)}</button></p>`).join('')}</div>`);
+    }
+    async function campPick(act, id, b) {
+        b.disabled = true;
+        try {
+            const r = await fetch('/campaigns/api.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ act: act === 'campkeep' ? 'keep' : 'clone', id, char: C.id }) });
+            const out = await r.json().catch(() => ({}));
+            if (!r.ok) { b.disabled = false; return toast(out.error || "Couldn't save that. Try again.", 'err'); }
+            const name = camps.find((x) => x.id === id)?.name || '';
+            toast(act === 'campkeep' ? `${C.name || 'This character'} is in ${name} only now.` : `Made a copy for ${name}. It's in My Characters.`, 'ok');
+        } catch (e) { b.disabled = false; return toast("Couldn't reach the site. Check your connection and try again.", 'err'); }
+        loadCamps();
     }
     function tableWatch() {
         const id = camp()?.id || '';
@@ -1875,8 +1900,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const tableRows = (n) => `<ol class="hb-logl">${tlog.slice(-n).reverse().map((e) => `<li class="hb-logi${natCls(e)}">
         <span class="hb-logh"><b>${esc(e.name)}${hiddenRoll(e) ? ' rolled' : ': ' + esc(e.title)}</b><small title="${esc(new Date(e.at).toLocaleString())}">${esc(logTime(e.at))}</small></span>
         <span class="hb-logd">${hiddenRoll(e) ? 'A hidden roll' : esc(e.expr) + ' · ' + strike(e.shown)}${esc(tableNote(e))}</span><span class="hb-logt">${hiddenRoll(e) ? '?' : esc(String(e.total))}</span></li>`).join('')}</ol>`;
-    const tablePick = () => (camps.length ? `<div class="hb-trayrow hb-trayto"><label>Rolls go to <select class="field" data-act="tablepick">${camps.map((x) => `<option value="${esc(x.id)}"${camp()?.id === x.id ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}<option value="none"${camp() ? '' : ' selected'}>Nowhere (only you)</option></select></label>
-        ${camp() ? `<button type="button" class="btn small" data-act="rollto" aria-pressed="${rollTo()}" title="${camp().dm ? 'Hidden rolls show to players only as rolled' : 'Only you and the DM see rolls sent to the DM'}">${camp().dm ? (rollTo() ? 'Hidden' : 'Public') : (rollTo() ? 'To DM' : 'Everyone')}</button>` : ''}</div>` : '');
+    // no picker any more: the character's one campaign gets its rolls (camp())
+    const tablePick = () => (camp() ? `<div class="hb-trayrow hb-trayto"><span class="muted">Rolls go to ${esc(camp().name)}</span>
+        <button type="button" class="btn small" data-act="rollto" aria-pressed="${rollTo()}" title="${camp().dm ? 'Hidden rolls show to players only as rolled' : 'Only you and the DM see rolls sent to the DM'}">${camp().dm ? (rollTo() ? 'Hidden' : 'Public') : (rollTo() ? 'To DM' : 'Everyone')}</button></div>` : '');
 
     // shortcut: dice3d.js and dice/choice.js reuse sheet.js's ?v= version, so a change to either alone needs sheet.js touched too (last: coins fly in from any side, 31 Oct 2026)
     let dice3dP = null;
@@ -2410,6 +2436,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'roll') return rollShow(b.dataset.t, [[20, 1]], d20Mod(b));
         if (act === 'adv') { const t = advFor; advClose(); return t && rollShow(t.dataset.t, [[20, 1]], d20Mod(t), 1, b.dataset.a); }
         if (act === 'rollx') return b.remove();
+        if (act === 'campkeep' || act === 'campclone') return campPick(act, b.dataset.c, b);
         if (act === 'tray') { tray.open = !tray.open; return drawTray(); }
         if (act === 'rollto') { setRollTo(!rollTo()); return drawTray(); }
         if (act === 'logtab') { logTab = b.dataset.t; return drawLog(); }

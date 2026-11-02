@@ -2,7 +2,10 @@
 // Campaign changes for signed-in players (includes/campaigns.php does the work):
 //   POST {"act": "create", "name"}                  -> {"id"}, you're the DM
 //   POST {"act": "join", "code"}                    -> {"id"}
-//   POST {"act": "characters", "id", "characters"}  -> your characters in it (only your own, saved to your account)
+//   POST {"act": "characters", "id", "characters"}  -> your characters in it (only your own, saved to your account);
+//                                                      409 {"conflict"} for one already in another campaign
+//   POST {"act": "clone", "id", "char"}             -> {"char"}: a copy of your character, in this campaign in its place
+//   POST {"act": "keep", "id", "char"}              your character leaves every other campaign
 //   POST {"act": "leave", "id"}                     players only
 //   POST {"act": "rename" | "code" | "remove" | "delete", "id", ...}   DM only
 //   POST {"act": "roll", "id", "roll": {...}}       a roll for the table log (includes/tablelog.php)
@@ -62,4 +65,5 @@ if ($code === 200 && cp_ok_id($id)) {
     $c = cp_get($accounts, $id); // null once deleted: everyone is dropped
     live_publish($id, ['type' => 'campaign'], array_map(fn($m) => live_key($id, $m['sub']), $c['members'] ?? []));
 }
+foreach ($out['changed'] ?? [] as $o) live_publish($o, ['type' => 'campaign']);
 cp_out($code, $out);

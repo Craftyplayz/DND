@@ -1635,7 +1635,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             C.rolls.length = Math.min(C.rolls.length, 100);
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
-            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm' }));
+            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', ...window.Fight?.tag(c.id, title, C.id) }));
         };
         const quick =() => card(groups.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
         if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return quick();

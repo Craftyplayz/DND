@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const r = await fetch('/campaigns/api.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...change }) });
             const out = await r.json().catch(() => ({}));
             if (r.ok) return out;
+            if (r.status === 409 && out.conflict) return out; // the caller explains it
             toast(out.error || "Couldn't save that. Try again.", 'err');
         } catch (e) { toast("Couldn't reach the site. Check your connection and try again.", 'err'); }
         if (btn) btn.disabled = false;
@@ -42,8 +43,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     $('#cp-chars')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const characters = [...e.target.querySelectorAll('[name=ch]:checked')].map((b) => b.value);
-        if (await send({ act: 'characters', characters }, e.submitter)) location.reload();
+        const form = e.target, characters = [...form.querySelectorAll('[name=ch]:checked')].map((b) => b.value);
+        const out = await send({ act: 'characters', characters }, e.submitter);
+        if (!out?.conflict) return out && location.reload();
+        // one campaign per character: offer a copy that plays here instead
+        if (e.submitter) e.submitter.disabled = false;
+        ask('Already in a campaign', out.error + ' Clone it to play a copy here. The clone is a separate character from then on.', 'Clone character', async (y) => {
+            const made = await send({ act: 'clone', char: out.conflict.id }, y);
+            if (!made) return false;
+            // the clone is already in; send the rest of the list again with it in the original's place
+            form.querySelector(`[name=ch][value="${CSS.escape(out.conflict.id)}"]`).checked = false;
+            form.insertAdjacentHTML('beforeend', `<input type="checkbox" name="ch" value="${esc(made.char)}" checked hidden>`);
+            form.requestSubmit();
+            return true;
+        });
     });
 
     document.addEventListener('click', async (e) => {

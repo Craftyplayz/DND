@@ -111,6 +111,35 @@ function cp_detach($accounts, $charId)
     }
 }
 
+// the campaigns this character is attached to (one at a time since 2026-11-02; older ones may still be in several)
+function cp_char_in($accounts, $charId)
+{
+    $out = [];
+    foreach (cp_all($accounts) as $c) foreach ($c['members'] as $m) if (in_array($charId, array_column($m['characters'] ?? [], 'id'), true)) { $out[] = $c; break; }
+    return $out;
+}
+
+// a copy of one of $sub's characters as a new character of theirs, through the normal folder layout: the current sheet
+// and portrait, named "<name> (copy)", with a fresh roll log and a fresh history (no history files are copied). New id or null.
+function cp_clone_char($accounts, $sub, $charId)
+{
+    $ch = (ch_meta($accounts, $charId)['owner'] ?? null) === $sub ? ch_json("$accounts/characters/$charId/character.json") : null;
+    if (!$ch) return null;
+    do $id = bin2hex(random_bytes(6)); while (is_dir("$accounts/characters/$id"));
+    $dir = "$accounts/characters/$id";
+    if (!@mkdir($dir, 0750, true) || !ch_new_meta($dir, $sub, time())) return null;
+    $ch['id'] = $id;
+    $ch['name'] = (trim((string)($ch['name'] ?? '')) !== '' ? trim($ch['name']) : 'Unnamed character') . ' (copy)';
+    $ch['rolls'] = [];
+    $ch['updated'] = (int)round(microtime(true) * 1000);
+    if ($art = ch_art_file($accounts, $charId)) {
+        $to = "$dir/" . basename($art);
+        if (!@copy($art, $to)) return null;
+        $ch['artUrl'] = ch_art_url($id, $to);
+    }
+    return ch_write($dir, json_encode($ch, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ? $id : null;
+}
+
 // the name other players see: the Google name, never the email
 function cp_who($user)
 {
@@ -160,14 +189,46 @@ function cp_act($accounts, $user, $body)
         $ids = $body['characters'] ?? null;
         if (!is_array($ids)) return [400, ['error' => 'Send a list of characters.']];
         $links = [];
+        $have = array_column($c['members'][$me]['characters'] ?? [], 'id');
         foreach (array_unique($ids) as $cid) {
             $meta = ch_meta($accounts, $cid);
             if (($meta['owner'] ?? null) !== $sub) return [400, ['error' => "You can only add your own characters that are saved to your account."]];
             if (ch_archived($meta)) return [400, ['error' => "Archived characters can't join a campaign. Unarchive one in My Characters first."]];
+            // one campaign per character; one that is here already (from before the rule) stays
+            $in = in_array($cid, $have, true) ? [] : array_values(array_filter(cp_char_in($accounts, $cid), fn($o) => $o['id'] !== $c['id']));
+            if ($in) {
+                $name = (string)(ch_json("$accounts/characters/$cid/character.json")['name'] ?? '') ?: 'Unnamed character';
+                return [409, ['error' => "$name is already in {$in[0]['name']}. A character can be in one campaign at a time.",
+                    'conflict' => ['id' => $cid, 'name' => $name, 'campaigns' => array_map(fn($o) => ['id' => $o['id'], 'name' => $o['name']], $in)]]];
+            }
             $links[] = ['sheet' => 'player', 'id' => $cid];
         }
         $c['members'][$me]['characters'] = $links;
         return $save(['characters' => $links]);
+    }
+    // a copy of your character, put in this campaign in the original's place (if it was here)
+    if ($act === 'clone') {
+        $cid = (string)($body['char'] ?? '');
+        if ((ch_meta($accounts, $cid)['owner'] ?? null) !== $sub) return [404, ['error' => 'No such character.']];
+        $new = cp_clone_char($accounts, $sub, $cid);
+        if (!$new) return [500, ['error' => "Couldn't copy the character."]];
+        $c['members'][$me]['characters'] = array_values(array_filter($c['members'][$me]['characters'] ?? [], fn($l) => ($l['id'] ?? null) !== $cid));
+        $c['members'][$me]['characters'][] = ['sheet' => 'player', 'id' => $new];
+        return $save(['char' => $new]);
+    }
+    // keep your character in this campaign only: it leaves every other one ("changed": the campaigns it left)
+    if ($act === 'keep') {
+        $cid = (string)($body['char'] ?? '');
+        if (!in_array($cid, array_column($c['members'][$me]['characters'] ?? [], 'id'), true)) return [404, ['error' => "That character isn't yours in this campaign."]];
+        $changed = [];
+        foreach (cp_char_in($accounts, $cid) as $o) {
+            if ($o['id'] === $c['id']) continue;
+            foreach ($o['members'] as &$m) $m['characters'] = array_values(array_filter($m['characters'] ?? [], fn($l) => ($l['id'] ?? null) !== $cid));
+            unset($m);
+            if (!cp_put($accounts, $o)) return [500, ['error' => "Couldn't save the campaign."]];
+            $changed[] = $o['id'];
+        }
+        return [200, ['kept' => $c['id'], 'changed' => $changed]];
     }
     if ($act === 'leave') {
         if ($dm) return [400, ['error' => "The DM can't leave. Delete the campaign instead."]];

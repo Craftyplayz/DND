@@ -58,6 +58,45 @@ $is('archived character refused', cp_act($A, $pl, ['act' => 'characters', 'id' =
 ch_save($A, '222', json_encode(['id' => 'arc', 'updated' => 6, 'name' => 'arc', 'abilities' => [], 'archived' => 0]));
 $is('unarchived can join again', cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['lock', 'arc']])[0], 200);
 cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['lock']]);
+// one campaign per character: a second campaign refuses it and offers a clone
+file_put_contents("$A/characters/lock/art.png", "\x89PNG\r\n\x1a\nfake");
+$ch = json_decode(file_get_contents("$A/characters/lock/character.json"), true);
+file_put_contents("$A/characters/lock/character.json", json_encode($ch + ['rolls' => [['at' => 1, 'title' => 'Stealth']], 'hp' => ['cur' => 9]]));
+@mkdir("$A/characters/lock/history", 0777, true);
+file_put_contents("$A/characters/lock/history/1.json", '{}');
+$id2 = cp_act($A, $other, ['act' => 'create', 'name' => 'Second'])[1]['id'];
+cp_act($A, $pl, ['act' => 'join', 'code' => cp_get($A, $id2)['code']]);
+[$code, $out] = cp_act($A, $pl, ['act' => 'characters', 'id' => $id2, 'characters' => ['lock']]);
+$is('second campaign refuses the character', [$code, $out['conflict']['id'] ?? null, $out['conflict']['campaigns'][0]['id'] ?? null], [409, 'lock', $id]);
+$is('refused attach changes nothing', cp_get($A, $id2)['members'][1]['characters'], []);
+$is('saving the same list again where it already is still works', cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['lock']])[0], 200);
+$is("can't clone someone else's character", cp_act($A, $other, ['act' => 'clone', 'id' => $id2, 'char' => 'lock'])[0], 404);
+[$code, $out] = cp_act($A, $pl, ['act' => 'clone', 'id' => $id2, 'char' => 'lock']);
+$copy = $out['char'] ?? '';
+$is('clone made', [$code, ch_ok_id($copy), $copy !== 'lock'], [200, true, true]);
+$cc = ch_json("$A/characters/$copy/character.json");
+$is('clone: named (copy), same sheet, fresh roll log, own id', [$cc['name'], $cc['hp'], $cc['rolls'], $cc['id']], ['lock (copy)', ['cur' => 9], [], $copy]);
+$is('clone: owned by the same player, private', [ch_meta($A, $copy)['owner'], ch_meta($A, $copy)['visibility']], ['222', 'private']);
+$is('clone: fresh history (one version), portrait copied', [count(glob("$A/characters/$copy/history/*.json")), is_file("$A/characters/$copy/art.png"), str_contains($cc['artUrl'], "id=$copy")], [1, true, true]);
+$is('clone is in the second campaign', array_column(cp_get($A, $id2)['members'][1]['characters'], 'id'), [$copy]);
+$is('original stays in the first only', array_column(cp_char_in($A, 'lock'), 'id'), [$id]);
+// independence: saving the clone never touches the original
+$before2 = md5_file("$A/characters/lock/character.json");
+ch_save($A, '222', json_encode(['id' => $copy, 'updated' => $cc['updated'] + 1, 'name' => 'Changed', 'abilities' => []]));
+$is('editing the clone leaves the original alone', [md5_file("$A/characters/lock/character.json"), ch_json("$A/characters/$copy/character.json")['name']], [$before2, 'Changed']);
+// a character in two campaigns from before the rule: keep in one leaves the other; clone for one puts a copy there
+$c2 = cp_get($A, $id2);
+$c2['members'][1]['characters'][] = ['sheet' => 'player', 'id' => 'lock'];
+cp_put($A, $c2);
+$is('older character in two campaigns', count(cp_char_in($A, 'lock')), 2);
+$is("keep: only for one that's there", cp_act($A, $pl, ['act' => 'keep', 'id' => $id2, 'char' => 'nope'])[0], 404);
+[$code, $out] = cp_act($A, $pl, ['act' => 'keep', 'id' => $id, 'char' => 'lock']);
+$is('keep in the first leaves the second', [$code, $out['changed'], array_column(cp_char_in($A, 'lock'), 'id')], [200, [$id2], [$id]]);
+$is('the clone stays in the second', array_column(cp_get($A, $id2)['members'][1]['characters'], 'id'), [$copy]);
+cp_put($A, $c2);
+[$code, $out] = cp_act($A, $pl, ['act' => 'clone', 'id' => $id2, 'char' => 'lock']);
+$is('clone for the second takes the original out of it', [$code, in_array('lock', array_column(cp_get($A, $id2)['members'][1]['characters'], 'id'), true), array_column(cp_char_in($A, 'lock'), 'id')], [200, false, [$id]]);
+cp_act($A, $pl, ['act' => 'leave', 'id' => $id2]);
 
 // DM only
 $is('stranger gets no campaign', cp_act($A, $other, ['act' => 'rename', 'id' => $id, 'name' => 'x'])[0], 404);
