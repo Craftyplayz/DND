@@ -97,6 +97,7 @@ for (const name of ['chrome', 'firefox']) {
         ok(`${name} arrow moves into the list`, await ev(`document.activeElement.classList.contains('cp-row')`));
 
         // favourites and recent survive a reload
+        await ev(`localStorage.removeItem('compendium-recent')`);
         await open('/compendium/?t=spell&i=fireball');
         await until(`document.querySelector('[data-fav]')`, 'star');
         await ev(`document.querySelector('[data-fav]').click()`);
@@ -176,19 +177,19 @@ for (const name of ['chrome', 'firefox']) {
         is(`${name} request is for the picked one`, (await store('hb-pending')).map((x) => x.char), [two]);
         await ev(`localStorage.removeItem('hb-pending')`);
 
-        // Add to encounter: three goblins reach the Monster Sheet, numbered, once
+        // Add to encounter: two goblins reach the Monster Sheet, numbered, once
         await open('/compendium/?t=monster&i=srd:goblin');
         await until(`document.querySelector('[data-add=enc]')`, 'encounter button');
         await ev(`document.querySelector('[data-qty="1"]').click(); document.querySelector('[data-qty="1"]').click(); document.querySelector('[data-qty="-1"]').click(); document.querySelector('[data-qty="1"]').click()`);
-        is(`${name} counter`, await ev(`document.querySelector('#cp-n').textContent`), '4');
+        is(`${name} counter`, await ev(`document.querySelector('#cp-n').textContent`), '3');
         await ev(`document.querySelector('[data-qty="-1"]').click()`);
         await ev(`document.querySelector('[data-add=enc]').click()`);
         await until(`document.querySelector('#cp-msg .ok')`, 'encounter message');
-        is(`${name} encounter request`, (await store('mon-pending')).map((x) => [x.key, x.n]), [['srd:goblin', 3]]);
+        is(`${name} encounter request`, (await store('mon-pending')).map((x) => [x.key, x.n]), [['srd:goblin', 2]]);
         await b.go(BASE + '/sheets/monster/');
-        await until(`localStorage.getItem('mon-pending') === null && Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).filter((c) => /^Goblin \\d$/.test(c.name)).length === 3`, 'three goblins', 30000);
-        is(`${name} goblins numbered`, await js(`Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => c.name).sort()`), ['Goblin 1', 'Goblin 2', 'Goblin 3']);
-        is(`${name} each has its own hit points`, await js(`new Set(Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => c.id)).size`), 3);
+        await until(`localStorage.getItem('mon-pending') === null && Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).filter((c) => /^Goblin \\d$/.test(c.name)).length === 2`, 'two goblins', 30000);
+        is(`${name} goblins numbered`, await js(`Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => c.name).sort()`), ['Goblin 1', 'Goblin 2']);
+        is(`${name} each has its own hit points`, await js(`new Set(Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => c.id)).size`), 2);
         errs('sheets');
 
         // credits
