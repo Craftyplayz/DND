@@ -3,6 +3,7 @@
 //   await b.go(url); await b.ev('js expression')   -> string/number/boolean value, else null
 //   await b.block(/backup\.php|cloud\.php/)         requests whose URL matches fail
 //   b.errors                                        console errors and uncaught exceptions since the last go()
+//   await b.shot(width)                             -> PNG Buffer of the whole page at that window width
 //   b.close()
 // Chrome is driven over the DevTools protocol, Firefox over WebDriver BiDi (Firefox has no DevTools protocol).
 import { spawn, execSync } from 'node:child_process';
@@ -58,6 +59,11 @@ export async function launch(name = 'chrome') {
                     return value(r.result);
                 },
                 block: async (re) => { blocked = re; await send('network.addIntercept', { phases: ['beforeRequestSent'] }); },
+                shot: async (width, height = 800) => {
+                    await send('browsingContext.setViewport', { context, viewport: { width, height }, devicePixelRatio: 1 });
+                    const r = await send('browsingContext.captureScreenshot', { context, origin: 'document' });
+                    return Buffer.from(r.data, 'base64');
+                },
             };
         }
         for (let i = 0; i < 50; i++) { try { if ((await fetch(`http://127.0.0.1:${CH_PORT}/json/version`)).ok) break; } catch { } await sleep(200); }
@@ -79,6 +85,12 @@ export async function launch(name = 'chrome') {
                 return value(r.result);
             },
             // shortcut: Chrome only takes glob patterns here, so a regex is turned into "*source*"; fine for plain file names
+            shot: async (width, height = 800) => {
+                await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+                await send('Page.bringToFront'); const h = (await send('Runtime.evaluate', { expression: 'document.documentElement.scrollHeight', returnByValue: true })).result.value;
+                await send('Emulation.setDeviceMetricsOverride', { width, height: Math.max(height, h), deviceScaleFactor: 1, mobile: false });
+                return Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64');
+            },
             block: (re) => send('Network.setBlockedURLs', { urls: re.source.split('|').map((s) => `*${s.replace(/\\/g, '')}*`) }),
         };
     } catch (e) { close(); throw e; }
