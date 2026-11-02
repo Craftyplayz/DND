@@ -56,7 +56,7 @@ try {
         return after;
     }
 
-    for (const [path, key, folder] of [['/sheets/player/', 'hb-sheet', 'backups'], ['/sheets/player-dev/', 'hb-sheet-dev', 'backups'], ['/sheets/monster/', 'monster-sheet', 'monster-backups']]) {
+    for (const [path, key, folder] of [['/sheets/player/', 'hb-sheet', 'backups'], ['/sheets/monster/', 'monster-sheet', 'monster-backups']]) {
         const chars = saves(folder);
         if (!chars.length) { console.log(`${path}: no saves in private/dnd/${folder}/ to check`); continue; }
         const before = OLD ? await load(OLD, path, key, chars) : Object.fromEntries(chars.map(({ c }) => [c.id, c]));

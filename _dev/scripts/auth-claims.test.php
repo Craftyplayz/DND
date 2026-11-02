@@ -19,7 +19,7 @@ $bad = 0;
 foreach ($cases as $name => [$claims, $want]) {
     if ((bool)auth_claims_ok($claims, $id, $now) !== $want) { echo "FAIL: $name\n"; $bad++; }
 }
-foreach (['/', '/sheets/player-dev/?x=1'] as $p) if (auth_back($p) !== $p) { echo "FAIL: auth_back keeps $p\n"; $bad++; }
+foreach (['/', '/sheets/player/?x=1'] as $p) if (auth_back($p) !== $p) { echo "FAIL: auth_back keeps $p\n"; $bad++; }
 foreach (['//evil.example', '/\\evil.example', 'https://evil.example', '/a b', null] as $p) if (auth_back($p) !== '/') { echo "FAIL: auth_back rejects " . var_export($p, true) . "\n"; $bad++; }
 echo $bad ? "$bad failed\n" : "auth claims ok\n";
 exit($bad ? 1 : 0);

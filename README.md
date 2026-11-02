@@ -6,7 +6,6 @@ Our D&D campaign tools, split out of craftyplayz.com:
   (signed in, each character has a folder in `private/dnd/accounts/characters/<id>/`, see includes/characters.php)
 - `/private/archive/characters/` the old D&D Beyond character viewer (cache still in `characters/cache/`)
 - `/sheets/player/` Homebrew character sheet with a character picker (saved in the browser under `hb-sheet`, backed up to `private/dnd/backups/`)
-- `/sheets/player-dev/` test copy of the player sheet: changes land here first
 - `/sheets/monster/` Monster sheet (backed up to `private/dnd/monster-backups/`)
 - `/dice/` 3D dice sets, `/dice/rolls/` quick rolls, `/dice/test/` dice fairness test
 - `/transcripts/` session recordings and transcripts (data in `transcripts/data/`, server only)
@@ -32,8 +31,7 @@ and `php _dev/scripts/auth-claims.test.php`.
 
 Copy `includes/config.example.php` to `includes/config.php` (gitignored) and fill in the Google client ID and the
 admin emails allowed into `/private/`. Without it there is no sign-in button and `/private/` is closed. Test sign-in
-on http://localhost:8110 (Google accepts localhost origins, not 127.0.0.1). Signed-in players' characters on
-`/sheets/player-dev/` are also saved in `private/dnd/accounts/dev/characters/<id>/`. For `/characters/<id>` locally,
+on http://localhost:8110 (Google accepts localhost origins, not 127.0.0.1). For `/characters/<id>` locally,
 start the server with the router: `php -S 127.0.0.1:8110 -t . _dev/router.php`.
 
 ## Deploy

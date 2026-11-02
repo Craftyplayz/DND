@@ -20,9 +20,10 @@ All Portainer actions go through `_dev/deploy.sh`; don't call the Portainer API 
    in both browsers (add `--firefox`); it must pass before anything is pushed.
 2. Commit (small commits), push to main, run `bash _dev/deploy.sh test`, then check https://dndtest.craftyplayz.com
    loads with no console errors in both Chrome and Firefox.
-3. Ask the user with AskUserQuestion: "<feature> is on dndtest.craftyplayz.com. Push it to the live site?"
-   Options: "Push to live" / "Not yet".
-4. Only on "Push to live": run `bash _dev/deploy.sh live` and check https://dnd.craftyplayz.com.
+3. Every change goes to dndtest.craftyplayz.com straight away (steps 1-2), without asking. Tell the user it's there.
+4. Never deploy to dnd.craftyplayz.com unless the user explicitly tells you to in that message (e.g. "push it to
+   live"). Don't ask whether to; wait for them to say it. Then run `bash _dev/deploy.sh live` and check
+   https://dnd.craftyplayz.com.
 
 Test a lot before deploying anything, even a small change: friends use this site, and a broken page or lost
 character is worse than a slower release. Run the whole suite above, not just the tests for the part you changed,
@@ -31,7 +32,7 @@ and check the pages around it still work. New code gets a new test in `_dev/scri
 check fails or can't run, don't deploy; fix it or tell the user.
 
 The live site only ever gets the image that is on test (`deploy.sh live` copies TEST_TAG to LIVE_TAG).
-`bash _dev/deploy.sh test` and `bash _dev/deploy.sh live` run without asking; anything else on the server
+`bash _dev/deploy.sh test` runs without asking; `bash _dev/deploy.sh live` only when the user has told you to; anything else on the server
 (`--compose`, `import`, `logs`, other API calls, deleting volumes) asks the user first.
 
 ## Everything follows the Google account
@@ -46,7 +47,6 @@ do). Signed out, everything keeps working from the browser alone.
 - Following the account, each with its roll log and per-character view settings:
   - player sheet characters (`hb-sheet`, a folder per character in `accounts/characters/<id>/`,
     sheets/player/cloud.php + includes/characters.php; open at /characters/<id>)
-  - test-sheet characters (`hb-sheet-dev`, `accounts/dev/characters/<id>/`)
   - monster sheet monsters (`monster-sheet`, `accounts/monsters/<sub>/`)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
     Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`)
@@ -59,8 +59,9 @@ do). Signed out, everything keeps working from the browser alone.
 
 ## Player data must never be lost in an update
 
-Friends' characters live in three places: their browser (localStorage `hb-sheet`, `hb-sheet-dev` for the test
-sheet), their Google account (`private/dnd/accounts/characters/<id>/`, the test sheet in `accounts/dev/characters/`) and the
+Friends' characters live in three places: their browser (localStorage `hb-sheet`; the archived test sheet's
+`hb-sheet-dev` is copied across once by the sheet), their Google account (`private/dnd/accounts/characters/<id>/`; the archived
+test sheet's `accounts/dev/characters/` stays on the server) and the
 server backups (`private/dnd/backups/<ip>/`). An update may add to a character, never drop or change what's there.
 
 - **Before pushing any sheet change**, prove the new code keeps everything the live code keeps:
@@ -110,11 +111,11 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
   recommendation first.
 - Never commit, delete or overwrite server-only data: private/dnd/backups, private/dnd/monster-backups,
   private/dnd/accounts, private/sessions, transcripts/data, characters/cache, includes/config.php, .htpasswd, .env.
-- Changes to the player sheet land on /sheets/player-dev/ first (localStorage key hb-sheet-dev); /sheets/player/
-  keeps the key hb-sheet so friends' characters still load. The two sheets' account saves stay in separate folders,
-  so a newer test sheet can never sync fields into the live one that it would drop. My Characters (/characters/)
-  runs the live sheet code; changes to it are tried on dndtest (its own browser storage and volumes) and must pass
-  the player-data check and `node _dev/scripts/characters-page.mjs` first.
+- Player sheet changes go straight into sheets/player/, the one sheet code: /sheets/player/ and every
+  /characters/<id> run it, so a change applies to both. Never make or use a test copy of the sheet (the old
+  /sheets/player-dev/ is archived in private/archive/sheets/player-dev/). Changes are tried on dndtest (its own browser
+  storage and volumes) and must pass the player-data check and `node _dev/scripts/characters-page.mjs` first.
+  The localStorage key stays hb-sheet so friends' characters still load.
 - Never print or commit PORTAINER_API_KEY.
 - Never delete a file. Move it with `git mv` into `private/archive/`, keeping its path (`index.php` ->
   `private/archive/index.php`, a second copy gets a date: `index.2026-11-02.php`). `private/` is behind the site

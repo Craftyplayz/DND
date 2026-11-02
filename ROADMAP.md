@@ -27,8 +27,8 @@ The same for every item below (from CLAUDE.md):
    `php _dev/scripts/auth-claims.test.php` and a headless-Chrome check with no console errors.
 2. If it touches a sheet: run `_dev/scripts/sheet-keeps-data.mjs` against the live code. It must end with
    `sheet keeps data ok`. Test signed in and signed out: survives sign-in, a new browser, and an edit on another device.
-3. Player sheet changes go to `/sheets/player-dev/` first (key `hb-sheet-dev`, account folder `accounts/dev/`).
-   They're copied to `/sheets/player/` only after they've been tested on dndtest.
+3. Player sheet changes go straight into `sheets/player/` (the code `/characters/<id>` runs too) and are tried on
+   dndtest first. The old test copy `/sheets/player-dev/` is archived in `private/archive/sheets/player-dev/`.
 4. Commit in small commits, push to main, run `bash _dev/deploy.sh test`, then check dndtest.craftyplayz.com.
 5. Ask the owner "<feature> is on dndtest.craftyplayz.com. Push it to the live site?" Only on "Push to live",
    run `bash _dev/deploy.sh live`.
@@ -59,10 +59,9 @@ newer, and 401 when signed out.
 
 ## What exists today
 
-### Player sheet (`/sheets/player/`, test copy `/sheets/player-dev/`)
-- Both are the same code. The test copy has its own `dice3d.js`, the key `hb-sheet-dev`, account folder
-  `accounts/dev/`, a noindex tag and a warning banner. `formula.js`, `rules.js`, `ddb.js`, `spells.php` and
-  `extra-spells.json` are byte-identical.
+### Player sheet (`/sheets/player/`, also every `/characters/<id>`)
+- One sheet code. The old test copy (`/sheets/player-dev/`, key `hb-sheet-dev`) is archived; the live sheet copies
+  its characters across once.
 - **Characters:** several per browser, with a picker. Each can be made, imported, exported or deleted. The
   data model is in `blank()` (sheet.js:182). Old saves are migrated by `upgrade()` and `normalise()`.
 - **Core stats:** 6 abilities (custom ones allowed), saves, 18 skills (proficiency levels plus a bonus), HP
@@ -181,7 +180,7 @@ including tests and the dndtest check.
   copy replaced by `artUrl`. If the upload fails, the inline art stays and it tries again next load. The
   server serves art only to its owner and to campaign members and share links (later phases). `normalise()`
   must accept `artUrl` from the same origin.
-- Touches: `sheets/player-dev/sheet.js` (art crop at ~line 1746, `blank()`, `normalise()`), new
+- Touches: `sheets/player/sheet.js` (art crop at ~line 1746, `blank()`, `normalise()`), new
   `sheets/player/art.php` (dev wrapper like `cloud.php`), backups (`backup.php` saves `artUrl`; the
   server-side backup also copies the image into the backup folder so a backup restores the portrait).
 - Data safety: never remove inline art before the upload is confirmed. Add a `sheet-keeps-data` case where
@@ -251,7 +250,7 @@ including tests and the dndtest check.
 - Reconnect: rejoining shows the current initiative and the last 200 entries. Rolls made while offline are
   rolled locally, marked "offline roll", and sent when the connection is back. They are never dropped, and are
   stored with the time they were rolled.
-- Where it shows: a log panel on the sheet (player-dev first), the monster sheet (for the DM) and the campaign page.
+- Where it shows: a log panel on the sheet, the monster sheet (for the DM) and the campaign page.
 - Size: 3 days. Done: a public roll, a hidden DM roll and a whisper each show the right thing to the DM, the
   whisperer and a third player. An offline roll arrives after reconnecting. A finished session can be browsed.
 
@@ -417,7 +416,7 @@ background (Acolyte) and one feat (Grappler). The builder ships with exactly tho
 from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds are never copied in.
 
 **4.1 SRD build data**
-- What: a data file (`sheets/player-dev/srd-build.json`, built by a script in `_dev/scripts/` from dnd5eapi.co
+- What: a data file (`sheets/player/srd-build.json`, built by a script in `_dev/scripts/` from dnd5eapi.co
   `/api/2014` classes, subclasses, races, backgrounds, features, levels and starting equipment). It replaces the
   hard-coded `CLASSES`, `RACES` and `HIT_DIE` lists but keeps their names, so existing characters still match.
 - Size: 1.5 days. Done: a test confirms every class has levels 1-20 with features, spell slots and proficiency bonus.
