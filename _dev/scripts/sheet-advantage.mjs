@@ -52,7 +52,8 @@ for (const name of ['chrome', 'firefox']) {
         // press and hold on a touch screen opens the menu and doesn't roll
         await clear();
         await b.ev(`(() => { ${at('.hb-d20')} b.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerType: 'touch' })); })()`);
-        await sleep(700);
+        // the menu opens after 0.5 s; headless Chrome sometimes runs that timer late, so wait for it rather than a fixed time
+        for (let i = 0; i < 20 && !await menuOpen(); i++) await sleep(100);
         await b.ev(`(() => { ${at('.hb-d20')} b.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerType: 'touch' })); b.click(); })()`);
         await sleep(500);
         if (!await menuOpen()) fail(name, 'press and hold did not open the menu');
