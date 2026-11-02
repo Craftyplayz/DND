@@ -514,12 +514,12 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
     // a boxed roll button, or the plain rule link when click to roll is off
     const rollBtn = (text, roll, title, fallback) => (C.view.noRoll || !roll ? fallback
-        : `<button type="button" class="hb-rollbtn" data-act="roll2" data-g="${roll.g}" data-m="${roll.m}" data-x="${roll.x || 1}" data-t="${esc(title)}" title="Roll ${esc(title.toLowerCase())}">${esc(text)}</button>`);
+        : `<button type="button" class="hb-rollbtn" data-act="roll2"${roll.d20 ? ' data-d20' : ''} data-g="${roll.g}" data-m="${roll.m}" data-x="${roll.x || 1}" data-t="${esc(title)}" title="Roll ${esc(title.toLowerCase())}">${esc(text)}</button>`);
     const dmgLinks = (dmg, V, name = '') => dmg.filter((d) => d.dice || d.type).map((d) => { const txt = d.dice ? diceText(d.dice, V) : '';
         return [d.dice && rollBtn(txt, diceRoll(d.dice, V), `${name || 'Damage'}${d.type ? ' ' + d.type.toLowerCase() : ''} damage`, ruleLink('act', 'damage rolls', txt, 'Damage rolls', 'Damage')),
             d.type && ruleLink('dmg', d.type, d.type, d.type + ' damage', 'Damage type')].filter(Boolean).join(' '); }).join(' + ');
     const hitLink = (v, name, kind, rl, title) => { const txt = show({ ...v, signed: true }) + ' to hit';
-        return rollBtn(txt, Number.isFinite(+v.v) ? { g: '20x1', m: +v.v } : null, `${name || 'Attack'} to hit`, ruleLink(kind, rl, txt, title, 'To hit')); };
+        return rollBtn(txt, Number.isFinite(+v.v) ? { g: '20x1', m: +v.v, d20: 1 } : null, `${name || 'Attack'} to hit`, ruleLink(kind, rl, txt, title, 'To hit')); };
     // effects in a summary; healing and temp HP are buttons that roll them and apply them to your hit points
     const fxHtml = (fx, V, rp) => fx.map((e, j) => ((e.k === 'heal' || e.k === 'temp') && e.dice
         ? `<button type="button" class="hb-rollbtn" data-act="fxapply" data-p="${rp}.fx.${j}" title="Apply to your hit points">${esc(fxOne(e, V))}</button>` : esc(fxOne(e, V)))).filter(Boolean);
@@ -719,7 +719,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const id = `<div class="hb-classes">${C.classes.map((c, i) => `<div class="hb-cls">
                 <label>Class ${f(`classes.${i}.name`, 'Class', { list: 'hb-dl-class', ph: 'Fighter' })}</label>
                 <label class="hb-lvl">Level ${f(`classes.${i}.level`, 'Level', { num: true })}</label>
-                <label class="hb-die">Hit die ${sel(`classes.${i}.die`, 'Hit die', DICE)}</label>
+                <label class="hb-hitdie">Hit die ${sel(`classes.${i}.die`, 'Hit die', DICE)}</label>
                 ${C.classes.length > 1 ? del('classes', i, c.name || 'class') : ''}
                 ${i === C.classes.length - 1 ? `<div class="hb-cls-more">${add('classes', 'cls', 'Add a class')}<span class="muted" data-c="lvl"></span></div>` : ''}
             </div>`).join('')}
@@ -1585,12 +1585,13 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <h4>For this character</h4>${tbl(rows)}
             <h4>Maths and other parts</h4>${tbl(syntax)}`;
     }
+    // the Customise dialog's tabs; the open one is kept while the page is open
+    const CTABS = [['settings', 'Settings'], ['panels', 'Panels'], ['stats', 'Stats'], ['lists', 'Lists'], ['formulas', 'Formulas']];
+    let customTab = 'settings';
     function customDlg() {
         const mini = (head, rows, addBtn) => table(head, rows) + `<div class="actions">${addBtn}</div>`;
-        return `<h2>Customise</h2>
-            <p class="muted hb-hint">Changes apply as you type.</p>
-            ${formulaGuide()}
-            <h3>Hit points</h3>
+        const tabs = {
+            settings: () => `<h3>Hit points</h3>
             <label class="check">${f('view.hpScroll', 'Scroll to set damage or healing', { check: true })} One amount you scroll over (up heals, down damages) and one button that says Heal or Damage to match</label>
             <h3>Dice</h3>
             <label class="check">${f('view.noRoll', 'Turn off click to roll', { check: true })} Roll your own dice: don't roll when an ability, save, skill or tool bonus is clicked</label>
@@ -1598,14 +1599,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <p class="hb-dicelink"><a class="btn" href="/dice/">Customise dice</a> <span class="muted">Pick the dice, their sounds, trails and nat 1 and nat 20 effects on the Dice Sets page; they apply here straight away.</span></p>
             <label class="check">${f('view.noSound', 'Turn off dice sounds', { check: true })} No sound when the dice land</label>
             <label class="check">${f('view.noAnim', 'Turn off thrown dice', { check: true })} Show results straight away instead of throwing 3D dice across the page</label>
-            <h3>Panels</h3>
+            ${C.art ? '<h3>Art</h3><button type="button" class="btn small" data-act="artdel">Remove art</button>' : ''}`,
+            panels: () => `<h3>Panels</h3>
             <label class="check">${f('view.all', 'Show every panel at once', { check: true })} Show every panel at once instead of tabs</label>
             <label class="check">${f('view.prep', 'Always show prepared spells', { check: true })} Always show the Prepared tab and checkboxes (for homebrew classes; otherwise only Artificer, Cleric, Druid, Paladin and Wizard get them)</label>
             ${table(['Show', 'Title', 'Type', ''], C.panels.map((p, i) => `<tr><td class="hb-c">${f(`panels.${i}.on`, 'Show ' + p.title, { check: true })}</td>
                 <td>${f(`panels.${i}.title`, 'Title')}</td><td class="muted">${TYPES[p.type]}</td>
                 <td class="hb-nowrap"><button type="button" class="hb-x" data-act="mv" data-i="${i}" data-d="-1" aria-label="Move ${esc(p.title)} up" title="Move up"${i ? '' : ' disabled'}>↑</button><button type="button" class="hb-x" data-act="mv" data-i="${i}" data-d="1" aria-label="Move ${esc(p.title)} down" title="Move down"${i < C.panels.length - 1 ? '' : ' disabled'}>↓</button>${del('panels', i, p.title)}</td></tr>`).join(''))}
-            <div class="actions hb-addpanel"><select class="field hb-auto" id="hb-newtype" aria-label="Panel type">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select><button type="button" class="btn small" data-act="addpanel">Add panel</button></div>
-            <h3>Numbers</h3>
+            <div class="actions hb-addpanel"><select class="field hb-auto" id="hb-newtype" aria-label="Panel type">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select><button type="button" class="btn small" data-act="addpanel">Add panel</button></div>`,
+            stats: () => `<h3>Numbers</h3>
             ${table(['Number', 'Formula', 'Result'], [['prof', 'Proficiency bonus', 1], ['ac', 'Armour class', 0], ['init', 'Initiative', 1]].map(([k, t, s]) =>
                 `<tr><td>${t}</td><td>${f(k, t + ' formula', { cls: 'hb-formula' })}</td><td><b data-c="${s ? 'fs' : 'fx'}:${k}"></b></td></tr>`).join(''))}
             <h3>Abilities</h3>
@@ -1614,11 +1616,16 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             ${mini(['Skill', 'Ability', 'Extra bonus', ''], C.skills.map((s, i) => `<tr><td>${f(`skills.${i}.name`, 'Skill')}</td><td>${abSel(`skills.${i}.ab`, 'Ability')}</td><td>${f(`skills.${i}.b`, 'Extra bonus formula', { cls: 'hb-formula', ph: '0' })}</td><td>${del('skills', i, s.name)}</td></tr>`).join(''), add('skills', 'skill', 'Add skill'))}
             <h3>Senses</h3>
             ${table(['Name', 'Formula', 'Result', 'Unit', ''], C.passives.map((p, i) => `<tr><td>${f(`passives.${i}.name`, 'Name')}</td><td>${f(`passives.${i}.f`, 'Formula', { cls: 'hb-formula' })}</td><td><b data-c="fx:passives.${i}.f"></b></td><td>${f(`passives.${i}.unit`, 'Unit', { cls: 'hb-n', ph: 'ft' })}</td><td>${del('passives', i, p.name)}</td></tr>`).join(''))}
-            <div class="actions"><select class="field hb-auto" id="hb-sense-pick" aria-label="Sense to add">${senseOptions()}</select><button type="button" class="btn small" data-act="addsense">Add sense</button></div>
-            <h3>Lists</h3>
+            <div class="actions"><select class="field hb-auto" id="hb-sense-pick" aria-label="Sense to add">${senseOptions()}</select><button type="button" class="btn small" data-act="addsense">Add sense</button></div>`,
+            lists: () => `<h3>Lists</h3>
             <p class="muted hb-hint">One entry per line. These fill the suggestions and tabs.</p>
-            <div class="hb-grid hb-lists"><label>Conditions ${f('condList', 'Conditions', { area: true })}</label>${Object.entries(LIST_NAMES).map(([k, t]) => `<label>${t} ${f('lists.' + k, t, { area: true })}</label>`).join('')}</div>
-            ${C.art ? '<h3>Art</h3><button type="button" class="btn small" data-act="artdel">Remove art</button>' : ''}
+            <div class="hb-grid hb-lists"><label>Conditions ${f('condList', 'Conditions', { area: true })}</label>${Object.entries(LIST_NAMES).map(([k, t]) => `<label>${t} ${f('lists.' + k, t, { area: true })}</label>`).join('')}</div>`,
+            formulas: formulaGuide,
+        };
+        return `<div class="hb-custhead"><h2>Customise</h2><button type="button" class="btn small" data-act="close">Close</button></div>
+            <div class="stabs hb-ctabs">${CTABS.map(([k, t]) => `<button type="button" class="${k === customTab ? 'on' : ''}" data-act="ctab" data-id="${k}" aria-pressed="${k === customTab}">${t}</button>`).join('')}</div>
+            <p class="muted hb-hint">Changes apply as you type.</p>
+            ${tabs[customTab]()}
             <div class="actions"><button type="button" class="btn" data-act="close">Close</button></div>`;
     }
 
@@ -1638,41 +1645,45 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             return c.styleFrom(c.readChoice() || { set: m.STYLES[k] ? { key: k, builtin: true } : { key: k, url: `./sets/${k}.js` } }, m); })
         .catch(() => 'purple');
     const die = (n) => { const a = new Uint32Array(1); crypto.getRandomValues(a); return (a[0] % n) + 1; };
-    let rollTimer = 0;
     // groups: [[sides, count]], mod: number added on top
     // groups [['coin', 1]] flips a coin: the card shows Heads or Tails instead of a total
     // each > 1 splits the dice into that many separate results, e.g. one per target ("4 × (1d12 + 10)"); mod covers them all
-    function rollShow(title, groups, mod = 0, each = 1) {
-        const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails');
+    // adv 'adv' or 'dis' (a lone d20 only): two d20s are thrown and only the higher or lower one counts
+    function rollShow(title, groups, mod = 0, each = 1, adv = '') {
+        const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails'), thrown = adv ? [[20, 2]] : groups;
+        if (adv) title += adv === 'adv' ? ' with advantage' : ' with disadvantage';
         const card = (rolls) => {
+            const pair = adv && rolls[0][1];
+            if (pair) rolls = [[20, [Math[adv === 'adv' ? 'max' : 'min'](...pair)]]];
             const tail = (m) => (m ? ` ${m < 0 ? '−' : '+'} ${Math.abs(m)}` : '');
             // separate results: result i takes its share of every group's dice
             const hits = each > 1 && !coin ? Array.from({ length: each }, (_, i) => rolls.flatMap(([, r]) => r.slice(i * r.length / each, (i + 1) * r.length / each))) : null;
             const total = coin ? side(rolls[0][1][0]) : hits ? hits.map((v) => v.reduce((a, b) => a + b, mod / each)).join(', ')
                 : rolls.reduce((t, [, r]) => t + r.reduce((a, b) => a + b, 0), 0) + mod;
-            const expr = coin ? 'Coin' : hits ? `${each} × (${groups.map(([n, c]) => `${c / each}d${n}`).join(' + ')}${tail(mod / each)})`
+            const expr = pair ? `2d20 keep ${adv === 'adv' ? 'higher' : 'lower'}${tail(mod)}` : coin ? 'Coin' : hits ? `${each} × (${groups.map(([n, c]) => `${c / each}d${n}`).join(' + ')}${tail(mod / each)})`
                 : groups.map(([n, c]) => `${c}d${n}`).join(' + ') + tail(mod);
-            const shown = coin ? '' : hits ? hits.map((v) => v.join(' + ') + tail(mod / each)).join(' | ') : rolls.map(([, r]) => r.join(', ')).join(' | ') + tail(mod);
+            const shown = pair ? pair.join(', ') + tail(mod) : coin ? '' : hits ? hits.map((v) => v.join(' + ') + tail(mod / each)).join(' | ') : rolls.map(([, r]) => r.join(', ')).join(' | ') + tail(mod);
             // a lone d20 shows a natural 20 or 1
             const nat = groups.length === 1 && groups[0][0] === 20 && groups[0][1] === 1 ? (rolls[0][1][0] === 20 ? ' hb-nat20' : rolls[0][1][0] === 1 ? ' hb-nat1' : '') : '';
             // just under the sticky sheet bar, which wraps taller on phones
             const hbBar = $('#hb-bar');
             $('#hb-rolls').style.top = (getComputedStyle(hbBar).position === 'sticky' ? Math.max(76, hbBar.offsetHeight + 12) : 16) + 'px';
-            $('#hb-rolls').innerHTML = `<button type="button" class="hb-rollcard${nat}${hits ? ' hb-each' : ''}" data-act="rollx" aria-label="Dismiss roll">
+            // quick rolls stack, newest on top; each card goes after 12 seconds
+            $('#hb-rolls').insertAdjacentHTML('afterbegin', `<button type="button" class="hb-rollcard${nat}${hits ? ' hb-each' : ''}" data-act="rollx" aria-label="Dismiss roll">
                 <span class="hb-rollhead"><b>${esc(title)}</b><small>${esc(expr)}</small></span>
-                <span class="hb-rolldice">${esc(shown)}</span><span class="hb-rolltot">${total}</span></button>`;
-            clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, 12000);
+                <span class="hb-rolldice">${esc(shown)}</span><span class="hb-rolltot">${total}</span></button>`);
+            const el = $('#hb-rolls').firstElementChild;
+            setTimeout(() => el.remove(), 12000);
             // the roll log keeps the last 100 rolls with the character
             (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
             saveNow(); drawLog(); if (tray.open) drawTray();
         };
-        const quick =() => card(groups.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
+        const quick =() => card(thrown.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
         if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return quick();
-        $('#hb-rolls').innerHTML = '';
         // 3D dice (dice3d.js, three.js + cannon-es from jsDelivr) load on the first roll; the face that lands up is the result
         const css = getComputedStyle(main);
-        dice3d().then(async (m) => m.throwDice(groups, { style: await chosenStyle(m), accent: css.getPropertyValue('--btn').trim() || '#5b3f8f', sound: !C.view.noSound }))
+        dice3d().then(async (m) => m.throwDice(thrown, { style: await chosenStyle(m), accent: css.getPropertyValue('--btn').trim() || '#5b3f8f', sound: !C.view.noSound }))
             .then(card, () => { dice3dP = null; quick(); });
     }
     // shortcut: dice3d.js reuses sheet.js's ?v= version, so a change to dice3d.js alone needs sheet.js touched too (last: coins fly in from any side, 31 Oct 2026)
@@ -1897,8 +1908,32 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         el.value = nm(el.value) + (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 5 : 1); hpLabel();
     }, { passive: false });
     main.addEventListener('input', (e) => { if (e.target.id === 'hb-amt') hpLabel(); });
-    // right-click a die in the tray to take one away
+    // right-click a d20 roll (press and hold on a touch screen) for a menu that rolls it with advantage or disadvantage
+    main.insertAdjacentHTML('beforeend', `<div class="hb-advmenu" id="hb-adv" role="menu" aria-label="Roll with" hidden>
+        <button type="button" role="menuitem" data-act="adv" data-a="adv">Advantage roll</button><button type="button" role="menuitem" data-act="adv" data-a="dis">Disadvantage roll</button></div>`);
+    const isD20 = (b) => !!b && (b.dataset.act === 'roll' || 'd20' in b.dataset);
+    const d20Mod = (b) => { if (b.dataset.act === 'roll2') return +b.dataset.m || 0; const v = value(b.dataset.k, vars()); return Number.isFinite(+v.v) ? +v.v : 0; };
+    let advFor = null, holdTimer = 0, held = false;
+    function advOpen(b, x, y) {
+        const m = $('#hb-adv');
+        advFor = b; m.hidden = false;
+        m.style.left = Math.max(8, Math.min(x, innerWidth - m.offsetWidth - 8)) + 'px';
+        m.style.top = Math.max(8, Math.min(y, innerHeight - m.offsetHeight - 8)) + 'px';
+        m.querySelector('button').focus();
+    }
+    function advClose() { const m = $('#hb-adv'); if (!m.hidden) { m.hidden = true; if (advFor?.isConnected) advFor.focus(); } advFor = null; }
+    document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#hb-adv')) advClose(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && advFor) advClose(); });
+    addEventListener('scroll', () => advFor && advClose(), true);
+    main.addEventListener('pointerdown', (e) => {
+        held = false; clearTimeout(holdTimer);
+        const b = e.target.closest('[data-act]');
+        if (e.pointerType === 'touch' && isD20(b)) holdTimer = setTimeout(() => { held = true; advOpen(b, e.clientX, e.clientY); }, 500);
+    });
+    for (const t of ['pointerup', 'pointercancel']) main.addEventListener(t, () => clearTimeout(holdTimer));
     main.addEventListener('contextmenu', (e) => {
+        const r = e.target.closest('[data-act]');
+        if (isD20(r)) { e.preventDefault(); if (!held) advOpen(r, e.clientX, e.clientY); return; }
         const b = e.target.closest('[data-act="die"]');
         if (!b) return;
         e.preventDefault();
@@ -1910,6 +1945,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const b = e.target.closest('[data-act]');
         if (!b || b.tagName === 'SELECT' || b.tagName === 'FORM') return;
         const act = b.dataset.act, p = b.dataset.p, i = +b.dataset.i;
+        // the click that ends a press and hold opened the menu instead of rolling
+        if (held && isD20(b)) { held = false; return; }
         if (act === 'formula') return showDlg({ kind: 'formula', p, t: b.dataset.t, s: !!b.dataset.s, parts: parseParts(get(p)) });
         if (act === 'padd' || act === 'pdel') {
             if (act === 'padd') dlgMode.parts.push({ sign: '+', k: 'num', v: '1', cap: '', label: '' }); else dlgMode.parts.splice(i, 1);
@@ -1917,6 +1954,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             dlgBody.innerHTML = formulaDlg(dlgMode); saveNow(); return refresh();
         }
         if (act === 'custom') { loadSenses(); return showDlg('custom'); }
+        if (act === 'ctab') { customTab = b.dataset.id; dlgBody.innerHTML = dlgHTML(); dlg.scrollTop = 0; return refresh(); }
         if (act === 'ddb') { showDlg({ kind: 'ddb' }); return $('#hb-ddb-id').focus(); }
         if (act === 'close') return dlg.close();
         if (act === 'cropsave') { C.art = $('#hb-crop').toDataURL('image/jpeg', 0.85); saveNow(); return dlg.close(); }
@@ -1969,8 +2007,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             saveNow(); return draw();
         }
         if (act === 'roll2') return rollShow(b.dataset.t, b.dataset.g.split(',').map((x) => x.split('x').map(Number)), +b.dataset.m || 0, +b.dataset.x || 1);
-        if (act === 'roll') { const v = value(b.dataset.k, vars()); return rollShow(b.dataset.t, [[20, 1]], Number.isFinite(+v.v) ? +v.v : 0); }
-        if (act === 'rollx') { clearTimeout(rollTimer); $('#hb-rolls').innerHTML = ''; return; }
+        if (act === 'roll') return rollShow(b.dataset.t, [[20, 1]], d20Mod(b));
+        if (act === 'adv') { const t = advFor; advClose(); return t && rollShow(t.dataset.t, [[20, 1]], d20Mod(t), 1, b.dataset.a); }
+        if (act === 'rollx') return b.remove();
         if (act === 'tray') { tray.open = !tray.open; return drawTray(); }
         if (act === 'logclear') { if (confirm('Clear the roll log for this character?')) { C.rolls = []; saveNow(); drawLog(); } return; }
         if (act === 'die') { tray.pool[b.dataset.n] = (tray.pool[b.dataset.n] || 0) + 1; return drawTray(); }
