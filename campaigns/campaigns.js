@@ -83,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Live (assets/js/live.js): who's online, the table log, and a fresh party, session and player list whenever anyone
     // changes the campaign. With the relay down the page says so and checks every 10 s until it's back.
     if (!id || !window.Live) return;
+    window.Fight?.panel($('#cp-fight'), id); // the DM runs it from the Monster Sheet; here it's to see, and for monster HP
     let online = [], rolls = [], paused = 0;
     const dots = () => document.querySelectorAll('#cp-players [data-key]').forEach((r) => { r.querySelector('.cp-on').hidden = !online.includes(r.dataset.key); });
     async function refresh() {

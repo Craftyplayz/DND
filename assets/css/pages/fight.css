@@ -1,0 +1,36 @@
+/* The initiative tracker (assets/js/fight.js): the player sheet's strip, and the panel on the Monster Sheet and campaign page. */
+.fi-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.fi-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+/* the order as portraits, left to right */
+.fi-row { display: flex; gap: 8px; margin: 0; padding: 0 0 4px; overflow-x: auto; list-style: none; }
+.fi-p { display: grid; flex: none; justify-items: center; gap: 2px; width: 72px; padding: 6px 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font-size: 12px; text-align: center; }
+.fi-p .fi-n { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fi-p.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.fi-p.mine .fi-n { font-weight: 700; }
+.fi-p.down, .fi-e.down { opacity: .5; }
+.fi-face { position: relative; display: grid; flex: none; place-items: center; width: 40px; height: 40px; overflow: hidden; border-radius: var(--radius); background: var(--sunken); color: var(--muted); font-size: 14px; font-weight: 700; }
+.fi-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* the player sheet: a thin strip under the top bar */
+.fi-strip { margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card2); }
+.fi-turn { margin: 8px 0 0; padding: 8px 12px; border: 1px solid var(--gold-line); border-radius: var(--radius); background: var(--gold-bg); font-weight: 700; }
+.fi-roll { margin: 8px 0 0; }
+.hb-camps { margin: 0 0 12px; }
+.hb-campi { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 0; }
+/* the tracker panel */
+.fi-list { display: grid; gap: 6px; margin: 0 0 12px; padding: 0; list-style: none; }
+.fi-e { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.fi-e.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.fi-e.hid { border-style: dashed; }
+.fi-who { display: flex; flex: 1 1 160px; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+.fi-who small { flex-basis: 100%; }
+.fi-init { width: 4.5em; text-align: center; }
+b.fi-init { width: 2.5em; font-size: 18px; }
+.fi-hp, .fi-tools, .fi-add { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.fi-hp .field { width: 4.5em; }
+.fi-add { margin-top: 8px; }
+.fi-add .field:not(.fi-init) { flex: 1 1 140px; width: auto; }
+.mon-fight { margin: 0 0 16px; }
+.mon-fight h2, .cp-fight h2 { margin-top: 0; }
+.cp-fight { margin: 0 0 28px; }
+/* the Monster Sheet's list with an add button beside each monster while a fight runs */
+.mon-list.fi-on { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; }

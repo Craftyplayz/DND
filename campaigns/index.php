@@ -15,19 +15,7 @@ $c = $user && isset($_GET['c']) ? cp_get($accounts, $_GET['c']) : null;
 if ($c && cp_member($c, $user['sub']) < 0) $c = null;
 $isDm = $c && $c['dm'] === $user['sub'];
 
-// a character's card: name, "Level | Species | Class" and art, read from the owner's save (never copied)
-// shortcut: inline art goes into the page as it is, so a party with big portraits makes a heavy page; ROADMAP 0.4 moves art to files
-function cp_card($accounts, $id)
-{
-    $ch = ch_ok_id($id) ? ch_json("$accounts/characters/$id/character.json") : null;
-    if (!$ch) return null;
-    $classes = array_filter(array_map(fn($k) => is_array($k) ? (string)($k['name'] ?? '') : '', is_array($ch['classes'] ?? null) ? $ch['classes'] : []));
-    $level = array_sum(array_map(fn($k) => is_array($k) ? (int)($k['level'] ?? 0) : 0, is_array($ch['classes'] ?? null) ? $ch['classes'] : [])) ?: 1;
-    $art = is_string($ch['art'] ?? null) && preg_match('#^(data:image/|https://)#', $ch['art']) ? $ch['art']
-        : (is_string($ch['artUrl'] ?? null) && preg_match('#^/sheets/player/art\.php\?id=[\w-]+&v=[a-f0-9]{12}$#', $ch['artUrl']) ? $ch['artUrl'] : '');
-    return ['name' => ($ch['name'] ?? '') !== '' ? (string)$ch['name'] : 'Unnamed character',
-        'line' => implode(' | ', array_filter(["Level $level", (string)($ch['race'] ?? ''), implode(' / ', $classes)])), 'art' => $art];
-}
+// a character's card (cp_card() in includes/campaigns.php) as HTML
 function cp_card_html($card, $who, $href)
 {
     $art = $card['art'] !== '' ? '<img src="' . h($card['art']) . '" alt="" referrerpolicy="no-referrer" width="64" height="64" loading="lazy">' : '<span class="ch-noart" aria-hidden="true"></span>';
@@ -55,7 +43,7 @@ if ($past) {
     $rolls = tl_tail($c, $user['sub'], $past, PHP_INT_MAX);
 }
 elseif ($c) {
-    $site_page = ['title' => $c['name'], 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/campaigns.css']];
+    $site_page = ['title' => $c['name'], 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/campaigns.css', '/assets/css/pages/fight.css']];
     $sessions = tl_sessions($accounts, $c['id']);
     $unsorted = tl_read($accounts, $c['id'], 'unsorted');
     header('X-Robots-Tag: noindex');
@@ -122,6 +110,9 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
             <p class="muted">No characters yet. Add yours below.</p>
         <?php endif; ?>
         </div>
+
+        <?php // the current fight (ROADMAP 1.4, assets/js/fight.js): players see the order, the DM numbers and monster HP ?>
+        <section class="card cp-fight" id="cp-fight" aria-label="Fight" hidden></section>
 
         <div id="cp-sess">
             <h2 class="sec-h">Table log <span class="n"><?= isset($c['session']['n']) ? 'Session ' . (int)$c['session']['n'] . ' since ' . h(date('H:i', $c['session']['started'])) : 'No session running' ?></span></h2>
@@ -231,7 +222,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
     </main>
 
     <?php site_footer(); ?>
-    <?php if ($c && !$past): ?><script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script><?php endif; ?>
+    <?php if ($c && !$past): ?><script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script><script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script><?php endif; ?>
     <?php if (($c && !$past) || ($user && !isset($_GET['c']))): ?><script src="<?= h(asset('/campaigns/campaigns.js')) ?>" defer></script><?php endif; ?>
 </body>
 

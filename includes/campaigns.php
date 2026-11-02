@@ -111,6 +111,20 @@ function cp_detach($accounts, $charId)
     }
 }
 
+// a character's card: name, "Level | Species | Class" and art, read from the owner's save (never copied)
+// shortcut: inline art goes into the page as it is, so a party with big portraits makes a heavy page; ROADMAP 0.4 moves art to files
+function cp_card($accounts, $id)
+{
+    $ch = ch_ok_id($id) ? ch_json("$accounts/characters/$id/character.json") : null;
+    if (!$ch) return null;
+    $classes = array_filter(array_map(fn($k) => is_array($k) ? (string)($k['name'] ?? '') : '', is_array($ch['classes'] ?? null) ? $ch['classes'] : []));
+    $level = array_sum(array_map(fn($k) => is_array($k) ? (int)($k['level'] ?? 0) : 0, is_array($ch['classes'] ?? null) ? $ch['classes'] : [])) ?: 1;
+    $art = is_string($ch['art'] ?? null) && preg_match('#^(data:image/|https://)#', $ch['art']) ? $ch['art']
+        : (is_string($ch['artUrl'] ?? null) && preg_match('#^/sheets/player/art\.php\?id=[\w-]+&v=[a-f0-9]{12}$#', $ch['artUrl']) ? $ch['artUrl'] : '');
+    return ['name' => ($ch['name'] ?? '') !== '' ? (string)$ch['name'] : 'Unnamed character',
+        'line' => implode(' | ', array_filter(["Level $level", (string)($ch['race'] ?? ''), implode(' / ', $classes)])), 'art' => $art];
+}
+
 // the campaigns this character is attached to (one at a time since 2026-11-02; older ones may still be in several)
 function cp_char_in($accounts, $charId)
 {

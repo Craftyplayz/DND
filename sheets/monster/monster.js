@@ -195,7 +195,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             abilities: ABIL.map(([key, name]) => ({ key, name, score: 10, save: false, sb: '' })),
             skills: SKILLS.map(([name, ab]) => ({ name, ab, p: 0, b: '' })),
             prof: 'max(2, ceil(CR / 4) + 1)', ac: '10 + DEX', init: 'DEX',
-            hp: { cur: 10, base: 10, temp: 0, mod: 0 }, insp: false, rolls: [],
+            hp: { cur: 10, base: 10, temp: 0, mod: 0 }, hpAt: 0, insp: false, rolls: [],
             speeds: [{ type: 'Walk', ft: 30, hover: false }], conditions: [], exhaustion: 0, condList: CONDITIONS, res: '', imm: '', vul: '',
             passives: [['Passive Perception', '10 + Perception'], ['Passive Investigation', '10 + Investigation'], ['Passive Insight', '10 + Insight']].map(([name, f]) => ({ name, f })),
             senses: '',
@@ -361,6 +361,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         toast('You were signed out, so monsters are only saved in this browser now. Sign in again to save them to your account.', 'note');
     }
     function cloudSave(id, body) {
+        if (hpQueue().some((x) => x.id === id)) { dirty.add(id); return; } // after its HP changes (hpFlush), so they count once
         fetch('cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
             .then((r) => { if (r.status === 401) cloudOff(); else if (!r.ok && r.status !== 409) dirty.add(id); }).catch(() => dirty.add(id));
     }
@@ -369,7 +370,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const r = await fetch('cloud.php');
         if (r.status === 401) return cloudOff();
         if (!r.ok) return;
-        const { chars } = await r.json();
+        const { chars, hpAt } = await r.json();
         let got = false;
         for (const [id, up] of Object.entries(chars)) {
             if (db.chars[id] && db.chars[id].updated >= up) continue;
@@ -379,6 +380,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             got = true;
         }
         for (const id in db.chars) if (db.chars[id].updated > (chars[id] || 0)) cloudSave(id, JSON.stringify(db.chars[id]));
+        if (got) for (const id in db.chars) hpSeen[id] = hpKey(db.chars[id]);
+        hpPull(hpAt);
         if (!got) return;
         // the blank monster made because this browser had none gives way to the account's
         if (!C.updated && Object.keys(db.chars).length > 1) delete db.chars[C.id];
@@ -406,6 +409,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     let undoSnap = null, undoTimer = 0; // undo for deletes, see snap()
     function saveNow(edited = true) {
         if (C && C.archived) return; // read-only until it's unarchived
+        hpCheck(C);
         if (undoSnap && Date.now() - undoSnap.at > 1000) dropUndo();
         if (edited && C) C.updated = Date.now();
         store();
@@ -416,6 +420,80 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const saveLater = debounce(() => saveNow(false), 250);
     const save = () => { if (C && !C.archived) C.updated = Date.now(); saveLater(); };
     addEventListener('pagehide', () => { store(); flushBackups(); });
+
+    // ---- hit points from anywhere (ROADMAP 1.4) ----
+    // Signed in, a monster's HP can change here, on another open Monster Sheet and from the campaign page at once, so each
+    // HP change also goes to the account as one change (cloud.php?hp=): damage and healing as amounts, anything typed as the
+    // numbers that changed. The account applies them in order and sends the result to every open sheet (the "me" room), so
+    // no change is lost and an old copy never puts old HP back. Changes made offline wait in "monster-hp-outbox" (only
+    // changes on their way to the account, so not synced themselves).
+    const HPQ = 'monster-hp-outbox';
+    const hpQueue = () => { try { const q = JSON.parse(localStorage.getItem(HPQ)); return Array.isArray(q) ? q : []; } catch (e) { return []; } };
+    const hpKeep = (q) => { try { localStorage.setItem(HPQ, JSON.stringify(q)); } catch (e) { } };
+    const hpKey = (c) => JSON.stringify(['cur', 'base', 'temp', 'mod'].map((k) => nm(c.hp[k])));
+    const hpSeen = {}; // monster id -> its HP as last sent or taken
+    for (const id in db.chars) hpSeen[id] = hpKey(db.chars[id]);
+    // the damage form's rule (cloud.php's fi_hp does the same), also for changes from the tracker
+    function hpApply(c, { k, n }) {
+        const max = nm(c.hp.base) + nm(c.hp.mod);
+        if (k === 'dmg') { const soak = Math.min(nm(c.hp.temp), n); c.hp.temp = nm(c.hp.temp) - soak; c.hp.cur = Math.max(0, nm(c.hp.cur) - (n - soak)); }
+        else if (k === 'temp') c.hp.temp = Math.max(nm(c.hp.temp), n);
+        else c.hp.cur = Math.min(max, nm(c.hp.cur) + n);
+    }
+    function hpOp(c, op) {
+        hpSeen[c.id] = hpKey(c);
+        if (!cloud || !c.updated) return; // not in the account: the whole-monster save carries it
+        hpKeep([...hpQueue(), { q: uid() + uid(), id: c.id, op }]);
+        hpFlush();
+    }
+    // any other HP edit (typed numbers, rests) goes as the numbers that changed
+    function hpCheck(c) {
+        if (!c || hpSeen[c.id] === hpKey(c)) return;
+        if (hpSeen[c.id] === undefined) { hpSeen[c.id] = hpKey(c); return; }
+        const was = JSON.parse(hpSeen[c.id]), now = JSON.parse(hpKey(c)), hp = {};
+        ['cur', 'base', 'temp', 'mod'].forEach((k, i) => { if (was[i] !== now[i]) hp[k] = now[i]; });
+        hpOp(c, { k: 'set', hp });
+    }
+    let hpBusy = false;
+    async function hpFlush() {
+        if (hpBusy || !cloud) return;
+        hpBusy = true;
+        for (const item of hpQueue()) {
+            let r;
+            try { r = await fetch('cloud.php?hp=' + encodeURIComponent(item.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: item.op }) }); } catch (e) { break; }
+            if (r.status === 401) { cloudOff(); break; }
+            if (r.status >= 500 || r.status === 429) break;
+            hpKeep(hpQueue().filter((x) => x.q !== item.q)); // done, or turned down for good (404: not in the account; its save carries it)
+            if (r.ok) hpTake(await r.json());
+        }
+        hpBusy = false;
+        if (!hpQueue().length && dirty.size) flushBackups();
+    }
+    addEventListener('online', hpFlush);
+    setInterval(() => { if (hpQueue().length) hpFlush(); }, 15000);
+    // the account's HP, unless this browser still has changes of its own on the way for that monster
+    function hpTake(m) {
+        const c = db.chars[m.id];
+        if (!c || !m.hp || nm(m.hpAt) <= nm(c.hpAt) || hpQueue().some((x) => x.id === m.id)) return;
+        Object.assign(c.hp, m.hp);
+        c.hpAt = m.hpAt;
+        hpSeen[c.id] = hpKey(c);
+        store(); drawSide();
+        if (c === C) draw();
+    }
+    // newer HP in the account than here (hpAt: id -> when, from cloud.php's list)
+    async function hpPull(hpAt = {}) {
+        for (const [id, at] of Object.entries(hpAt || {})) {
+            if (!db.chars[id] || nm(db.chars[id].hpAt) >= at) continue;
+            try { const g = await fetch('cloud.php?id=' + encodeURIComponent(id)); if (g.ok) hpTake(await g.json()); } catch (e) { }
+        }
+    }
+    // the account's own room: every open sheet hears each HP change at once (and checks every 10 s while the relay is down)
+    if (cloud && window.Live) Live.watch('me', {
+        load: async () => { try { const r = await fetch('cloud.php'); if (r.ok) hpPull((await r.json()).hpAt); } catch (e) { } },
+        onMessage(m) { if (m.type === 'mhp') hpTake(m); },
+    });
+    if (cloud) hpFlush();
 
     const get = (path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), C);
     function set(path, val) {
@@ -1678,6 +1756,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         tableWatch(); drawTray(); drawLog();
     }
     function tableWatch() {
+        // the initiative tracker for the campaign picked here (assets/js/fight.js); it redraws the list's add buttons
+        window.Fight?.panel($('#mon-fight'), camp()?.id || '', { controls: true, onHp: fightHp, onChange: drawSide });
         const id = camp()?.id || '';
         if (id === watchId) return;
         watching?.close();
@@ -1786,9 +1866,47 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <b>${esc(c.name || 'Unnamed monster')}</b><small>HP ${nm(c.hp.cur)}/${max}${String(c.cr).trim() ? ' · CR ' + esc(c.cr) : ''}</small></button>`;
         };
         // archived monsters (ROADMAP 0.5) wait at the bottom, folded away, each with Unarchive
-        box.innerHTML = `<h2>Encounter <span class="n">${list.length}</span></h2><div class="mon-list">${list.map(item).join('')}</div>`
+        box.innerHTML = `<h2>Encounter <span class="n">${list.length}</span></h2><div class="mon-list">${list.map((c) => item(c) + fightBtn(c)).join('')}</div>${fightBtn()}`
             + (arch.length ? `<details class="mon-arch"${arch.includes(C) ? ' open' : ''}><summary>Archived (${arch.length})</summary><div class="mon-list">${arch.map((c) => `<div class="mon-arcrow">${item(c)}
                 <button type="button" class="btn small" data-act="monunarc" data-id="${esc(c.id)}">Unarchive</button></div>`).join('')}</div></details>` : '');
+        $('#mon-side .mon-list').classList.toggle('fi-on', !!fightNow());
+    }
+    // ---- the fight (ROADMAP 1.4): "Add to fight" beside each monster while one runs in the picked campaign ----
+    const fightNow = () => (camp() && window.Fight?.state(camp().id)) || null;
+    function fightBtn(c) {
+        const f = fightNow();
+        if (!f) return '';
+        if (!c) return '<p><button type="button" class="btn small" data-act="fightadd">Add all in the list</button></p>';
+        return f.entries.some((e) => e.mon === c.id) ? '<span class="badge">In fight</span>' : `<button type="button" class="btn small" data-act="fightadd" data-id="${esc(c.id)}" aria-label="Add ${esc(c.name || 'Unnamed monster')} to the fight">Add to fight</button>`;
+    }
+    // each with its own initiative roll (d20 + its initiative) and AC, worked out as the sheet shows them
+    async function fightAdd(list, b) {
+        const f = fightNow(), have = new Set((f?.entries || []).map((e) => e.mon));
+        list = list.filter((m) => m && !have.has(m.id));
+        if (!f || !list.length) return;
+        b.disabled = true;
+        const was = C, items = list.map((m) => {
+            C = m;
+            const V = vars(), bonus = Math.round(nm(value('fs:init', V).v)), ac = Math.round(nm(value('fx:ac', V).v));
+            return { kind: 'monster', mon: m.id, bonus, ac, init: die(20) + bonus };
+        });
+        C = was;
+        // in the account first, so the tracker finds them and their HP
+        for (const m of list) {
+            if (!m.updated) m.updated = Date.now();
+            await fetch('cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m) }).catch(() => { });
+        }
+        store();
+        await Fight.act(camp().id, 'add', { items });
+    }
+    // a change from the tracker to one of these monsters goes the same way as the damage form
+    function fightHp(id, op) {
+        const c = db.chars[id];
+        if (!c) return fetch('cloud.php?hp=' + encodeURIComponent(id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) });
+        hpApply(c, op);
+        hpOp(c, op);
+        store(); drawSide();
+        if (c === C) draw();
     }
     // a copy with full hit points, straight after the original in the encounter
     function dupMonster() {
@@ -2096,14 +2214,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         let how = e.submitter && e.submitter.value;
         if (how === 'auto') how = v > 0 ? 'heal' : 'dmg';
         if (!amt && how !== 'temp') return $('#hb-amt').focus();
-        if (how === 'dmg') {
-            const soak = Math.min(nm(C.hp.temp), amt);
-            C.hp.temp = nm(C.hp.temp) - soak;
-            C.hp.cur = Math.max(0, nm(C.hp.cur) - (amt - soak));
-        } else if (how === 'temp') {
-            if (amt < nm(C.hp.temp)) toast(`Temp HP doesn't stack, so you keep ${C.hp.temp}.`, 'note');
-            C.hp.temp = Math.max(nm(C.hp.temp), amt);
-        } else C.hp.cur = Math.min(hpMax(), nm(C.hp.cur) + amt);
+        if (how === 'temp' && amt < nm(C.hp.temp)) toast(`Temp HP doesn't stack, so you keep ${C.hp.temp}.`, 'note');
+        hpApply(C, { k: how, n: amt });
+        hpOp(C, { k: how, n: amt });
         saveNow(); draw();
     });
     // the scroll style of hit points: scroll over the amount to change it (shift for 5 at a time); the button follows its sign
@@ -2182,9 +2295,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const amt = d ? rolls.reduce((t, x) => t + x, d.k) : NaN;
             const rolled = rolls.join(' + ').replace(/\+ -/g, '− ') + (d && d.k ? (rolls.length ? (d.k < 0 ? ' − ' : ' + ') : '') + (rolls.length ? Math.abs(d.k) : d.k) : '');
             if (!Number.isFinite(amt)) return toast(`Couldn't work out ${name}: check its formula.`, 'err');
-            if (e.k === 'heal') { C.hp.cur = Math.min(hpMax(), nm(C.hp.cur) + Math.max(0, amt)); toast(`${name}: healed ${Math.max(0, amt)} (${rolled}).`, 'ok'); }
+            if (e.k === 'heal') { hpApply(C, { k: 'heal', n: Math.max(0, amt) }); hpOp(C, { k: 'heal', n: Math.max(0, amt) }); toast(`${name}: healed ${Math.max(0, amt)} (${rolled}).`, 'ok'); }
             else if (amt <= nm(C.hp.temp)) toast(`${name}: ${amt} temp HP, but temp HP doesn't stack, so you keep ${C.hp.temp}.`, 'note');
-            else { C.hp.temp = amt; toast(`${name}: ${amt} temp HP (${rolled}).`, 'ok'); }
+            else { hpApply(C, { k: 'temp', n: amt }); hpOp(C, { k: 'temp', n: amt }); toast(`${name}: ${amt} temp HP (${rolled}).`, 'ok'); }
             saveNow(); return draw();
         }
         if (act === 'roll2') return rollShow(b.dataset.t, b.dataset.g.split(',').map((x) => x.split('x').map(Number)), +b.dataset.m || 0, +b.dataset.x || 1);
@@ -2192,6 +2305,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'rollx') { clearTimeout(rollTimer); $('#hb-rolls').innerHTML = ''; return; }
         if (act === 'tray') { tray.open = !tray.open; return drawTray(); }
         if (act === 'rollto') { setRollTo(!rollTo()); return drawTray(); }
+        if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : Object.values(db.chars).filter((c) => !c.archived), b);
         if (act === 'logtab') { logTab = b.dataset.t; return drawLog(); }
         if (act === 'logclear') { if (confirm('Clear the roll log for this monster?')) { C.rolls = []; saveNow(); drawLog(); } return; }
         if (act === 'die') { tray.pool[b.dataset.n] = (tray.pool[b.dataset.n] || 0) + 1; return drawTray(); }

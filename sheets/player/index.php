@@ -7,7 +7,7 @@ if (!isset($hb)) { header('Location: /characters/', true, 301); exit; }
 //   char: the character to open ("new" makes one), readonly: someone else's public character,
 //   inline: the account's copy of it as JSON (owner or public only), vis: private or public
 $hb = ($hb ?? []) + ['char' => '', 'readonly' => false, 'inline' => null, 'vis' => 'private'];
-$site_page = ($site_page ?? []) + ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css']];
+$site_page = ($site_page ?? []) + ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css', '/assets/css/pages/fight.css']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 ?>
 <!DOCTYPE html>
@@ -45,6 +45,7 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
     <script src="<?= h(asset('/sheets/player/rules.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/versions.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/sheet.js')) ?>" defer></script>
 </body>
 

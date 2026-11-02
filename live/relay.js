@@ -2,6 +2,7 @@
 // container (docker/start.sh); Apache proxies wss://<site>/live/ws?c=<campaign id> to it.
 //   connect     the browser's cookie goes to live/auth.php, which says if this player is in the campaign: {key, role}.
 //               Players appear by key (a hash per campaign, never the Google id); everyone in the room gets "presence".
+//               ?c=me joins the player's own room (auth.php names it: "room"), where their Monster Sheets hear HP changes.
 //   POST /publish {campaign, msg?, to?, members?}   from PHP only (includes/live.php), never through Apache:
 //               msg goes to everyone in the room, or to: "dm" / [keys]; members (keys) drops anyone no longer in it.
 // If this process is down, pages say "live updates paused" and reload state from PHP every 10 s, so nothing is lost.
@@ -46,13 +47,14 @@ server.on('upgrade', async (req, sock, head) => {
     let origin = '';
     try { origin = new URL(req.headers.origin || '').host; } catch (e) { }
     if (!origin || (origin !== req.headers.host && req.headers.origin !== ORIGIN)) return deny();
-    const c = new URL(req.url, 'http://relay').searchParams.get('c') || '';
+    let c = new URL(req.url, 'http://relay').searchParams.get('c') || '';
     let who = null;
     try {
         const r = await fetch(AUTH + '?c=' + encodeURIComponent(c), { headers: { cookie: req.headers.cookie || '' }, signal: AbortSignal.timeout(5000) });
         if (r.ok) who = await r.json();
     } catch (e) { }
     if (!who || !who.key) return deny();
+    if (who.room) c = String(who.room);
     wss.handleUpgrade(req, sock, head, (ws) => {
         Object.assign(ws, { key: who.key, role: who.role, alive: true });
         if (!rooms.has(c)) rooms.set(c, new Set());

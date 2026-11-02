@@ -1,5 +1,5 @@
 <?php
-$site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css', '/assets/css/pages/games-dnd-monster.css']];
+$site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css', '/assets/css/pages/games-dnd-monster.css', '/assets/css/pages/fight.css']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), true)['sources'] ?? [];
 ?>
@@ -18,6 +18,8 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
         <h1 class="hb-sr">Monster Sheet</h1>
 
         <div class="bar hb-bar" id="hb-bar"><span class="hb-barin" id="hb-barin"></span><?= auth_button() ?></div>
+        <?php // the initiative tracker (ROADMAP 1.4, assets/js/fight.js) for the campaign the sheet's rolls go to ?>
+        <section class="card mon-fight" id="mon-fight" aria-label="Fight" hidden></section>
         <div class="mon-wrap">
             <aside class="card mon-side" id="mon-side" aria-label="Encounter"></aside>
             <div class="hb-sheet" id="hb-sheet"><noscript><p class="err">This sheet needs JavaScript.</p></noscript></div>
@@ -55,6 +57,7 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/rules.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/monster/monster.js')) ?>" defer></script>
 </body>
 
