@@ -17,7 +17,7 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
         <?= site_breadcrumbs(site_current_path()) ?>
         <h1 class="hb-sr">Monster Sheet</h1>
 
-        <div class="bar hb-bar" id="hb-bar"></div>
+        <div class="bar hb-bar" id="hb-bar"><span class="hb-barin" id="hb-barin"></span><?= auth_button() ?></div>
         <div class="mon-wrap">
             <aside class="card mon-side" id="mon-side" aria-label="Encounter"></aside>
             <div class="hb-sheet" id="hb-sheet"><noscript><p class="err">This sheet needs JavaScript.</p></noscript></div>

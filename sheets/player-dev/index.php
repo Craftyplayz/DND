@@ -19,7 +19,7 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
         <?= site_breadcrumbs(site_current_path()) ?>
         <h1 class="hb-sr">Homebrew Character Sheet</h1>
 
-        <div class="bar hb-bar" id="hb-bar"></div>
+        <div class="bar hb-bar" id="hb-bar"><span class="hb-barin" id="hb-barin"></span><?= auth_button() ?></div>
         <div class="hb-sheet" id="hb-sheet"><noscript><p class="err">This sheet needs JavaScript.</p></noscript></div>
         <p class="muted hb-hint">Characters are saved in this browser only. Use Export to back one up or move it to another device.</p>
 

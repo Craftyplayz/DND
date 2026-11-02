@@ -412,6 +412,8 @@ dialog.hb-dlg { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh -
 
 /* the top line: character, Edit, who they are, rests and Customise; fields line up with the buttons along the bottom */
 .hb-bar { align-items: end; }
+/* sheet.js redraws the bar inside .hb-barin; the sign-in widget sits after it and is never redrawn */
+.hb-barin { display: contents; }
 .hb-bar label { display: grid; gap: 2px; min-width: 0; color: var(--muted); font-size: 12px; }
 .hb-bar .hb-name { flex: 1 1 160px; }
 .hb-bar .hb-name .field { font-weight: 700; }

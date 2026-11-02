@@ -1683,7 +1683,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         for (const p of C.panels) if (p.type === 'trackers') for (const r of p.rows) if (r.kind === 'count' && /^sorcery points?$/i.test(String(r.name).trim())) {
             Object.assign(r, { kind: 'pips', used: Math.max(0, maxOf(r.max) - nm(r.cur)) });
         }
-        $('#hb-bar').innerHTML = bar();
+        $('#hb-barin').innerHTML = bar();
         root.innerHTML = top() + `<div class="hb-top-panels">${panels()}</div><div hidden>${datalists()}</div>`;
         drawTray(); drawLog();
         if (dlg.open && dlgMode && !['rest', 'ddb', 'crop'].includes(dlgMode.kind)) { dlgBody.innerHTML = dlgHTML(); }
@@ -1952,7 +1952,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'info') { const r = get(p); if ('lvl' in r && r.srd && needsFill(r)) srdFill(p); return info(p); }
         if (act === 'dclose') return closeDrawer();
         if (act === 'more') { open.more = !open.more; return draw(); }
-        if (act === 'manage') { open.manage = !open.manage; $('#hb-bar').innerHTML = bar(); return $('[data-act=manage]').focus(); }
+        if (act === 'manage') { open.manage = !open.manage; $('#hb-barin').innerHTML = bar(); return $('[data-act=manage]').focus(); }
         if (act === 'hpedit') { open.hp = !open.hp; return draw(); }
         if (act === 'tab') { C.view.tab = b.dataset.id; save(); return draw(); }
         if (act === 'toggle') { const id = b.dataset.id; openRows.has(id) ? openRows.delete(id) : openRows.add(id); return draw(); }
