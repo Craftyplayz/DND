@@ -1,6 +1,7 @@
 <?php
 $site_page = ['components' => true, 'title' => 'Private'];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
+auth_require();
 
 // folder => description
 $sections = [

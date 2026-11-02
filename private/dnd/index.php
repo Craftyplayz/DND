@@ -6,6 +6,7 @@ $bk = ($bk ?? []) + ['dir' => __DIR__ . '/backups', 'url' => '/private/dnd/', 't
     'sheet' => 'homebrew sheet', 'who' => 'Character', 'other' => ['/private/dnd/monsters/', 'Monster sheet backups']];
 $site_page = ['components' => true, 'title' => $bk['title']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
+auth_require();
 
 define('BK', $bk['dir']);
 $subdirs = function ($p) {
