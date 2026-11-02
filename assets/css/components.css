@@ -149,3 +149,15 @@ dialog.dlg .actions { display: flex; justify-content: flex-end; gap: 8px; margin
 /* ---------- section heading outside cards ---------- */
 .sec-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 28px 0 12px; font-size: 20px; }
 .sec-h .n { color: var(--muted); font-size: 14px; font-weight: 400; }
+
+/* ---------- character card: art, name and level line, then View / Delete (My Characters) ---------- */
+.ch-card { display: grid; overflow: hidden; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.ch-top { display: flex; align-items: center; gap: 12px; padding: 14px; color: var(--text); text-decoration: none; }
+.page a.ch-top { color: var(--text); text-decoration: none; }
+.ch-top:hover { background: var(--card2); }
+.ch-top img, .ch-noart { flex: none; width: 64px; height: 64px; border-radius: var(--radius); object-fit: cover; background: var(--card2); }
+.ch-who { display: grid; gap: 2px; min-width: 0; }
+.ch-who b { overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
+.ch-who small { color: var(--muted); font-size: 13px; }
+.ch-acts { display: flex; gap: 8px; padding: 10px 14px; background: var(--sunken); border-top: 1px solid var(--line); }
+.ch-acts .btn { flex: 1; justify-content: center; }

@@ -162,9 +162,15 @@ HTML],
 HTML],
     'hub' => ['Hub cards', 'The landing page. Made by <code>site_hub()</code> from <code>site_pages()</code>; never write them by hand.', <<<'HTML'
 <div class="hub-grid">
-  <a class="hub-card" href="/sheets/player/"><b>My Characters</b><span>A character sheet you can change to fit any homebrew rules</span></a>
+  <a class="hub-card" href="/characters/"><b>My Characters</b><span>Your characters on a sheet you can change to fit any homebrew rules</span></a>
   <a class="hub-card" href="/sheets/monster/"><b>Monster Sheet</b><span>Editable monster stat blocks for an encounter</span></a>
 </div>
+HTML],
+    'chcard' => ['Character card', 'One per character or monster in a list (My Characters). Art (64 px square, a plain box without art), the name, a muted "Level | Species | Class" line, then the actions in the footer: View and Delete, and Delete always asks first in a <code>dialog.dlg</code>. The cards sit in a grid of 300 px or wider columns.', <<<'HTML'
+<article class="ch-card">
+  <a class="ch-top" href="#c-chcard"><span class="ch-noart" aria-hidden="true"></span><span class="ch-who"><b>Lock</b><small>Level 4 | Tabaxi | Barbarian</small></span></a>
+  <div class="ch-acts"><a class="btn small" href="#c-chcard">View</a><button type="button" class="btn small">Delete</button></div>
+</article>
 HTML],
     'icons' => ['Icons', 'Only where they help people recognise something faster. The rules are under Icons below.', <<<'HTML'
 <button class="btn">
