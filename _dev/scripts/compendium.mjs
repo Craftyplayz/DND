@@ -175,7 +175,7 @@ for (const name of ['chrome', 'firefox']) {
         await ev(`document.querySelector('[data-add=sheet]').click()`);
         await until(`document.querySelector('#cp-pick').open`, 'picker');
         is(`${name} picker lists both`, await js(`[...document.querySelectorAll('#cp-pick .cp-char')].map((x) => x.dataset.char).sort()`), [one, two].sort());
-        await ev(`document.querySelector('#cp-pick [data-char=${two}]').click()`);
+        await ev(`document.querySelector('#cp-pick [data-char="${two}"]').click()`);
         await until(`document.querySelector('#cp-msg .ok')`, 'added to the second');
         is(`${name} request is for the picked one`, (await store('hb-pending')).map((x) => x.char), [two]);
         await ev(`localStorage.removeItem('hb-pending')`);
