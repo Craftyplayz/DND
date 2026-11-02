@@ -62,7 +62,11 @@ elseif ($c) {
     $me = $c['members'][cp_member($c, $user['sub'])];
     $mineIds = array_column($me['characters'] ?? [], 'id');
     $mine = [];
-    foreach (array_keys(ch_list($accounts, $user['sub'])) as $id) if ($card = cp_card($accounts, $id)) $mine[$id] = $card['name'];
+    $archived = 0; // archived characters can't join (ROADMAP 0.5)
+    foreach (array_keys(ch_list($accounts, $user['sub'])) as $id) {
+        if (ch_archived(ch_meta($accounts, $id))) { $archived++; continue; }
+        if ($card = cp_card($accounts, $id)) $mine[$id] = $card['name'];
+    }
     asort($mine, SORT_NATURAL | SORT_FLAG_CASE);
     $party = '';
     $count = 0;
@@ -142,7 +146,10 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
                         </fieldset>
                         <div class="actions"><button class="btn primary" type="submit">Save characters</button></div>
                     </form>
-                <?php else: ?>
+                <?php endif; ?>
+                <?php if ($archived): ?>
+                    <p class="muted">Archived characters can't join a campaign. Unarchive one in My Characters first.</p>
+                <?php elseif (!$mine): ?>
                     <p class="muted">You have no characters in your account yet. <a href="/characters/">Make one in My Characters</a> while signed in, then come back here.</p>
                 <?php endif; ?>
             </section>

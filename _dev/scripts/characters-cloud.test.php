@@ -46,13 +46,21 @@ $n = 0;
 for ($i = 0; $i < 250; $i++) $n += ch_save($A, '444', $char("many$i", 1))[0] === 200;
 $is('250 characters save', [$n, count(ch_list($A, '444'))], [250, 250]);
 
-// visibility and delete are owner only; delete moves the folder aside
+// visibility and archive are owner only; the old delete archives instead and nothing moves (ROADMAP 0.5)
 $is('stranger cannot publish', ch_set_visibility($A, '222', 'c1', 'public')[0], 404);
 $is('owner publishes', ch_set_visibility($A, '111', 'c1', 'public'), [200, ['visibility' => 'public']]);
-$is('stranger cannot delete', ch_delete($A, '222', 'c1')[0], 404);
-$is('owner deletes', ch_delete($A, '111', 'c1')[0], 200);
-$is('deleted folder kept aside', count(glob("$A/characters/.deleted/c1-*/character.json")), 1);
-$is('deleted is gone from the list', array_keys(ch_list($A, '111')), ['old1']);
+$is('stranger cannot archive', ch_archive_now($A, '222', 'c1')[0], 404);
+$before = json_decode(file_get_contents("$A/characters/c1/character.json"), true);
+$is('owner archives', ch_archive_now($A, '111', 'c1')[0], 200);
+$after = json_decode(file_get_contents("$A/characters/c1/character.json"), true);
+$is('archived on the character and in meta', [$after['archived'] > 0, ch_archived(ch_meta($A, 'c1'))], [true, true]);
+$is('nothing else changed', array_diff_key($after, ['archived' => 1, 'updated' => 1]), array_diff_key($before, ['updated' => 1]));
+$is('folder stays, nothing in .deleted', [is_dir("$A/characters/c1"), is_dir("$A/characters/.deleted")], [true, false]);
+$l = array_keys(ch_list($A, '111')); sort($l);
+$is('archived still listed', $l, ['c1', 'old1']);
+$un = $after; $un['archived'] = 0; $un['updated'] = $after['updated'] + 1;
+ch_save($A, '111', json_encode($un));
+$is('unarchive clears meta', ch_archived(ch_meta($A, 'c1')), false);
 
 // an older save than the copied-in character is refused (cloud.php copies in before every save)
 @mkdir("$A/333", 0777, true);
@@ -60,10 +68,47 @@ file_put_contents("$A/333/old3.json", $char('old3', 50));
 ch_copy_in($A, '333');
 $is('older save than the copied character refused', ch_save($A, '333', $char('old3', 40))[1], ['updated' => 50.0]);
 
-// copy-in runs once: a deleted old character doesn't come back
-ch_delete($A, '111', 'old1');
+// copy-in runs once: an archived old character isn't copied in again
+ch_archive_now($A, '111', 'old1');
+@touch("$A/111/.copied");
 ch_copy_in($A, '111');
-$is('deleted old character stays deleted', ch_list($A, '111'), []);
+$is('archived old character stays archived', ch_archived(ch_meta($A, 'old1')), true);
+
+// version history (ROADMAP 0.5): roll log and view-only saves make no version; list, read, name, restore
+$v = function ($u, $extra = []) { return json_encode(['id' => 'v1', 'updated' => $u, 'name' => 'Vee', 'abilities' => [], 'hp' => ['cur' => 10], 'rolls' => [], 'view' => ['tab' => '']] + $extra + ['hp' => []]); };
+ch_save($A, '555', $v(1));
+ch_save($A, '555', json_encode(['hp' => ['cur' => 7]] + json_decode($v(2), true)));
+ch_save($A, '555', json_encode(['rolls' => [['total' => 20]], 'hp' => ['cur' => 7]] + json_decode($v(3), true)));
+ch_save($A, '555', json_encode(['view' => ['tab' => 'x'], 'rolls' => [['total' => 20]], 'hp' => ['cur' => 7]] + json_decode($v(4), true)));
+$is('roll and view saves make no version', count(glob("$A/characters/v1/history/*.json")), 2);
+$is('but the character is saved', json_decode(file_get_contents("$A/characters/v1/character.json"), true)['view']['tab'], 'x');
+[$code, $list] = ch_versions($A, '555', 'v1', 0, 20);
+$is('versions newest first', [$code, array_column($list['versions'], 'n'), $list['more']], [200, [2, 1], false]);
+$is('versions owner only', ch_versions($A, '111', 'v1', 0, 20)[0], 404);
+$is('one version', json_decode(ch_version($A, '555', 'v1', 1)[1], true)['hp']['cur'], 10);
+$is('no such version', ch_version($A, '555', 'v1', '../x')[0], 404);
+$is('name a version', ch_name_version($A, '555', 'v1', 1, "  Before   session 12 "), [200, ['name' => 'Before session 12']]);
+$is('long names cut', mb_strlen(ch_name_version($A, '555', 'v1', 2, str_repeat('é', 200))[1]['name']), CH_NAME);
+ch_name_version($A, '555', 'v1', 2, '');
+$is('names kept beside the history', (array)ch_versions($A, '555', 'v1', 0, 20)[1]['names'], [1 => 'Before session 12']);
+$is('names are not versions', count(ch_versions($A, '555', 'v1', 0, 20)[1]['versions']), 2);
+[$code, $out] = ch_restore($A, '555', 'v1', 1, json_encode(['hp' => ['cur' => 10]] + json_decode($v(10), true)));
+$is('restore adds a version', [$code, $out['before'], $out['version'], count(glob("$A/characters/v1/history/*.json"))], [200, 2, 3, 3 + 2]);
+$is('restore remembered', (array)ch_versions($A, '555', 'v1', 0, 20)[1]['restored'], [3 => 1]);
+$is('older versions untouched', json_decode(file_get_contents("$A/characters/v1/history/2.json"), true)['hp']['cur'], 7);
+$is('restore of another character refused', ch_restore($A, '555', 'v1', 1, $char('zz', 99))[0], 400);
+$is('restore of a missing version refused', ch_restore($A, '555', 'v1', 99, $v(11))[0], 404);
+// paging
+for ($i = 0; $i < 30; $i++) ch_save($A, '555', json_encode(['name' => "N$i"] + json_decode($v(20 + $i), true)));
+[, $p1] = ch_versions($A, '555', 'v1', 0, 20);
+[, $p2] = ch_versions($A, '555', 'v1', end($p1['versions'])['n'] + 1, 20);
+$is('pages of 20 plus one to compare', [count($p1['versions']), $p1['more'], $p2['versions'][0]['n'], $p2['more']], [21, true, 13, false]);
+// a restored portrait comes back from history (the current one moves there; nothing is removed)
+$jpg2 = "\xFF\xD8\xFF\xE1" . str_repeat('z', 50);
+$url1 = ch_art_save($A, '555', 'v1', $jpg2)[1]['url'];
+ch_art_save($A, '555', 'v1', $png);
+ch_restore($A, '555', 'v1', 1, json_encode(['artUrl' => $url1] + json_decode($v(99), true)));
+$is('old portrait is current again', [file_get_contents(ch_art_file($A, 'v1')), count(glob("$A/characters/v1/history/art-*"))], [$jpg2, 2]);
 
 // clean up the temp folder (test data only)
 $rm = function ($p) use (&$rm) { if (is_dir($p) && !is_link($p)) { foreach (array_diff(scandir($p), ['.', '..']) as $f) $rm("$p/$f"); rmdir($p); } else @unlink($p); };

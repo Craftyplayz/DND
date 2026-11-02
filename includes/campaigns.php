@@ -97,6 +97,20 @@ function cp_member_sees($accounts, $sub, $charId)
     return false;
 }
 
+// an archived character leaves every campaign it's in (sheets/player/cloud.php). The caller holds cp_lock().
+function cp_detach($accounts, $charId)
+{
+    foreach (cp_all($accounts) as $c) {
+        $hit = false;
+        foreach ($c['members'] as &$m) {
+            $keep = array_values(array_filter($m['characters'] ?? [], fn($l) => ($l['id'] ?? null) !== $charId));
+            if (count($keep) !== count($m['characters'] ?? [])) { $m['characters'] = $keep; $hit = true; }
+        }
+        unset($m);
+        if ($hit) cp_put($accounts, $c);
+    }
+}
+
 // the name other players see: the Google name, never the email
 function cp_who($user)
 {
@@ -149,6 +163,7 @@ function cp_act($accounts, $user, $body)
         foreach (array_unique($ids) as $cid) {
             $meta = ch_meta($accounts, $cid);
             if (($meta['owner'] ?? null) !== $sub) return [400, ['error' => "You can only add your own characters that are saved to your account."]];
+            if (ch_archived($meta)) return [400, ['error' => "Archived characters can't join a campaign. Unarchive one in My Characters first."]];
             $links[] = ['sheet' => 'player', 'id' => $cid];
         }
         $c['members'][$me]['characters'] = $links;

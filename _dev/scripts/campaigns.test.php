@@ -48,6 +48,17 @@ $is('DM sees an attached character', cp_dm_sees($A, '111', 'lock'), true);
 $is('DM does not see others', cp_dm_sees($A, '111', 'oz1'), false);
 $is('a player is not a DM', cp_dm_sees($A, '222', 'dmpc'), false);
 
+// archiving (ROADMAP 0.5): an archived character leaves its campaigns and can't be added back until unarchived
+$char('arc', '222');
+cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['lock', 'arc']]);
+ch_save($A, '222', json_encode(['id' => 'arc', 'updated' => 5, 'name' => 'arc', 'abilities' => [], 'archived' => 5]));
+cp_detach($A, 'arc');
+$is('archived character leaves the campaign', array_column(cp_get($A, $id)['members'][1]['characters'], 'id'), ['lock']);
+$is('archived character refused', cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['arc']])[0], 400);
+ch_save($A, '222', json_encode(['id' => 'arc', 'updated' => 6, 'name' => 'arc', 'abilities' => [], 'archived' => 0]));
+$is('unarchived can join again', cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['lock', 'arc']])[0], 200);
+cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['lock']]);
+
 // DM only
 $is('stranger gets no campaign', cp_act($A, $other, ['act' => 'rename', 'id' => $id, 'name' => 'x'])[0], 404);
 $is('player cannot rename', cp_act($A, $pl, ['act' => 'rename', 'id' => $id, 'name' => 'x'])[0], 403);
