@@ -247,8 +247,9 @@ including tests and the dndtest check.
 - What: run by the DM, seen by players. Players' initiative rolls on their sheet add them automatically. The DM
   adds monsters from the Monster Sheet (linked: HP changes in the tracker and on the Monster Sheet are the same
   data), sets ties and order, and advances turns and rounds. Players see the order, the round and whose turn it
-  is. Monster HP shows to players only as Healthy / Bloodied (≤ half) / Down. A "your turn" notice appears on
-  that player's sheet.
+  is, as a row of portraits (character art) in turn order. Monster HP shows to players only as Healthy /
+  Bloodied (≤ half) / Down. Hidden monsters (1.6) are left out of the order players see. A "your turn" notice
+  appears on that player's sheet.
 - Storage: `campaigns/<id>/initiative.json` (the current fight). Monster entries point to the DM's monster by
   id. HP is written to the DM's monster save through the monster sheet's own save path, so the newest-wins rule
   holds.
@@ -258,19 +259,87 @@ including tests and the dndtest check.
 
 **1.5 DM view of party sheets and party overview**
 - What: the campaign page shows a party overview: name, HP bar, AC, passive Perception, conditions,
-  exhaustion, death saves and spell slots left. Clicking opens the full sheet read-only. The DM can apply
-  damage, healing, temp HP and conditions. The player sees the change live, and it goes into their roll/undo
-  log as "DM: −7 HP".
-- How: DM changes are POSTed as small *operations* (`{op: "damage", amount: 7}`), not whole characters. The
-  player's sheet applies them to its own copy and saves normally. If the player is offline, operations wait in
-  `campaigns/<id>/pending/<sub>.json` and are applied on next load, in order, then removed. So the DM can never
-  overwrite fields the player changed.
-- Data safety: the DM never writes the player's character file directly. Operations only touch HP, temp HP and
-  conditions. Test that a DM edit made while the player is editing notes on another device loses neither change.
-- Size: 3 days. Done: the DM damages an offline player, the player opens their sheet later and sees the damage
-  and the log entry, and nothing else on the character changed (diff check).
+  exhaustion, death saves and spell slots left. Clicking opens the full sheet. **The DM can edit everything**
+  on a player's sheet, and players keep editing their own (HP included). Party HP is private: only that player
+  and the DM ever see it (the Table view and other players don't). Every DM change shows live on the player's
+  sheet and goes into their log ("DM: −7 HP", "DM: Stealth → expertise").
+- How: DM changes are POSTed as small *field-level edits*, not whole characters: `{op: "damage", amount: 7}`
+  for HP, and `{op: "set", path: "skills.Stealth.p", value: 2, was: 1}` for anything else. The player's sheet
+  applies them to its own copy and saves normally. If the player is offline, edits wait in
+  `campaigns/<id>/pending/<sub>.json` and are applied on next load, in order, then removed. So a DM change only
+  touches the one field it names. A field the player changed after the DM's `was` value is kept as the
+  player's, and the DM is told "player changed this first".
+- Data safety: the DM never writes the player's character file directly. Each DM edit is one undo step on the
+  player's sheet. Paths are checked against `blank()` (unknown paths are refused), so a DM edit can't add junk
+  fields or remove any. Test that a DM edit made while the player is editing notes on another device loses
+  neither change.
+- Size: 4 days. Done: the DM damages an offline player and changes one of their skills. The player opens their
+  sheet later and sees both, with log entries, and nothing else on the character changed (diff check). Undo on
+  the player's side reverts each one.
 
-**1.6 Bring live play to `/sheets/player/`**
+**1.6 Battle map with fog of war**
+- What: the DM's own screen has a few map buttons: upload a map image (per encounter, unlimited maps), set a
+  square grid (5 ft per square, drag to fit the image), and paint fog. A map starts fully fogged. The DM paints
+  grid squares or drags rectangles to reveal or re-hide. **Fog edits are a private draft** until the DM presses
+  "Send to table", so the DM can prepare a room before anyone sees it. Players and the Table view only ever see
+  the last sent fog.
+- Tokens: every character in the fight gets a token with their character art (initials if none). Monsters get
+  their art or initials. Token size follows creature size (Medium 1 square, Large 2 × 2...). Players drag
+  their own token. The DM drags any. Moves are sent live. The DM can mark any monster token **hidden**: the DM
+  sees it faded, and players and the Table view never receive it until it's revealed.
+- Where: the DM's screen (full controls), the Table view (1.7, big, read-only), and a Map tab on the player's
+  sheet and campaign page (phones included, for online players), where players can move only their own token.
+- How fog stays secret: the server cuts the fog out of the image. For each sent fog state, PHP renders a masked
+  copy (`campaigns/<id>/maps/<map id>/public-<n>.webp`) where fogged squares are solid black, and only that
+  copy is ever served to players and the Table view. The full image is served only to the DM. This needs the GD
+  extension with WebP in the Dockerfile (`docker-php-ext-install gd`). Hidden tokens are filtered out on the
+  server before sending.
+- Storage: `campaigns/<id>/maps/<map id>/` holds the original image (chunked upload, no size limit), `map.json`
+  (grid, draft fog, sent fog, tokens with positions and `hidden`), and the masked public copies (only the latest
+  is kept). Token art is a link to the character's `artUrl` (0.4), never a copy.
+- Data safety: maps live only in campaign data and touch no character file. Moving a token writes only
+  `map.json`.
+- Size: 5 days. Done: the DM uploads a map, reveals one room as a draft (players still see full fog), sends it
+  (players now see the room). A player on a phone moves their own token but can't move another. A hidden goblin
+  is visible to the DM only. Checking every response in the player's and Table view's network traffic shows no
+  original map URL and no hidden token.
+
+**1.7 Table view (TV / screen share)**
+- How we play: the DM runs one PC. The laptop screen is the DM screen. A second browser tab, `/campaigns/table/?c=<id>`,
+  is moved to the TV over HDMI (extended display) or is the only window shared to online players on Discord.
+  It opens in the DM's own signed-in browser; there's no separate login or link.
+- What it shows (read-only, no controls):
+  - Along the top: initiative order as portraits (character art) in turn order, with whose turn it is
+    highlighted and the round number. Hidden monsters are left out.
+  - The battle map (1.6) with the last sent fog and visible tokens, big.
+  - Monsters: "Healthy" / "Bloodied" (≤ half) / "Down" only, never numbers.
+  - Players: portrait, name, condition icons, and a "Down" marker with death-save ticks at 0 HP. No HP
+    numbers or bars (player HP is private).
+  - Public dice log, with big 3D dice (the roller's chosen set) whenever anyone rolls. Hidden DM rolls show
+    only as "DM rolled". Whispers to the DM don't show at all.
+  - Handouts as the DM pushes them (needs 3.4; until then, the handout area stays empty).
+  - Between combats (no initiative running): campaign name, party portraits and the last handout. The dice log
+    keeps showing rolls.
+- Security: the DM's cookie opens this tab, but the tab joins the live relay **as role `table`**, not as the
+  DM. Both the relay and the PHP endpoints filter by role, so a `table` socket or request gets exactly what a
+  player who isn't in the fight would get. Hidden rolls (results), whispers, monster HP numbers, player HP
+  numbers, hidden tokens, draft fog, the unmasked map and DM notes never reach the Table view. They're not
+  hidden with CSS; they're never sent. The page's first PHP render uses the same filter.
+- Reconnect: the same full catch-up as players (current initiative, map with sent fog, last 200 public log
+  entries, last handout).
+- Touches: new `campaigns/table/index.php` + a small JS file, the relay's role filter (1.2), and the filter
+  function in PHP shared by the relay auth endpoint, the player view and the Table view, with one function
+  deciding what each role can see. It reuses `dice/dice3d.js` and `dice/choice.js` for the big dice.
+- Storage: nothing new. It only reads campaign data (initiative, map, log, handouts).
+- Data safety: read-only; it writes nothing, so it can't change player or campaign data.
+- Size: 2 days on top of 1.2-1.6. Done: the DM view in one window, the Table view in another. The DM makes a
+  hidden roll, damages a monster, places a hidden token and drafts fog. In the Table view's DevTools network
+  and WebSocket frames there's no trace of the hidden roll's result, the monster's HP numbers, any player's HP
+  numbers, the hidden token, the draft fog or the original map image. A test in `_dev/scripts/` feeds the role
+  filter one full state and asserts the `table` output has none of those fields. Pulling the network cable and
+  reconnecting restores the same screen.
+
+**1.8 Bring live play to `/sheets/player/`**
 - What: copy the tested player-dev changes to the live sheet, keeping the key `hb-sheet` and the account folder
   `accounts/<sub>/`.
 - Size: half a day. Done: the full data check against live passes, and a campaign session works from `/sheets/player/`.
@@ -456,7 +525,9 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 | Strict rules builder that blocks choices | The owner wants "guided, then free": warnings only. |
 | PHP polling or Server-Sent Events for live play | Chosen: a Node relay. Polling only as the fallback when it's down. |
 | Players editing initiative | The DM runs it. |
-| DM full edit of player sheets | The DM can only change HP, temp HP and conditions, through operations. |
+| DM whole-file writes to player sheets | The DM can edit everything, but only through field-level edits the player's sheet applies (1.5). |
+| Login-free Table view link for smart TVs | The Table view is a tab in the DM's signed-in browser on the HDMI screen or screen share. |
+| Walls, lighting, measuring tools on the map | Not asked for; v1 is image, grid, tokens and fog. |
 | Ongoing D&D Beyond sync | The viewer is retired (5.3). The import stays one-time. |
 | Public sign-ups / open to anyone | 2-4 groups of friends. No moderation or abuse tooling. |
 
@@ -477,7 +548,7 @@ because of CLAUDE.md rather than an open design question:
 | Phase | Features | Rough size |
 |---|---|---|
 | 0 Finish in-flight and storage | 4 | ~2.5 days |
-| 1 Live table and campaigns | 6 | ~15.5 days |
+| 1 Live table and campaigns | 8 | ~23.5 days |
 | 2 Phone and look | 3 | ~7 days |
 | 3 DM tools | 4 | ~8 days |
 | 4 Character building | 6 | ~18.5 days |
