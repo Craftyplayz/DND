@@ -1,0 +1,24 @@
+# One image per commit on main: ghcr.io/craftyplayz/dnd:<sha>. _dev/deploy.sh waits for it, then points the stack at it.
+name: image
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/craftyplayz/dnd:${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
