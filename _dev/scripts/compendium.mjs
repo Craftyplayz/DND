@@ -187,7 +187,7 @@ for (const name of ['chrome', 'firefox']) {
         await until(`document.querySelector('#cp-msg .ok')`, 'encounter message');
         is(`${name} encounter request`, (await store('mon-pending')).map((x) => [x.key, x.n]), [['srd:goblin', 2]]);
         await b.go(BASE + '/sheets/monster/');
-        await until(`localStorage.getItem('mon-pending') === null && Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).filter((c) => /^Goblin \\d$/.test(c.name)).length === 2`, 'two goblins', 30000);
+        await until(`(localStorage.getItem('mon-pending') || '[]') === '[]' && Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).filter((c) => /^Goblin \\d$/.test(c.name)).length === 2`, 'two goblins', 30000);
         is(`${name} goblins numbered`, await js(`Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => c.name).sort()`), ['Goblin 1', 'Goblin 2']);
         is(`${name} each has its own hit points`, await js(`new Set(Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => c.id)).size`), 2);
         errs('sheets');
