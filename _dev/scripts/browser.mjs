@@ -11,6 +11,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const EXE = { chrome: 'C:/Program Files/Google/Chrome/Application/chrome.exe', firefox: 'C:/Program Files/Mozilla Firefox/firefox.exe' };
+// CHECK_CHROME_PORT / CHECK_FIREFOX_PORT: other debugging ports, so two checks can run side by side
+const CH_PORT = process.env.CHECK_CHROME_PORT || 9337, FF_PORT = process.env.CHECK_FIREFOX_PORT || 9338;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // a websocket that sends {id, method, params} and resolves with the reply; other messages go to onEvent
@@ -29,8 +31,8 @@ const value = (v) => v && ['string', 'number', 'boolean'].includes(v.type) ? v.v
 export async function launch(name = 'chrome') {
     const profile = mkdtempSync(join(tmpdir(), `check-${name}-`)), errors = [];
     const proc = name === 'firefox'
-        ? spawn(EXE.firefox, ['--headless', '--no-remote', '--profile', profile, '--remote-debugging-port=9338', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] })
-        : spawn(EXE.chrome, ['--headless=new', '--remote-debugging-port=9337', `--user-data-dir=${profile}`, '--host-resolver-rules=MAP localhost 127.0.0.1', 'about:blank'], { stdio: 'ignore' });
+        ? spawn(EXE.firefox, ['--headless', '--no-remote', '--profile', profile, `--remote-debugging-port=${FF_PORT}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] })
+        : spawn(EXE.chrome, ['--headless=new', `--remote-debugging-port=${CH_PORT}`, `--user-data-dir=${profile}`, '--host-resolver-rules=MAP localhost 127.0.0.1', 'about:blank'], { stdio: 'ignore' });
     const close = () => { try { execSync(`taskkill /PID ${proc.pid} /T /F`, { stdio: 'ignore' }); } catch { } };
     try {
         if (name === 'firefox') {
@@ -58,8 +60,8 @@ export async function launch(name = 'chrome') {
                 block: async (re) => { blocked = re; await send('network.addIntercept', { phases: ['beforeRequestSent'] }); },
             };
         }
-        for (let i = 0; i < 50; i++) { try { if ((await fetch('http://127.0.0.1:9337/json/version')).ok) break; } catch { } await sleep(200); }
-        const t = await (await fetch('http://127.0.0.1:9337/json/new?about:blank', { method: 'PUT' })).json();
+        for (let i = 0; i < 50; i++) { try { if ((await fetch(`http://127.0.0.1:${CH_PORT}/json/version`)).ok) break; } catch { } await sleep(200); }
+        const t = await (await fetch(`http://127.0.0.1:${CH_PORT}/json/new?about:blank`, { method: 'PUT' })).json();
         let loaded = () => { };
         const send = await rpc(t.webSocketDebuggerUrl, (method, p) => {
             if (method === 'Page.loadEventFired') loaded();
