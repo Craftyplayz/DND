@@ -63,6 +63,9 @@ for (const name of ['chrome', 'firefox']) {
         ok(`${name} cleared`, (await names()).includes('Acid Arrow'));
         await tab('monster');
         ok(`${name} CR filter has 1/8`, await ev(`[...document.querySelectorAll('[data-f=crmin] option')].some((o) => o.textContent === '1/8')`));
+        await ev(`(() => { const s = document.querySelector('[data-f=size]'); s.value = 'Tiny'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await sleep(300);
+        ok(`${name} size filter and preview`, await ev(`document.querySelectorAll('#cp-list .cp-row').length > 0 && [...document.querySelectorAll('#cp-list .cp-row')].every((r) => r.textContent.includes('Tiny'))`));
+        await ev(`document.querySelector('#cp-filters [data-clear]').click()`); await sleep(300);
         await tab('magic');
         ok(`${name} rarity filter`, await ev(`[...document.querySelectorAll('[data-f=rarity] option')].some((o) => o.textContent === 'Legendary')`));
 
