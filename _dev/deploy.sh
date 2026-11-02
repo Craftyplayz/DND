@@ -50,7 +50,7 @@ wait_image() {
   local tag=$1 code token
   for i in $(seq 60); do
     token=$(curl -sS "https://ghcr.io/token?scope=repository:$IMAGE:pull" | js "process.stdout.write(j.token||'')")
-    code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" \
+    code=$(curl -sS -o "$tmp/out" -w '%{http_code}' -H "Authorization: Bearer $token" \
       -H 'Accept: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json' \
       "https://ghcr.io/v2/$IMAGE/manifests/$tag")
     [ "$code" = 200 ] && return 0
@@ -70,7 +70,7 @@ check() {
   done
   [ "${c#* }" = "ghcr.io/$IMAGE:$tag running" ] || fail "$service isn't running ghcr.io/$IMAGE:$tag (it shows: ${c#* })."
   for i in $(seq 15); do
-    code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://$HOST:$port/" || true)
+    code=$(curl -s -m 5 -o "$tmp/out" -w '%{http_code}' "http://$HOST:$port/" || true)
     [ "$code" = 200 ] && { echo "$service runs $tag and answers on http://$HOST:$port/"; return 0; }
     sleep 2
   done
