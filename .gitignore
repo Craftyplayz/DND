@@ -1,0 +1,11 @@
+# Server-only data: friends' sheet backups, session recordings and caches. Never commit these.
+private/dnd/backups/
+private/dnd/monster-backups/
+private/transcripts/*.ogg
+private/transcripts/transcripts/
+games/dnd/transcripts/data/*
+!games/dnd/transcripts/data/.gitignore
+!games/dnd/transcripts/data/.htaccess
+games/dnd/characters/cache/*
+!games/dnd/characters/cache/.gitignore
+!games/dnd/characters/cache/.htaccess

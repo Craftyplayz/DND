@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<!-- One panel of the dice fairness test (index.php): rolls the sheet's 3D dice over and over and reports each result to the page around it. -->
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Dice roller</title>
+    <style>
+        html, body { height: 100%; margin: 0; background: #1b1b1b; overflow: hidden; }
+        #hb-throw { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <script type="module">
+        // shortcut: bump ?v= when dice3d.js changes, so browsers don't keep an old copy
+        import { throwDice, clearTable, setSpeed } from '../dice3d.js?v=6';
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        let run = 0;
+        // the page sends { cmd: 'start', sides, style, coin, speed, min, max } or { cmd: 'stop' }; each throw goes back as { results, sides }
+        // (sides 'coin' flips the coin named by coin, and its results are 'heads' or 'tails')
+        addEventListener('message', async (e) => {
+            if (e.origin !== location.origin) return;
+            const { cmd, sides, style, coin, speed = 1, min = 1, max = 1 } = e.data || {};
+            const me = ++run;
+            if (cmd !== 'start') return;
+            setSpeed(speed);
+            while (me === run) {
+                // between min and max dice each throw, all of this table's kind
+                const n = min + Math.floor(Math.random() * (max - min + 1));
+                const [[, results]] = await throwDice([[sides, n]], { style: sides === 'coin' ? { coin } : style, sound: false });
+                if (me !== run) break;
+                parent.postMessage({ results, sides }, location.origin);
+                // the die stays a moment so you can read it, then the table is cleared for the next one
+                await sleep(500 / speed);
+                clearTable();
+            }
+        });
+        parent.postMessage({ ready: true }, location.origin);
+    </script>
+</body>
+</html>

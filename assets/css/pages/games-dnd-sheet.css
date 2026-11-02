@@ -1,0 +1,426 @@
+/* Homebrew character sheet (/games/dnd/sheets/player/). Built on components.css; colours are global tokens only. */
+/* owner asked for a purple theme on this page (2026-10-28), so the accent tokens are overridden here */
+:root {
+    --accent: #b48cff;
+    --accent-soft: #35274f;
+    --btn: #6b3fb3;
+    --btn-line: #9a72e0;
+    --btn-hover: #7a4cc6;
+    --link: #c9adff;
+    --info-bg: #33264a;
+    --info-line: #634296;
+}
+.hb [hidden] { display: none !important; }
+.hb .field { min-width: 0; width: 100%; }
+.hb .hb-hint { margin: 8px 0 0; font-size: 13px; }
+.hb .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.hb h3 { margin: 20px 0 8px; font-size: 15px; }
+.hb-lbl { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.hb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; }
+.hb-grid label, .hb-id label, .hb-coins label, .hb-slotmax label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 13px; }
+
+/* toolbar */
+.hb-bar .hb-pick { flex: 0 1 260px; }
+.hb-bar .hb-gap { flex: 1; }
+
+/* the always-visible top: one column on phones, art + saves + senses on the right from 960 px */
+.hb-sheet {
+    display: grid; gap: 16px; grid-template-columns: clamp(80px, 22vw, 160px) minmax(0, 1fr);
+    grid-template-areas: "art id" "abil abil" "combat combat" "saves saves" "senses senses" "panels panels";
+}
+/* wider than the site's 1280px: above it the side space is halved (width = 1280 + half the extra) */
+.page.hb { max-width: calc(50vw + 640px); }
+.hb-top-id { grid-area: id; }
+.hb-top-art { grid-area: art; }
+.hb-top-abil { grid-area: abil; }
+.hb-top-combat { grid-area: combat; display: grid; gap: 10px; align-content: start; }
+.hb-top-saves { grid-area: saves; }
+.hb-top-senses { grid-area: senses; }
+.hb-top-panels { grid-area: panels; min-width: 0; }
+/* art, saves and senses: separate grid cells on phones, one tight stack in the right column from 960 px */
+.hb-side { display: contents; }
+@media (min-width: 960px) {
+    .hb-sheet {
+        grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto auto auto 1fr;
+        grid-template-areas: "id side" "abil side" "combat side" "panels side";
+    }
+    .hb-side { grid-area: side; display: flex; flex-direction: column; gap: 16px; align-self: start; min-width: 0; }
+}
+
+/* classes on the left, conditions, speed and defences filling the rest of the row */
+.hb-id { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 24px; }
+.hb-id .hb-classes { flex: 0 0 auto; max-width: 100%; }
+.hb-id .hb-more { flex: 1 1 260px; min-height: 38px; }
+.hb-id .hb-more-body { flex: 1 1 100%; }
+
+.hb-art {
+    display: grid; place-items: center; width: 100%; aspect-ratio: 1; padding: 0; overflow: hidden;
+    background: var(--card); border: 1px dashed var(--line-strong); border-radius: var(--radius-lg);
+    color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: border-color var(--fast);
+}
+.hb-art:hover { border-color: var(--accent); }
+.hb-art img { width: 100%; height: 100%; object-fit: cover; }
+.hb-crop { display: block; width: min(100%, 360px); aspect-ratio: 1; margin: 12px auto; border-radius: var(--radius-lg); cursor: grab; touch-action: none; }
+.hb-crop:active { cursor: grabbing; }
+
+/* boxes: abilities, combat numbers */
+.hb-abils { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; }
+.hb-abil, .hb-box {
+    position: relative; display: grid; justify-items: center; align-content: start; gap: 6px; min-width: 0; padding: 10px;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); text-align: center;
+}
+.hb .hb-panel .hb-box { background: var(--card2); }
+.hb .hb-score { width: 64px; padding: 4px 6px; text-align: center; }
+.hb-roll {
+    min-width: 44px; padding: 2px 8px; background: var(--card2); border: 1px solid var(--line); border-radius: var(--radius);
+    color: var(--text); font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; transition: border-color var(--fast);
+}
+.hb-roll:hover { border-color: var(--accent); }
+.hb-val { min-width: 44px; font-variant-numeric: tabular-nums; text-align: center; }
+.hb-roll:active { transform: translateY(1px); }
+.hb-big { font-size: clamp(22px, 3vw, 28px); font-weight: 700; line-height: 1.2; }
+.hb .hb-bad { color: var(--danger-line); border-color: var(--danger-line); }
+.hb-edit {
+    position: absolute; right: 4px; bottom: 4px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+    background: none; border: 0; border-radius: var(--radius); color: var(--muted); cursor: pointer;
+}
+.hb-edit:hover { color: var(--text); background: var(--card2); }
+
+.hb-combat { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); align-items: start; gap: 8px; }
+.hb-hp-head { display: flex; justify-content: center; align-items: center; gap: 4px; width: 100%; position: relative; }
+.hb-hp-head .hb-x { position: absolute; right: -4px; top: -6px; display: grid; place-items: center; }
+.hb-hp-head .hb-x[aria-expanded="true"] { color: var(--accent); }
+.hb-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }
+.hb-stats > * { display: grid; justify-items: center; gap: 6px; min-width: 0; }
+.hb-hpv { display: flex; align-items: center; gap: 6px; font-size: 20px; }
+.hb .hb-hpv .field { width: 72px; padding: 4px 6px; font-size: 20px; font-weight: 700; text-align: center; }
+.hb-hp .progress { width: 100%; }
+.hb-dmg { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.hb .hb-dmg .field { width: 64px; padding: 4px 6px; text-align: center; }
+.hb-insp { cursor: pointer; }
+.hb-insp input { width: 28px; height: 28px; margin: 0; accent-color: var(--accent); }
+
+.hb-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 14px; }
+.hb-condsum { color: var(--highlight); }
+.hb-more-body .badges { margin-top: 0; }
+.hb button.badge { color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+
+/* saves and senses */
+.hb-savegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.hb-save { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--card2); border-radius: var(--radius); font-size: 14px; font-weight: 600; }
+.hb-save span { flex: 1; }
+.hb-dot { display: flex; cursor: pointer; }
+.hb-dot input, .hb-prof {
+    flex: none; width: 14px; height: 14px; margin: 0; padding: 0; appearance: none; background: none;
+    border: 1.5px solid var(--line-strong); border-radius: 50%; cursor: pointer;
+}
+.hb-dot input:checked, .hb-prof.l2 { background: var(--accent); border-color: var(--accent); }
+.hb-prof.l1 { background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); border-color: var(--accent); }
+.hb-prof.l3 { background: var(--accent); border-color: var(--highlight); box-shadow: 0 0 0 2px var(--card2), 0 0 0 3.5px var(--highlight); }
+.hb-senses .rowi b { font-size: 17px; }
+.hb-other { display: grid; gap: 4px; margin-top: 12px; }
+.hb-other textarea.field { min-height: 64px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+/* panels */
+.hb-tabs { margin-bottom: 12px; }
+.hb-two { grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); }
+.hb-two .rowi { padding: 4px 4px 4px 10px; }
+.hb-table td { padding: 6px 4px; vertical-align: middle; }
+.hb-table th { padding: 6px 4px; }
+.hb-table .field { min-width: 110px; padding: 6px 8px; }
+.hb .hb-table .hb-n { width: 64px; min-width: 64px; }
+.hb .hb-table .hb-formula { min-width: 120px; }
+.hb-c { text-align: center; }
+.hb-c input { width: 18px; height: 18px; accent-color: var(--accent); }
+.hb-nowrap { white-space: nowrap; }
+.hb-fx { display: flex; align-items: center; gap: 6px; }
+.hb-formula { font-family: var(--mono); font-size: 13px; }
+.hb-x {
+    width: 32px; height: 32px; padding: 0; background: none; border: 1px solid transparent; border-radius: var(--radius);
+    color: var(--muted); font: inherit; font-size: 18px; line-height: 1; cursor: pointer;
+}
+.hb-x:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); }
+.hb-x:disabled { opacity: .3; cursor: default; }
+
+.hb-pips { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.hb-pips button { width: 18px; height: 18px; padding: 0; background: none; border: 1.5px solid var(--accent); border-radius: 4px; cursor: pointer; }
+.hb-pips button.used { background: var(--accent); }
+.hb-panel .kv .hb-bad-pips .hb-pips button { border-color: var(--danger-line); }
+.hb-panel .kv .hb-bad-pips .hb-pips button.used { background: var(--danger-line); }
+.hb-slots { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 12px 0 0; }
+.hb-slot { display: inline-flex; align-items: center; gap: 6px; }
+.hb-slot small { color: var(--muted); font-size: 13px; }
+.hb-details { margin: 12px 0; font-size: 14px; }
+.hb-details summary { color: var(--muted); cursor: pointer; }
+.hb-slotmax, .hb-coins { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; margin: 10px 0; }
+
+.hb-list { display: grid; gap: 10px; }
+.hb-entry { display: grid; gap: 6px; padding: 10px; background: var(--card2); border-radius: var(--radius); }
+.hb-entry-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.hb .hb-entry-h .hb-strong { flex: 1 1 180px; width: auto; font-weight: 600; }
+.hb .hb-entry-h .hb-src { flex: 0 1 160px; width: auto; }
+.hb-entry textarea.field, .hb-text { min-height: 64px; field-sizing: content; }
+.hb .hb-text { min-height: 160px; }
+.hb-track { flex-wrap: wrap; }
+.hb .hb-track .grow { flex: 1 1 140px; width: auto; }
+.hb .hb-track .hb-n { width: 64px; padding: 4px 6px; text-align: center; }
+.hb .hb-track select.field { width: auto; }
+
+/* dialogs */
+dialog.hb-dlg { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); }
+.hb-dlg h3:first-of-type { margin-top: 12px; }
+.hb-dlg .hb-err { color: var(--danger-line); }
+.hb-addpanel select.field { width: auto; }
+
+/* classes (multiclass rows) */
+.hb-classes { display: grid; gap: 8px; }
+.hb-cls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.hb-cls > label:first-child { flex: 0 1 200px; }
+.hb-cls .hb-lvl { flex: 0 0 72px; }
+.hb-cls .hb-die { flex: 0 0 84px; }
+.hb-cls label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 13px; }
+.hb-cls-more { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; }
+/* class, level, hit die and Add a class on one line where there is room */
+@media (min-width: 761px) { .hb-cls { flex-wrap: nowrap; } .hb-cls-more { flex-wrap: nowrap; white-space: nowrap; min-height: 38px; } }
+
+/* hit points: current / max with temp, a two-part bar, and the edit fields */
+.hb-hpv b { font-size: 20px; }
+.hb-temp { color: var(--accent); font-size: 14px; font-weight: 600; }
+.hb .hb-warn { color: var(--danger-line); }
+.hb-hpbar { display: flex; width: 100%; height: 8px; overflow: hidden; background: var(--card2); border-radius: 999px; }
+.hb-hpbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--btn), var(--accent)); }
+.hb-hpbar i + i { background: var(--series-3); }
+.hb-hpf { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100%; }
+.hb-hpf label { display: grid; gap: 2px; min-width: 0; color: var(--muted); font-size: 12px; }
+.hb .hb-hpf .field { padding: 4px 6px; text-align: center; }
+
+/* conditions, speeds and defences */
+.hb-more-body h3:first-child { margin-top: 0; }
+.hb-exh { display: inline-grid; gap: 4px; color: var(--muted); font-size: 13px; }
+.hb .hb-exh .field { width: 80px; }
+.hb-speeds { display: grid; gap: 6px; }
+.hb-speed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hb .hb-speed .field:first-child { flex: 1 1 140px; width: auto; }
+.hb .hb-speed .hb-n, .hb .hb-n { width: 72px; min-width: 0; padding: 4px 6px; text-align: center; }
+
+/* sub-tabs inside a panel */
+.hb-sub { margin: 4px 0 12px; }
+.hb-sub button { padding: 3px 10px; font-size: 12px; }
+
+/* actions and spells: a summary line that opens into an editor */
+.hb-entry-h { flex-wrap: wrap; }
+.hb-link { padding: 0; background: none; border: 0; color: var(--link); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.hb-link:hover { text-decoration: underline; }
+.hb-sum { flex: 1 1 200px; min-width: 0; color: var(--muted); font-size: 13px; }
+.hb-prop { padding: 0; background: none; border: 0; color: inherit; font: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+.hb-prop:hover { color: var(--link); text-decoration-style: solid; }
+.hb-toggle { display: grid; place-items: center; margin-left: auto; }
+.hb-toggle[aria-expanded="true"] { color: var(--accent); }
+.hb-editor { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.hb-editor h4 { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.hb-editor .actions { margin-top: 0; }
+.hb-wide { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
+.hb-fxbox { display: grid; gap: 4px; justify-items: start; color: var(--muted); font-size: 13px; }
+.hb-checks { display: flex; flex-wrap: wrap; align-items: end; gap: 4px 14px; }
+.hb-dmgs { display: grid; gap: 6px; }
+.hb-dmgrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; }
+/* homebrew effects: kind, then dice + type (or one wide field), then remove */
+.hb-fxrow { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.hb .hb-fxrow select.field { width: auto; }
+.hb-fxrow .hb-fxwide { grid-column: span 2; }
+.hb-costrow { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px; }
+@media (max-width: 560px) { .hb-fxrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; } .hb-fxrow select.field { grid-column: 1 / -1; } }
+.hb-addtag { display: flex; gap: 6px; max-width: 360px; }
+.hb .hb-addtag .field { flex: 1; width: auto; }
+.hb-prep { display: flex; }
+.hb-prep input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.hb-cost { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.hb-tool .field { width: auto; }
+.hb .hb-tool .grow { flex: 1 1 160px; }
+.hb-attune { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; font-size: 14px; }
+.hb-attune label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.hb .field.hb-auto { width: auto; }
+.hb-lists textarea.field { min-height: 120px; }
+
+/* formula builder */
+.hb-result { margin: 4px 0; }
+.hb-part { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px solid var(--line); }
+.hb .hb-part .field { width: auto; }
+.hb .hb-part .hb-sign { width: 56px; }
+.hb .hb-part .hb-formula, .hb .hb-part .hb-plabel { flex: 1 1 140px; }
+
+/* rests and the details drawer */
+.hb-plain { margin: 0 0 8px; padding-left: 20px; font-size: 14px; }
+.hb-drawer h2 { margin: 0 32px 4px 0; font-size: 20px; }
+.hb-drawer:focus { outline: none; }
+.hb-desc { margin-top: 12px; font-size: 14px; overflow-wrap: anywhere; }
+.hb-desc p { margin: 0 0 8px; }
+/* SRD rules text under conditions and proficiencies, and in the drawer */
+.hb-rules { margin-top: 12px; display: grid; gap: 10px; font-size: 14px; }
+.hb-rules h4 { margin: 4px 0 0; }
+.hb-rule p { margin: 2px 0 0; color: var(--muted); }
+.hb-rule p.hb-bullet, .hb-desc p.hb-bullet { position: relative; padding-left: 14px; }
+.hb-rule p.hb-bullet::before, .hb-desc p.hb-bullet::before { content: ""; position: absolute; left: 3px; top: .6em; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.hb-rules .hb-hint { margin: 0; font-size: 12px; }
+/* combat actions everyone has, under the Actions panel */
+.hb-basics { margin-top: 12px; font-size: 14px; }
+.hb-basics h4 { margin: 0 0 4px; }
+.hb-basics p { margin: 4px 0 0; }
+.hb-basics .muted { margin-right: 6px; }
+@media (prefers-reduced-motion: reduce) { .hb-drawer { transition: none; } }
+
+/* notes: list beside the open note once the panel is wide enough */
+.hb-panel { container-type: inline-size; }
+.hb-ntools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.hb .hb-ntools .hb-nq { flex: 1 1 180px; width: auto; }
+.hb .hb-ntools select.field { width: auto; }
+.hb-notes { display: grid; gap: 12px; }
+@container (min-width: 620px) { .hb-notes { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); } }
+.hb-nlist { display: grid; gap: 6px; align-content: start; max-height: 560px; overflow-y: auto; }
+.hb-nitem {
+    display: grid; gap: 2px; min-width: 0; padding: 8px 10px; background: var(--card2); border: 1px solid transparent; border-radius: var(--radius);
+    color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--fast);
+}
+.hb-nitem:hover { border-color: var(--line-strong); }
+.hb-nitem.on { background: var(--accent-soft); border-color: var(--btn-line); }
+.hb-ntitle { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 14px; }
+.hb-ntitle b, .hb-nsnip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-ntitle .badge { flex: none; }
+.hb-nsnip { color: var(--muted); font-size: 13px; }
+.hb-nsnip:empty { display: none; }
+.hb-nitem small { color: var(--muted); font-size: 12px; }
+.hb-nedit { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.hb .hb-ntitle-in { font-size: 17px; font-weight: 600; }
+.hb-nbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.hb-ngroup { display: grid; flex: 1 1 160px; gap: 4px; color: var(--muted); font-size: 13px; }
+.hb textarea.hb-nbody { min-height: 260px; field-sizing: content; }
+.hb-nempty { margin: 0; }
+.hb-grename { display: inline-grid; gap: 4px; margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+.hb .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--btn-line); }
+
+/* notes pinned to the sheet */
+.hb-pins { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 8px; }
+.hb-pin { display: grid; gap: 6px; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.hb-pin-h { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.hb-pin-h .hb-link { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb textarea.hb-pin-body { min-height: 64px; max-height: 220px; field-sizing: content; font-size: 14px; }
+
+/* uses on passive abilities, and resources with their own tabs */
+.hb-uses { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; color: var(--muted); }
+.hb-uses label, .hb-maxl { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.hb .hb-uses select.field, .hb .hb-res select.field { width: auto; }
+.hb-subrow { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 8px; }
+.hb-subrow .hb-sub { margin-bottom: 8px; }
+.hb-tabtools { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-bottom: 10px; }
+.hb-tabtools .hb-grename { margin: 0; }
+.hb-tedit { margin-left: auto; }
+.hb-fxf { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 8px auto; color: var(--muted); font-size: 13px; }
+.hb-fxf .field { width: auto; }
+.hb-attrs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 160px; }
+.hb-attr { display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 8px; background: var(--btn2); border: 1px solid var(--line-strong); border-radius: 999px; font-size: 13px; white-space: nowrap; }
+.hb-attr .hb-x { width: 20px; height: 20px; }
+.hb .hb-attrin { width: 72px; min-width: 72px; padding: 4px 6px; font-size: 13px; }
+.hb-tabedit { display: grid; gap: 8px; margin-bottom: 12px; }
+.hb-tabedit .hb-tabtools { margin: 0; flex-wrap: nowrap; }
+.hb-tabedit .actions { margin-top: 0; }
+.hb-count { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.hb .hb-res .hb-strong { flex: 1 1 160px; width: auto; }
+.hb .hb-count .hb-formula, .hb .hb-uses .hb-formula { width: 140px; }
+.hb-levels { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.hb-levels > .actions { flex-basis: 100%; margin-top: 0; }
+.hb-level { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); }
+.hb .hb-level .hb-lvlname { width: 64px; padding: 4px 6px; }
+.hb .hb-level .hb-n { width: 56px; }
+.hb-level .hb-x { width: 24px; height: 24px; font-size: 16px; }
+.hb-unit { display: inline-flex; align-items: center; gap: 4px; }
+.hb-table .hb-total td { border-top: 1px solid var(--line); color: var(--muted); font-weight: 600; }
+.hb-table .hb-total b { color: var(--text); }
+/* coins: amounts, total and the spend/add box */
+.hb-purse { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 10px 0; font-size: 14px; }
+.hb-coin { color: var(--muted); }
+.hb-coin b { color: var(--text); font-size: 17px; }
+.hb-coinbox { display: flex; align-items: center; gap: 6px; flex: 0 1 260px; min-width: 0; }
+.hb .hb-coinin { flex: 1 1 120px; width: auto; min-width: 0; }
+.hb-coinbox .btn { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; padding: 0; font-size: 17px; line-height: 1; }
+.hb-wt { margin: 8px 0 0; color: var(--muted); font-size: 14px; font-weight: 600; }
+.hb-wt b { color: var(--text); }
+.hb-undo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 14px; border-radius: var(--radius); font-size: 14px; background: var(--info-bg); border: 1px solid var(--info-line); }
+.hb-undo[hidden] { display: none; }
+.hb-fbuild { padding: 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sunken); }
+.hb-fwords { white-space: normal; }
+.hb-fword { margin: 2px; padding: 2px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--sunken); color: var(--text); font: 13px/1.5 ui-monospace, Consolas, monospace; cursor: pointer; }
+.hb-fword:hover { border-color: var(--accent); color: var(--accent); }
+/* Flexible Casting: made slots and points above the maximum are dashed until a long rest */
+.hb-pips button.extra { border-style: dashed; }
+.hb-flex { margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.hb-flex h4 { margin: 0 0 8px; }
+.hb-flexrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; }
+.hb-flexrow > span:first-child { min-width: 170px; }
+/* dice: clickable bonuses, the roll card and the dice tray (bottom left, clear of the toasts on the right) */
+.hb-d20 { padding: 0 4px; background: none; border: 1px solid transparent; border-radius: var(--radius); color: inherit; font: inherit; cursor: pointer; transition: border-color var(--fast), background var(--fast); }
+.hb-d20:hover { border-color: var(--accent); background: var(--accent-soft); }
+.hb-dice { position: fixed; left: 16px; bottom: 16px; z-index: 1750; display: grid; justify-items: start; gap: 8px; }
+.hb-dicebtn { display: grid; place-items: center; width: 52px; height: 52px; background: var(--card2); border: 1px solid var(--line-strong); border-radius: 50%; color: var(--text); box-shadow: var(--lift); cursor: pointer; }
+.hb-dicebtn:hover, .hb-dicebtn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+.hb-tray { display: grid; gap: 10px; width: min(320px, calc(100vw - 32px)); padding: 12px; background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--lift); }
+.hb-traydice { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.hb-die { position: relative; min-height: 44px; background: var(--card2); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.hb-die:hover { border-color: var(--accent); }
+.hb-die small { position: absolute; top: -6px; right: -6px; min-width: 20px; padding: 0 4px; background: var(--accent); border-radius: 999px; color: var(--sunken); font-size: 12px; line-height: 20px; }
+.hb-trayrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; }
+.hb-trayrow > span { flex: 1 1 120px; min-width: 0; }
+.hb-trayslot { display: grid; justify-items: start; gap: 8px; }
+.hb-rollcard { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "head tot" "dice tot"; align-items: center; gap: 2px 16px; width: min(320px, calc(100vw - 32px)); padding: 12px 16px; background: var(--sunken); border: 1px solid var(--line-strong); border-left: 4px solid var(--accent); border-radius: var(--radius-lg); box-shadow: var(--lift); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.hb-rollhead { grid-area: head; display: grid; }
+.hb-rollhead small, .hb-rolldice { color: var(--muted); font-size: 13px; }
+.hb-rolldice { grid-area: dice; overflow-wrap: anywhere; }
+.hb-rolltot { grid-area: tot; font-size: 34px; font-weight: 700; line-height: 1; }
+.hb-rollcard.hb-each .hb-rolltot, .hb-logt.hb-each { font-size: 20px; }
+.hb-rollcard.hb-nat20 { border-left-color: var(--gold-line); background: var(--gold-bg); }
+.hb-rollcard.hb-nat1 { border-left-color: var(--danger-line); background: var(--danger-bg); }
+/* 3D dice layer over the page, under the roll card and tray; clicks go through it */
+#hb-throw { position: fixed; inset: 0; z-index: 1740; width: 100vw; height: 100vh; pointer-events: none; }
+/* dice style pictures in Customise; the picked one is outlined */
+/* Customise: the dice are chosen on the Dice Sets page */
+.hb-dicelink { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 12px; font-size: 14px; }
+/* roll log: fixed in the empty space left of the sheet (sheet.js sets the width), from the top down to the dice button */
+.hb-log { position: fixed; left: 16px; top: 16px; bottom: 84px; z-index: 1500; display: grid; grid-template-rows: auto 1fr; gap: 8px; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
+.hb-logbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hb-logbar h2 { margin: 0; font-size: 17px; }
+.hb-log > .hb-logl { overflow-y: auto; min-height: 0; }
+.hb-logl { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; align-content: start; }
+.hb-logi { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "head tot" "dice tot"; gap: 2px 10px; align-items: center; padding: 8px 10px; background: var(--card2); border-left: 3px solid var(--accent); border-radius: var(--radius); font-size: 13px; }
+.hb-logi.hb-nat20 { border-left-color: var(--gold-line); background: var(--gold-bg); }
+.hb-logi.hb-nat1 { border-left-color: var(--danger-line); background: var(--danger-bg); }
+.hb-logh { grid-area: head; display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
+.hb-logh b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-logh small, .hb-logd { color: var(--muted); }
+.hb-logd { grid-area: dice; overflow-wrap: anywhere; }
+.hb-logt { grid-area: tot; font-size: 20px; font-weight: 700; }
+.hb-traylog { display: grid; gap: 6px; max-height: 220px; overflow-y: auto; font-size: 13px; }
+/* to-hit and damage roll buttons in action and spell summaries, boxed like D&D Beyond's */
+.hb-rollbtn { display: inline-block; padding: 0 6px; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--text); font: inherit; font-weight: 600; line-height: 1.6; cursor: pointer; transition: border-color var(--fast), background var(--fast); }
+.hb-rollbtn:hover { border-color: var(--accent); background: var(--accent-soft); }
+/* the latest roll shows in the top-right corner, under the sticky sheet bar and clear of the toasts at the bottom */
+#hb-rolls { position: fixed; top: 76px; right: 16px; z-index: 1750; }
+/* scroll style of hit points: both words sit in one cell, so the button keeps the width of the longer one */
+.hb-hpgo { display: inline-grid; border-color: var(--danger-line); }
+.hb-hpgo > span { grid-area: 1 / 1; }
+.hb-hpgo > span + span, .hb-hpgo[data-heal] > span:first-child { visibility: hidden; }
+.hb-hpgo[data-heal] { border-color: var(--ok-line); }
+.hb-hpgo[data-heal] > span + span { visibility: visible; }
+
+/* the top line: character, Edit, who they are, rests and Customise; fields line up with the buttons along the bottom */
+.hb-bar { align-items: end; }
+.hb-bar label { display: grid; gap: 2px; min-width: 0; color: var(--muted); font-size: 12px; }
+.hb-bar .hb-name { flex: 1 1 160px; }
+.hb-bar .hb-name .field { font-weight: 700; }
+.hb-bar .hb-race, .hb-bar .hb-align { flex: 0 1 130px; }
+.hb-bar .hb-age { flex: 0 0 64px; }
+.hb-manage { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.hb-bar [data-act=manage] { display: inline-flex; align-items: center; gap: 4px; }
+/* the bar wraps to several rows on phones, so it scrolls away there instead of sticking */
+@media (max-width: 760px) { .hb-bar { position: static; } }
+/* the page title is for screen readers only */
+.hb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+

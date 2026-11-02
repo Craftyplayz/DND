@@ -1,0 +1,5 @@
+# uploaded sessions: <slug>/transcript.md, audio.ogg, meta.json. Half-finished uploads stay hidden.
+RedirectMatch 404 /\.incoming/
+<FilesMatch "\.(php|phtml|phar)$">
+    Require all denied
+</FilesMatch>

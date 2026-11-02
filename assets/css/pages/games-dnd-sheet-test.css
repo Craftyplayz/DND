@@ -1,0 +1,26 @@
+/* Dice fairness test (/games/dnd/dice/test/): eight roller panels and a chart of every result */
+.dt [hidden] { display: none !important; }
+.dt-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.dt-bar label { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
+.dt-panels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+/* four across get too thin for a die below this */
+@media (max-width: 760px) { .dt-panels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.dt-panel { display: grid; gap: 6px; margin: 0; min-width: 0; }
+.dt-panel iframe { width: 100%; height: clamp(180px, calc(50svh - 130px), 420px); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--sunken); }
+.dt-panel figcaption { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-chart { position: relative; display: grid; grid-template-columns: repeat(var(--faces, 20), minmax(0, 1fr)); align-items: end; gap: 2px; height: 220px; padding: 0 0 20px; }
+.dt-col { position: relative; display: flex; align-items: flex-end; height: 100%; min-width: 0; }
+.dt-col i { display: block; width: 100%; min-height: 1px; background: linear-gradient(var(--accent), var(--btn)); border-radius: 4px 4px 0 0; }
+.dt-col:hover i { opacity: .8; }
+.dt-col span { position: absolute; left: 50%; bottom: -18px; transform: translateX(-50%); color: var(--muted); font-size: 12px; }
+.dt-expect { position: absolute; left: 0; right: 0; margin-bottom: 20px; border-top: 2px dashed var(--highlight); pointer-events: none; }
+.dt-expect span { position: absolute; right: 0; bottom: 2px; padding: 0 4px; background: var(--card); color: var(--highlight); font-size: 12px; }
+.dt-verdict { margin: 16px 0 8px; }
+.dt-hint { margin: 8px 0 0; font-size: 13px; }
+.dt-range { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.dt-range .field { width: auto; }
+.dt-amount { width: 7em; }
+.dt-panel figcaption { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.dt-panel figcaption .field { flex: 0 0 auto; width: auto; padding: 4px 8px; font-size: 13px; }
+.dt-panel figcaption span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-results .stabs { margin-bottom: 12px; flex-wrap: wrap; }
