@@ -35,7 +35,7 @@ $changes = function ($a, $b) use ($labels) {
     if ($b === null) return ['First version'];
     $out = [];
     foreach (array_unique(array_merge(array_keys($a), array_keys($b))) as $k) {
-        if (in_array($k, ['view', 'id', 'panels'], true) || json_encode($a[$k] ?? null) === json_encode($b[$k] ?? null)) continue;
+        if (in_array($k, ['view', 'id', 'updated', 'panels'], true) || json_encode($a[$k] ?? null) === json_encode($b[$k] ?? null)) continue;
         $out[] = $labels[$k] ?? $k;
     }
     $old = [];

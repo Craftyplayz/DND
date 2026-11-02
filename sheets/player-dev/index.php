@@ -14,14 +14,14 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 <body>
     <?php // no site header or footer here: the sheet and its dice use the whole screen (owner's choice) ?>
 
-    <main class="page hb" id="main">
+    <main class="page hb" id="main"<?= auth_user() ? ' data-cloud' : '' ?>>
         <p class="hb-devwarn" role="alert">Dev sheet: testing only, do not use</p>
         <?= site_breadcrumbs(site_current_path()) ?>
         <h1 class="hb-sr">Homebrew Character Sheet</h1>
 
         <div class="bar hb-bar" id="hb-bar"><span class="hb-barin" id="hb-barin"></span><?= auth_button() ?></div>
         <div class="hb-sheet" id="hb-sheet"><noscript><p class="err">This sheet needs JavaScript.</p></noscript></div>
-        <p class="muted hb-hint">Characters are saved in this browser only. Use Export to back one up or move it to another device.</p>
+        <p class="muted hb-hint"><?= auth_user() ? 'Characters are saved in this browser and in your account.' : 'Characters are saved in this browser only. Use Export to back one up or move it to another device.' ?></p>
 
         <dialog class="dlg hb-dlg" id="hb-dlg" aria-label="Sheet settings"><div id="hb-dlg-body"></div></dialog>
         <aside class="drawer hb-drawer" id="hb-drawer" aria-label="Details" aria-hidden="true" tabindex="-1">

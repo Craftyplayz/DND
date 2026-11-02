@@ -182,7 +182,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     function blank() {
         return {
-            id: uid(), name: '', classes: [ROW.cls()], race: '', alignment: '', age: '', art: '',
+            id: uid(), updated: 0, name: '', classes: [ROW.cls()], race: '', alignment: '', age: '', art: '',
             abilities: ABIL.map(([key, name]) => ({ key, name, score: 10, save: false, sb: '' })),
             skills: SKILLS.map(([name, ab]) => ({ name, ab, p: 0, b: '' })),
             prof: 'ceil(LEVEL / 4) + 1', ac: '10 + DEX', init: 'DEX',
@@ -334,7 +334,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     let db;
     try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }
     if (!isObj(db) || !isObj(db.chars)) db = { cur: '', chars: {} };
-    for (const id in db.chars) db.chars[id] = normalise(db.chars[id]);
+    // updated: when the character last changed (0 = an untouched blank); ones saved before it existed count as very old
+    for (const id in db.chars) { db.chars[id] = normalise(db.chars[id]); db.chars[id].updated ||= 1; }
     if (!db.chars[db.cur]) db.cur = Object.keys(db.chars)[0] || '';
     if (!db.cur) { const c = blank(); db.chars[c.id] = c; db.cur = c.id; }
     let C = db.chars[db.cur];
@@ -343,6 +344,41 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
         catch (e) { if (!warned) toast("Couldn't save: this browser's storage is full or blocked. Export the character so you don't lose it.", 'err'); warned = true; }
     }
+    // signed in (data-cloud on <main>): characters are also kept in the account (cloud.php), with this browser's copy for offline use;
+    // whichever copy has the newer "updated" wins. Untouched blanks (updated 0) stay in this browser.
+    let cloud = 'cloud' in $('#main').dataset;
+    function cloudOff() {
+        if (!cloud) return;
+        cloud = false;
+        toast('You were signed out, so characters are only saved in this browser now. Sign in again to save them to your account.', 'note');
+    }
+    function cloudSave(id, body) {
+        fetch('cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
+            .then((r) => { if (r.status === 401) cloudOff(); else if (!r.ok && r.status !== 409) dirty.add(id); }).catch(() => dirty.add(id));
+    }
+    // on load: take the account's newer characters and send up the ones this browser has newer (on first sign-in, all of them)
+    if (cloud) (async () => {
+        const r = await fetch('cloud.php');
+        if (r.status === 401) return cloudOff();
+        if (!r.ok) return;
+        const { chars } = await r.json();
+        let got = false;
+        for (const [id, up] of Object.entries(chars)) {
+            if (db.chars[id] && db.chars[id].updated >= up) continue;
+            const g = await fetch('cloud.php?id=' + encodeURIComponent(id));
+            if (!g.ok) continue;
+            db.chars[id] = normalise(await g.json());
+            got = true;
+        }
+        for (const id in db.chars) if (db.chars[id].updated > (chars[id] || 0)) cloudSave(id, JSON.stringify(db.chars[id]));
+        if (!got) return;
+        // the blank character made because this browser had none gives way to the account's
+        if (!C.updated && Object.keys(db.chars).length > 1) delete db.chars[C.id];
+        C = db.chars[db.cur] || Object.values(db.chars)[0];
+        db.cur = C.id;
+        store(); draw();
+    })().catch(() => {});
+
     // every edit is also backed up on the server as a new version (backup.php), a few seconds after typing stops
     const dirty = new Set();
     let backupTimer = 0;
@@ -356,15 +392,19 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             // keepalive lets a backup finish while the page closes (browsers allow it for bodies up to 64 KB)
             fetch('backup.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
                 .then((r) => { if (!r.ok && r.status >= 500) dirty.add(id); }).catch(() => dirty.add(id));
+            if (cloud && c.updated) cloudSave(id, body);
         }
     }
     let undoSnap = null, undoTimer = 0; // undo for deletes, see snap()
-    function saveNow() {
+    function saveNow(edited = true) {
         if (undoSnap && Date.now() - undoSnap.at > 1000) dropUndo();
+        if (edited && C) C.updated = Date.now();
         store();
         if (C) { dirty.add(C.id); clearTimeout(backupTimer); backupTimer = setTimeout(flushBackups, 4000); }
     }
-    const save = debounce(saveNow, 250);
+    // the edit is stamped straight away, so switching character before the save runs still stamps the right one
+    const saveLater = debounce(() => saveNow(false), 250);
+    const save = () => { if (C) C.updated = Date.now(); saveLater(); };
     addEventListener('pagehide', () => { store(); flushBackups(); });
 
     const get = (path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), C);
@@ -1466,7 +1506,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             if (!res.ok || !j.character) return say('err', j.error || "Couldn't reach D&D Beyond right now. Try again in a minute.");
             let c;
             try { c = fromDdbData(hbFromDdb(j.character, j.rules)); } catch (err) { return say('err', "Couldn't convert that character. Try again, or tell the site owner which character it was."); }
-            switchTo(c); dlg.close();
+            c.updated = Date.now(); switchTo(c); dlg.close();
             toast(`Imported ${c.name || 'the character'} from D&D Beyond.`, 'ok');
         } catch (err) { say('err', "Couldn't reach D&D Beyond right now. Try again in a minute."); }
         finally { btn.disabled = false; btn.textContent = 'Import character'; }
@@ -1680,7 +1720,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function showDlg(mode) { dlgMode = mode; dlgBody.innerHTML = dlgHTML(); dlg.showModal(); refresh(); }
     dlg.addEventListener('close', () => { dlgMode = null; draw(); });
 
-    function switchTo(c) { saveNow(); C = c; db.chars[c.id] = c; db.cur = c.id; openRows.clear(); saveNow(); draw(); }
+    // switching isn't an edit, so it doesn't touch either character's updated time
+    function switchTo(c) { saveNow(false); C = c; db.chars[c.id] = c; db.cur = c.id; openRows.clear(); saveNow(false); draw(); }
 
     function download(name, text) {
         const a = document.createElement('a');
@@ -2057,6 +2098,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (act === 'delete') {
             if (!confirm(`Delete ${C.name || 'this character'} from this browser? Export it first if you want to keep a copy.`)) return;
             snap(b);
+            // Undo brings it back and the next save puts it in the account again
+            if (cloud) fetch('cloud.php?id=' + encodeURIComponent(C.id), { method: 'DELETE' }).catch(() => {});
             delete db.chars[C.id];
             return switchTo(Object.values(db.chars)[0] || blank());
         } else return;
@@ -2069,7 +2112,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (!file) return;
         try {
             const c = normalise(JSON.parse(await file.text()));
-            c.id = uid();
+            c.id = uid(); c.updated = Date.now();
             switchTo(c);
             toast(`Imported ${c.name || 'the character'}.`, 'ok');
         } catch (err) { toast("Couldn't import that file. Choose a .json file exported from this sheet.", 'err'); }
