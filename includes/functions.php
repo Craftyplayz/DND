@@ -126,6 +126,11 @@ function page_head()
     if (!empty($p['components'])) echo '<link rel="stylesheet" href="' . h(asset('/assets/css/components.css')) . '">' . "\n";
     foreach (isset($p['css']) ? (array)$p['css'] : [] as $css) echo '<link rel="stylesheet" href="' . h(asset($css)) . '">' . "\n";
     if (!empty($p['ui'])) echo '<script src="' . h(asset('/assets/js/ui.js')) . '" defer></script>' . "\n";
+    // the test site (SITE_ENV=test in compose.yml) says so at the top of every page and stays out of search engines
+    if (getenv('SITE_ENV') === 'test') {
+        echo '<meta name="robots" content="noindex, nofollow">' . "\n";
+        echo '<style>body::before { content: "Test site"; display: block; padding: 8px 16px; background: var(--danger-bg); border-bottom: 2px solid var(--danger-line); color: #ff6b6b; font: 700 18px/1.2 var(--font); text-align: center; text-transform: uppercase; }</style>' . "\n";
+    }
 }
 
 // Card grid of every page in site_pages() except the landing page itself
