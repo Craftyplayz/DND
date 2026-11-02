@@ -25,6 +25,12 @@ $uses = [
     'link' => 'Links in content', 'highlight' => 'Search hits, "new"', 'danger-bg' => 'Error background', 'danger-line' => 'Error border',
     'info-bg' => 'Note background', 'info-line' => 'Note border', 'ok-bg' => 'Success background', 'ok-line' => 'Success border. Green means success or online only',
     'gold-bg' => 'Rare or perfect background', 'gold-line' => 'Rare or perfect: a nat 20, a full set, a legendary item',
+    'purple-bg' => 'Purple badge (.badge.p) background', 'purple-line' => 'Purple badge border',
+    'text-hi' => 'Text on hover and for the current menu item', 'on-btn' => 'Text on a primary button', 'mark-bg' => 'Search hit inside the raw data tree',
+    'code-key' => 'Raw data tree: key', 'code-number' => 'Raw data tree: number', 'code-string' => 'Raw data tree: string',
+    'sheet-accent' => 'Sheet purple: accent (focus, current, progress)', 'sheet-accent-soft' => 'Sheet purple: selected background', 'sheet-btn' => 'Sheet purple: primary button',
+    'sheet-btn-line' => 'Sheet purple: primary button border', 'sheet-btn-hover' => 'Sheet purple: primary button hover', 'sheet-link' => 'Sheet purple: links',
+    'sheet-info-bg' => 'Sheet purple: note background', 'sheet-info-line' => 'Sheet purple: note border',
     'series-1' => 'Chart series 1', 'series-2' => 'Chart series 2', 'series-3' => 'Chart series 3',
 ];
 
@@ -352,7 +358,7 @@ PHP;
                     <?php endforeach; ?>
                 </div>
                 <ul>
-                    <li><b>Pages use <code>var(--…)</code> only, never a hex value.</b> The exceptions are colours with real meaning (a dice set's own colours, damage-type colours, syntax highlighting) and black or white overlays on art: <code>rgb(0 0 0 / x)</code> scrims, <code>rgb(255 255 255 / x)</code> tracks.</li>
+                    <li><b>Colours and fonts live in the <code>:root</code> block of global.css and nowhere else.</b> CSS uses <code>var(--…)</code> only: no hex, <code>hsl()</code>, colour names, or <code>rgb()</code> other than pure black or white (<code>rgb(0 0 0 / x)</code> shadows and scrims, <code>rgb(255 255 255 / x)</code> tracks); <code>font-family</code> is <code>var(--font)</code> or <code>var(--mono)</code>. <code>_dev/scripts/theme-css.test.js</code> fails otherwise, and <code>theme-recolour.mjs</code> checks every page re-colours when the tokens change. A colour a page needs and no token has gets a new token, and a row here. The one exception is content: a dice set's own colours (dice/sets) and the 3D dice materials. A theme (ROADMAP 6.3) only supplies new values for these tokens.</li>
                     <li><b>Three surface levels:</b> <code>--bg</code> → <code>--card</code> → <code>--card2</code>. Text cards get depth from these steps, never from shadows. Shadows are for floating things (drawer, menus, dialogs, tooltips, the dice tray) and art.</li>
                     <li><b>Blue means act or "you are here".</b> Focus ring, current tab, progress, hover border, the primary button. Never decoration.</li>
                     <li><b>Status colours are tinted backgrounds with a matching border:</b> green for success and online (<code>.ok</code>, <code>.badge.g</code>), red for errors and harmful conditions, <code>--info-*</code> for notes, gold for rare or perfect (a nat 20, a legendary item).</li>
