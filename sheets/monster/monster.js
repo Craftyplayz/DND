@@ -182,11 +182,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     function blank() {
         return {
-            id: uid(), name: '', classes: [ROW.cls()], race: '', cr: '0', alignment: '', age: '', art: '',
+            id: uid(), updated: 0, name: '', classes: [ROW.cls()], race: '', cr: '0', alignment: '', age: '', art: '',
             abilities: ABIL.map(([key, name]) => ({ key, name, score: 10, save: false, sb: '' })),
             skills: SKILLS.map(([name, ab]) => ({ name, ab, p: 0, b: '' })),
             prof: 'max(2, ceil(CR / 4) + 1)', ac: '10 + DEX', init: 'DEX',
-            hp: { cur: 10, base: 10, temp: 0, mod: 0 }, insp: false,
+            hp: { cur: 10, base: 10, temp: 0, mod: 0 }, insp: false, rolls: [],
             speeds: [{ type: 'Walk', ft: 30, hover: false }], conditions: [], exhaustion: 0, condList: CONDITIONS, res: '', imm: '', vul: '',
             passives: [['Passive Perception', '10 + Perception'], ['Passive Investigation', '10 + Investigation'], ['Passive Insight', '10 + Insight']].map(([name, f]) => ({ name, f })),
             senses: '',
@@ -333,7 +333,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     let db;
     try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }
     if (!isObj(db) || !isObj(db.chars)) db = { cur: '', chars: {} };
-    for (const id in db.chars) db.chars[id] = normalise(db.chars[id]);
+    // updated: when the monster last changed (0 = an untouched blank); ones saved before it existed count as very old
+    for (const id in db.chars) { db.chars[id] = normalise(db.chars[id]); db.chars[id].updated ||= 1; }
     if (!db.chars[db.cur]) db.cur = Object.keys(db.chars)[0] || '';
     if (!db.cur) { const c = blank(); db.chars[c.id] = c; db.cur = c.id; }
     let C = db.chars[db.cur];
@@ -342,6 +343,41 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
         catch (e) { if (!warned) toast("Couldn't save: this browser's storage is full or blocked. Export the monster so you don't lose it.", 'err'); warned = true; }
     }
+    // signed in (data-cloud on <main>): monsters are also kept in the account (cloud.php), with this browser's copy for offline use;
+    // whichever copy has the newer "updated" wins. Untouched blanks (updated 0) stay in this browser.
+    let cloud = 'cloud' in $('#main').dataset;
+    function cloudOff() {
+        if (!cloud) return;
+        cloud = false;
+        toast('You were signed out, so monsters are only saved in this browser now. Sign in again to save them to your account.', 'note');
+    }
+    function cloudSave(id, body) {
+        fetch('cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
+            .then((r) => { if (r.status === 401) cloudOff(); else if (!r.ok && r.status !== 409) dirty.add(id); }).catch(() => dirty.add(id));
+    }
+    // on load: take the account's newer monsters and send up the ones this browser has newer (on first sign-in, all of them)
+    if (cloud) (async () => {
+        const r = await fetch('cloud.php');
+        if (r.status === 401) return cloudOff();
+        if (!r.ok) return;
+        const { chars } = await r.json();
+        let got = false;
+        for (const [id, up] of Object.entries(chars)) {
+            if (db.chars[id] && db.chars[id].updated >= up) continue;
+            const g = await fetch('cloud.php?id=' + encodeURIComponent(id));
+            if (!g.ok) continue;
+            db.chars[id] = normalise(await g.json());
+            got = true;
+        }
+        for (const id in db.chars) if (db.chars[id].updated > (chars[id] || 0)) cloudSave(id, JSON.stringify(db.chars[id]));
+        if (!got) return;
+        // the blank monster made because this browser had none gives way to the account's
+        if (!C.updated && Object.keys(db.chars).length > 1) delete db.chars[C.id];
+        C = db.chars[db.cur] || Object.values(db.chars)[0];
+        db.cur = C.id;
+        store(); draw();
+    })().catch(() => {});
+
     // every edit is also backed up on the server as a new version (backup.php -> private/dnd/monster-backups/), a few seconds after typing stops
     const dirty = new Set();
     let backupTimer = 0;
@@ -355,16 +391,20 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             // keepalive lets a backup finish while the page closes (browsers allow it for bodies up to 64 KB)
             fetch('backup.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000 })
                 .then((r) => { if (!r.ok && r.status >= 500) dirty.add(id); }).catch(() => dirty.add(id));
+            if (cloud && c.updated) cloudSave(id, body);
         }
     }
     let undoSnap = null, undoTimer = 0; // undo for deletes, see snap()
-    function saveNow() {
+    function saveNow(edited = true) {
         if (undoSnap && Date.now() - undoSnap.at > 1000) dropUndo();
+        if (edited && C) C.updated = Date.now();
         store();
         drawSide();
         if (C) { dirty.add(C.id); clearTimeout(backupTimer); backupTimer = setTimeout(flushBackups, 4000); }
     }
-    const save = debounce(saveNow, 250);
+    // the edit is stamped straight away, so switching monster before the save runs still stamps the right one
+    const saveLater = debounce(() => saveNow(false), 250);
+    const save = () => { if (C) C.updated = Date.now(); saveLater(); };
     addEventListener('pagehide', () => { store(); flushBackups(); });
 
     const get = (path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), C);
@@ -1644,7 +1684,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // a copy with full hit points, straight after the original in the encounter
     function dupMonster() {
         const c = normalise(JSON.parse(JSON.stringify(C)));
-        c.id = uid(); c.name = numbered(C.name || 'Unnamed monster');
+        c.id = uid(); c.name = numbered(C.name || 'Unnamed monster'); c.updated = Date.now();
         Object.assign(c.hp, { cur: hpMax(), temp: 0 });
         c.conditions = [];
         const ent = Object.entries(db.chars);
@@ -1684,7 +1724,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const c = normalise(fromStatBlock(j, monIndex.sources));
             // the empty monster a first visit starts with is replaced rather than kept
             if (Object.keys(db.chars).length === 1 && !C.name.trim() && !C.race.trim()) delete db.chars[C.id];
-            c.name = numbered(c.name);
+            c.name = numbered(c.name); c.updated = Date.now();
             $('#mon-dlg').close();
             switchTo(c);
             toast(`Added ${c.name}.`, 'ok');
@@ -1758,7 +1798,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         return c;
     }
 
-    function switchTo(c) { saveNow(); C = c; db.chars[c.id] = c; db.cur = c.id; openRows.clear(); saveNow(); draw(); }
+    // switching isn't an edit, so it doesn't touch either monster's updated time
+    function switchTo(c) { saveNow(false); C = c; db.chars[c.id] = c; db.cur = c.id; openRows.clear(); saveNow(false); draw(); }
 
     function download(name, text) {
         const a = document.createElement('a');
@@ -2127,7 +2168,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (act === 'mv') { const j = i + +b.dataset.d; [C.panels[i], C.panels[j]] = [C.panels[j], C.panels[i]]; }
         else if (act === 'art') return $('#hb-artfile').click();
         else if (act === 'artdel') { snap(b); C.art = ''; }
-        else if (act === 'new') return switchTo(Object.assign(blank(), { name: numbered('New monster') }));
+        else if (act === 'new') return switchTo(Object.assign(blank(), { name: numbered('New monster'), updated: Date.now() }));
         else if (act === 'side') return switchTo(db.chars[b.dataset.id]);
         else if (act === 'dup') return dupMonster();
         else if (act === 'find') return openFind();
@@ -2136,6 +2177,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (act === 'delete') {
             if (!confirm(`Delete ${C.name || 'this monster'} from this browser? Export it first if you want to keep a copy.`)) return;
             snap(b);
+            // Undo brings it back and the next save puts it in the account again
+            if (cloud) fetch('cloud.php?id=' + encodeURIComponent(C.id), { method: 'DELETE' }).catch(() => {});
             delete db.chars[C.id];
             return switchTo(Object.values(db.chars)[0] || blank());
         } else return;
@@ -2148,7 +2191,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (!file) return;
         try {
             const c = normalise(JSON.parse(await file.text()));
-            c.id = uid();
+            c.id = uid(); c.updated = Date.now();
             switchTo(c);
             toast(`Imported ${c.name || 'the monster'}.`, 'ok');
         } catch (err) { toast("Couldn't import that file. Choose a .json file exported from this sheet.", 'err'); }

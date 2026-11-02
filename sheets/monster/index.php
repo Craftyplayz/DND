@@ -13,7 +13,7 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
 <body>
     <?php // a copy of the player sheet (no site header or footer, owner's choice), with an encounter list on the left ?>
 
-    <main class="page hb mon" id="main">
+    <main class="page hb mon" id="main"<?= auth_user() ? ' data-cloud' : '' ?>>
         <?= site_breadcrumbs(site_current_path()) ?>
         <h1 class="hb-sr">Monster Sheet</h1>
 
@@ -22,7 +22,7 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
             <aside class="card mon-side" id="mon-side" aria-label="Encounter"></aside>
             <div class="hb-sheet" id="hb-sheet"><noscript><p class="err">This sheet needs JavaScript.</p></noscript></div>
         </div>
-        <p class="muted hb-hint">Monsters are saved in this browser only. Use Export to back one up or move it to another device.</p>
+        <p class="muted hb-hint"><?= auth_user() ? 'Monsters are saved in this browser and in your account.' : 'Monsters are saved in this browser only. Use Export to back one up or move it to another device.' ?></p>
 
         <details class="mon-credit">
             <summary>Monster sources and licences</summary>
