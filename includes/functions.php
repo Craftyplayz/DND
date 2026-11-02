@@ -17,18 +17,20 @@ function asset($path)
 
 const SITE_NAME = 'Crafty Playz';
 
-// url => [title, description, in the header menu]
+// url => [title, description, in the header menu and on the landing page]
 function site_pages()
 {
     return [
-        '/' => ['D&D', 'Our D&D campaign: characters and session recordings', false],
-        '/characters/' => ['D&D Characters', 'D&D Beyond character sheets', true],
-        '/sheets/player/' => ['Homebrew Sheet', 'A character sheet you can change to fit any homebrew rules', true],
+        '/' => ['D&D', 'Our D&D campaign tools', false],
+        '/sheets/player/' => ['My Characters', 'A character sheet you can change to fit any homebrew rules', true],
         '/sheets/monster/' => ['Monster Sheet', 'Editable monster stat blocks for an encounter, with HP tracking and clickable dice rolls', true],
+        '/campaigns/' => ['Campaigns', 'Our campaigns', true],
+        // still open by link, just not in the menu or on the landing page
+        '/characters/' => ['D&D Characters', 'D&D Beyond character sheets (legacy)', false],
         '/dice/test/' => ['Dice Fairness Test', "Rolls the Homebrew Sheet's 3D dice over and over in four panels to check they are fair", false],
-        '/dice/' => ['Dice Sets', 'Ten 3D dice sets with moving parts and 35 sounds to pick from, with a test roll that lands on any number', true],
+        '/dice/' => ['Dice Sets', 'Ten 3D dice sets with moving parts and 35 sounds to pick from, with a test roll that lands on any number', false],
         '/dice/rolls/' => ['Quick Rolls', 'Four buttons that roll a nat 1, anything from 2 to 19 or a nat 20, or flip a coin, with the dice chosen on Dice Sets', false],
-        '/transcripts/' => ['Session Transcripts', 'D&D session recordings with transcripts you can click to play', true],
+        '/transcripts/' => ['Session Transcripts', 'D&D session recordings with transcripts you can click to play', false],
     ];
 }
 
@@ -135,12 +137,12 @@ function page_head()
     }
 }
 
-// Card grid of every page in site_pages() except the landing page itself
+// Card grid of the menu pages in site_pages()
 function site_hub()
 {
     echo '<div class="hub"><section class="hub-group"><div class="hub-grid">';
     foreach (site_pages() as $url => $page) {
-        if ($url === '/') continue;
+        if (!$page[2]) continue;
         echo '<a class="hub-card" href="' . h($url) . '"><b>' . h($page[0]) . '</b><span>' . h($page[1]) . '</span></a>';
     }
     echo '</div></section></div>';

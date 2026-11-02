@@ -85,3 +85,6 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
   keeps the key hb-sheet so friends' characters still load. The two sheets' account saves stay in separate folders,
   so a newer test sheet can never sync fields into the live one that it would drop.
 - Never print or commit PORTAINER_API_KEY.
+- Never delete a file. Move it with `git mv` into `private/archive/`, keeping its path (`index.php` ->
+  `private/archive/index.php`, a second copy gets a date: `index.2026-11-02.php`). `private/` is behind the site
+  password (private/.htaccess), so archived pages stay reachable at /private/archive/ for the user only.
