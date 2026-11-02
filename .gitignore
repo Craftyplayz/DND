@@ -17,3 +17,4 @@ private/sessions/*
 private/dnd/accounts/*
 !private/dnd/accounts/.gitignore
 !private/dnd/accounts/.htaccess
+.env

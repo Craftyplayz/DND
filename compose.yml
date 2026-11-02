@@ -1,0 +1,57 @@
+# Portainer stack "dnd" (deployed by _dev/deploy.sh): the live site and the test site from the same image, each with its own data.
+# LIVE_TAG / TEST_TAG are commit SHAs; deploy.sh test moves TEST_TAG, deploy.sh live copies TEST_TAG to LIVE_TAG.
+# The Cloudflare tunnel reaches them at http://192.168.16.3:5762 (live) and :5763 (test).
+x-site: &site
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: "3" }
+
+services:
+  dnd:
+    <<: *site
+    image: ghcr.io/craftyplayz/dnd:${LIVE_TAG:?}
+    ports: ["5762:80"]
+    volumes:
+      - ${LIVE_CONFIG_DIR:-/opt/dnd/live}:/etc/dnd:ro
+      - live-backups:/var/www/html/private/dnd/backups
+      - live-monster-backups:/var/www/html/private/dnd/monster-backups
+      - live-accounts:/var/www/html/private/dnd/accounts
+      - live-sessions:/var/www/html/private/sessions
+      - live-transcripts:/var/www/html/transcripts/data
+      - live-cache:/var/www/html/characters/cache
+
+  dnd-test:
+    <<: *site
+    image: ghcr.io/craftyplayz/dnd:${TEST_TAG:?}
+    ports: ["5763:80"]
+    environment:
+      SITE_ENV: test
+    volumes:
+      - ${TEST_CONFIG_DIR:-/opt/dnd/test}:/etc/dnd:ro
+      - test-backups:/var/www/html/private/dnd/backups
+      - test-monster-backups:/var/www/html/private/dnd/monster-backups
+      - test-accounts:/var/www/html/private/dnd/accounts
+      - test-sessions:/var/www/html/private/sessions
+      - test-transcripts:/var/www/html/transcripts/data
+      - test-cache:/var/www/html/characters/cache
+
+# a fixed subnet, so the gateway the tunnel's requests come through is known (TRUSTED_PROXY in the Dockerfile)
+networks:
+  default:
+    ipam:
+      config: [{ subnet: 192.168.232.0/24, gateway: 192.168.232.1 }]
+
+volumes:
+  live-backups:
+  live-monster-backups:
+  live-accounts:
+  live-sessions:
+  live-transcripts:
+  live-cache:
+  test-backups:
+  test-monster-backups:
+  test-accounts:
+  test-sessions:
+  test-transcripts:
+  test-cache:
