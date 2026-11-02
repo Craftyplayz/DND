@@ -57,14 +57,19 @@ function auth_verify($token)
     $body = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $c = $status === 200 && $body ? json_decode($body, true) : null;
-    if (!is_array($c)) return null;
-    $ok = ($c['aud'] ?? '') === GOOGLE_CLIENT_ID
+    return auth_claims_ok($c, GOOGLE_CLIENT_ID, time()) ? $c : null;
+}
+
+// our client ID, Google as issuer, not expired, a verified email (tests: _dev/scripts/auth-claims.test.php)
+function auth_claims_ok($c, $clientId, $now)
+{
+    return is_array($c)
+        && ($c['aud'] ?? '') === $clientId
         && in_array($c['iss'] ?? '', ['accounts.google.com', 'https://accounts.google.com'], true)
-        && (int)($c['exp'] ?? 0) > time()
+        && (int)($c['exp'] ?? 0) > $now
         && in_array($c['email_verified'] ?? '', ['true', true], true)
         && preg_match('/^\d{1,40}$/', (string)($c['sub'] ?? ''))
         && !empty($c['email']);
-    return $ok ? $c : null;
 }
 
 // a path on this site to go back to, or "/"
