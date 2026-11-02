@@ -2286,6 +2286,34 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     });
     $('#hb-artfile').addEventListener('change', (e) => { const file = e.target.files[0]; e.target.value = ''; if (file) loadArt(file); });
 
+    // The Compendium's "Add to encounter" leaves {id, key, n} in localStorage "mon-pending"; they are added here when the sheet opens and when
+    // one arrives while it is open. Under a lock, and a request leaves the queue only once its monsters are saved, so none is lost or added twice.
+    function takePending() {
+        const run = async () => {
+            const read = () => { try { const q = JSON.parse(localStorage.getItem('mon-pending')); return Array.isArray(q) ? q : []; } catch (e) { return []; } };
+            const x = read().find((y) => y && typeof y.key === 'string');
+            if (!x) return;
+            try {
+                if (!monIndex) monIndex = await (await fetch('monsters.json')).json();
+                const r = await fetch('monsters.php?i=' + encodeURIComponent(x.key)), j = await r.json();
+                if (!r.ok) throw new Error(j.error);
+                const n = Math.max(1, Math.floor(+x.n) || 1);
+                for (let k = 0; k < n; k++) {
+                    const c = normalise(fromStatBlock(j, monIndex.sources));
+                    if (Object.keys(db.chars).length === 1 && !C.name.trim() && !C.race.trim()) delete db.chars[C.id];
+                    c.name = numbered(c.name); c.updated = Date.now();
+                    switchTo(c);
+                }
+                localStorage.setItem('mon-pending', JSON.stringify(read().filter((y) => y && y.id !== x.id)));
+                toast(`Added ${n > 1 ? n + ' x ' : ''}${x.name || 'the monster'} from the Compendium.`, 'ok');
+            } catch (err) { return toast("Couldn't add the monster from the Compendium. Reload to try again.", 'err'); }
+            return run();
+        };
+        return navigator.locks ? navigator.locks.request('mon-pending', run) : run();
+    }
+    addEventListener('storage', (e) => { if (e.key === 'mon-pending') takePending(); });
+
     draw();
+    takePending();
     loadCamps();
 });

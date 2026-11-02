@@ -2357,6 +2357,40 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     });
     $('#hb-artfile').addEventListener('change', (e) => { const file = e.target.files[0]; e.target.value = ''; if (file) loadArt(file); });
 
+    // The Compendium's "Add to sheet" leaves {id, char, kind, name, ...} in localStorage "hb-pending"; this character's requests are taken here,
+    // when the sheet opens and when one arrives while it is open. A request is removed from the queue and added in the same step, under a
+    // lock, so two open tabs can't both add it. One with nowhere to go (no Spells or Items panel) stays queued.
+    function takePending() {
+        const c = C;
+        if (RO || !c) return;
+        const run = () => {
+            let q = null;
+            try { q = JSON.parse(localStorage.getItem('hb-pending')); } catch (e) { }
+            if (!Array.isArray(q)) return;
+            const panel = (type) => c.panels.find((p) => p.type === type);
+            const mine = q.filter((x) => x && x.char === c.id && ((x.kind === 'spell' && panel('spells')) || (x.kind === 'item' && panel('items'))));
+            if (!mine.length) return;
+            const rest = q.filter((x) => !mine.includes(x));
+            if (rest.length) localStorage.setItem('hb-pending', JSON.stringify(rest)); else localStorage.removeItem('hb-pending');
+            const fills = [];
+            for (const x of mine) {
+                const isSpell = x.kind === 'spell', p = panel(isSpell ? 'spells' : 'items'), row = isSpell ? ROW.spell() : ROW.item();
+                row.name = String(x.name || '');
+                if (isSpell) row.lvl = nm(x.lvl);
+                else Object.assign(row, { cat: String(x.cat || 'Gear'), notes: String(x.notes || '') });
+                p.rows.push(row);
+                if (isSpell) fills.push(() => srdFill(`panels.${c.panels.indexOf(p)}.rows.${p.rows.indexOf(row)}`));
+                else if (x.fill) fills.push(() => eqFill(`panels.${c.panels.indexOf(p)}.rows.${p.rows.indexOf(row)}`));
+            }
+            saveNow(); draw();
+            toast(mine.length === 1 ? `Added ${mine[0].name} from the Compendium.` : `Added ${mine.length} things from the Compendium.`, 'ok');
+            fills.forEach((f) => f());
+        };
+        return navigator.locks ? navigator.locks.request('hb-pending', run) : run();
+    }
+    addEventListener('storage', (e) => { if (e.key === 'hb-pending') takePending(); });
+
     draw();
+    takePending();
     loadCamps();
 });

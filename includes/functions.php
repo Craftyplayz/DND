@@ -27,6 +27,7 @@ function site_pages()
         '/characters/' => ['My Characters', 'Your characters on a sheet you can change to fit any homebrew rules', true],
         '/sheets/monster/' => ['Monster Sheet', 'Editable monster stat blocks for an encounter, with HP tracking and clickable dice rolls', true],
         '/campaigns/' => ['Campaigns', 'Make a campaign, invite your players with a link and keep the party together', true],
+        '/compendium/' => ['Compendium', 'Search spells, monsters, items, magic items and rules, and add them to a character or an encounter', true],
         // still open by link, just not in the menu or on the landing page
         '/dice/test/' => ['Dice Fairness Test', "Rolls the Homebrew Sheet's 3D dice over and over in four panels to check they are fair", false],
         '/dice/' => ['Dice Sets', 'Ten 3D dice sets with moving parts and 35 sounds to pick from, with a test roll that lands on any number', false],
