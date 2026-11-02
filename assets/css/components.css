@@ -1,0 +1,151 @@
+/* Shared UI pieces. Opt-in: pages load this with
+   $site_page['components'] = true. Everything is a class, so nothing changes on pages that
+   don't use these names. Colours come from the tokens in global.css. */
+
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); }
+.hide { display: none !important; }
+
+/* ---------- buttons ---------- */
+.btn {
+    display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 9px 16px;
+    background: var(--btn2); border: 1px solid var(--line-strong); border-radius: var(--radius);
+    color: var(--text); font: inherit; font-size: 14px; line-height: 1.2; text-decoration: none; cursor: pointer;
+    transition: background var(--fast), transform .06s;
+}
+.btn:hover { background: var(--btn2-hover); text-decoration: none; }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .5; cursor: default; transform: none; }
+.btn.primary { background: var(--btn); border-color: var(--btn-line); color: #fff; }
+.btn.primary:hover { background: var(--btn-hover); }
+.page a.btn { color: var(--text); text-decoration: none; }
+.page a.btn.primary { color: #fff; }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+
+/* ---------- cards and layout ---------- */
+.card {
+    min-width: 0; padding: 16px; background: var(--card);
+    border: 1px solid var(--line); border-radius: var(--radius-lg); scroll-margin-top: 16px;
+}
+.card h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 17px; }
+.card h2 .n { margin-left: auto; color: var(--muted); font-size: 14px; font-weight: 400; }
+/* masonry: mixed-height cards stack into columns without gaps */
+.masonry { columns: 3 340px; column-gap: 16px; }
+.masonry > .card { display: inline-block; width: 100%; margin-bottom: 16px; break-inside: avoid; }
+
+/* ---------- small pieces ---------- */
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.badge { padding: 2px 9px; background: var(--btn2); border: 1px solid #4d4d4d; border-radius: 999px; font-size: 12px; }
+.badge.g { background: var(--ok-bg); border-color: var(--ok-line); }
+.badge.r { background: var(--danger-bg); border-color: var(--danger-line); }
+.badge.p { background: #3d2a4f; border-color: #6c4b8f; }
+.badge.b { background: var(--info-bg); border-color: var(--info-line); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.tile { padding: 8px 10px; background: var(--card2); border-radius: var(--radius); }
+.tile b { display: block; font-size: 20px; line-height: 1.2; }
+.tile span { color: var(--muted); font-size: 12px; }
+
+.rows { display: grid; gap: 6px; }
+.rowi { display: flex; align-items: center; gap: 10px; padding: 7px 10px; background: var(--card2); border-radius: var(--radius); font-size: 14px; }
+.rowi .grow { flex: 1; min-width: 0; }
+.rowi small { color: var(--muted); }
+
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; }
+.kv > :nth-child(odd) { color: var(--muted); }
+
+.progress { height: 6px; overflow: hidden; background: var(--btn2); border-radius: 3px; }
+.progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--btn), var(--accent)); }
+
+/* jump links for long pages */
+.jump { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; }
+.jump a { padding: 3px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; color: var(--text) !important; font-size: 13px; text-decoration: none !important; }
+.jump a:hover { border-color: var(--accent); }
+
+/* pill tabs inside a card */
+.stabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; }
+.stabs button { padding: 5px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+.stabs button.on { background: var(--accent-soft); border-color: var(--btn-line); }
+
+/* ---------- toolbar and search field ---------- */
+.bar {
+    position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    margin-bottom: 16px; padding: 10px 0; border-bottom: 1px solid var(--line);
+    background: rgba(32, 32, 32, .94); backdrop-filter: blur(6px);
+}
+.field {
+    min-width: 160px; padding: 8px 12px; background: #161616; border: 1px solid #4a4a4a; border-radius: var(--radius);
+    color: var(--text); font: inherit; font-size: 14px; outline: none; transition: border-color var(--fast);
+}
+.field:focus { border-color: var(--accent); }
+.field:disabled { opacity: .5; }
+.field[aria-invalid="true"] { border-color: var(--danger-line); }
+textarea.field { min-height: 96px; line-height: 1.5; resize: vertical; }
+
+/* ---------- forms: each label wraps its text and its field, so no ids are needed ---------- */
+.form { display: grid; gap: 12px; }
+.form-card { max-width: 560px; }
+.form label { display: grid; align-content: start; gap: 4px; min-width: 0; color: var(--muted); font-size: 13px; }
+.form label small { font-size: 12px; }
+.form .field { width: 100%; min-width: 0; }
+.form .btn { justify-self: start; }
+.form fieldset { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.form legend { margin-bottom: 4px; padding: 0; color: var(--muted); font-size: 13px; }
+.check, .form label.check { display: flex; align-items: center; gap: 8px; min-height: 32px; color: var(--text); font-size: 14px; cursor: pointer; }
+.check input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* ---------- tables: .table-wrap lets a wide table scroll on its own ---------- */
+.table-wrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th { padding: 6px 10px; color: var(--muted); font-size: 13px; font-weight: 600; text-align: left; white-space: nowrap; }
+.table td { padding: 6px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* ---------- messages ---------- */
+.toasts { position: fixed; right: 16px; bottom: 16px; z-index: 1800; display: grid; gap: 8px; width: min(380px, calc(100vw - 32px)); }
+.err, .note, .ok { padding: 10px 14px; border-radius: var(--radius); font-size: 14px; }
+.err { background: var(--danger-bg); border: 1px solid var(--danger-line); }
+.note { background: var(--info-bg); border: 1px solid var(--info-line); }
+.ok { background: var(--ok-bg); border: 1px solid var(--ok-line); }
+
+/* ---------- drawer (details panel) ---------- */
+.drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 1500; width: min(460px, 100vw); overflow-y: auto;
+    padding: 16px; background: var(--sunken); border-left: 1px solid #444; box-shadow: -12px 0 30px rgba(0, 0, 0, .55);
+    color: var(--text); transform: translateX(105%); transition: transform var(--base) ease-out;
+}
+.drawer.open { transform: none; }
+.drawer .close { position: absolute; top: 10px; right: 12px; padding: 0 6px; background: none; border: 0; color: #bbb; font-size: 26px; cursor: pointer; }
+
+/* ---------- dialog (use the native <dialog> element) ---------- */
+dialog.dlg {
+    width: min(520px, 92vw); margin: auto; padding: 20px;
+    background: #222; border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
+    color: var(--text); font: 15px/1.45 var(--font);
+}
+dialog.dlg::backdrop { background: rgba(0, 0, 0, .65); }
+dialog.dlg h2 { margin: 0 0 6px; font-size: 20px; }
+dialog.dlg .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+/* ---------- raw data tree (lazy <details>) ---------- */
+.tree { overflow-x: auto; font: 13px/1.55 var(--mono); }
+.tree details { padding-left: 22px; }
+.tree > details { padding-left: 0; }
+.tree summary { position: relative; margin-left: -22px; padding-left: 22px; border-radius: 4px; cursor: pointer; list-style: none; }
+.tree summary::-webkit-details-marker { display: none; }
+.tree summary::before {
+    content: ""; position: absolute; top: 50%; left: 3px; width: 12px; height: 12px; margin-top: -7px;
+    background: #1a1a1a; border: 1.5px solid #777; border-radius: 3px;
+}
+.tree details[open] > summary::before { background: var(--btn); border-color: var(--accent); }
+.tree summary:hover { background: #333; }
+.tree .tl { padding-left: 22px; white-space: nowrap; }
+.tree .k { color: #9cdcfe; }
+.tree .v.number { color: #b5cea8; }
+.tree .v.string { color: #ce9178; }
+.tree .ty { color: #777; }
+.tree mark { background: #6b5a00; color: inherit; }
+
+/* ---------- section heading outside cards ---------- */
+.sec-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 28px 0 12px; font-size: 20px; }
+.sec-h .n { color: var(--muted); font-size: 14px; font-weight: 400; }

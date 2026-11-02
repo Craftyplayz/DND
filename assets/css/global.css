@@ -1,0 +1,128 @@
+/* Crafty Playz - site-wide styles.
+   Design tokens, the header, the footer and the page wrapper. Nothing here styles bare
+   elements like button/input/table, so pages never have to undo it. Shared UI pieces
+   (buttons, cards, drawer...) are opt-in in components.css. */
+
+:root {
+    color-scheme: dark;
+    --bg: #202020;
+    --card: #2a2a2a;
+    --card2: #323232;
+    --sunken: #1b1b1b;
+    --line: #3d3d3d;
+    --line-strong: #555;
+    --text: #ececec;
+    --muted: #9b9b9b;
+    --accent: #66c0f4;
+    --accent-soft: #1d3a50;
+    --btn: #2a6e9e;
+    --btn-line: #4a9ad0;
+    --btn-hover: #327bb0;
+    --btn2: #3a3a3a;
+    --btn2-hover: #474747;
+    --link: #8cc8ff;
+    --highlight: #ffd84a;
+    --danger-bg: #4a2424;
+    --danger-line: #8a3a3a;
+    --info-bg: #24384a;
+    --info-line: #3a628a;
+    --ok-bg: #2d4a24;
+    --ok-line: #4f8a3a;
+    --gold-bg: #4a3d16;
+    --gold-line: #a8862a;
+    /* chart series, checked with the dataviz validator against --card */
+    --series-1: #3987e5;
+    --series-2: #c98500;
+    --series-3: #9085e9;
+    --lift: 0 12px 28px rgb(0 0 0 / .55);
+    --radius: 8px;
+    --radius-lg: 12px;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, Consolas, monospace;
+    --header-h: 56px;
+    --fast: .12s;
+    --base: .18s;
+}
+
+body {
+    margin: 0;
+    background-color: var(--bg);
+    font-family: var(--font);
+}
+
+/* ---------- header ---------- */
+.site-header {
+    position: relative; z-index: 100; display: block; flex: none; align-self: stretch;
+    width: 100%; height: auto; margin: 0; padding: 0;
+    background: #1c1c1c; border-bottom: 1px solid var(--line);
+    color: var(--text); font: 400 15px/1.4 var(--font); text-align: left;
+}
+.site-header *, .site-header *::before, .site-header *::after { box-sizing: border-box; }
+.sh-inner {
+    position: relative; display: flex; align-items: stretch; gap: 4px;
+    max-width: 1280px; height: var(--header-h); margin: 0 auto; padding: 0 16px;
+}
+.site-header .sh-logo { display: flex; align-items: center; flex: none; margin: 0 10px 0 0; padding: 0; }
+.site-header .sh-logo img {
+    display: block; width: 36px; height: 36px; border-radius: 50%; margin: 0;
+    transition: transform var(--fast) ease-out;
+}
+.site-header .sh-logo:hover img { transform: scale(1.06); scale: none; }
+
+.sh-nav { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.site-header .sh-list { display: flex; align-items: stretch; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.sh-item { display: flex; align-items: stretch; }
+.site-header .sh-top {
+    display: flex; align-items: center; height: 100%; margin: 0; padding: 0 10px;
+    border-bottom: 2px solid transparent; color: var(--text); font-size: 15px; font-weight: 500;
+    text-decoration: none; text-align: left; white-space: nowrap; transition: color var(--fast);
+}
+.site-header .sh-top:hover { color: #fff; text-decoration: none; }
+.site-header .sh-item.is-active .sh-top { color: #fff; border-bottom-color: var(--accent); }
+
+/* ---------- footer ---------- */
+.site-footer {
+    display: block; flex: none; align-self: stretch; box-sizing: border-box; width: 100%; margin: 32px 0 0; padding: 20px 16px 24px;
+    background: var(--sunken); border-top: 1px solid var(--line);
+    color: var(--muted); font: 400 14px/1.5 var(--font); text-align: center;
+}
+.site-footer .crumbs { margin: 0 0 10px; }
+.sf-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; margin: 0 0 8px; }
+.site-footer a { color: var(--text); text-decoration: none; transition: color var(--fast); }
+.site-footer a:hover { color: var(--accent); text-decoration: none; }
+.site-footer .sf-meta { margin: 0; font-size: 13px; }
+
+/* ---------- breadcrumbs ---------- */
+.crumbs { color: var(--muted); font-size: 13px; }
+.crumbs a { color: var(--muted); text-decoration: none; }
+.crumbs a:hover { color: var(--text); }
+.crumbs-sep { margin: 0 2px; opacity: .7; }
+
+/* ---------- pages: <main class="page"> ---------- */
+.page, .page *, .page *::before, .page *::after { box-sizing: border-box; }
+.page { flex: 1 0 auto; width: 100%; max-width: 1280px; margin: 0 auto; padding: 16px; color: var(--text); line-height: 1.5; }
+.page > .crumbs { margin-bottom: 14px; }
+.page-title { margin: 0 0 4px; font-size: clamp(24px, 4vw, 34px); line-height: 1.2; }
+.page-lede { margin: 0 0 20px; color: var(--muted); }
+.page a { color: var(--link); text-decoration: none; }
+.page a:hover { text-decoration: underline; }
+/* keep the footer at the bottom of short pages */
+body:has(> main.page) { display: flex; flex-direction: column; min-height: 100vh; margin: 0; }
+
+/* ---------- landing page cards (site_hub() in functions.php) ---------- */
+.hub { display: grid; gap: 24px; }
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.hub-card {
+    display: block; padding: 14px 16px; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius-lg); color: var(--text) !important; text-decoration: none !important;
+    transition: border-color var(--fast), background var(--fast);
+}
+.hub-card:hover { border-color: var(--accent); background: #2e2e2e; }
+.hub-card b { display: block; font-size: 15px; font-weight: 600; }
+.hub-card span { display: block; margin-top: 3px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+.site-header :focus-visible, .site-footer :focus-visible, .page :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
+}

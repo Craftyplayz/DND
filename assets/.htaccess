@@ -1,0 +1,14 @@
+# Files linked with ?v=<last modified> (see asset() in includes/functions.php) never change at
+# that URL, so browsers can keep them for a year. Older pages link some stylesheets and images
+# here without ?v=, so those get a short cache and still pick up edits.
+# (Inside FilesMatch so these win over the FilesMatch rules in the root .htaccess.)
+<IfModule mod_headers.c>
+    <FilesMatch ".+">
+        <If "%{QUERY_STRING} =~ /(^|&)v=/">
+            Header set Cache-Control "public, max-age=31536000, immutable"
+        </If>
+        <Else>
+            Header set Cache-Control "public, max-age=86400"
+        </Else>
+    </FilesMatch>
+</IfModule>
