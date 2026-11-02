@@ -82,9 +82,12 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
   `blank()` in both sheets, or it's thrown away on the next load (this is how the roll log used to vanish).
   Never rename or remove a field without an `upgrade()` step that carries the old value over.
 - A character's folder holds `character.json` (exactly what the sheet saves), `meta.json` (owner, visibility
-  private/public, created, campaigns), `history/<n>.json` (every saved version) and, once uploaded, the portrait
-  `art.<jpg|png|webp|gif>` (a replaced one moves to `history/art-<n>.<ext>`; the character keeps only `artUrl`). Deleting moves the folder to
-  `accounts/characters/.deleted/`; nothing is unlinked. The older `accounts/<sub>/<id>.json` files were copied into
+  private/public, created, campaigns, archived), `history/<n>.json` (every saved version; a save that changes only the
+  roll log or view settings makes none), `history/names.json` and `history/restored.json` (version names and restores,
+  so a version's file never changes) and, once uploaded, the portrait
+  `art.<jpg|png|webp|gif>` (a replaced one moves to `history/art-<n>.<ext>`; the character keeps only `artUrl`). Players
+  never delete characters, monsters or notes: they archive them (an `archived` time on the item, synced like any edit).
+  Folders deleted before that sit in `accounts/characters/.deleted/` for the admin only; nothing is unlinked. The older `accounts/<sub>/<id>.json` files were copied into
   folders once per account (`.copied` marks it) and stay where they are, no longer written.
 - Never change the localStorage keys, the character folder layout, or the compose volume
   names (a renamed volume is a new, empty one).

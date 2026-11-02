@@ -172,10 +172,10 @@ HTML],
   <a class="hub-card" href="/sheets/monster/"><b>Monster Sheet</b><span>Editable monster stat blocks for an encounter</span></a>
 </div>
 HTML],
-    'chcard' => ['Character card', 'One per character or monster in a list (My Characters). Art (64 px square, a plain box without art), the name, a muted "Level | Species | Class" line, then the actions in the footer: View and Delete, and Delete always asks first in a <code>dialog.dlg</code>. The cards sit in a grid of 300 px or wider columns.', <<<'HTML'
+    'chcard' => ['Character card', 'One per character or monster in a list (My Characters). Art (64 px square, a plain box without art), the name, a muted "Level | Species | Class" line, then the actions in the footer: View and Archive. Nothing a player made is ever deleted: Archive never asks first; it shows a 15-second Undo toast instead, and archived cards wait in a folded "Archived (N)" section under the grid with View and Unarchive. The cards sit in a grid of 300 px or wider columns.', <<<'HTML'
 <article class="ch-card">
   <a class="ch-top" href="#c-chcard"><span class="ch-noart" aria-hidden="true"></span><span class="ch-who"><b>Lock</b><small>Level 4 | Tabaxi | Barbarian</small></span></a>
-  <div class="ch-acts"><a class="btn small" href="#c-chcard">View</a><button type="button" class="btn small">Delete</button></div>
+  <div class="ch-acts"><a class="btn small" href="#c-chcard">View</a><button type="button" class="btn small">Archive</button></div>
 </article>
 HTML],
     'icons' => ['Icons', 'Only where they help people recognise something faster. The rules are under Icons below.', <<<'HTML'
@@ -400,7 +400,7 @@ PHP;
                     </div>
                 </div>
                 <p>Never set <code>font-family</code> or a body font size in a page stylesheet, and don't invent sizes like 15.5px or 18px.</p>
-                <p><b>Numbers and dates:</b> <code>UI.num(n)</code> for numbers, <code>UI.ago(ms)</code> for "3 days ago" with the exact date in <code>title=""</code>, IDs in <code>.mono</code>.</p>
+                <p><b>Numbers and dates:</b> <code>UI.num(n)</code> for numbers, <code>UI.ago(ms)</code> for "3 days ago" with the exact date and time from <code>UI.when(ms)</code> in <code>title=""</code>, IDs in <code>.mono</code>.</p>
             </section>
 
             <section class="card" id="layout">
@@ -502,6 +502,7 @@ PHP;
                     <li><b>Buttons start with a verb</b> and say what happens: "Copy link", "Roll initiative". Never "OK", "Submit" or "Click here". Link text says where it goes.</li>
                     <li><b>Full stops:</b> none on titles, headings, labels, buttons or <code>site_pages()</code> descriptions. Ledes, help text and messages are sentences and get one.</li>
                     <li><b>Numbers and dates:</b> digits with thousands commas (3,900 XP), a space before units (30 ft, 5 min, 62 lb), dates as day month year (20 Oct 2026).</li>
+                    <li><b>When something happened:</b> say it relatively ("15 minutes ago", <code>UI.ago</code>), with the full date and time on hover in a 12-hour clock ("20 Oct 2026, 2:05 pm", <code>UI.when</code>).</li>
                     <li><b>Talk to the reader as "you".</b> Contractions are fine (can't, don't). Messages say what happened and what to do, without blame or error codes.</li>
                 </ul>
             </section>

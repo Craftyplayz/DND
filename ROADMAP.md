@@ -105,7 +105,10 @@ newer, and 401 when signed out.
 - **Rests:** short rest (spend hit dice) and long rest dialogs.
 - **Art:** cropped to 480 px. Signed in, it's uploaded to the character's folder and the character keeps
   `artUrl` (0.4); signed out, it stays inline in the character.
-- **Undo:** a snapshot before deletes, offered for about a second in a toast.
+- **Undo:** a snapshot before deletes, offered in a toast for 15 seconds (the next edit after a second drops it).
+  Archiving and restoring a version have their own 15-second Undo (0.5).
+- **Versions and Archive (0.5):** every saved version in the Versions dialog (Edit menu), restore and name them;
+  characters, monsters and notes are archived, never deleted.
 - **Roll log:** the last 100 rolls per character, with a side log and a dice tray. Options can turn off rolls,
   the tray, sound and animation.
 - **Import/export:** JSON files. D&D Beyond import (public characters only, through `ddb.php` + `ddb.js`) is a
@@ -113,7 +116,8 @@ newer, and 401 when signed out.
 - **Saving:** localStorage (`hb-sheet`), the Google account (`cloud.php` + `includes/characters.php`, a folder
   per character in `accounts/characters/<id>/` with every saved version in `history/`, newest `updated` wins, no
   count limit, 8 MB per save), and server backups (`backup.php` → `backups/<ip>/<name>/`). Backups are
-  never pruned, and there's no restore button (only the admin backup browser). Planned: 0.5 version history.
+  never pruned, and there's no restore button (only the admin backup browser). Account versions can be restored from
+  the sheet (0.5).
 - **My Characters** (`/characters/`): a card list; each character opens at `/characters/<id>` with the same sheet code.
 - **Layout:** two columns from 960 px. There's no phone layout yet. It has ARIA labels, dialogs, Escape to close
   and reduced-motion support.
@@ -252,6 +256,22 @@ browser only; see CLAUDE.md and "Not planned")
 - Size: 3 days. Done: on a second browser, a character can be restored to a version from another device, the
   restore undone, a version named and found with "Named only", and a character archived, found under Archived
   and unarchived, signed in and signed out.
+- Built (2026-11-02), owner's answers on top of the design above: Versions sits in the sheet's Edit menu. Each row
+  says when relatively ("15 minutes ago", the full 12-hour date on hover; now the site-wide rule in /design), a named
+  version shows its name in bold (no star), the newest row says Current, a restore's row says "Restored from <date>",
+  the oldest "First saved version". One change = one line ("HP 23 → 18", "added Longsword to Inventory", "moved
+  Actions panel", long text as "edited note 'Backstory'" with the old and new text on a click). Not counted and not
+  listed: save stamps, open/closed state, the roll log, view settings, the sheet's one-time upgrades and the portrait
+  moving into the account. Restore keeps today's roll log, view settings and archived state, brings back the
+  version's portrait (the current one moves to history), sends unsent edits first, and is greyed out offline; its
+  Undo lasts 15 s and only a real edit drops it. Archive: no confirm, a 15 s Undo; archived characters are
+  read-only with Unarchive, out of the count, in a folded "Archived (N)" section on My Characters, off the campaign
+  page's list (with a line saying why) and detached from campaigns; a public one shows "Archived" to others. The old
+  DELETE endpoints (player and monster cloud.php) archive instead. Scope added by the owner: the Monster Sheet
+  archives monsters (folded "Archived (N)" at the bottom of the encounter list, read-only with Unarchive, an
+  `archived` field for 1.4's tracker), and notes on both sheets are archived (Archive button, folded "Archived (N)"
+  under the Notes panel, found by search, Restore). Checks: `dnd-sheet-versions.test.js`, `characters-cloud.test.php`,
+  `campaigns.test.php`, `versions-archive.mjs`, `characters-page.mjs`.
 
 ### Phase 1: Live table and campaigns (top priority: "no shared rolls" is the group's biggest annoyance)
 
