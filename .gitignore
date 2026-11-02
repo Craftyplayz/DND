@@ -21,3 +21,6 @@ private/dnd/accounts/*
 
 # the live relay's packages, installed in the image (Dockerfile) and by npm install in live/
 live/node_modules/
+
+# agent worktrees (git worktree add), never part of the site
+.claude/worktrees/
