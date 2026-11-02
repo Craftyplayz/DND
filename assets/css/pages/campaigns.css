@@ -1,0 +1,10 @@
+/* Campaigns (/campaigns/, a campaign page): the party's character cards (.ch-card is in components.css), the cards below and the join link. */
+.cp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; margin: 12px 0 28px; }
+.cp .ch-acts { align-items: center; }
+.cp .ch-acts .btn { flex: none; }
+.cp-owner { flex: 1; min-width: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.cp-cards { margin-top: 16px; }
+.cp-new { max-width: 560px; margin-bottom: 28px; }
+.cp-link { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.cp-link .field { flex: 1 1 240px; }
+.cp-cards .muted { font-size: 14px; }

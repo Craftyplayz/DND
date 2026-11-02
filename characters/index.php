@@ -1,10 +1,11 @@
 <?php
 // My Characters. /characters/ lists the characters in this browser and the account (list.js);
 // /characters/<id> (characters/.htaccess) opens one in the homebrew sheet, sheets/player/index.php.
-// Only the owner gets a character from the account; anyone else gets it read-only when it's public. A character that is
+// Only the owner gets a character from the account; anyone else gets it read-only when it's public, and so does the DM of
+// a campaign it's in (includes/campaigns.php). A character that is
 // only in a browser (signed out) has no folder, so the page opens and the sheet finds it in that browser.
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
-require_once SITE_ROOT . '/includes/characters.php';
+require_once SITE_ROOT . '/includes/campaigns.php';
 
 $id = $_GET['id'] ?? '';
 if ($id !== '') {
@@ -15,8 +16,9 @@ if ($id !== '') {
     $user = auth_user();
     $mine = $meta && $user && ($meta['owner'] ?? null) === $user['sub'];
     $public = $meta && ($meta['visibility'] ?? '') === 'public';
-    $hb = ['char' => $id, 'vis' => $meta['visibility'] ?? 'private', 'readonly' => $public && !$mine];
-    if ($mine || $public) $hb['inline'] = (string)file_get_contents("$accounts/characters/$id/character.json");
+    $dm = $meta && $user && !$mine && !$public && cp_dm_sees($accounts, $user['sub'], $id);
+    $hb = ['char' => $id, 'vis' => $meta['visibility'] ?? 'private', 'readonly' => ($public || $dm) && !$mine];
+    if ($mine || $public || $dm) $hb['inline'] = (string)file_get_contents("$accounts/characters/$id/character.json");
     $c = isset($hb['inline']) ? json_decode($hb['inline'], true) : null;
     $site_page = ['title' => ($c['name'] ?? '') !== '' ? $c['name'] : 'Character'];
     if (!$public) header('X-Robots-Tag: noindex');

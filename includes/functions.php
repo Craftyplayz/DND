@@ -24,7 +24,7 @@ function site_pages()
         '/' => ['D&D', 'Our D&D campaign tools', false],
         '/characters/' => ['My Characters', 'Your characters on a sheet you can change to fit any homebrew rules', true],
         '/sheets/monster/' => ['Monster Sheet', 'Editable monster stat blocks for an encounter, with HP tracking and clickable dice rolls', true],
-        '/campaigns/' => ['Campaigns', 'Our campaigns', true],
+        '/campaigns/' => ['Campaigns', 'Make a campaign, invite your players with a link and keep the party together', true],
         // still open by link, just not in the menu or on the landing page
         '/sheets/player/' => ['Homebrew Sheet', 'Every character in this browser on one page, with a character picker', false],
         '/dice/test/' => ['Dice Fairness Test', "Rolls the Homebrew Sheet's 3D dice over and over in four panels to check they are fair", false],

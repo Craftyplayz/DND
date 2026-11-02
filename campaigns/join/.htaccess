@@ -1,0 +1,5 @@
+# /campaigns/join/<code> opens the join page for that code (campaigns/join/index.php)
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([a-f0-9]+)/?$ index.php?code=$1 [L,QSA]

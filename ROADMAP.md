@@ -48,7 +48,7 @@ IDs are numeric (`auth_claims_ok` checks this), so named folders can't clash wit
 | `monsters/<sub>/<monster id>.json` | monster sheet monsters | in progress (uncommitted) |
 | `prefs/<sub>.json` | dice choice, Dice Sets page, roll mode | in progress (uncommitted) |
 | `art/<sub>/<character id>.webp` | character portraits | Phase 0 |
-| `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | Phase 1 |
+| `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` exists (1.1); the rest Phase 1 |
 | `homebrew/<sub>/<id>.json` | homebrew items, spells, monsters, classes, races... | Phase 4/5 |
 | `shares/<token>.json` | read-only share links | Phase 6 |
 
@@ -197,7 +197,13 @@ including tests and the dndtest check.
   Signing in is required to join; signed-out players use the sheet alone as today. The DM can rename the
   campaign, remove members, make a new join code (the old one stops working) and delete the campaign.
   Players can leave.
-- Campaign settings (DM): house rules. HP on level-up: roll or average. Ability scores: point buy / standard
+- Owner's answers (2026-11-02): joining is straight away, no DM approval. Only My Characters characters can be
+  attached (not the test sheet). Other players see a character card (portrait, name, level, species, class);
+  the DM can open every party sheet, read-only until 1.5 adds DM edits. The house-rule settings below wait for
+  the character builder (Phase 3), since nothing reads them before that.
+- Built: `includes/campaigns.php`, `campaigns/` (pages, `api.php`, `join/`), checks `_dev/scripts/campaigns.test.php`
+  and `campaigns-page.mjs`. Attaching writes nothing to the character: the campaign is the only record of the link.
+- Campaign settings (DM, later): house rules. HP on level-up: roll or average. Ability scores: point buy / standard
   array / 4d6 drop lowest / manual allowed. Spell points variant on or off. Which homebrew is shared. When a
   character isn't in any campaign, the player picks these themselves.
 - Pages: `/campaigns/` (my campaigns: DM of / player in), `/campaigns/?c=<id>` (campaign page: members,
