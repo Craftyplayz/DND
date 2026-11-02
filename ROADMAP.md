@@ -93,7 +93,7 @@ newer, and 401 when signed out.
   one-time copy.
 - **Saving:** localStorage (`hb-sheet`), the Google account (`cloud.php`, newest `updated` wins, currently 3 MB
   per character and 200 per account), and server backups (`backup.php` → `backups/<ip>/<name>/`). Backups are
-  never pruned, and there's no restore button (only the admin backup browser).
+  never pruned, and there's no restore button (only the admin backup browser). Planned: 0.5 version history.
 - **Layout:** two columns from 960 px. There's no phone layout yet. It has ARIA labels, dialogs, Escape to close
   and reduced-motion support.
 
@@ -187,6 +187,45 @@ including tests and the dndtest check.
   every backup with inline art still shows its portrait after load, signed in and signed out.
 - Size: 1.5 days. Done: a character with art syncs to a new browser with the portrait, localStorage use drops,
   and no portrait disappears in the data check.
+
+**0.5 Version history and Archive instead of Delete** (designed with the owner, 2026-11-02)
+- What: a **Versions** button in the sheet's top bar (on `/sheets/player/` and `/characters/<id>`) opens a
+  dialog listing every saved version of the open character, newest first, from the account history
+  (`accounts/characters/<id>/history/<n>.json`). Server IP backups are not shown.
+  - Each row: date and time, and how many fields changed since the version before ("7 changes"). Clicking the
+    row lists every change in words ("HP 23 → 18", "added Longsword").
+  - Every save is its own row. Rows load as you scroll (no paging buttons).
+  - A save that only changes the roll log or view settings (`rolls`, `view`) makes no new version.
+    Existing history files that differ from the one before only in those are hidden from the list (the files
+    stay).
+  - **Restore** on a row replaces the character with that version straight away. The current state is saved as
+    a new version first, so a restore can itself be undone from the list, and a 15-second Undo toast shows as
+    for the sheet's deletes. The restored character gets a fresh `updated`, so it wins on every device.
+  - **Name** on a row gives a version a name ("Before session 12"). Named versions show a star, and a
+    "Named only" filter lists them all. Names live beside the history (`history/names.json`), so a version's
+    file never changes.
+  - Only the owner sees the button and the list. Public viewers and campaign DMs don't.
+  - Signed out, the button still shows. The dialog says "Sign in to keep every version of your characters"
+    with the sign-in button.
+- **Archive replaces Delete everywhere.** The sheet bar and My Characters both say Archive; players have no way
+  to delete a character, ever.
+  - An archived character is hidden from the sheet's character picker and taken off any campaign it was in
+    (re-attach after unarchiving). Its `/characters/<id>` link still opens it, read-only, with an
+    **Unarchive** button. A public character's link keeps working for others.
+  - My Characters gets an **Archived** section at the bottom, with Unarchive on each card.
+  - Signed in, the flag is kept in `meta.json` (`archived`: time). Signed out, it's kept on the character in
+    the browser (a new `archived` field in `blank()`, 0 = not archived) and syncs like any other change once
+    they sign in. The folder never moves; the existing `.deleted/` folder is left for the admin only.
+- Touches: `sheets/player/sheet.js` (bar buttons, Versions dialog, picker filter, `blank()`), `sheets/player/cloud.php`
+  (list history, read a version, restore, name, archive), `includes/characters.php` (`ch_write` skips
+  roll/view-only saves), `characters/` (Archived section, read-only archived page), `includes/campaigns.php`
+  (detach on archive).
+- Data safety: a restore only adds a version, never removes one. Archiving never moves or deletes files.
+  `sheet-keeps-data.mjs` must pass, plus a new check: edit, restore an old version, undo the restore, and the
+  character deep-equals the state before; archive and unarchive leave the character unchanged.
+- Size: 3 days. Done: on a second browser, a character can be restored to a version from another device, the
+  restore undone, a version named and found with "Named only", and a character archived, found under Archived
+  and unarchived, signed in and signed out.
 
 ### Phase 1: Live table and campaigns (top priority: "no shared rolls" is the group's biggest annoyance)
 
@@ -558,7 +597,7 @@ because of CLAUDE.md rather than an open design question:
 
 | Phase | Features | Rough size |
 |---|---|---|
-| 0 Finish in-flight and storage | 4 | ~2.5 days |
+| 0 Finish in-flight and storage | 5 | ~5.5 days |
 | 1 Live table and campaigns | 8 | ~23.5 days |
 | 2 Phone and look | 3 | ~7 days |
 | 3 DM tools | 4 | ~8 days |
