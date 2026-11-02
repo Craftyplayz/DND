@@ -32,7 +32,7 @@ for (const name of ['chrome', 'firefox']) {
         errs('load');
         await until(`document.querySelector('#cp-count').textContent.includes('results')`, 'count');
         // all four lists in: spells, monsters, items, magic items and rules
-        await until(`+document.querySelector('#cp-count').textContent.replace(/\D/g, '') > 3400 && !document.querySelector('.err')`, 'lists loaded', 40000);
+        await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') > 3400 && !document.querySelector('.err')`, 'lists loaded', 40000);
         ok(`${name} total over 3000`, +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`)) > 3000);
         is(`${name} All is grouped, 5 each`, await js(`[...document.querySelectorAll('#cp-list .cp-gh')].map((h) => h.textContent.split(' ')[0] + ' ' + (h.nextElementSibling ? 1 : 0))`).then((a) => a.length), 5);
         ok(`${name} no group over 5`, await ev(`document.querySelectorAll('#cp-list .cp-row').length <= 25`));
@@ -60,7 +60,7 @@ for (const name of ['chrome', 'firefox']) {
         await ev(`(() => { const s = document.querySelector('[data-f=conc]'); s.value = 'yes'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await sleep(300);
         ok(`${name} concentration filter`, (await names()).includes('Fly') && !(await names()).includes('Fireball'), await names());
         await ev(`document.querySelector('#cp-filters [data-clear]').click()`); await sleep(300);
-        ok(`${name} cleared`, (await names()).includes('Fireball'));
+        ok(`${name} cleared`, (await names()).includes('Acid Arrow'));
         await tab('monster');
         ok(`${name} CR filter has 1/8`, await ev(`[...document.querySelectorAll('[data-f=crmin] option')].some((o) => o.textContent === '1/8')`));
         await tab('magic');
@@ -79,7 +79,7 @@ for (const name of ['chrome', 'firefox']) {
         ok(`${name} magic item rarity`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Uncommon')`));
         await open('/compendium/?t=monster&i=srd:goblin');
         await until(`document.querySelector('#cp-dbody .cp-abil')`, 'goblin detail');
-        ok(`${name} goblin stat block`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Nimble Escape') && document.querySelector('#cp-dbody .cp-credit')`));
+        ok(`${name} goblin stat block`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Nimble Escape') && !!document.querySelector('#cp-dbody .cp-credit')`));
         await open('/compendium/?t=item&i=eq:longsword');
         await until(`document.querySelector('#cp-dbody .kv')`, 'longsword');
         ok(`${name} equipment detail`, await ev(`document.querySelector('#cp-dbody').textContent.includes('1d8 slashing')`));
