@@ -6,7 +6,8 @@
 if (is_file(__DIR__ . '/config.php')) require_once __DIR__ . '/config.php';
 const AUTH_COOKIE = 'dndsid';
 const AUTH_DAYS = 30;
-const AUTH_SESSIONS = __DIR__ . '/../private/sessions';
+// DND_SESSIONS: a stand-in folder for the local checks in _dev/scripts/, so they never touch real sessions
+define('AUTH_SESSIONS', getenv('DND_SESSIONS') ?: __DIR__ . '/../private/sessions');
 
 function auth_enabled()
 {
