@@ -3,7 +3,7 @@
 //   private/dnd/backups/<ip>/<character name>/<ip>-<version>.json
 // private/ is behind basic auth, the folder is gitignored, and deploy.sh never touches untracked server files.
 // The Monster Sheet's backup.php sets its own folder and name, then includes this file.
-if (!defined('HB_BACKUPS')) define('HB_BACKUPS', __DIR__ . '/../../../../private/dnd/backups');
+if (!defined('HB_BACKUPS')) define('HB_BACKUPS', __DIR__ . '/../../private/dnd/backups');
 if (!defined('HB_UNNAMED')) define('HB_UNNAMED', 'Unnamed character');
 const HB_MAX = 3 * 1024 * 1024; // art is stored inline as a data URL, so a character can be a few hundred KB
 

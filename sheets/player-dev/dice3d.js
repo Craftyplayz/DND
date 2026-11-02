@@ -292,9 +292,9 @@ function buildCoin() {
 }
 
 // ---- model coins: "Fantasy Designed Coins - (Gold, Silver, Copper)" by Kigha, CC BY 4.0 (credited on the Dice Sets page) ----
-// /games/dnd/dice/coins/fantasy-coins.glb: six coins sharing one textured material; keys are the coins' names: gold-new, gold-old,
+// /dice/coins/fantasy-coins.glb: six coins sharing one textured material; keys are the coins' names: gold-new, gold-old,
 // silver-new, silver-old, copper-new, copper-old. Any other key, or a model that won't load, is the 50 cent coin.
-const COIN_GLB = '/games/dnd/dice/coins/fantasy-coins.glb';
+const COIN_GLB = '/dice/coins/fantasy-coins.glb';
 export const MODEL_COINS = ['gold-new', 'gold-old', 'silver-new', 'silver-old', 'copper-new', 'copper-old'];
 let glbP = null;
 // a small reader for this file: tightly packed float positions, normals and uvs, index list, JPEG textures in the binary chunk

@@ -1,4 +1,4 @@
-/* D&D character sheet (/games/dnd/characters/). Built on components.css; colours are global tokens only. */
+/* D&D character sheet (/characters/). Built on components.css; colours are global tokens only. */
 .dnd .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .dnd .small { font-size: 13px; }
 .dnd h3 { margin: 14px 0 6px; font-size: 14px; color: var(--muted); font-weight: 600; }

@@ -1,6 +1,6 @@
-// Checks games/dnd/sheets/player-dev/formula.js.   usage: node _dev/scripts/dnd-sheet-formula.test.js
+// Checks sheets/player-dev/formula.js.   usage: node _dev/scripts/dnd-sheet-formula.test.js
 const assert = require('assert');
-require('../../games/dnd/sheets/player-dev/formula.js');
+require('../../sheets/player-dev/formula.js');
 const calc = globalThis.hbCalc;
 const vars = { dex: 3, prof: 2, level: 5, perception: 4 };
 assert.strictEqual(calc('10 + DEX', vars).v, 13);

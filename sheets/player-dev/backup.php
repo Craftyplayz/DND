@@ -2,7 +2,7 @@
 // Server backups for the homebrew sheet: the sheet POSTs a whole character after each edit and it is kept as a new version in
 //   private/dnd/backups/<ip>/<character name>/<ip>-<version>.json
 // private/ is behind basic auth, the folder is gitignored, and deploy.sh never touches untracked server files.
-const HB_BACKUPS = __DIR__ . '/../../../../private/dnd/backups';
+const HB_BACKUPS = __DIR__ . '/../../private/dnd/backups';
 const HB_MAX = 3 * 1024 * 1024; // art is stored inline as a data URL, so a character can be a few hundred KB
 
 function hb_out($code, $data)

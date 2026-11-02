@@ -1,6 +1,6 @@
-# Builds games/dnd/sheets/player-dev/extra-spells.json: official non-SRD spells from dnd5e.wikidot.com, stats only (no spell text).
+# Builds sheets/player-dev/extra-spells.json: official non-SRD spells from dnd5e.wikidot.com, stats only (no spell text).
 # Usage: save https://dnd5e.wikidot.com/spells as <dir>/spells.html and https://www.dnd5eapi.co/api/2014/spells as <dir>/srd.json,
-#        then: py -I build_extra_spells.py <dir> games/dnd/sheets/player-dev/extra-spells.json
+#        then: py -I build_extra_spells.py <dir> sheets/player-dev/extra-spells.json
 import html, json, re, sys, time, urllib.request
 wd, out = sys.argv[1], sys.argv[2]
 page = open(wd + '/spells.html', encoding='utf-8').read()

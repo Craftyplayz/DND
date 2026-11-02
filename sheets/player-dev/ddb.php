@@ -1,6 +1,6 @@
 <?php
 // D&D Beyond import for the homebrew sheet test copy: ddb.php?id=<character id or link> -> { character, rules }.
-// Same unofficial endpoints and caching as /games/dnd/characters/ (copied from there, not shared, so that page stays untouched):
+// Same unofficial endpoints and caching as /characters/ (copied from there, not shared, so that page stays untouched):
 // they only return public characters, need no key, and rate-limit heavy use, so every answer is cached.
 const DDB_CACHE_TTL = 600;    // characters: 10 minutes
 const DDB_RULES_TTL = 86400;  // rule data barely changes
@@ -30,7 +30,7 @@ function ddb_get($url, $file, $ttl, $trim = null)
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 12,
         CURLOPT_ENCODING => '',
-        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; CraftyPlayz homebrew sheet; +https://craftyplayz.com/games/dnd/sheets/player-dev/)',
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; CraftyPlayz homebrew sheet; +https://dnd.craftyplayz.com/sheets/player-dev/)',
     ]);
     $body = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);

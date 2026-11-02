@@ -1,5 +1,5 @@
 <?php
-// Browse the homebrew sheet's server backups (written by games/dnd/sheets/player*/backup.php) and download any version to restore it.
+// Browse the homebrew sheet's server backups (written by sheets/player*/backup.php) and download any version to restore it.
 // backups/<ip>/<character name>/<ip>-<version>.json; the folder is gitignored and only exists on the server.
 // private/dnd/monsters/ sets $bk (folder, link, wording) and includes this page for the Monster Sheet's backups.
 $bk = ($bk ?? []) + ['dir' => __DIR__ . '/backups', 'url' => '/private/dnd/', 'title' => 'D&D Sheet Backups', 'crumb' => 'D&D sheet backups',

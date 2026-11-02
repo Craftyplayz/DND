@@ -1,4 +1,4 @@
-// Homebrew character sheet (/games/dnd/sheets/player/). Characters live in this browser's localStorage; export/import moves them.
+// Homebrew character sheet (/sheets/player/). Characters live in this browser's localStorage; export/import moves them.
 // Every input carries data-k="path.in.character"; typing updates the character, saves, and refreshes the [data-c] numbers.
 // Clicks that change structure (add/remove rows, conditions, tabs) redraw the sheet.
 document.addEventListener('DOMContentLoaded', () => {
@@ -1555,7 +1555,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <h3>Dice</h3>
             <label class="check">${f('view.noRoll', 'Turn off click to roll', { check: true })} Roll your own dice: don't roll when an ability, save, skill or tool bonus is clicked</label>
             <label class="check">${f('view.noTray', 'Hide the dice button', { check: true })} Hide the dice button in the bottom-left corner</label>
-            <p class="hb-dicelink"><a class="btn" href="/games/dnd/dice/">Customise dice</a> <span class="muted">Pick the dice, their sounds, trails and nat 1 and nat 20 effects on the Dice Sets page; they apply here straight away.</span></p>
+            <p class="hb-dicelink"><a class="btn" href="/dice/">Customise dice</a> <span class="muted">Pick the dice, their sounds, trails and nat 1 and nat 20 effects on the Dice Sets page; they apply here straight away.</span></p>
             <label class="check">${f('view.noSound', 'Turn off dice sounds', { check: true })} No sound when the dice land</label>
             <label class="check">${f('view.noAnim', 'Turn off thrown dice', { check: true })} Show results straight away instead of throwing 3D dice across the page</label>
             <h3>Panels</h3>
@@ -1589,10 +1589,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const dlgHTML = () => (dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : dlgMode.kind === 'ddb' ? ddbDlg() : formulaDlg(dlgMode));
     // ---- dice: a card for each roll and the dice tray in the bottom-left corner ----
     const DICE = [4, 6, 8, 10, 12, 20, 100], tray = { open: false, pool: {} };
-    // the dice chosen on the Dice Sets page (/games/dnd/dice/, choice.js), read at every roll so a change there applies here straight away;
+    // the dice chosen on the Dice Sets page (/dice/, choice.js), read at every roll so a change there applies here straight away;
     // with no choice yet, the style this sheet had picked before (C.view.diceStyle). Plain purple if any of it fails to load.
     let choiceP = null;
-    const chosenStyle = (m) => (choiceP ||= import(`/games/dnd/dice/choice.js${(($('script[src*="/sheet.js"]')?.src || '').match(/\?v=\d+/) || [''])[0]}`)
+    const chosenStyle = (m) => (choiceP ||= import(`/dice/choice.js${(($('script[src*="/sheet.js"]')?.src || '').match(/\?v=\d+/) || [''])[0]}`)
         .catch((e) => { choiceP = null; throw e; }))
         .then((c) => { const k = C.view.diceStyle || 'purple';
             return c.styleFrom(c.readChoice() || { set: m.STYLES[k] ? { key: k, builtin: true } : { key: k, url: `./sets/${k}.js` } }, m); })

@@ -1,6 +1,6 @@
 // D&D Beyond -> homebrew sheet. hbFromDdb(character, rules) returns plain data that sheet.js places into a new character.
 // The derived numbers (scores, AC, HP, saves, skills, speeds, senses, defences, proficiencies, attacks, spell DCs and slots)
-// are worked out the same way /games/dnd/characters/dnd.js does; that code is copied here so the live page stays untouched.
+// are worked out the same way /characters/dnd.js does; that code is copied here so the live page stays untouched.
 (function (g) {
     'use strict';
     const arr = (v) => (Array.isArray(v) ? v : v ? [v] : []);

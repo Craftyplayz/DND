@@ -1,4 +1,4 @@
-/* Monster Sheet (/games/dnd/sheets/monster/). Loaded after games-dnd-sheet.css: the sheet itself is the player sheet's; this adds the encounter list and the monster import. */
+/* Monster Sheet (/sheets/monster/). Loaded after games-dnd-sheet.css: the sheet itself is the player sheet's; this adds the encounter list and the monster import. */
 
 /* encounter list on the left of the sheet; on phones the bar's dropdown picks the monster instead */
 .mon-wrap { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 16px; align-items: start; }

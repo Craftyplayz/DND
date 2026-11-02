@@ -28,7 +28,7 @@ if ($s) {
             <h1 class="page-title"><?= h($s['name']) ?></h1>
             <p class="page-lede">
                 <?= $s['ts'] ? h(date('j M Y', $s['ts'])) . ' · ' : '' ?><?= $s['duration'] ? h(tx_duration($s['duration'])) . ' · ' : '' ?><?= h(implode(', ', $speakers)) ?>.
-                <a href="/games/dnd/transcripts/">All sessions</a>
+                <a href="/transcripts/">All sessions</a>
             </p>
 
             <?php if (!$s['audio']): ?><p class="note">This session has no recording.</p><?php endif; ?>

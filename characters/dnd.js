@@ -426,7 +426,7 @@
                 ${xpBar}
             </div>
             <div class="hero-side">
-                <a class="btn small" href="/games/dnd/characters/">All characters</a>
+                <a class="btn small" href="/characters/">All characters</a>
                 <a class="btn small" href="${esc(C.readonlyUrl || DDB + '/characters/' + C.id)}" target="_blank" rel="noopener noreferrer">Open on D&amp;D Beyond</a>
                 <button class="btn small" type="button" data-act="share">Copy link</button>
                 <small class="muted">${updated ? `Edited <span title="${esc(new Date(updated).toLocaleString())}">${esc(ago(updated))}</span> · ` : ''}by ${esc(C.username || '?')}<br>Fetched <span title="${esc(new Date(P.fetched * 1000).toLocaleString())}">${esc(ago(P.fetched * 1000))}</span>${P.stale ? ' (D&amp;D Beyond didn\'t answer, showing the last copy)' : ''}</small>

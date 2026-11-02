@@ -1,4 +1,4 @@
-/* D&D session transcripts (/games/dnd/transcripts/): audio player + clickable transcript lines. */
+/* D&D session transcripts (/transcripts/): audio player + clickable transcript lines. */
 .tx-bar { margin-bottom: 6px; }
 .tx-bar audio { width: 100%; height: 40px; }
 .tx-q { flex: 1 1 200px; min-width: 0; }

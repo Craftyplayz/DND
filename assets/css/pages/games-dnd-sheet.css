@@ -1,4 +1,4 @@
-/* Homebrew character sheet (/games/dnd/sheets/player/). Built on components.css; colours are global tokens only. */
+/* Homebrew character sheet (/sheets/player/). Built on components.css; colours are global tokens only. */
 /* owner asked for a purple theme on this page (2026-10-28), so the accent tokens are overridden here */
 :root {
     --accent: #b48cff;

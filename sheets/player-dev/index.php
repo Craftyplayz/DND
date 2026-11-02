@@ -1,5 +1,5 @@
 <?php
-// Test copy of /games/dnd/sheets/player/ for trying changes before they go live. Not in site.json, not indexed.
+// Test copy of /sheets/player/ for trying changes before they go live. Not in site_pages(), not indexed.
 $site_page = ['title' => 'Homebrew Sheet (test copy)', 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet-dev.css']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 ?>
@@ -33,10 +33,10 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
         <input type="file" id="hb-artfile" accept="image/*" hidden>
     </main>
 
-    <script src="<?= h(asset('/games/dnd/sheets/player-dev/formula.js')) ?>" defer></script>
-    <script src="<?= h(asset('/games/dnd/sheets/player-dev/ddb.js')) ?>" defer></script>
-    <script src="<?= h(asset('/games/dnd/sheets/player-dev/rules.js')) ?>" defer></script>
-    <script src="<?= h(asset('/games/dnd/sheets/player-dev/sheet.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player-dev/formula.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player-dev/ddb.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player-dev/rules.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player-dev/sheet.js')) ?>" defer></script>
 </body>
 
 </html>

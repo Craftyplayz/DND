@@ -1,11 +1,11 @@
-// Builds games/dnd/sheets/monster/monsters.json, the Monster Sheet's search list: SRD 5.1 monsters from dnd5eapi.co
+// Builds sheets/monster/monsters.json, the Monster Sheet's search list: SRD 5.1 monsters from dnd5eapi.co
 // plus the open-licence books on Open5e (OGL, CC-BY, ORC), with duplicates removed (the SRD copy wins).
 // The page fetches each full stat block through monsters.php when it's picked.   usage: node _dev/scripts/build-monsters.js
 const fs = require('fs');
 const path = require('path');
 
-const OUT = path.join(__dirname, '../../games/dnd/sheets/monster/monsters.json');
-const OGL = path.join(__dirname, '../../games/dnd/sheets/monster/ogl.txt');
+const OUT = path.join(__dirname, '../../sheets/monster/monsters.json');
+const OGL = path.join(__dirname, '../../sheets/monster/ogl.txt');
 const OPEN = /open gaming|creative commons|orc licen/i;
 
 // "Red Dragon, Adult" and "Adult Red Dragon" are the same name

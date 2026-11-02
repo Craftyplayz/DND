@@ -24,7 +24,7 @@ function dnd_get($url, $file, $ttl, $trim = null)
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 10,
         CURLOPT_ENCODING => '',
-        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; CraftyPlayz character viewer; +https://craftyplayz.com/games/dnd/characters/)',
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; CraftyPlayz character viewer; +https://dnd.craftyplayz.com/characters/)',
     ]);
     $body = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -71,7 +71,7 @@ function dnd_trim_rules($r)
     return $out;
 }
 
-// characters offered in the picker: games/dnd/characters/characters.json (D&D Beyond won't list a user's characters without a login)
+// characters offered in the picker: characters/characters.json (D&D Beyond won't list a user's characters without a login)
 $list = json_decode((string)@file_get_contents(__DIR__ . '/characters.json'), true);
 $list = array_values(array_filter(array_map('strval', is_array($list) ? $list : []), 'ctype_digit'));
 
@@ -115,7 +115,7 @@ function dnd_chooser($picker)
             . ($av ? '<img class="dnd-av" src="' . h($av) . '" width="300" height="300" alt="" loading="lazy" referrerpolicy="no-referrer">' : '<span class="dnd-av">' . h(mb_substr($p['name'], 0, 1)) . '</span>')
             . '<b>' . h($p['name']) . '</b><small>' . h($p['summary']) . '</small></a>';
     }
-    echo '<form class="dnd-card dnd-other" method="get" action="/games/dnd/characters/"><label for="dnd-other"><b>Another character</b><small>Any public D&amp;D Beyond character</small></label>'
+    echo '<form class="dnd-card dnd-other" method="get" action="/characters/"><label for="dnd-other"><b>Another character</b><small>Any public D&amp;D Beyond character</small></label>'
         . '<input id="dnd-other" class="field" name="id" placeholder="Link or ID" required autocomplete="off"><button class="btn" type="submit">Open</button></form>';
     echo '</div>';
 }
@@ -126,7 +126,7 @@ function dnd_chooser($picker)
 <head>
     <?php page_head(); ?>
     <link rel="preconnect" href="https://www.dndbeyond.com">
-    <?php if ($d): ?><script src="<?= h(asset('/games/dnd/characters/dnd.js')) ?>" defer></script><?php endif; ?>
+    <?php if ($d): ?><script src="<?= h(asset('/characters/dnd.js')) ?>" defer></script><?php endif; ?>
 </head>
 
 <body>
@@ -139,7 +139,7 @@ function dnd_chooser($picker)
             <p class="page-lede">Pick a character to open their sheet.</p>
             <?php dnd_chooser($picker); ?>
         <?php else: ?>
-            <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="crumbs-sep">›</span> <a href="/games/">Games</a> <span class="crumbs-sep">›</span> <a href="/games/dnd/">D&amp;D</a> <span class="crumbs-sep">›</span> <a href="/games/dnd/characters/">D&amp;D Characters</a> <span class="crumbs-sep">›</span> <span aria-current="page"><?= h($d ? ($d['name'] ?? 'Unnamed') : $id) ?></span></nav>
+            <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> <span class="crumbs-sep">›</span> <a href="/characters/">D&amp;D Characters</a> <span class="crumbs-sep">›</span> <span aria-current="page"><?= h($d ? ($d['name'] ?? 'Unnamed') : $id) ?></span></nav>
             <?php if (!$d): ?>
                 <h1 class="page-title">D&amp;D Character</h1>
                 <?php if ($char['status'] === 403): ?>

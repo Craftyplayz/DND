@@ -1,4 +1,4 @@
-/* Dice fairness test (/games/dnd/dice/test/): eight roller panels and a chart of every result */
+/* Dice fairness test (/dice/test/): eight roller panels and a chart of every result */
 .dt [hidden] { display: none !important; }
 .dt-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
 .dt-bar label { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }

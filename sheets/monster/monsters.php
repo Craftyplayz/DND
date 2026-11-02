@@ -28,7 +28,7 @@ function mon_get($url, $trim)
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 10,
         CURLOPT_ENCODING => '',
-        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; CraftyPlayz monster sheet; +https://craftyplayz.com/games/dnd/sheets/monster/)',
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; CraftyPlayz monster sheet; +https://dnd.craftyplayz.com/sheets/monster/)',
     ]);
     $body = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);

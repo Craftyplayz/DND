@@ -1,4 +1,4 @@
-/* Dice Sets (/games/dnd/dice/): a roll bar, a grid of dice sets and a list of sounds by kind */
+/* Dice Sets (/dice/): a roll bar, a grid of dice sets and a list of sounds by kind */
 .dd [hidden] { display: none !important; }
 .dd-bar { gap: 8px 12px; }
 .dd-land { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
