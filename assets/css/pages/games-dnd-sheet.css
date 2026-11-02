@@ -1,14 +1,14 @@
 /* Homebrew character sheet (/sheets/player/). Built on components.css; colours are global tokens only. */
 /* owner asked for a purple theme on this page (2026-10-28), so the accent tokens are overridden here */
 :root {
-    --accent: #b48cff;
-    --accent-soft: #35274f;
-    --btn: #6b3fb3;
-    --btn-line: #9a72e0;
-    --btn-hover: #7a4cc6;
-    --link: #c9adff;
-    --info-bg: #33264a;
-    --info-line: #634296;
+    --accent: var(--sheet-accent);
+    --accent-soft: var(--sheet-accent-soft);
+    --btn: var(--sheet-btn);
+    --btn-line: var(--sheet-btn-line);
+    --btn-hover: var(--sheet-btn-hover);
+    --link: var(--sheet-link);
+    --info-bg: var(--sheet-info-bg);
+    --info-line: var(--sheet-info-line);
 }
 .hb [hidden] { display: none !important; }
 .hb .field { min-width: 0; width: 100%; }

@@ -30,6 +30,24 @@
     --ok-line: #4f8a3a;
     --gold-bg: #4a3d16;
     --gold-line: #a8862a;
+    --purple-bg: #3d2a4f;
+    --purple-line: #6c4b8f;
+    --text-hi: #fff;
+    --on-btn: #fff;
+    --mark-bg: #6b5a00;
+    /* syntax colours of the raw data tree */
+    --code-key: #9cdcfe;
+    --code-number: #b5cea8;
+    --code-string: #ce9178;
+    /* the character and monster sheets are purple (owner, 2026-10-28); games-dnd-sheet.css points the main tokens at these */
+    --sheet-accent: #b48cff;
+    --sheet-accent-soft: #35274f;
+    --sheet-btn: #6b3fb3;
+    --sheet-btn-line: #9a72e0;
+    --sheet-btn-hover: #7a4cc6;
+    --sheet-link: #c9adff;
+    --sheet-info-bg: #33264a;
+    --sheet-info-line: #634296;
     /* chart series, checked with the dataviz validator against --card */
     --series-1: #3987e5;
     --series-2: #c98500;
@@ -54,7 +72,7 @@ body {
 .site-header {
     position: relative; z-index: 100; display: block; flex: none; align-self: stretch;
     width: 100%; height: auto; margin: 0; padding: 0;
-    background: #1c1c1c; border-bottom: 1px solid var(--line);
+    background: var(--sunken); border-bottom: 1px solid var(--line);
     color: var(--text); font: 400 15px/1.4 var(--font); text-align: left;
 }
 .site-header *, .site-header *::before, .site-header *::after { box-sizing: border-box; }
@@ -77,8 +95,8 @@ body {
     border-bottom: 2px solid transparent; color: var(--text); font-size: 15px; font-weight: 500;
     text-decoration: none; text-align: left; white-space: nowrap; transition: color var(--fast);
 }
-.site-header .sh-top:hover { color: #fff; text-decoration: none; }
-.site-header .sh-item.is-active .sh-top { color: #fff; border-bottom-color: var(--accent); }
+.site-header .sh-top:hover { color: var(--text-hi); text-decoration: none; }
+.site-header .sh-item.is-active .sh-top { color: var(--text-hi); border-bottom-color: var(--accent); }
 
 /* ---------- sign-in (auth_button() in auth.php): in the header and on the sheets' top bar ---------- */
 .auth { display: flex; flex: none; align-self: center; align-items: center; gap: 8px; min-height: 32px; margin: 0 0 0 auto; color: var(--muted); font: 400 13px/1.2 var(--font); }
@@ -124,7 +142,7 @@ body:has(> main.page) { display: flex; flex-direction: column; min-height: 100vh
     border-radius: var(--radius-lg); color: var(--text) !important; text-decoration: none !important;
     transition: border-color var(--fast), background var(--fast);
 }
-.hub-card:hover { border-color: var(--accent); background: #2e2e2e; }
+.hub-card:hover { border-color: var(--accent); background: var(--card2); }
 .hub-card b { display: block; font-size: 15px; font-weight: 600; }
 .hub-card span { display: block; margin-top: 3px; color: var(--muted); font-size: 13px; line-height: 1.4; }
 
