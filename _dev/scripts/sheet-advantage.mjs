@@ -1,4 +1,4 @@
-// Right-click (or press and hold on a touch screen) a d20 roll on the test sheet: a menu offers Advantage roll and Disadvantage roll,
+// Right-click (or press and hold on a touch screen) a d20 roll on the player sheet: a menu offers Advantage roll and Disadvantage roll,
 // which throw two d20s and keep the higher or lower. A plain click still rolls one d20. Headless Chrome and Firefox.
 // Ends with "sheet advantage ok".
 //   node _dev/scripts/sheet-advantage.mjs [base URL, default http://localhost:8110]
@@ -17,7 +17,7 @@ for (const name of ['chrome', 'firefox']) {
     const b = await launch(name);
     try {
         await b.block(/backup\.php|cloud\.php|prefs\.php/);
-        await b.go(BASE + '/sheets/player-dev/'); await sleep(1500);
+        await b.go(BASE + '/sheets/player/'); await sleep(1500);
         // results straight away: headless Chrome stalls on the thrown 3D dice (the live sheet too)
         await b.ev(`document.querySelector('[data-act="custom"]').click()`); await sleep(300);
         await b.ev(`document.querySelector('[data-k="view.noAnim"]').click()`);
@@ -39,7 +39,7 @@ for (const name of ['chrome', 'firefox']) {
             if (!c.title.endsWith('with ' + label) || !c.expr.startsWith('2d20 keep') || c.total !== want || d1 < 1 || d1 > 20 || d2 < 1 || d2 > 20)
                 fail(name, `${label} card is wrong: ${JSON.stringify(c)}`);
             else console.log(`${name}: ${label} ${c.shown} = ${c.total}`);
-            const log = await b.ev(`JSON.parse(localStorage.getItem('hb-sheet-dev')).chars[JSON.parse(localStorage.getItem('hb-sheet-dev')).cur].rolls[0].title`);
+            const log = await b.ev(`JSON.parse(localStorage.getItem('hb-sheet')).chars[JSON.parse(localStorage.getItem('hb-sheet')).cur].rolls[0].title`);
             if (!String(log).endsWith('with ' + label)) fail(name, `roll log has "${log}"`);
         }
 

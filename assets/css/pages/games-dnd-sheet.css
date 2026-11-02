@@ -48,7 +48,7 @@
 }
 
 /* classes on the left, conditions, speed and defences filling the rest of the row */
-.hb-id { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 24px; }
+.hb-id { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
 .hb-id .hb-classes { flex: 0 0 auto; max-width: 100%; }
 .hb-id .hb-more { flex: 1 1 260px; min-height: 38px; }
 .hb-id .hb-more-body { flex: 1 1 100%; }
@@ -100,7 +100,7 @@
 .hb-insp { cursor: pointer; }
 .hb-insp input { width: 28px; height: 28px; margin: 0; accent-color: var(--accent); }
 
-.hb-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 14px; }
+.hb-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 14px; }
 .hb-condsum { color: var(--highlight); }
 .hb-more-body .badges { margin-top: 0; }
 .hb button.badge { color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
@@ -168,16 +168,18 @@
 
 /* dialogs */
 dialog.hb-dlg { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); }
+/* Customise keeps one size whichever tab is open; longer tabs scroll inside it */
+dialog.hb-dlg.hb-custdlg { height: min(720px, calc(100dvh - 32px)); overflow-y: auto; }
 .hb-dlg h3:first-of-type { margin-top: 12px; }
 .hb-dlg .hb-err { color: var(--danger-line); }
 .hb-addpanel select.field { width: auto; }
 
 /* classes (multiclass rows) */
 .hb-classes { display: grid; gap: 8px; }
-.hb-cls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.hb-cls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; }
 .hb-cls > label:first-child { flex: 0 1 200px; }
 .hb-cls .hb-lvl { flex: 0 0 72px; }
-.hb-cls .hb-die { flex: 0 0 84px; }
+.hb-cls .hb-hitdie { flex: 0 0 84px; }
 .hb-cls label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 13px; }
 .hb-cls-more { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; }
 /* class, level, hit die and Add a class on one line where there is room */
@@ -402,7 +404,7 @@ dialog.hb-dlg { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh -
 .hb-rollbtn { display: inline-block; padding: 0 6px; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--text); font: inherit; font-weight: 600; line-height: 1.6; cursor: pointer; transition: border-color var(--fast), background var(--fast); }
 .hb-rollbtn:hover { border-color: var(--accent); background: var(--accent-soft); }
 /* the latest roll shows in the top-right corner, under the sticky sheet bar and clear of the toasts at the bottom */
-#hb-rolls { position: fixed; top: 76px; right: 16px; z-index: 1750; }
+#hb-rolls { position: fixed; top: 76px; right: 16px; z-index: 1750; display: grid; gap: 8px; max-height: calc(100dvh - 92px); overflow: hidden; }
 /* scroll style of hit points: both words sit in one cell, so the button keeps the width of the longer one */
 .hb-hpgo { display: inline-grid; border-color: var(--danger-line); }
 .hb-hpgo > span { grid-area: 1 / 1; }
@@ -426,3 +428,17 @@ dialog.hb-dlg { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh -
 /* the page title is for screen readers only */
 .hb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
+/* the page title is for screen readers only */
+.hb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* right-click (or press and hold) menu on a d20 roll */
+.hb-advmenu { position: fixed; z-index: 1760; display: grid; min-width: 180px; padding: 4px; background: var(--sunken); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: var(--lift); animation: hb-advin 140ms ease-out; }
+.hb-advmenu[hidden] { display: none; }
+.hb-advmenu button { padding: 8px 12px; background: none; border: 0; border-radius: var(--radius); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.hb-advmenu button:hover, .hb-advmenu button:focus-visible { background: var(--card2); }
+.hb-d20, .hb-roll, .hb-rollbtn[data-d20] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+@keyframes hb-advin { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .hb-advmenu { animation: none; } }
+/* Customise: title and Close on one line, then the tabs */
+.hb-custhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hb-custhead h2 { margin: 0; }
+.hb-ctabs { margin-top: 12px; }
