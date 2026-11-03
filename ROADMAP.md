@@ -394,7 +394,7 @@ browser only; see CLAUDE.md and "Not planned")
   campaign page as portraits (no numbers, no player health, monsters as Healthy / Bloodied / Down) with the round
   and timer; the DM also sees numbers, player HP (read-only), monster HP and AC, and can change monster HP there.
   When the VTT is built, the order and turns ("You're up next", "Your turn") move there and the DM's controls move
-  from the Monster Sheet to the DM's VTT screen. While the DM is offline the controls say "Offline, changes paused"; a change from an older copy of the
+  from the Monster Sheet to the DM's VTT screen (done in 1.6: the map page). While the DM is offline the controls say "Offline, changes paused"; a change from an older copy of the
   fight is refused with "This fight changed, reloaded".
 - Monster HP from anywhere: once changed through `sheets/monster/cloud.php?hp=`, a monster's HP only changes as
   single changes (damage and healing as amounts, typed numbers as the numbers that changed), applied in order by
@@ -490,6 +490,49 @@ section stays cards + View. The plan as first written is kept below the "Built" 
   (players now see the room). A player on a phone moves their own token but can't move another. A hidden goblin
   is visible to the DM only. Checking every response in the player's and Table view's network traffic shows no
   original map URL and no hidden token.
+- Built (2026-11-03), owner's answers (they replace the text above where different; maps aren't linked to 3.1 encounters):
+  - Where: a full-screen page per campaign, `/campaigns/<id>/map` (`campaigns/map.php`), for the DM, co-DMs and players.
+    The DM's fight controls (Start, Start round 1, Next / Previous, End, add monsters, HP, hide) moved there from the
+    Monster Sheet, whose Fight panel now only links to the map; its list's "Add to fight" buttons still work, and the map
+    page adds the DM's account monsters itself (initiative bonus and AC worked out with `formula.js` as the sheet does).
+    Players open the map from a Map button in the sheet's top bar (its own tab) and from the Map section under the fight
+    on the campaign page; their map shows the turn order with "Your turn" / "You're up next".
+  - Maps: a plain named list per campaign, `accounts/campaigns/<id>/maps/<map id>/` (`original.<ext>` as uploaded,
+    `work.webp` and `thumb.webp`, `public-<n>.webp` for every send, all kept, and `map.json` with grid, draft fog, sent fog
+    and tokens); `maps/table.json` names the one map "On the table", which players follow live, fight or not. The DM's list
+    is a thumbnail grid (the one on the table in blue) with Put on the table, Rename and Archive; archived maps fold under
+    "Archived (N)" with Unarchive. Nothing is deleted, copied to other campaigns or replaced (a new picture is a new map).
+  - Upload: DM and co-DMs, JPG / PNG / WebP / GIF (a GIF's first frame), anything else refused with a message, 4 MB
+    chunks, no size limit. Masked copies come from a working copy (longest side 4096 px); PHP's memory is raised only for
+    the decode and render. Pictures go through `campaigns/maps.php`, which checks membership; the original and the
+    working copy only to the DM and co-DMs, players only the map on the table as last sent. GD with JPEG and WebP is in
+    the Dockerfile.
+  - Grid: drag a box over one printed square (size and offset from it), arrow keys nudge, a size field; square cells,
+    5 ft, partial edge squares count. Changing it asks first ("Changing the grid resets the fog"): the draft starts over
+    fully fogged and players keep the last send. Faint grid lines with a per-viewer toggle.
+  - Fog: [Brush | Rectangle] and [Reveal | Hide], Undo (Ctrl+Z) for this session's strokes, Reset draft to last sent,
+    Reveal all, Hide all. The draft autosaves a second after each stroke and is private until "Send to table". The DM
+    sees fog dark but see-through, changed squares outlined, and "What players see" (the players' copy). A map on the
+    table never sent shows players a black rectangle with the party on it. The server paints fogged squares solid black;
+    the browser only adds a soft edge.
+  - Tokens: party characters always have one (Medium); fight monsters and plain entries get one when they join
+    (monsters sized from their creature type text, Tiny to Gargantuan, changeable); the DM can also put any of their
+    monsters on the map without a fight. New ones wait in a "Not placed" tray (drag on, or click for mid-view). When a
+    fight ends, monster and plain tokens go back to the tray keeping their positions; one taken out of the fight leaves
+    the map. Down: grey with a cross; Bloodied: a red edge; a ring on whoever's turn it is; name on hover or tap.
+    Players move their own token, the DM any; snapped to whole squares (Alt places freely with a mouse). Moves go out
+    live while dragging (a few a second, through PHP and the relay), last drop wins. Players never get hidden monsters
+    (the initiative `hidden` flag, or the token's own for monsters outside a fight) or monsters standing only on
+    squares fogged in the sent fog; party tokens always show.
+  - Ruler: the Ruler button or R, then drag; right click (phones: a second finger) adds a corner; square centre to
+    centre, every square 5 ft, the label totals every leg; everyone in the campaign sees it live.
+  - View: wheel / pinch zoom, pan by dragging empty map (or two fingers), Fit, Centre on me; nothing about the view
+    is stored. Offline: players keep the last map with "Live updates paused" and moving greyed out; the DM's edits
+    pause with "Offline, changes paused".
+  - Files: `includes/maps.php` (storage, rules, the fog render and `mp_view()`, the one filter for what each role sees,
+    which 1.7 extends with its `table` role), `campaigns/maps.php`, `campaigns/map.php`, `assets/js/map.js`,
+    `assets/css/pages/map.css`. Fight changes keep the map's tokens in step (`mp_fight_sync`, from `campaigns/api.php`).
+    Checks: `maps.test.php`, `maps-page.mjs` (both browsers, `--firefox` swaps them), `initiative-page.mjs`.
 
 **1.7 Table view (TV / screen share)**
 - How we play: the DM runs one PC. The laptop screen is the DM screen. A second browser tab, `/campaigns/table/?c=<id>`,
@@ -822,7 +865,7 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 | Players editing initiative | The DM runs it. |
 | DM whole-file writes to player sheets | The DM can edit everything, but only through field-level edits the player's sheet applies (1.5). |
 | Login-free Table view link for smart TVs | The Table view is a tab in the DM's signed-in browser on the HDMI screen or screen share. |
-| Walls, lighting, measuring tools on the map | Not asked for; v1 is image, grid, tokens and fog. |
+| Walls and lighting | Not asked for; v1 is image, grid, tokens, fog and a ruler. |
 | Ongoing D&D Beyond sync | The viewer is retired (5.3). The import stays one-time. |
 | Public sign-ups / open to anyone | 2-4 groups of friends. No moderation or abuse tooling. |
 
