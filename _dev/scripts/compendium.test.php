@@ -19,6 +19,18 @@ $m = json_decode(file_get_contents("$root/sheets/monster/monsters.json"), true);
 $is('every monster book has a licence line', count(array_filter($m['sources'], fn($s) => empty($s['copyright']) || empty($s['licence']))), 0);
 $is('every monster points at a known book', count(array_filter($m['list'], fn($r) => !isset($m['sources'][$r[4]]))), 0);
 
+// the newest book's copy wins, one copy per name
+$byName = [];
+foreach ($m['list'] as $r) $byName[$r[1]] = $r[4];
+$is('Tome of Beasts 2023 wins over 2016', $byName['Abominable Beauty'] ?? '', 'tob-2023');
+$is('the SRD wins', $byName['Goblin'] ?? '', 'srd');
+$is('one monster per name', count($byName), count($m['list']));
+// the rules switch follows the account: the same settings list in sync.js and prefs.php
+$keys = function ($file, $re) { preg_match($re, file_get_contents($file), $x); preg_match_all("/'([^']+)'/", $x[1], $y); return $y[1]; };
+$sync = $keys("$root/assets/js/sync.js", '/const KEYS = \[(.*?)\]/');
+$is('sync.js and prefs.php list the same settings', $sync, $keys("$root/prefs.php", '/const PF_KEYS = \[(.*?)\]/'));
+$is('compendium-rules follows the account', in_array('compendium-rules', $sync, true), true);
+
 // run items.php as a request
 $run = function ($query) use ($root) {
     $f = tempnam(sys_get_temp_dir(), 'cpt');

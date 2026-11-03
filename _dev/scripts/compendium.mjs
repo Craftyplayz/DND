@@ -1,7 +1,9 @@
-// Checks the Compendium (/compendium/) signed out, in headless Chrome and Firefox: search (Fireball, Goblin, Bag of Holding,
-// Grappled, a typo), the tabs, filters, endless scroll, deep links, the extra spells, favourites and recent surviving a reload,
-// "Add to sheet" (one character, two characters, the duplicate question, the sheet taking the request once) and
-// "Add to encounter" reaching the Monster Sheet.
+// Checks the Compendium (/compendium/) signed out, in headless Chrome and Firefox: every list's count against the content
+// files (sheets/player/content/index.json) and monsters.json, search (Fireball, Goblin, Bag of Holding, Grappled, a typo),
+// the tabs, the 2014 / 2024 / Both switch (kept over a reload), filters, endless scroll, deep links (old keys too), classes with
+// their level table and subclasses, races, backgrounds, feats, favourites and recent surviving a reload, "Add to sheet"
+// (one character, two characters, the duplicate question, the sheet taking the request once, a Deep Magic spell, a feat) and
+// "Add to encounter" reaching the Monster Sheet (an SRD goblin and a Tome of Beasts 2023 monster).
 //   node _dev/scripts/compendium.mjs [base URL, default http://localhost:8110]
 // Needs the local server with the router (php -S 127.0.0.1:8110 -t . _dev/router.php) and internet (the SRD proxies).
 // Cloud saves and backups are blocked.
@@ -37,12 +39,19 @@ for (const name of browsers) {
         await open('/compendium/');
         errs('load');
         await until(`document.querySelector('#cp-count').textContent.includes('results')`, 'count');
-        // all four lists in: spells, monsters, items, magic items and rules
-        await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') > 3400 && !document.querySelector('.err')`, 'lists loaded', 40000);
-        ok(`${name} total over 3000`, +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`)) > 3000);
-        is(`${name} All is grouped, 5 each`, await js(`[...document.querySelectorAll('#cp-list .cp-gh')].map((h) => h.textContent.split(' ')[0] + ' ' + (h.nextElementSibling ? 1 : 0))`).then((a) => a.length), 5);
-        ok(`${name} no group over 5`, await ev(`document.querySelectorAll('#cp-list .cp-row').length <= 25`));
-        ok(`${name} show all links`, await ev(`document.querySelectorAll('.cp-showall').length === 5`));
+        // every list in, for both rules versions: the content files' counts (index.json), monsters.json and rules.js
+        const idx = await (await fetch(BASE + '/sheets/player/content/index.json')).json(), cn = idx.counts;
+        const sum = (...k) => k.reduce((n, x) => n + cn['2014'][x] + cn['2024'][x], 0);
+        const monsters = (await (await fetch(BASE + '/sheets/monster/monsters.json')).json()).list.length;
+        const want = { Spells: sum('spells'), Monsters: monsters, Items: sum('equipment'), 'Magic items': sum('magic_items'), Classes: sum('classes', 'subclasses'), Races: sum('races', 'subraces'), Backgrounds: sum('backgrounds'), Feats: sum('feats') };
+        const counts = `Object.fromEntries([...document.querySelectorAll('#cp-list .cp-gh')].map((h) => [h.firstChild.textContent.trim(), +h.querySelector('.n').textContent.replace(/\\D/g, '')]))`;
+        await until(`(() => { const c = ${counts}; return c.Rules > 0 && Object.keys(c).length === 9 && !document.querySelector('.err'); })()`, 'lists loaded', 60000);
+        const got = await js(counts);
+        is(`${name} counts from the content files, both rules`, Object.fromEntries(Object.keys(want).map((k) => [k, got[k]])), want);
+        is(`${name} All is grouped, 9 groups`, Object.keys(got).length, 9);
+        ok(`${name} no group over 5`, await ev(`document.querySelectorAll('#cp-list .cp-row').length <= 45`));
+        ok(`${name} show all links`, await ev(`document.querySelectorAll('.cp-showall').length === 9`));
+        is(`${name} rules default to Both`, await ev(`document.querySelector('#cp-rules input:checked').value`), 'both');
 
         // the four searches from the roadmap, plus a typo
         for (const [q, want] of [['Fireball', 'Fireball'], ['Goblin', 'Goblin'], ['Bag of Holding', 'Bag of Holding'], ['Grappled', 'Grappled'], ['firebal', 'Fireball'], ['fierball', 'Fireball'], ['gobln', 'Goblin']]) {
@@ -59,7 +68,7 @@ for (const name of browsers) {
         const total = +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`));
         // after each scroll: the next batch is in and has pushed the marker under the list out of the observer's reach
         // (600px past the window) for a frame, so the next scroll is a new crossing; scrolling again sooner never loads more
-        for (let i = 0, n; i < 30 && (n = await ev(rowCount)) < total; i++) {
+        for (let i = 0, n; i < 60 && (n = await ev(rowCount)) < total; i++) {
             await ev(`document.querySelector('#cp-more').scrollIntoView()`);
             await b.until(`${rowCount} > ${n} && document.querySelector('#cp-more').getBoundingClientRect().top > innerHeight + 600`).catch(() => { });
             await ev('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))');
@@ -68,36 +77,95 @@ for (const name of browsers) {
         // a fast scroll to the end: with the rows hidden a batch never moves the marker out of the observer's reach, so
         // there's no new crossing, and loading must still carry on to the last one with no more scrolling
         await tab('monster');
-        const monsters = +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`));
+        is(`${name} monster count`, +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`)), monsters);
         await ev(`(document.head.insertAdjacentHTML('beforeend', '<style id="cp-short">.cp-row { display: none; }</style>'), scrollTo(0, document.body.scrollHeight), 1)`);
         await b.until(`${rowCount} >= ${monsters}`, 15000).catch(() => { });
         is(`${name} a fast scroll to the end loads every monster`, [monsters > 50, await ev(rowCount)], [true, monsters]);
         await ev(`(document.querySelector('#cp-short').remove(), scrollTo(0, 0), 1)`);
         await tab('spell');
-        ok(`${name} extra badge`, await ev(`[...document.querySelectorAll('#cp-list .badge')].some((x) => x.textContent === 'Extra')`));
+        // both rules versions: each row says which; one version hides the other, and the choice is kept
+        ok(`${name} rules badges`, await ev(`['2014', '2024'].every((r) => [...document.querySelectorAll('#cp-list .badge')].some((x) => x.textContent === r))`));
+        const rules = (r) => redraw(`(() => { const i = document.querySelector('#cp-rules input[value="${r}"]'); i.checked = true; i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+        await rules('2024');
+        is(`${name} 2024 spells only`, +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`)), cn['2024'].spells);
+        ok(`${name} no version badge with one version`, await ev(`![...document.querySelectorAll('#cp-list .badge')].some((x) => /^20(14|24)$/.test(x.textContent))`));
+        is(`${name} rules saved`, await store('compendium-rules'), '2024');
+        await open('/compendium/');
+        is(`${name} rules after reload`, await ev(`document.querySelector('#cp-rules input:checked').value`), '2024');
+        await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') === ${cn['2024'].spells}`, '2024 spells after reload');
+        await rules('2014');
+        await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') === ${cn['2014'].spells}`, '2014 spells only');
+        await rules('both');
+        await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') === ${sum('spells')}`, 'both rules again');
+        // filters saved before this change (the spell Source filter, an old item category) don't hide the list
+        await ev(`localStorage.setItem('compendium-view', JSON.stringify({ tab: 'spell', f: { src: 'SRD 5.1' } }))`);
+        await open('/compendium/');
+        await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') === ${sum('spells')}`, 'old source filter ignored');
+        await ev(`localStorage.setItem('compendium-view', JSON.stringify({ tab: 'item', f: { cat: 'Adventuring Gear' } }))`);
+        await open('/compendium/');
+        await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') === ${sum('equipment')}`, 'old item category ignored');
+        // classes come before subclasses, and subclasses are still found by search; the page fits a phone
+        await tab('class');
+        ok(`${name} classes first`, (await js(`[...document.querySelectorAll('#cp-list .cp-sub')].slice(0, 32).every((x) => x.textContent.startsWith('Hit die'))`)));
+        ok(`${name} subclass found by search`, (await search('School of Evocation')).includes('School of Evocation'));
+        await search('');
+        await tab('spell');
+        // class filter
+        await redraw(`(() => { const s = document.querySelector('[data-f=cls]'); s.value = 'Paladin'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+        ok(`${name} class filter`, (await search('bless')).includes('Bless') && !(await search('fireball')).includes('Fireball'), await names());
+        await search('');
+        await redraw(`document.querySelector('#cp-filters [data-clear]').click()`);
         await redraw(`(() => { const s = document.querySelector('[data-f=level]'); s.value = '3'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
         ok(`${name} level filter`, (await js(`[...document.querySelectorAll('#cp-list .cp-sub')].map((x) => x.textContent)`)).every((t) => t.startsWith('Level 3')));
         ok(`${name} filter in URL`, (await ev(`location.search`)).includes('f.level=3'));
         await redraw(`(() => { const s = document.querySelector('[data-f=conc]'); s.value = 'yes'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-        ok(`${name} concentration filter`, (await names()).includes('Fly') && !(await names()).includes('Fireball'), await names());
+        ok(`${name} concentration filter`, (await search('fly')).includes('Fly') && !(await search('fireball')).includes('Fireball'), await names());
+        await search('');
         await redraw(`document.querySelector('#cp-filters [data-clear]').click()`);
-        ok(`${name} cleared`, (await names()).includes('Acid Arrow'));
+        ok(`${name} cleared`, (await names()).includes('Acid Splash'));
         await tab('monster');
         ok(`${name} CR filter has 1/8`, await ev(`[...document.querySelectorAll('[data-f=crmin] option')].some((o) => o.textContent === '1/8')`));
         await redraw(`(() => { const s = document.querySelector('[data-f=size]'); s.value = 'Tiny'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
         ok(`${name} size filter and preview`, await ev(`document.querySelectorAll('#cp-list .cp-row').length > 0 && [...document.querySelectorAll('#cp-list .cp-row')].every((r) => r.textContent.includes('Tiny'))`));
         await redraw(`document.querySelector('#cp-filters [data-clear]').click()`);
         await tab('magic');
-        ok(`${name} rarity filter`, await ev(`[...document.querySelectorAll('[data-f=rarity] option')].some((o) => o.textContent === 'Legendary')`));
+        await until(`[...document.querySelectorAll('[data-f=rarity] option')].some((o) => o.textContent === 'Legendary')`, 'rarity filter');
 
         // deep links
         await open('/compendium/?t=spell&i=fireball');
         await until(`document.querySelector('#cp-dbody .kv')`, 'fireball detail');
         ok(`${name} Fireball detail`, await ev(`document.querySelector('#cp-dbody h2').textContent === 'Fireball' && document.querySelector('#cp-dbody .cp-text').textContent.includes('bright streak')`));
         ok(`${name} spells tab opened for a spell link`, await ev(`document.querySelector('#cp-tabs .on').dataset.tab === 'spell'`));
+        // a link from before the content files (an extra spell's "wd:" key) opens the 2014 entry, its text from the data
         await open('/compendium/?t=spell&i=wd:absorb-elements');
         await until(`document.querySelector('#cp-dbody .cp-text, #cp-dbody .note')`, 'extra detail');
-        ok(`${name} extra spell shows fetched text plus a wikidot link`, await ev(`document.querySelector('#cp-dbody .cp-text')?.textContent.length > 50 && document.querySelector('#cp-dbody a[href*="wikidot.com/spell:absorb-elements"]') && document.querySelector('#cp-dbody .badge.p').textContent === 'Extra'`));
+        ok(`${name} old extra spell link opens the content entry`, await ev(`document.querySelector('#cp-dbody h2').textContent === 'Absorb Elements' && document.querySelector('#cp-dbody .cp-text')?.textContent.length > 50 && location.search.includes('i=2014%3Aabsorb-elements')`));
+        await open('/compendium/?t=spell&i=2024:fireball');
+        await until(`document.querySelector('#cp-dbody .kv')`, '2024 fireball');
+        ok(`${name} 2024 Fireball`, await ev(`document.querySelector('#cp-dbody .badge.b').textContent === '2024' && document.querySelector('#cp-dbody').textContent.includes('Casting time') && document.querySelector('#cp-dbody').textContent.includes('Action')`));
+        // a class: its level table, features, subclasses that open, and the builder link (no Add to sheet)
+        await open('/compendium/?t=class&i=2014:wizard');
+        await until(`document.querySelector('#cp-dbody .cp-levels')`, 'wizard');
+        is(`${name} wizard level table`, await ev(`document.querySelectorAll('#cp-dbody .cp-levels tbody tr').length`), 20);
+        ok(`${name} wizard table has slots`, await ev(`[...document.querySelectorAll('#cp-dbody .cp-levels th')].some((t) => t.textContent === '9th')`));
+        ok(`${name} wizard features and build link`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Arcane Recovery') && !!document.querySelector('#cp-dbody a[href="/characters/build"]') && !document.querySelector('[data-add]')`));
+        ok(`${name} classes tab opened for a class link`, await ev(`document.querySelector('#cp-tabs .on').dataset.tab === 'class'`));
+        await ev(`[...document.querySelectorAll('#cp-dbody [data-open]')].find((x) => x.textContent === 'School of Evocation').click()`);
+        await until(`document.querySelector('#cp-dbody h2')?.textContent === 'School of Evocation'`, 'subclass opened');
+        ok(`${name} subclass features and its class`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Sculpt Spells') && document.querySelector('#cp-dbody [data-open="class:2014:wizard"]')?.textContent === 'Wizard'`));
+        await open('/compendium/?t=race&i=2014:elf');
+        await until(`document.querySelector('#cp-dbody .kv')`, 'elf');
+        ok(`${name} race traits and subraces`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Dexterity +2') && document.querySelector('#cp-dbody').textContent.includes('Fey Ancestry') && [...document.querySelectorAll('#cp-dbody [data-open]')].some((x) => x.textContent === 'High Elf') && !!document.querySelector('#cp-dbody a[href="/characters/build"]')`));
+        await open('/compendium/?t=background&i=2014:acolyte');
+        await until(`document.querySelector('#cp-dbody .kv')`, 'acolyte');
+        ok(`${name} background feature and tables`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Shelter of the Faithful') && [...document.querySelectorAll('#cp-dbody th')].some((t) => t.textContent === 'd8') && document.querySelector('#cp-dbody').textContent.includes('Insight')`));
+        await open('/compendium/?t=feat&i=2014:grappler');
+        await until(`document.querySelector('#cp-dbody .cp-text')`, 'grappler');
+        ok(`${name} feat prerequisite and add button`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Strength 13+') && !!document.querySelector('[data-add=sheet]')`));
+        // a monster from the Tome of Beasts 2023, which now wins over the 2016 copy
+        await open('/compendium/?t=monster&i=o5e:abominablebeauty-tob1-2023');
+        await until(`document.querySelector('#cp-dbody .cp-abil')`, 'tob 2023 monster');
+        ok(`${name} Tome of Beasts 2023 monster`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Blinding Gaze') && document.querySelector('#cp-dbody .cp-credit').textContent.includes('2023')`));
         await open('/compendium/?t=magic&i=magic:bag-of-holding');
         await until(`document.querySelector('#cp-dbody .cp-text')`, 'magic detail');
         ok(`${name} magic item rarity`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Uncommon')`));
@@ -112,10 +180,11 @@ for (const name of browsers) {
         await open('/compendium/?t=spell&i=nope');
         await until(`document.querySelector('#cp-dbody .note')`, 'unknown entry');
         errs('deep links');
-        await b.block(/spells.php|backup.php|cloud.php/);
-        await open('/compendium/?t=spell&i=wd:absorb-elements');
-        await until(`document.querySelector('#cp-dbody .note')`, 'extra detail, fetch blocked');
-        ok(`${name} extra spell fetch fails`, await ev(`!document.querySelector('#cp-dbody .cp-text') && document.querySelector('#cp-dbody .note').textContent.includes("Couldn't load the text") && !!document.querySelector('#cp-dbody a[href*="wikidot.com/spell:absorb-elements"]') && !!document.querySelector('#cp-dbody .kv')`));
+        // the text is in the content files: no proxy needed
+        await b.block(/spells.php|items.php|backup.php|cloud.php/);
+        await open('/compendium/?t=spell&i=2014:absorb-elements');
+        await until(`document.querySelector('#cp-dbody .cp-text, #cp-dbody .err')`, 'spell with the proxies blocked');
+        ok(`${name} spell text without the proxy`, await ev(`document.querySelector('#cp-dbody .cp-text')?.textContent.length > 50`));
         await b.block(/backup.php|cloud.php/);
         b.errors.length = 0;
 
@@ -131,15 +200,19 @@ for (const name of browsers) {
         await open('/compendium/?t=spell&i=fireball');
         await until(`document.querySelector('[data-fav]')`, 'star');
         await ev(`document.querySelector('[data-fav]').click()`);
-        is(`${name} favourite saved`, await store('compendium-favs'), ['spell:fireball']);
+        is(`${name} favourite saved`, await store('compendium-favs'), ['spell:2014:fireball']);
+        // a favourite saved before the content files ("item:eq:longsword") still shows, as the 2014 entry
+        await ev(`localStorage.setItem('compendium-favs', JSON.stringify(['spell:2014:fireball', 'item:eq:longsword']))`);
         await open('/compendium/');
         await tab('fav');
-        is(`${name} favourites tab after reload`, await names(), ['Fireball']);
+        await until(`document.querySelectorAll('#cp-list .cp-row').length === 2`, 'both favourites');
+        is(`${name} favourites tab after reload`, await names(), ['Fireball', 'Longsword']);
         await tab('recent');
         is(`${name} recent tab after reload`, await names(), ['Fireball']);
         await open('/compendium/?t=spell&i=aid');
         await until(`document.querySelector('#cp-dbody .kv')`, 'aid');
-        is(`${name} recent newest first`, await store('compendium-recent'), ['spell:aid', 'spell:fireball']);
+        is(`${name} recent newest first`, await store('compendium-recent'), ['spell:2014:aid', 'spell:2014:fireball']);
+        await ev(`localStorage.setItem('compendium-favs', JSON.stringify(['spell:2014:fireball']))`);
 
         // Add to sheet: no characters
         await open('/compendium/?t=spell&i=fireball');
@@ -193,6 +266,24 @@ for (const name of browsers) {
         await until(`document.querySelector('#cp-dup').open`, 'duplicate question on the sheet');
         await ev(`document.querySelector('#cp-dup [data-close]').click()`);
 
+        // a spell from a newly imported book (Deep Magic) reaches the sheet with its name and level
+        await open('/compendium/?t=spell&i=2014:abhorrent-apparition');
+        await until(`document.querySelector('[data-add=sheet]')`, 'deep magic spell');
+        await ev(`document.querySelector('[data-add=sheet]').click()`);
+        await until(`document.querySelector('#cp-msg .ok')`, 'new-source spell added');
+        is(`${name} new-source spell request`, (await store('hb-pending')).map((x) => [x.kind, x.name, x.lvl]), [['spell', 'Abhorrent Apparition', 4]]);
+        await b.go(BASE + `/characters/${one}`);
+        await until(`JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.some((p) => p.type === 'spells' && p.rows.some((r) => r.name === 'Abhorrent Apparition' && r.lvl === 4))`, 'new-source spell on sheet');
+        is(`${name} new-source spell taken`, await ev(`localStorage.getItem('hb-pending')`), null);
+        // a feat: a Passive abilities row with its text (see takePending in sheet.js)
+        await open('/compendium/?t=feat&i=2014:grappler');
+        await until(`document.querySelector('[data-add=sheet]')`, 'feat add button');
+        await ev(`document.querySelector('[data-add=sheet]').click()`);
+        await until(`document.querySelector('#cp-msg .ok')`, 'feat added');
+        const feat = (await store('hb-pending'))[0];
+        is(`${name} feat request`, [feat.char, feat.kind, feat.name, feat.src, feat.text.startsWith('Prerequisite: Strength 13+'), feat.text.includes('grappling')], [one, 'feat', 'Grappler', 'Feat', true, true]);
+        await ev(`localStorage.removeItem('hb-pending')`);
+
         // two characters: a picker
         await b.go(BASE + '/characters/new'); await until(`Object.keys(JSON.parse(localStorage.getItem('hb-sheet') || '{"chars":{}}').chars).length === 2`, 'second character stored');
         const two = Object.keys((await store('hb-sheet')).chars).find((id) => id !== one);
@@ -220,6 +311,13 @@ for (const name of browsers) {
         await until(`(localStorage.getItem('mon-pending') || '[]') === '[]' && Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).filter((c) => /^Goblin \\d$/.test(c.name)).length === 2`, 'two goblins', 30000);
         is(`${name} goblins numbered`, await js(`Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => c.name).sort()`), ['Goblin 1', 'Goblin 2']);
         is(`${name} each has its own hit points`, await js(`new Set(Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => c.id)).size`), 2);
+        // a Tome of Beasts 2023 monster reaches the Monster Sheet too
+        await open('/compendium/?t=monster&i=o5e:abominablebeauty-tob1-2023');
+        await until(`document.querySelector('[data-add=enc]')`, 'tob 2023 encounter button');
+        await ev(`document.querySelector('[data-add=enc]').click()`);
+        await until(`document.querySelector('#cp-msg .ok')`, 'tob 2023 encounter message');
+        await b.go(BASE + '/sheets/monster/');
+        await until(`(localStorage.getItem('mon-pending') || '[]') === '[]' && Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).some((c) => /^Abominable Beauty/.test(c.name) && c.hp.base === 187)`, 'tob 2023 monster on the sheet', 30000);
         errs('sheets');
 
         // credits
