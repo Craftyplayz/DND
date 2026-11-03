@@ -1845,9 +1845,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (cloud && window.Live && tableReady()) {
             try { const r = await fetch('/campaigns/log.php?' + CAMPS_Q()); if (r.ok) camps = (await r.json()).campaigns; } catch (e) { }
         }
-        tableWatch(); drawTray(); drawLog(); campNote();
-        // handouts (3.4): the panel added once, or shown or hidden as the character joins or leaves a campaign
+        // handouts (3.4): the panel added once, or shown or hidden as the character joins or leaves a campaign (before campNote,
+        // which a draw would wipe)
         if (!hoAdd() && hoWas !== hoOn() && C.panels.some((p) => p.type === 'handouts')) draw();
+        tableWatch(); drawTray(); drawLog(); campNote();
         hoLoad();
         // the fight in its campaign (ROADMAP 1.4, assets/js/fight.js): a strip under the top bar while one runs
         window.Fight?.strip(camp()?.id || '', C.id, () => rollShow('Initiative', [[20, 1]], d20Mod($('[data-k="fs:init"]') || { dataset: { k: 'fs:init' } })));
