@@ -314,6 +314,7 @@ PHP;
                 <h2>Build a page</h2>
                 <ol>
                     <li><b>Pick the folder.</b> URLs are folders: <code>/&lt;area&gt;/&lt;page&gt;/index.php</code> (like <code>/sheets/monster/</code>, <code>/dice/rolls/</code>). Lowercase, hyphens, links never end in <code>.php</code>.</li>
+                    <li><b>One item, one URL.</b> Anything a player can have many of (a character, a campaign, a monster, a note) opens at <code>/&lt;things&gt;/&lt;id&gt;</code>, like <code>/characters/&lt;id&gt;</code> and <code>/campaigns/&lt;id&gt;</code>, never <code>?c=&lt;id&gt;</code>. Its data lives in its own folder, <code>accounts/&lt;things&gt;/&lt;id&gt;/</code>. When an old URL changes, it redirects to the new one.</li>
                     <li><b>Copy the skeleton below</b> to that folder as <code>index.php</code> and set <code>$site_page</code>.</li>
                     <li><b>Add the page to <code>site_pages()</code></b> in <code>includes/functions.php</code>. It is the only source of the header menu, the footer links, breadcrumbs, tab titles and the hub cards on the landing page. Never hard-code a nav link anywhere else.</li>
                     <li><b>Build the content</b> with the components below. Page-only CSS goes in <code>assets/css/pages/&lt;name&gt;.css</code>.</li>

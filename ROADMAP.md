@@ -487,6 +487,51 @@ browser only; see CLAUDE.md and "Not planned")
 **1.8 Bring live play to `/sheets/player/`** (no longer needed: there's one sheet code now, so every live-play
 change already lands in `sheets/player/`. The test copy is archived and must not be used.)
 
+**1.9 Campaign page rework** (asked for 2026-11-03)
+- Own URL: a campaign opens at `/campaigns/<id>`, like `/characters/<id>`. `/campaigns/?c=<id>` redirects there
+  (301) so old links and bookmarks keep working. The design guide now says every item a player can have many of
+  gets `/<things>/<id>` and its own folder in `accounts/<things>/<id>/` (monsters move over when they're reworked).
+- Table log: shows only the running session (or the last one). The "Past rolls" links (`?c=<id>&s=<n>`) and the
+  past-session view go; the saved `sessions/<n>.json` files stay on disk untouched.
+- Sessions from the Discord bot replace past rolls: each recorded session shows on the campaign page with The
+  Pitboss's AI summary, the transcript and the audio (below).
+- The rest of the rework (layout, what else moves) gets its own interview with the owner before it's built.
+
+**1.10 Import sessions from The Pitboss (Pitstop)** (owner's answers 2026-11-03)
+- Today: the bot records a Discord voice call; its transcriber turns it into clips (`clips` table: start time,
+  speaker, text); "Summarise with Claude" on the call page asks questions, then saves a summary (`dnd_runs.summary`)
+  and a cumulative memory file `data/sessions/<campaign>/session-NN-<date>.md` (Players, NPCs, Places and factions,
+  Plot threads, Session log...). A campaign is a folder name like `dnd-1`; its page is
+  pitstop.craftyplayz.com/dnd/<name>, behind Discord login. Audio is `/voice/call/<id>/audio.ogg`.
+- Pitstop side (The Pitboss repo, its own stack; its CLAUDE.md asks about a version and changelog per commit):
+  - `GET /api/dnd` → campaign names. `GET /api/dnd/<name>` → `[{number, title, date, call_id, summary}]` from
+    `dnd.campaign_sessions()` plus the newest memory file. `GET /api/dnd/call/<id>/transcript` → `[{ms, speaker, text}]`
+    from `review.call_text`'s clips (with the name fixes applied). `GET /api/dnd/call/<id>/audio.ogg`.
+  - Read-only, and only with `Authorization: Bearer <DND_SYNC_TOKEN>` (a long random secret set in both stacks'
+    environment, never committed). No Discord login involved.
+- Link: the DM picks the Pitstop campaign in the campaign's settings (a dropdown from `/api/dnd`, "None" by
+  default). Stored as `pitstop` in `campaign.json`. Nothing imports until it's set.
+- Sync: pull, never pushed into. A loop in `docker/start.sh` (like the relay) runs `php includes/pitstop.php` every
+  10 minutes for linked campaigns; the DM's "Check for new sessions" button asks for a run straight away. It reaches
+  Pitstop on the home server directly (`PITSTOP_URL`, e.g. http://192.168.16.3:8643), not through Cloudflare.
+- Storage: `accounts/campaigns/<id>/recordings/<n>/` with `session.json` (Pitstop campaign, number, title, date,
+  call id, imported time), `summary.md`, `transcript.json` and `audio.ogg` (copied once, so it survives Pitstop
+  deleting the call), plus `recordings/memory.md` (the newest memory file). Never overwritten: a summary or memory
+  that changed on Pitstop puts the old copy in `recordings/<n>/history/` first. Unlinking keeps everything.
+- Who sees it: every campaign member (DM and players), nobody else. Audio and transcript go through a PHP endpoint
+  that checks membership, like `art.php`.
+- On the page: a Sessions section, newest first: number, title, date, the summary's overview, "Read the summary",
+  and a transcript viewer with click-a-line-to-play (reuse `transcripts/transcripts.php`'s viewer). The memory
+  file's Players, NPCs, Places and Plot threads show as a "Story so far" card.
+- `/transcripts/`: once its 2 sessions show on the campaign page, it moves to `private/archive/transcripts/`
+  (`git mv`; `transcripts/data` stays on the server, it's server-only data).
+- Server steps that ask the owner first (CLAUDE.md): adding `DND_SYNC_TOKEN` and `PITSTOP_URL` to the `dnd` stack
+  (`deploy.sh --compose`) and the token to the Pitstop stack.
+- Checks: `pitstop.test.php` (a fake Pitstop answers; import twice changes nothing; a changed summary keeps the
+  old one in history; a non-member gets 403 on audio), `campaign-sessions.mjs` (both browsers).
+- Size: ~1 day on Pitstop, ~3 days here. Done: a new summary saved on Pitstop shows on the campaign page within 10
+  minutes for every member, plays from any line, and is still there after the call is deleted on Pitstop.
+
 ### Phase 2: Phone and look
 
 **2.1 Phone play mode**
@@ -696,7 +741,7 @@ up, because of CLAUDE.md rather than an open design question:
 | Phase | Features | Rough size |
 |---|---|---|
 | 0 Finish in-flight and storage | 4 (0.2 dropped) | ~5.5 days |
-| 1 Live table and campaigns | 7 (1.8 not needed) | ~23 days |
+| 1 Live table and campaigns | 9 (1.8 not needed) | ~27 days + 1.9 (sized after its interview) |
 | 2 Phone and look | 3 | ~7 days |
 | 3 DM tools | 4 | ~8 days |
 | 4 Character building | 6 | ~18.5 days |
