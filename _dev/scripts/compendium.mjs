@@ -137,8 +137,11 @@ for (const name of browsers) {
         ok(`${name} cleared`, (await names()).includes('Acid Splash'));
         await tab('monster');
         ok(`${name} CR filter has 1/8`, await ev(`[...document.querySelectorAll('[data-f=crmin] option')].some((o) => o.textContent === '1/8')`));
+        // the size list comes from the monsters themselves, so it has no Tiny until they have loaded
+        await until(`[...document.querySelectorAll('[data-f=size] option')].some((o) => o.value === 'Tiny')`, 'monster sizes loaded');
         await redraw(`(() => { const s = document.querySelector('[data-f=size]'); s.value = 'Tiny'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-        ok(`${name} size filter and preview`, await ev(`document.querySelectorAll('#cp-list .cp-row').length > 0 && [...document.querySelectorAll('#cp-list .cp-row')].every((r) => r.textContent.includes('Tiny'))`));
+        // rows draw in batches after a filter change, so wait for them
+        await until(`document.querySelectorAll('#cp-list .cp-row').length > 0 && [...document.querySelectorAll('#cp-list .cp-row')].every((r) => r.textContent.includes('Tiny'))`, 'size filter and preview');
         await redraw(`document.querySelector('#cp-filters [data-clear]').click()`);
         await tab('magic');
         await until(`[...document.querySelectorAll('[data-f=rarity] option')].some((o) => o.textContent === 'Legendary')`, 'rarity filter');
