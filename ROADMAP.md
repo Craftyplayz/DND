@@ -539,6 +539,28 @@ change already lands in `sheets/player/`. The test copy is archived and must not
 - Size: ~1 day on Pitstop, ~3 days here. Done: a new summary saved on Pitstop shows on the campaign page within 10
   minutes for every member, plays from any line, and is still there after the call is deleted on Pitstop.
 
+**1.11 Co-DMs** (owner's answers 2026-11-03)
+- What: a campaign can have any number of co-DMs. The DM (the creator, `dm` in `campaign.json`) makes a member a
+  co-DM and can make them a player again; only the DM can. A co-DM can do everything the DM can except rename or
+  delete the campaign, make a new join link, remove members and pick co-DMs: every party sheet (read-only, like the
+  DM), fights (controls, monster HP, hidden monsters), hidden rolls, seeing whispers and hidden rolls in the table
+  log, starting and ending sessions.
+- One check for every later DM feature (1.5, 1.6, 3.4): `cp_is_dm($c, $sub)` (DM or co-DM) and `cp_is_owner($c, $sub)`
+  (the DM alone) in `includes/campaigns.php`. Nothing else compares `$c['dm']`.
+- Storage: `codms: [sub, ...]` in `campaign.json`, written only once a campaign has had one, so older campaigns load
+  unchanged. A co-DM who leaves or is removed drops out of it. Fight monsters keep `by` (whose Monster Sheet they came
+  from; older entries without it are the DM's), and `sheets/monster/cloud.php?hp=<id>&c=<campaign>` lets the DM and
+  co-DMs change each other's monster HP in that campaign's fight.
+- Live: co-DMs get the relay's `dm` role. Making someone a co-DM or a player again closes their sockets with 4401
+  (`rekey` in `live_publish`), so their pages reconnect with the new role and a demoted co-DM stops getting the DM's
+  messages straight away; their campaign page reloads in full.
+- Page (picked while the owner was away, to be confirmed): "Make co-DM" (asked first) and "Make player"
+  beside each player for the DM, a blue "Co-DM" badge, "Co-DM: <name>" on party cards, "Pat is a co-DM" in the lede
+  (co-DMs aren't counted as players), and a "You're a co-DM" section on `/campaigns/`. Co-DMs see the join link but
+  not "Make a new link", and can leave.
+- Checks: `campaigns.test.php`, `tablelog.test.php`, `initiative.test.php`, `live-relay.test.js`, `campaigns-page.mjs`,
+  `initiative-page.mjs`.
+
 ### Phase 2: Phone and look
 
 **2.1 Phone play mode**
