@@ -55,7 +55,8 @@ do). Signed out, everything keeps working from the browser alone.
 - Following the account, each with its roll log and per-character view settings:
   - player sheet characters (`hb-sheet`, a folder per character in `accounts/characters/<id>/`,
     sheets/player/cloud.php + includes/characters.php; open at /characters/<id>)
-  - monster sheet monsters (`monster-sheet`, `accounts/monsters/<sub>/`)
+  - monster sheet monsters (`monster-sheet`, `accounts/monsters/<sub>/`) and their encounter list (`encs` in
+    `monster-sheet`, `accounts/monster-encounters/<sub>.json` through sheets/monster/encounters.php)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
     Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`)
 - Not synced, by the user's choice: dice fairness test tallies (`dice-test-counts`).

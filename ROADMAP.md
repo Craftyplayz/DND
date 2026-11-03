@@ -131,7 +131,7 @@ newer, and 401 when signed out.
 
 ### Monster sheet (`/sheets/monster/`)
 - A copy of the player sheet with classes hidden. CR stands in for level and drives `PROF` and `CANTRIP`.
-- One list of monsters in a sidebar showing HP and CR. Duplicates get numbered names. There are no named encounters.
+- Monsters grouped into named encounters (3.1), one shown at a time in a sidebar with HP and CR. Duplicates get numbered names.
 - Search: `monsters.json` index (SRD + Open5e). `monsters.php` proxies dnd5eapi.co and api.open5e.com,
   strips lore and images, caches 30 days, and serves the stale copy if a refresh fails. Credits are in `ogl.txt`.
 - HP, conditions, rests, an initiative roll button (no turn order), dice tray and roll log. Legendary actions
@@ -595,6 +595,21 @@ change already lands in `sheets/player/`. The test copy is archived and must not
   `monster-sheet` store. On upgrade, every existing monster goes into "Encounter 1", so nothing disappears.
 - Account save: `encs` saved in `accounts/monsters/<sub>/_encounters.json` (newest wins).
 - Size: 1.5 days. Done: the data check shows every old monster present in "Encounter 1", and encounters show up on a second browser.
+- Built (2026-11-03), owner's answers (they replace the text above where different): an encounter picker tops the
+  sidebar (on phones it sits in the bar above the monster picker, which then lists only that encounter), with New
+  encounter and Manage encounters at its end. A reload shows the last-opened monster's encounter (per browser).
+  New ones are "Encounter 2", "Encounter 3"... with the name ready to type over; Manage renames, reorders (up/down)
+  and archives them. Monsters with an empty `enc` (or one naming no encounter in the list, value kept) are in
+  Unsorted: every existing monster starts there and every new one (New, import, Duplicate) goes there. Archiving an
+  encounter folds it and its monsters under "Archived encounters" without touching their own `archived`; each
+  encounter has its own "Archived (N)". "Move to encounter" and "Copy to encounter" are under Edit: a move is an edit
+  (newest wins, fight entry kept, renumbered only if the name is taken there), a copy is a fresh creature (new id, full
+  HP, no conditions, empty roll log, hpAt 0). Numbering is per encounter. "Add whole encounter to fight" adds the open
+  encounter's monsters; fights store no encounter link. The list is saved in the `monster-sheet` store as `encs`, in
+  `accounts/monster-encounters/<sub>.json` (`sheets/monster/encounters.php`, merged per encounter, newer `updated`
+  wins, none ever dropped; `cloud.php` refuses monster ids starting with "_") and in the backups as
+  `monster-backups/<ip>/encounters-<n>.json`. Checks: `monster-encounters.mjs`, `monster-encounters.test.php`, and
+  `sheet-keeps-data.mjs` (`enc` is the one field added, every old monster in Unsorted).
 
 **3.2 Encounter builder (difficulty and XP)**
 - What: pick a campaign (or type the party's levels). Each encounter shows total XP, adjusted XP (the SRD 5.1
