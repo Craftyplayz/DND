@@ -84,6 +84,8 @@ try {
             await click('[name=hpmode][value=roll]');
             await b.until(`document.querySelector('[data-act=hproll]')`);
             await click('[data-act=hproll]');
+            await b.until(`document.querySelector('#hb-throw')`, 30000).catch(() => { bad++; console.log(`FAIL ${name}: no dice canvas during the throw`); });
+            is(`${name} the dice canvas is fixed and covers the viewport (the dice are on screen)`, await ev(`(() => { const c = document.querySelector('#hb-throw'); if (!c) return 'none'; const s = getComputedStyle(c), r = c.getBoundingClientRect(); return [s.position, Math.round(r.width) === innerWidth, Math.round(r.height) === innerHeight, r.top, r.left].join(); })()`), 'fixed,true,true,0,0');
             await b.until(`[...document.querySelectorAll('.bd-hp b')].every((x) => x.textContent !== '–')`, 60000);
             let d = await draft();
             is(`${name} hit point rolls in the draft's roll log, with their dice`, d.rolls.map((r) => [r.title, r.dice?.[0]?.[0]]), [['Hit points, level 3', 10], ['Hit points, level 2', 10]]);
@@ -266,6 +268,127 @@ try {
                 const e = c2.errors.filter((x) => !/backup\.php/.test(x));
                 if (e.length) { bad++; console.log(`FAIL ${name} with the content: ${e.join(' | ').slice(0, 800)}`); }
             } finally { c2.close(); }
+        }
+
+        // ---- descriptions, the feat under the improvements, and the spell folds (with the content; a level 8 wizard) ----
+        if (idx.files?.length) {
+            const c3 = await launch(name);
+            try {
+                const E = (js) => c3.ev(js), U = (js, ms) => c3.until(js, ms);
+                const clk = (sel) => E(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return 'missing ${sel.replace(/'/g, '')}'; e.click(); return 'ok'; })()`).then((r) => { if (r !== 'ok') { bad++; console.log(`FAIL ${name}: nothing to click at ${sel}`); } });
+                const set = (sel, v) => E(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); e.value = ${JSON.stringify(v)}; e.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+                const panelOpen = `(() => { const p = document.querySelector('#bd-panel'); return !p.hidden && p.getBoundingClientRect().width > 0; })()`;
+                await c3.go(BASE + '/privacy/');
+                await E(`localStorage.clear(); document.cookie = 'dndsid=; path=/; max-age=0'; 0`);
+                await c3.go(BASE + '/characters/build');
+                await U(`document.querySelector('[name=level][value="8"]')`, 20000);
+                await clk('[name=level][value="8"]');
+                await clk('[data-act=next]');
+                await U(`document.querySelector('[data-act=cls][data-id=wizard]')`, 20000);
+                await clk('[data-act=cls][data-id=wizard]');
+                await U(`document.querySelector('.bd-hero h2')?.textContent === 'Wizard' && document.querySelector('.bd-fold')`, 30000);
+                await c3.shot(1440, 900); // a desktop window (the headless default is 764 px)
+
+                // a skill: the name opens the panel and ticks nothing, the box ticks, Pick ticks, Esc closes and gives the focus back
+                const arc = `[data-pick="classes.0.profs.0"][value=skill-arcana]`;
+                await clk(`[data-info][data-pk*="skill-arcana"]`);
+                is(`${name} a name opens the panel, with the skill's text`, await E(`[${panelOpen}, document.querySelector('#bd-ptitle').textContent, document.querySelector('#bd-pbody').textContent.includes('Intelligence (Arcana)'), document.querySelector('${arc}').checked].join()`), 'true,Arcana,true,false');
+                await sleep(400); // the slide-in
+                is(`${name} the panel is a side panel on a desktop`, await E(`(() => { const r = document.querySelector('#bd-panel').getBoundingClientRect(); return [Math.round(r.right) === innerWidth, r.width < innerWidth / 2, r.height === innerHeight].join(); })()`), 'true,true,true');
+                is(`${name} Pick is offered`, await E(`document.querySelector('#bd-ppick').textContent`), 'Pick');
+                await clk('#bd-ppick');
+                is(`${name} Pick ticks the box, and offers Unpick`, await E(`[document.querySelector('${arc}').checked, document.querySelector('#bd-ppick').textContent, ${panelOpen}].join()`), 'true,Unpick,true');
+                await clk('#bd-ppick');
+                is(`${name} Unpick unticks it`, await E(`document.querySelector('${arc}').checked`), false);
+                await E(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); 0`);
+                is(`${name} Esc closes the panel and the focus goes back to the name`, await E(`[document.querySelector('#bd-panel').hidden, document.activeElement?.dataset.pk?.includes('skill-arcana')].join()`), 'true,true');
+                await clk(`[data-info][data-pk*="skill-arcana"]`);
+                await clk('#bd-pclose');
+                is(`${name} the close button closes it`, await E(`[document.querySelector('#bd-panel').hidden, document.activeElement?.dataset.pk?.includes('skill-arcana')].join()`), 'true,true');
+                await clk(arc);
+                is(`${name} the checkbox ticks it`, await E(`document.querySelector('${arc}').checked`), true);
+                await clk(`[data-info][data-pk*="skill-history"]`);
+                await clk('#bd-pclose');
+                is(`${name} a name never ticks`, await E(`document.querySelector('[data-pick="classes.0.profs.0"][value=skill-history]').checked`), false);
+                // the other kinds: a feature in the list, a subclass, a spell
+                await clk(`[data-info^="feature:"]`);
+                is(`${name} a class feature opens its text`, await E(`document.querySelector('#bd-pbody').textContent.length > 40`), true);
+                await clk('#bd-pclose');
+
+                // an ability score improvement that is a feat: its text appears under the section
+                await set('[data-b="classes.0.asi.4.k"]', 'feat');
+                await U(`document.querySelector('[data-b="classes.0.asi.4.feat"]')`);
+                is(`${name} no feat text before a feat is chosen`, await E(`document.querySelectorAll('.bd-featdesc').length`), 0);
+                await set('[data-b="classes.0.asi.4.feat"]', await E(`[...document.querySelector('[data-b="classes.0.asi.4.feat"]').options].find((o) => o.value && /^(grappler|alert|actor)$/.test(o.value))?.value || document.querySelector('[data-b="classes.0.asi.4.feat"]').options[1].value`));
+                is(`${name} the chosen feat's text is under the improvements, by level`, await E(`(() => { const d = document.querySelector('.bd-featdesc'); return [document.querySelectorAll('.bd-featdesc').length, d?.querySelector('h4').textContent.startsWith('Level 4: '), d?.querySelectorAll('p').length > 0, d?.closest('.bd-sect')?.querySelector('h3').textContent].join(); })()`), '1,true,true,Ability score improvements');
+                await set('[data-b="classes.0.asi.8.k"]', 'feat');
+                await set('[data-b="classes.0.asi.8.feat"]', await E(`[...document.querySelector('[data-b="classes.0.asi.8.feat"]').options].filter((o) => o.value)[2].value`));
+                is(`${name} one description per chosen feat`, await E(`[...document.querySelectorAll('.bd-featdesc h4')].map((h) => h.textContent.slice(0, 9)).join()`), 'Level 4: ,Level 8: ');
+                await clk('.bd-featdesc .bd-link');
+                is(`${name} and its name opens the panel too`, await E(`[${panelOpen}, document.querySelector('#bd-ptitle').textContent === document.querySelector('.bd-featdesc .bd-link').textContent].join()`), 'true,true');
+                await clk('#bd-pclose');
+
+                // spells: a fold per level with its count, rows with school and casting time, search, filters, chips
+                is(`${name} a fold for cantrips and each spell level`, await E(`[...document.querySelectorAll('.bd-fold > summary')].map((s) => s.textContent.replace(/\\s+/g, ' ').trim().replace(/\\d+ of \\d+/, 'N of M')).slice(0, 2).join()`), 'Cantrips (N of M picked),Level 1 (0 picked)');
+                is(`${name} the first fold is open and has single-line rows`, await E(`(() => { const f = document.querySelector('.bd-fold'), r = f.querySelector('.bd-sprow'); return [f.open, !!r.querySelector('input[type=checkbox]'), !!r.querySelector('.bd-link'), r.querySelectorAll('.bd-sm').length, r.getBoundingClientRect().height < 48].join(); })()`), 'true,true,true,2,true');
+                const fb = `[data-pick="classes.0.spells"][value=fire-bolt]`;
+                await clk(fb);
+                is(`${name} a picked spell is a chip, with a count`, await E(`[document.querySelectorAll('.bd-chip').length, /^Picked \\(1 of \\d+\\)$/.test(document.querySelector('.bd-picked h4').textContent), document.querySelector('.bd-fold > summary').textContent.includes('1 of')].join()`), '1,true,true');
+                await clk(`[data-info="spell:fire-bolt"]`);
+                is(`${name} a spell's name opens its details`, await E(`(() => { const t = document.querySelector('#bd-pbody').textContent + document.querySelector('#bd-pmeta').textContent; return [document.querySelector('#bd-ptitle').textContent, /Casting time: 1 action/.test(t), /Range: 120 feet/.test(t), /Evocation cantrip/.test(t), document.querySelector('#bd-ppick').textContent].join(); })()`), 'Fire Bolt,true,true,true,Unpick');
+                await clk('#bd-pclose');
+                // a fold opened by the player stays open across a redraw
+                await clk('.bd-fold[data-fold$="|1"] > summary');
+                await U(`document.querySelector('.bd-fold[data-fold$="|1"]').open`);
+                await clk(`[data-pick="classes.0.spells"][value=magic-missile]`);
+                is(`${name} the folds' open state survives a redraw`, await E(`[...document.querySelectorAll('.bd-fold')].slice(0, 2).map((f) => f.open).join()`), 'true,true');
+                await clk('.bd-chip button:not(.bd-link)');
+                is(`${name} a chip's x removes the pick`, await E(`[document.querySelectorAll('.bd-chip').length, document.querySelector('${fb}').checked].join()`), '1,false');
+                await E(`(() => { const e = document.querySelector('[data-sq]'); e.value = 'fire'; e.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+                is(`${name} search narrows the rows and opens the folds that match`, await E(`(() => { const n = [...document.querySelectorAll('.bd-sprow .bd-link')].map((x) => x.textContent); return [n.length > 1 && n.length < 15, n.every((x) => /fire/i.test(x)), n.includes('Fire Bolt'), [...document.querySelectorAll('.bd-fold')].every((f) => f.open)].join(); })()`), 'true,true,true,true');
+                await E(`(() => { const e = document.querySelector('[data-sq]'); e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+                await set('[data-sf][data-f=school]', 'Evocation');
+                is(`${name} the school filter`, await E(`(() => { const s = [...document.querySelectorAll('.bd-sprow')].map((r) => r.querySelector('.bd-sm').textContent); return [s.length > 3, s.every((x) => x === 'Evocation'), document.querySelector('[data-sf][data-f=school]').value].join(); })()`), 'true,true,Evocation');
+                await set('[data-sf][data-f=school]', '');
+                await clk('[data-sf][data-f=ritual]');
+                is(`${name} the ritual filter`, await E(`(() => { const r = [...document.querySelectorAll('.bd-sprow')]; return [r.length > 2, r.every((x) => /Ritual/.test(x.textContent))].join(); })()`), 'true,true');
+                await clk('[data-sf][data-f=ritual]');
+                await clk('[data-sf][data-f=conc]');
+                is(`${name} the concentration filter`, await E(`(() => { const r = [...document.querySelectorAll('.bd-sprow')]; return [r.length > 5, r.every((x) => /Conc/.test(x.textContent))].join(); })()`), 'true,true');
+                await clk('[data-sf][data-f=conc]');
+                // multiclass: the plain explanation is at the bottom of the class step
+                is(`${name} multiclass is explained at the bottom`, await E(`(() => { const s = [...document.querySelectorAll('#bd-step .bd-sect')].pop(); return [s.querySelector('h3').textContent, /sum of them/.test(s.textContent), /13/.test(s.textContent), !!s.querySelector('[data-act=clsadd]')].join(); })()`), 'Multiclass,true,true,true');
+                // equipment and race traits: the same names
+                await clk('[data-act=go][data-k=equipment]');
+                await U(`document.querySelector('.bd-eq input[type=radio]')`, 20000);
+                await clk(`.bd-eq .bd-pick .bd-link`);
+                is(`${name} an equipment name opens its details and does not pick it`, await E(`[${panelOpen}, document.querySelector('#bd-pmeta').textContent.length > 0].join()`), 'true,true');
+                await clk('#bd-pclose');
+                await clk('[data-act=go][data-k=race]');
+                await U(`document.querySelector('[data-act=race][data-id=dwarf]')`, 20000);
+                await clk('[data-act=race][data-id=dwarf]');
+                await U(`document.querySelector('[data-act=sub]') || document.querySelector('.bd-traits')`);
+                if (await E(`!!document.querySelector('[data-act=sub]')`)) await clk('[data-act=sub]');
+                await U(`document.querySelector('.bd-traits .bd-link')`);
+                await clk('.bd-traits .bd-link');
+                is(`${name} a race trait opens its text`, await E(`[${panelOpen}, document.querySelector('#bd-pbody').textContent.length > 30].join()`), 'true,true');
+                await clk('#bd-pclose');
+
+                // a phone: the panel slides up from the bottom, and nothing overflows sideways
+                await c3.shot(390);
+                await clk('[data-act=go][data-k=class]');
+                await U(`document.querySelector('.bd-fold')`);
+                await clk(`[data-info="spell:fire-bolt"]`);
+                await sleep(400);
+                is(`${name} on a phone the panel is a sheet at the bottom`, await E(`(() => { const r = document.querySelector('#bd-panel').getBoundingClientRect(); return [Math.round(r.width) === document.documentElement.clientWidth, Math.round(r.bottom) === innerHeight, r.height < innerHeight * 0.8].join(); })()`), 'true,true,true');
+                await clk('#bd-pclose');
+                for (const [where, sel] of [['the class step', null], ['the spell filters', '.bd-fold > summary']]) {
+                    if (sel) await clk(sel);
+                    is(`${name} at 390 px nothing overflows (${where})`, await E(`[document.documentElement.scrollWidth <= innerWidth, [...document.querySelectorAll('#bd-step *')].filter((e) => e.getBoundingClientRect().right > innerWidth + 1).length].join()`), 'true,0');
+                }
+                const e3 = c3.errors.filter((x) => !/backup\.php/.test(x));
+                if (e3.length) { bad++; console.log(`FAIL ${name} descriptions: ${e3.join(' | ').slice(0, 800)}`); }
+            } finally { c3.close(); }
         }
     }
 } finally { server.kill(); rmSync(TMP, { recursive: true, force: true }); }

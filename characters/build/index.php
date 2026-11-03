@@ -45,6 +45,12 @@ header('X-Robots-Tag: noindex');
         <p class="muted bd-credit">Classes, races, backgrounds and spells from the System Reference Document 5.1 by Wizards of the Coast, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC-BY-4.0</a>, the content credited on each entry and icons from game-icons.net (CC BY 3.0). All sources are on the <a href="/credits/">Credits</a> page.</p>
         <script type="application/json" id="bd-camps"><?= json_encode($camps) ?></script>
         <input type="file" id="bd-artfile" accept="image/*" hidden>
+        <aside class="bd-panel" id="bd-panel" role="dialog" aria-modal="false" aria-labelledby="bd-ptitle" hidden>
+            <div class="bd-phead"><h2 id="bd-ptitle"></h2><button type="button" class="btn small" id="bd-pclose" data-act="pclose">Close</button></div>
+            <div class="bd-pmeta" id="bd-pmeta"></div>
+            <div class="bd-pbody" id="bd-pbody"></div>
+            <div class="bd-pfoot"><button type="button" class="btn primary" id="bd-ppick" data-act="ppick" hidden>Pick</button></div>
+        </aside>
     </main>
 
     <?php site_footer(); ?>
@@ -52,6 +58,7 @@ header('X-Robots-Tag: noindex');
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/build.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/content.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player/rules.js')) ?>" defer></script>
     <script src="<?= h(asset('/characters/build/builder.js')) ?>" defer></script>
 </body>
 

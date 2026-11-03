@@ -1,6 +1,8 @@
 /* The character builder (/characters/build): a step list beside one step card, list rows with an icon tile and a chevron
    (classes, races, backgrounds), picks, ability scores and the review. The look follows _dev/mockups/builder/. */
 .bd [hidden] { display: none !important; }
+/* dice3d.js adds canvas#hb-throw to the page; the sheet's stylesheets position it, this page needs the same or the dice land off screen */
+#hb-throw { position: fixed; inset: 0; z-index: 1740; width: 100vw; height: 100vh; pointer-events: none; }
 .bd :where(button:not(.btn)) { font: inherit; color: inherit; }
 .bd-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .bd-top h1 { flex: 1 1 260px; margin: 0; }
@@ -53,18 +55,58 @@
 /* sections and picks */
 .bd-sect { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
 .bd-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 10px; }
-.bd-pick { position: relative; display: block; cursor: pointer; }
-.bd-pick input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.bd-pick .box { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; height: 100%; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.bd-pick { position: relative; display: block; }
+.bd-pick input { position: absolute; left: 12px; top: 12px; z-index: 1; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.bd-pick .box { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; height: 100%; padding: 10px 12px 10px 40px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
 .bd-pick .box .bd-ic { width: 36px; height: 36px; font-size: 16px; }
 .bd-pick .box .bd-ic svg { width: 22px; height: 22px; }
 .bd-pick .box small { flex-basis: 100%; color: var(--muted); }
 .bd-pick:hover .box { border-color: var(--accent); }
+.bd-pick .bd-link { position: relative; z-index: 1; }
 .bd-pick input:checked + .box { background: var(--accent-soft); border-color: var(--btn-line); box-shadow: inset 0 0 0 1px var(--btn-line); }
-.bd-pick input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bd-pick input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .bd-checks { margin: 0; padding: 0; border: 0; min-width: 0; }
 .bd-checks legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
 .bd-cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 2px 10px; }
+/* a name that opens its description */
+.bd .bd-link { padding: 0; background: none; border: 0; color: var(--accent); font: inherit; font-weight: inherit; text-align: left; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; overflow-wrap: anywhere; }
+.bd .bd-link:hover { text-decoration-color: currentColor; }
+.bd .bd-link:focus-visible, .bd-chip button:focus-visible, .bd-panel button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.bd-ck { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 14px; }
+.bd-ck input { flex: none; width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.bd-featdesc { display: grid; gap: 6px; padding: 10px 12px; background: var(--card2); border-radius: var(--radius); }
+.bd-featdesc h4 { margin: 0; color: var(--text); }
+.bd-mc { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+/* spells: a fold per level, a single-line row per spell */
+.bd-spfilter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.bd-spfilter .bd-sq { flex: 1 1 200px; min-width: 0; }
+.bd-picked h4 { margin: 0 0 6px; }
+.bd-chip { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 10px; background: var(--accent-soft); border: 1px solid var(--btn-line); border-radius: 999px; font-size: 13px; max-width: 100%; }
+.bd-chip button:not(.bd-link) { width: 24px; height: 24px; padding: 0; background: none; border: 0; border-radius: 50%; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
+.bd-chip button:not(.bd-link):hover { color: var(--text); background: var(--btn2); }
+.bd-fold { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.bd-fold + .bd-fold { margin-top: 6px; }
+.bd-fold > summary { padding: 8px 12px; font-weight: 600; cursor: pointer; }
+.bd-splist { display: grid; padding: 0 6px 6px; }
+.bd-sprow { display: grid; grid-template-columns: 18px minmax(0, 1fr) 100px 92px 120px; align-items: center; gap: 4px 10px; padding: 5px 6px; border-top: 1px solid var(--line); font-size: 14px; }
+.bd-sprow input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.bd-rm { display: contents; }
+.bd-sm { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-tags { display: flex; gap: 4px; justify-content: flex-end; min-width: 0; }
+.bd-tags .badge { padding: 0 7px; font-size: 11.5px; white-space: nowrap; }
+.bd-splist > .btn { margin-top: 6px; justify-self: start; }
+/* the description panel */
+.bd-panel { position: fixed; z-index: 200; top: 0; right: 0; bottom: 0; width: min(400px, 92vw); display: flex; flex-direction: column; gap: 10px; padding: 16px; background: var(--card); border-left: 1px solid var(--line-strong); box-shadow: -8px 0 24px rgba(0, 0, 0, .35); overflow: hidden; }
+.bd-phead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.bd-phead h2 { margin: 0; font-size: 19px; overflow-wrap: anywhere; }
+.bd-pmeta { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 13px; color: var(--muted); }
+.bd-pmeta p { flex-basis: 100%; margin: 0; }
+.bd-pbody { flex: 1; min-height: 0; overflow-y: auto; display: grid; align-content: start; gap: 8px; font-size: 14px; }
+.bd-pbody p { margin: 0; }
+.bd-pfoot .btn { width: 100%; justify-content: center; }
+@keyframes bd-in { from { transform: translateX(100%); } }
+@keyframes bd-up { from { transform: translateY(100%); } }
+@media (prefers-reduced-motion: no-preference) { .bd-panel { animation: bd-in .18s ease-out; } }
 .bd-unlock { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .bd-unlock li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 10px; background: var(--card2); border-radius: var(--radius); font-size: 14px; }
 .bd-unlock li.todo { border-left: 3px solid var(--highlight); }
@@ -138,6 +180,10 @@
     .bd-lvl { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .bd-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; margin: 0; padding: 10px 16px; background: var(--sunken); border-top: 1px solid var(--line-strong); }
     .bd-nav .btn { flex: 1; justify-content: center; }
+    .bd-panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 72vh; border-left: 0; border-top: 1px solid var(--line-strong); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 24px rgba(0, 0, 0, .35); animation-name: bd-up; }
+    .bd-sprow { grid-template-columns: 18px minmax(0, 1fr); }
+    .bd-rm { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; grid-column: 2; }
+    .bd-tags { justify-content: flex-start; }
     .bd-ab { grid-template-columns: 44px minmax(0, 1fr); }
     .bd-ab .ctl { grid-column: 1 / -1; justify-self: stretch; }
     .bd-ab .ctl select, .bd-ab .ctl input { width: 100%; }

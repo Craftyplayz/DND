@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ---- small pieces ----
-    const view = { cls: 'list', clsAt: 0, race: 'list', bg: 'list', q: {}, az: {}, more: {}, sq: {} };
+    const view = { cls: 'list', clsAt: 0, race: 'list', bg: 'list', q: {}, az: {}, more: {}, sq: {}, sf: {}, fold: {} };
     const get = (path, o = ch) => path.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
     function set(path, v, o = ch) {
         const ks = path.split('.');
@@ -136,11 +136,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     const desc = (d) => (Array.isArray(d) ? d : [d]).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
     const sel = (path, opts, label, cur = get(path)) => `<select class="field" data-b="${path}" aria-label="${esc(label)}">${opts.map(([v, t]) => `<option value="${esc(v)}"${String(cur ?? '') === String(v) ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
     const back = (act, label) => `<div class="bd-crumb"><button type="button" class="btn small" data-act="${act}">‹ ${esc(label)}</button></div>`;
-    // a group of checkboxes that keeps at most n picked (a pick past n is refused with a note)
-    const checks = (path, options, n, label) => {
+    // ---- the description panel: the NAME of anything is a button that opens it; only the box beside it ticks ----
+    const infos = {}, NODESC = '<p class="muted">No description available.</p>';
+    const nm = (label, key, fn, pk = '') => { infos[key] = fn; return `<button type="button" class="bd-link" data-info="${esc(key)}"${pk ? ` data-pk="${esc(pk)}"` : ''}>${esc(label)}</button>`; };
+    const money = (c) => (c && c.quantity != null ? `${c.quantity} ${c.unit || ''}`.trim() : '');
+    function eqInfo(e) {
+        if (!e) return null;
+        const props = (e.properties || []).map((p) => p.name || B.words(String(p.index || p)));
+        return { title: e.name, html: desc(e.desc), meta: [e.category_range || (e.armor_category && e.armor_category + ' armour') || (e.gear_category && B.words(e.gear_category)) || '', money(e.cost) && 'Cost: ' + money(e.cost),
+            e.weight ? `Weight: ${e.weight} lb` : '', e.damage ? `Damage: ${e.damage.damage_dice} ${e.damage.damage_type}` : '', e.armor_class ? `Armour class: ${e.armor_class.base}${e.armor_class.dex_bonus ? ' + Dex' : ''}` : '', props.length ? 'Properties: ' + props.join(', ') : ''].filter(Boolean) };
+    }
+    function spellInfo(s, name = '') {
+        if (!s) return null;
+        const hl = (s.higher_level || []).filter(Boolean);
+        return { title: s.name || name, tags: [s.ritual && 'Ritual', s.concentration && 'Concentration'].filter(Boolean), html: desc(s.desc) + (hl.length ? `<p><b>At higher levels.</b> ${esc(hl.join(' '))}</p>` : ''),
+            meta: [s.school ? (s.level ? `Level ${s.level} ${s.school}` : `${s.school} cantrip`) : s.level ? `Level ${s.level}` : 'Cantrip', s.casting_time && 'Casting time: ' + s.casting_time, s.range && 'Range: ' + s.range,
+                s.components && `Components: ${[].concat(s.components).join(', ')}${s.material ? ` (${s.material})` : ''}`, s.duration && 'Duration: ' + s.duration].filter(Boolean) };
+    }
+    const featInfo = (f) => f && { title: f.name, html: desc(f.desc), meta: (f.prerequisites || []).map((p) => 'Prerequisite: ' + (typeof p === 'string' ? p : p.desc || `${String(p.ability_score?.index || p.ability_score || '').toUpperCase()} ${p.minimum_score || ''}`.trim())) };
+    // the text for a name that has no data of its own: skills and languages (rules.js), then feats, spells and equipment by name
+    function look(label, v = '') {
+        const low = String(label).toLowerCase(), key = String(v).replace(/^(skill|tool)-/, ''), R = window.HB_RULES || {};
+        if (D.spells?.[v]?.desc) return spellInfo(D.spells[v]);
+        if (R.skill?.[low]) return { title: label, meta: ['Skill'], html: desc(R.skill[low]) };
+        const lg = Object.values(D.languages || {}).find((l) => (l.name || '').toLowerCase() === low);
+        if (lg || R.lang?.[low]) return { title: label, meta: ['Language', lg?.type && 'Type: ' + lg.type, lg?.script && 'Script: ' + lg.script, lg?.typical_speakers?.length && 'Typical speakers: ' + lg.typical_speakers.join(', ')].filter(Boolean), html: desc(lg?.desc || R.lang?.[low]) };
+        const ft = Object.values(D.feats || {}).find((f) => (f.name || '').toLowerCase() === low);
+        if (ft) return featInfo(ft);
+        return eqInfo(D.equipment?.[key] || Object.values(D.equipment || {}).find((e) => (e.name || '').toLowerCase() === low));
+    }
+    const lookName = (v, t, pk) => nm(t, 'x:' + v + ':' + t, () => look(t, v), pk);
+    // a feature option's text: its own, else its line in the feature's list ("- Archery (PHB). ...")
+    const optInfo = (f, o) => {
+        const short = o.name.replace(/^.*?: /, '').toLowerCase();
+        const line = o.desc || (f.desc || []).filter((l) => l.slice(0, 2) === '- ' && l.slice(2).toLowerCase().startsWith(short)).map((l) => l.slice(2));
+        return { title: o.name.replace(/^.*?: /, ''), html: desc(line) };
+    };
+    // a group of checkboxes that keeps at most n picked (a pick past n is refused with a note); the name beside each opens its text
+    const checks = (path, options, n, label, nameOf = lookName) => {
         const have = arr(path);
         return `<fieldset class="bd-checks"><legend>${esc(label)} <span class="muted">${have.length} of ${n} chosen</span></legend><div class="bd-cgrid">${options.map(([v, t]) =>
-            `<label class="check"><input type="checkbox" data-pick="${path}" data-n="${n}" value="${esc(v)}"${have.includes(v) ? ' checked' : ''}${!have.includes(v) && have.length >= n ? ' disabled' : ''}> ${esc(t)}</label>`).join('')}</div></fieldset>`;
+            `<div class="bd-ck"><input type="checkbox" data-pick="${path}" data-n="${n}" value="${esc(v)}" aria-label="${esc(t)}"${have.includes(v) ? ' checked' : ''}${!have.includes(v) && have.length >= n ? ' disabled' : ''}>${nameOf(v, t, `[data-pick="${path}"][value="${v}"]`)}</div>`).join('')}</div></fieldset>`;
     };
     const tile = (label, value, sub = '') => `<div class="tile"><b>${esc(value)}</b><span>${esc(label)}</span>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
 
@@ -264,7 +300,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const subL = B.subLevel(e.id, D), subs = B.subsOf(e.id, D, rules());
         const feats = Array.from({ length: lv - from + 1 }, (_, i) => from + i).flatMap((l) => B.featuresAt(e.id, e.sub, l, D).map((f) => [l, f]));
         const asiL = B.asiLevels(cls).filter((l) => l >= from && l <= lv);
-        const unlock = [...feats.map(([l, f]) => [l, f.name, !!(f.choices?.options || B.pickOf(f))]),
+        const unlock = [...feats.map(([l, f]) => [l, f.name, !!(f.choices?.options || B.pickOf(f)), f]),
             ...(subL >= from && subL <= lv && !e.sub ? [[subL, 'Subclass', true]] : []), ...asiL.map((l) => [l, 'Ability Score Improvement or a feat', true])].sort((a, b) => a[0] - b[0]);
         const out = [];
         if (ci !== 'up') out.push(back('clslist', ch.classes.length > 1 ? 'Classes' : 'Change class'));
@@ -273,11 +309,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         out.push(desc(cls.desc) || `<p>A ${esc(cls.name.toLowerCase())} has a d${cls.hit_die} hit die${cls.spellcasting ? ` and casts spells with ${esc(B.casterOf(e.id, D).ab)}` : ''}. Its features for each level are below; pick what it asks for.</p>`);
         if (multi) out.push(prereq(e.id));
         if (ci !== 'up' && ci > 0) out.push(`<label class="bd-inl">Levels in ${esc(cls.name)} ${sel(`${P}.levels`, Array.from({ length: Math.max(1, level() - 1) }, (_, i) => [i + 1, String(i + 1)]), 'Levels in this class')}</label>`);
-        out.push(`<div class="bd-sect"><h3>${only ? `What level ${only} gets` : `What a level ${lv} ${esc(cls.name.toLowerCase())} gets`}</h3><ul class="bd-unlock">${unlock.map(([l, t, pick]) =>
-            `<li${pick ? ' class="todo"' : ''}><span class="lv">Lv ${l}</span><span>${esc(t)}${pick ? ' <span class="badge">you choose</span>' : ''}</span></li>`).join('') || '<li><span>No new features at this level.</span></li>'}</ul></div>`);
+        out.push(`<div class="bd-sect"><h3>${only ? `What level ${only} gets` : `What a level ${lv} ${esc(cls.name.toLowerCase())} gets`}</h3><ul class="bd-unlock">${unlock.map(([l, t, pick, f]) =>
+            `<li${pick ? ' class="todo"' : ''}><span class="lv">Lv ${l}</span><span>${f ? nm(t, `feature:${e.id}:${B.fid(f, l)}`, () => ({ title: t, meta: [`${cls.name} level ${l}`], html: desc(f.desc) })) : esc(t)}${pick ? ' <span class="badge">you choose</span>' : ''}</span></li>`).join('') || '<li><span>No new features at this level.</span></li>'}</ul></div>`);
         // subclass, picked at its level (level-1 subclasses right here, Q27)
         if (lv >= subL && subs.length && (subL >= from || !e.sub)) out.push(`<div class="bd-sect"><h3>Subclass <span class="muted">level ${subL}</span></h3><div class="bd-picks" role="radiogroup" aria-label="Subclass">${subs.map((s) =>
-            `<label class="bd-pick"><input type="radio" name="${P}.sub" data-b="${P}.sub" data-redraw value="${esc(s.id)}"${e.sub === s.id ? ' checked' : ''}><span class="box">${iconFor('subclasses', `${e.id}--${s.id}`, s.name)}<b>${esc(s.name)}</b>${s.subclass_flavor ? `<small>${esc(s.subclass_flavor)}</small>` : ''}</span></label>`).join('')}</div>
+            `<div class="bd-pick"><input type="radio" name="${P}.sub" data-b="${P}.sub" data-redraw value="${esc(s.id)}" aria-label="${esc(s.name)}"${e.sub === s.id ? ' checked' : ''}><div class="box">${iconFor('subclasses', `${e.id}--${s.id}`, s.name)}<b>${nm(s.name, 'sub:' + s.id, () => ({ title: s.name, meta: [s.subclass_flavor || ''].filter(Boolean), html: desc(s.desc) }), `[name="${P}.sub"][value="${s.id}"]`)}</b>${s.subclass_flavor ? `<small>${esc(s.subclass_flavor)}</small>` : ''}</div></div>`).join('')}</div>
             ${e.sub && D.subclasses[e.sub] ? `<div class="bd-desc">${desc(D.subclasses[e.sub].desc)}</div>` : ''}</div>`);
         // skills and other proficiencies: the class's own at character level 1, its multiclass ones later
         if (from === 1) {
@@ -294,7 +330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const pk = B.pickOf(f);
                 if (pk) return checks(`${P}.picks.${B.fid(f, l)}`, (pk[0] === 'expert' ? prof : M.SKILLS.map(([s]) => s)).map((s) => [s, s]), pk[1], `Level ${l} ${f.name}: ${pk[0] === 'expert' ? `double proficiency in ${pk[1]} skills` : `${pk[1]} skills`}`);
                 const n = B.chooseN(f, cls, l, 0);
-                return n ? checks(`${P}.opts.${B.fid(f, l)}`, f.choices.options.map((o) => [o.index, o.name.replace(/^.*?: /, '')]), n, `Level ${l} ${f.name}`) : '';
+                return n ? checks(`${P}.opts.${B.fid(f, l)}`, f.choices.options.map((o) => [o.index, o.name.replace(/^.*?: /, '')]), n, `Level ${l} ${f.name}`, (v, t, pk) => nm(t, 'opt:' + v, () => optInfo(f, f.choices.options.find((o) => o.index === v)), pk)) : '';
             }).join('')}</div>`);
         }
         // ability score improvements: +2 to one, +1 to two, or a feat where the rules grant one (Q78)
@@ -306,12 +342,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ${a.k === '+2' ? sel(p + '.a.0', [['', 'Ability...'], ...abs], 'Ability', a.a?.[0] || '') : ''}
                     ${a.k === '+1' ? sel(p + '.a.0', [['', 'Ability...'], ...abs], 'First ability', a.a?.[0] || '') + sel(p + '.a.1', [['', 'Ability...'], ...abs], 'Second ability', a.a?.[1] || '') : ''}
                     ${a.k === 'feat' ? sel(p + '.feat', [['', 'Feat...'], ...feats2.map((f) => [f.id, f.name])], 'Feat', a.feat || '') : ''}</div>`;
-            }).join('')}<p class="hint">Scores can't go over 20 this way.</p></div>`);
+            }).join('')}<p class="hint">Scores can't go over 20 this way.</p>${asiL.filter((l) => e.asi?.[l]?.k === 'feat' && D.feats[e.asi[l].feat]).map((l) => { const f = D.feats[e.asi[l].feat];
+                return `<div class="bd-featdesc"><h4>Level ${l}: ${nm(f.name, 'feat:' + f.name, () => featInfo(f))}</h4>${(featInfo(f).meta || []).map((m) => `<p class="hint">${esc(m)}</p>`).join('')}${desc(f.desc) || NODESC}</div>`; }).join('')}</div>`);
         }
         out.push(spellsHtml(e, P, lv, from));
         return out.join('');
     }
-    // spells inside the class step: cantrips and spells up to the highest level the class can cast, with the class's counts
+    // spells inside the class step: cantrips and spells up to the highest level the class can cast, with the class's counts.
+    // A fold per spell level (its picked count in the summary), a row per spell, search and filters, the picks as chips on top.
     function spellsHtml(e, P, lv, from) {
         const k = B.casterOf(e.id, D);
         if (k.kind === 'none') return '';
@@ -322,17 +360,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!pool.length && !always.size) return `<div class="bd-sect"><h3>Spells</h3><p class="hint">No spells to pick at this level.</p></div>`;
         const picked = arr(`${P}.spells`), lvOf = (i) => D.spells[i]?.level ?? 0;
         const cant = picked.filter((i) => !lvOf(i)).length, rest = picked.length - cant;
-        const want = n.book ? n.book - was.book : n.known ? n.known - was.known : n.prepared - (from > 1 ? was.prepared : 0);
-        const q = (view.sq[P] || '').toLowerCase(), shown = pool.filter((s) => !q || s.name.toLowerCase().includes(q));
-        const box = (s) => `<label class="check"><input type="checkbox" data-pick="${P}.spells" data-n="999" value="${esc(s.index)}"${picked.includes(s.index) ? ' checked' : ''}> ${esc(s.name)}</label>`;
-        const group = (l) => { const g = shown.filter((s) => s.level === l); return g.length ? `<h4>${l ? `Level ${l}` : 'Cantrips'}</h4><div class="bd-cgrid">${g.slice(0, view.more['sp' + P] ? Infinity : 250).map(box).join('')}</div>` : ''; };
+        const want = n.book ? n.book - was.book : n.known ? n.known - was.known : n.prepared - (from > 1 ? was.prepared : 0), wantC = n.cantrips - was.cantrips;
+        const q = (view.sq[P] || '').trim().toLowerCase(), F = (view.sf[P] ||= { school: '', ritual: false, conc: false }), det = (s) => D.spells[s.index] || {};
+        const schools = [...new Set(pool.map((s) => det(s).school).filter(Boolean))].sort();
+        const filtering = !!(q || F.school || F.ritual || F.conc);
+        const shown = pool.filter((s) => (!q || s.name.toLowerCase().includes(q)) && (!F.school || det(s).school === F.school) && (!F.ritual || det(s).ritual) && (!F.conc || det(s).concentration));
+        const pkOf = (i) => `[data-pick="${P}.spells"][value="${i}"]`;
+        const row = (s) => {
+            const d = det(s);
+            return `<div class="bd-sprow"><input type="checkbox" data-pick="${P}.spells" data-n="999" value="${esc(s.index)}" aria-label="${esc(s.name)}"${picked.includes(s.index) ? ' checked' : ''}>${nm(s.name, 'spell:' + s.index, () => spellInfo(D.spells[s.index], s.name), pkOf(s.index))}
+                <span class="bd-rm"><span class="bd-sm">${esc(d.school || '')}</span><span class="bd-sm">${esc(d.casting_time || '')}</span><span class="bd-tags">${d.ritual ? '<span class="badge">Ritual</span>' : ''}${d.concentration ? '<span class="badge">Conc.</span>' : ''}</span></span></div>`;
+        };
+        const lvls = [...new Set(pool.map((s) => s.level))].sort((a, b) => a - b);
+        const fold = (l) => {
+            const g = shown.filter((s) => s.level === l), key = P + '|' + l, cnt = picked.filter((i) => lvOf(i) === l).length, cap = l ? 0 : wantC;
+            if (filtering && !g.length) return '';
+            const cut = g.slice(0, view.more['sp' + key] ? Infinity : 100);
+            return `<details class="bd-fold" data-fold="${esc(key)}"${filtering ? ' data-auto' : ''}${(filtering ? true : view.fold[key] ?? l === lvls[0]) ? ' open' : ''}><summary>${l ? `Level ${l}` : 'Cantrips'} <span class="muted">(${cap > 0 ? `${cnt} of ${cap} picked` : `${cnt} picked`}${filtering ? `, ${g.length} shown` : ''})</span></summary>
+                <div class="bd-splist">${cut.map(row).join('')}${g.length > cut.length ? `<button type="button" class="btn small" data-act="more" data-k="sp${esc(key)}">Show all ${g.length}</button>` : ''}</div></details>`;
+        };
         const over = (have, max) => (max && have > max ? ` <span class="badge r">${have - max} over</span>` : '');
+        const total = wantC + Math.max(0, want);
+        const chips = picked.length ? `<div class="bd-picked"><h4>Picked (${picked.length}${total > 0 ? ` of ${total}` : ''})</h4><div class="bd-chips">${picked.map((i) => `<span class="bd-chip">${nm(D.spells[i]?.name || B.words(i), 'spell:' + i, () => spellInfo(D.spells[i], B.words(i)), pkOf(i))}<button type="button" data-act="spdel" data-p="${P}.spells" data-v="${esc(i)}" aria-label="Remove ${esc(D.spells[i]?.name || B.words(i))}">×</button></span>`).join('')}</div></div>` : '';
         return `<div class="bd-sect"><h3>Spells</h3>
-            <p class="hint">${n.cantrips - was.cantrips > 0 ? `Cantrips: ${n.cantrips - was.cantrips} to pick (${cant} picked)${over(cant, n.cantrips - was.cantrips)}. ` : ''}${want > 0 ? `${n.book ? 'Spellbook' : n.known ? 'Spells known' : 'Prepared spells'}: ${want} to pick (${rest} picked)${over(rest, want)}.` : ''}
+            <p class="hint">${wantC > 0 ? `Cantrips: ${wantC} to pick (${cant} picked)${over(cant, wantC)}. ` : ''}${want > 0 ? `${n.book ? 'Spellbook' : n.known ? 'Spells known' : 'Prepared spells'}: ${want} to pick (${rest} picked)${over(rest, want)}.` : ''}
             ${n.prepared && !n.book ? ' Prepared casters can change these after a long rest.' : ''}${n.book ? ` You prepare ${n.prepared} of them each day.` : ''}</p>
             ${always.size ? `<p class="hint">Always prepared: ${[...always].map((i) => esc(D.spells[i]?.name || B.words(i))).join(', ')}.</p>` : ''}
-            <input class="field bd-sq" type="search" data-sq="${P}" value="${esc(view.sq[P] || '')}" placeholder="Search spells" aria-label="Search spells" autocomplete="off">
-            <div id="bd-sp-${P.replace(/\W/g, '')}">${Array.from({ length: top + 1 }, (_, l) => group(l)).join('') || '<p class="muted">No spells match that search.</p>'}</div></div>`;
+            ${chips}
+            <div class="bd-spfilter"><input class="field bd-sq" type="search" data-sq="${P}" value="${esc(view.sq[P] || '')}" placeholder="Search spells" aria-label="Search spells" autocomplete="off">
+                ${schools.length ? `<select class="field" data-sf="${P}" data-f="school" aria-label="School of magic"><option value="">Any school</option>${schools.map((x) => `<option${F.school === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
+                <label class="check"><input type="checkbox" data-sf="${P}" data-f="ritual"${F.ritual ? ' checked' : ''}> Ritual</label><label class="check"><input type="checkbox" data-sf="${P}" data-f="conc"${F.conc ? ' checked' : ''}> Concentration</label>` : ''}</div>
+            <div id="bd-sp-${P.replace(/\W/g, '')}">${lvls.map(fold).join('') || '<p class="muted">No spells match that search.</p>'}</div></div>`;
     }
     // hit points: every level's die, the average or a 3D roll (level 1 is always the maximum)
     function hpHtml() {
@@ -382,7 +440,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return back(subs.length > 1 ? 'racesubs' : 'racelist', subs.length > 1 ? 'Subraces' : 'All races')
             + `<div class="bd-hero">${iconFor('races', ch.sub || ch.race, (s || r).name)}<div><h2>${esc((s || r).name)}</h2><div class="badges"><span class="badge b">${esc(bonusText(r, s))}</span>${r.speed ? `<span class="badge">Speed ${r.speed} ft</span>` : ''}<span class="badge">${esc(r.size || '')}</span></div></div></div>
             ${desc(r.desc)}${s ? desc(s.desc) : ''}<div class="bd-desc">${[r.age, r.size_description, r.language_desc].filter(Boolean).map((p) => `<p class="muted">${esc(p)}</p>`).join('')}</div>
-            <div class="bd-sect"><h3>Traits</h3><dl class="bd-traits">${[...(r.traits || []), ...(s?.traits || [])].map((t) => `<div><dt>${esc(t.name)}</dt><dd>${esc((Array.isArray(t.desc) ? t.desc : [t.desc]).filter(Boolean).join(' '))}</dd></div>`).join('') || '<p class="muted">No traits listed.</p>'}</dl></div>
+            <div class="bd-sect"><h3>Traits</h3><dl class="bd-traits">${[...(r.traits || []), ...(s?.traits || [])].map((t) => `<div><dt>${nm(t.name, 'trait:' + (t.index || t.name), () => ({ title: t.name, html: desc(t.desc) }))}</dt><dd>${esc((Array.isArray(t.desc) ? t.desc : [t.desc]).filter(Boolean).join(' '))}</dd></div>`).join('') || '<p class="muted">No traits listed.</p>'}</dl></div>
             ${raceChoicesHtml()}`;
     };
     function raceChoicesHtml() {
@@ -451,7 +509,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="bd-asi">${sel('bgOpts.ab.k', [['', 'Choose...'], ['21', '+2 to one, +1 to another'], ['111', '+1 to all three']], 'Ability score increase', ab.k || '')}
                 ${ab.k === '21' ? sel('bgOpts.ab.two', [['', '+2 to...'], ...abs.map((a) => [a, a])], '+2 to', ab.two || '') + sel('bgOpts.ab.one', [['', '+1 to...'], ...abs.map((a) => [a, a])], '+1 to', ab.one || '') : ''}</div></div>`);
         }
-        if (bg?.feat) out.push(`<div class="bd-sect"><h3>Feat</h3><p>${esc(bg.feat)}</p></div>`);
+        if (bg?.feat) out.push(`<div class="bd-sect"><h3>Feat</h3><p>${lookName(bg.feat, bg.feat)}</p></div>`);
         if (nLang) out.push(`<div class="bd-sect"><h3>Languages</h3><div class="bd-fgrid">${Array.from({ length: nLang }, (_, i) => `<label>Language ${i + 1}${sel(`bgOpts.langs.${i}`, [['', 'Choose...'], ...langs], `Language ${i + 1}`, (ch.bgOpts.langs || [])[i] || '')}</label>`).join('')}</div></div>`);
         out.push(`<div class="bd-sect"><h3>Alignment, faith, lifestyle</h3><div class="bd-fgrid">
                 <label>Alignment${sel('details.alignment', [['', 'Choose...'], ...['Lawful good', 'Neutral good', 'Chaotic good', 'Lawful neutral', 'True neutral', 'Chaotic neutral', 'Lawful evil', 'Neutral evil', 'Chaotic evil', 'Unaligned'].map((x) => [x, x])], 'Alignment', det.alignment || '')}</label>
@@ -480,6 +538,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     // the "any ..." choices inside an option, each a select
     const choicesIn = (o) => (!o ? [] : o.option_type === 'choice' ? Array.from({ length: +o.choice?.choose || 1 }, () => o.choice) : o.option_type === 'multiple' ? (o.items || []).flatMap(choicesIn) : []);
+    function optHtml(o) {
+        if (!o) return '';
+        const ref = (r, pre = '') => esc(pre) + nm(B.itemName(r, D, M), 'eq:' + r, () => eqInfo(D.equipment?.[r]));
+        if (o.option_type === 'counted_reference') return ref(o.of?.index || o.of, +o.count > 1 ? o.count + ' ' : '');
+        if (o.option_type === 'reference') return ref(o.item?.index || o.item);
+        if (o.option_type === 'multiple') return (o.items || []).map(optHtml).join(', ');
+        return esc(optLabel(o));
+    }
     function equipSet(set, key, label) {
         const pick = ch.equip.picks[key] || {}, direct = set.from?.option_set_type === 'equipment_category';
         if (!set.from) return `<fieldset class="bd-eq"><legend class="hint">${esc(label)}</legend><p>${esc(set.desc || '')}</p>
@@ -490,14 +556,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             return `<label>${esc(c.desc ? B.words(c.desc).replace(/^(\w)(.*)$/, (m, a, b) => a + b.toLowerCase()) : 'Pick one')}${sel(`equip.picks.${key}.items.${j}`, list.map((x) => [x, B.itemName(x, D, M)]), 'Pick one', (pick.items || [])[j] || list[0])}</label>`; };
         const packOf = (op) => { const r = op?.of?.index || op?.of; return B.PACKS[r] ? `<ul class="bd-pack">${B.PACKS[r].map(([n, x]) => `<li>${n > 1 ? n + ' × ' : ''}${esc(x)}</li>`).join('')}</ul>` : ''; };
         return `<fieldset class="bd-eq"><legend class="hint">${esc(label)}${set.desc ? `: ${esc(set.desc)}` : ''}</legend>
-            ${opts.length > 1 ? `<div class="bd-picks" role="radiogroup">${opts.map((op, i) => `<label class="bd-pick"><input type="radio" name="eq-${key}" data-b="equip.picks.${key}.o" data-num data-redraw value="${i}"${o === i ? ' checked' : ''}><span class="box"><b>(${'abcdefg'[i]}) ${esc(optLabel(op))}</b>${packOf(op)}</span></label>`).join('')}</div>`
-                : opts.length ? `<p>${esc(optLabel(opts[0]))}</p>${packOf(opts[0])}` : ''}
+            ${opts.length > 1 ? `<div class="bd-picks" role="radiogroup">${opts.map((op, i) => `<div class="bd-pick"><input type="radio" name="eq-${key}" data-b="equip.picks.${key}.o" data-num data-redraw value="${i}" aria-label="${esc(optLabel(op))}"${o === i ? ' checked' : ''}><div class="box"><b>(${'abcdefg'[i]}) ${optHtml(op)}</b>${packOf(op)}</div></div>`).join('')}</div>`
+                : opts.length ? `<p>${optHtml(opts[0])}</p>${packOf(opts[0])}` : ''}
             ${subs.length ? `<div class="bd-fgrid">${subs.map(catSel).join('')}</div>` : ''}</fieldset>`;
     }
     STEP.equipment = () => {
         if (!need(['equipment'])) return '<h2>Equipment</h2><p class="hint">Loading the equipment...</p>';
         const cls = D.classes[ch.classes[0]?.id], bg = D.backgrounds[ch.bg], gd = cls && B.goldDice(ch.classes[0].id, D);
-        const fixed = (list, from) => (list || []).length ? `<p class="hint">${esc(from)} also gives: ${list.map((e) => `${+e.quantity > 1 ? e.quantity + ' × ' : ''}${esc(B.itemName(e.equipment?.index || e.equipment, D, M))}`).join(', ')}.</p>` : '';
+        const fixed = (list, from) => (list || []).length ? `<p class="hint">${esc(from)} also gives: ${list.map((e) => { const r = e.equipment?.index || e.equipment; return `${+e.quantity > 1 ? e.quantity + ' × ' : ''}${nm(B.itemName(r, D, M), 'eq:' + r, () => eqInfo(D.equipment?.[r]))}`; }).join(', ')}.</p>` : '';
         const gear = `${cls ? (cls.starting_equipment_options || []).map((s, i) => equipSet(s, 'c' + i, `${cls.name} choice ${i + 1}`)).join('') + fixed(cls.starting_equipment, cls.name) : '<p class="hint">Pick a class first for its starting equipment.</p>'}
             ${bg ? (bg.starting_equipment_options || []).map((s, i) => equipSet(s, 'b' + i, `${bg.name}`)).join('') + fixed(bg.starting_equipment, bg.name) + (bg.starting_gold ? `<p class="hint">And ${bg.starting_gold.quantity} ${esc(bg.starting_gold.unit || 'gp')} in a pouch.</p>` : '') : ''}`;
         const gold = `<p><button type="button" class="btn" data-act="goldroll">Roll ${gd ? `${gd[0]}d4${gd[1] > 1 ? ' × ' + gd[1] : ''}` : 'starting gold'}</button>
@@ -510,7 +576,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="bd-sect"><h3>Extra gear <span class="muted">optional, anything your DM allows</span></h3>
                 <div class="bd-row2"><input class="field" id="bd-extra" list="bd-dl-gear" placeholder="Search gear" aria-label="Extra gear" autocomplete="off"><button type="button" class="btn small" data-act="extra">Add</button></div>
                 <datalist id="bd-dl-gear">${names.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
-                ${(ch.equip.extra || []).length ? `<div class="rows">${ch.equip.extra.map((x, i) => `<div class="rowi"><span class="grow">${esc(x)}</span><button type="button" class="btn small" data-act="extradel" data-i="${i}" aria-label="Remove ${esc(x)}">Remove</button></div>`).join('')}</div>` : ''}</div>`;
+                ${(ch.equip.extra || []).length ? `<div class="rows">${ch.equip.extra.map((x, i) => `<div class="rowi"><span class="grow">${lookName(x, x)}</span><button type="button" class="btn small" data-act="extradel" data-i="${i}" aria-label="Remove ${esc(x)}">Remove</button></div>`).join('')}</div>` : ''}</div>`;
     };
 
     // ---- step: review ----
@@ -571,6 +637,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         return V;
     }
 
+    // ---- the panel: a side panel on a desktop, a sheet from the bottom on a phone; Pick/Unpick ticks the box beside the name ----
+    const panel = $('#bd-panel');
+    let pOpen = null, fromPanel = false;
+    const withKey = (key) => [...document.querySelectorAll('[data-info]')].filter((x) => x.dataset.info === key);
+    function fillPanel() {
+        if (!pOpen) return;
+        let info = null;
+        try { info = infos[pOpen.key]?.() || null; } catch (x) { }
+        if (!info && !Object.keys(D.equipment || {}).length) need(['equipment']); // tools and gear are in the equipment file
+        $('#bd-ptitle').textContent = info?.title || pOpen.label;
+        $('#bd-pmeta').innerHTML = (info?.tags || []).map((t) => `<span class="badge">${esc(t)}</span>`).join('') + (info?.meta || []).map((m) => `<p>${esc(m)}</p>`).join('');
+        $('#bd-pbody').innerHTML = info?.html || (info?.meta?.length ? '' : NODESC);
+        const el = pOpen.pk ? $(pOpen.pk) : null, pb = $('#bd-ppick');
+        pb.hidden = !el;
+        if (el) { pb.textContent = el.type === 'radio' ? (el.checked ? 'Picked' : 'Pick') : el.checked ? 'Unpick' : 'Pick'; pb.disabled = el.type === 'radio' && el.checked; pb.setAttribute('aria-label', `${pb.textContent} ${info?.title || pOpen.label}`); }
+    }
+    function openPanel(btn) {
+        pOpen = { key: btn.dataset.info, nth: withKey(btn.dataset.info).indexOf(btn), pk: btn.dataset.pk || '', label: btn.textContent };
+        panel.hidden = false; fillPanel(); $('#bd-pclose').focus();
+    }
+    function closePanel(focus = true) {
+        const o = pOpen;
+        pOpen = null; panel.hidden = true;
+        if (focus && o) { const l = withKey(o.key); (l[o.nth] || l[0])?.focus(); }
+    }
+
     // ---- drawing ----
     function render() {
         const i = STEPS.findIndex(([k]) => k === step);
@@ -581,13 +673,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const back = $('[data-act=back]'), next = $('[data-act=next]');
         back.disabled = i === 0;
         next.textContent = i === STEPS.length - 1 ? (UP ? 'Finish level up' : 'Finish') : 'Next';
+        fillPanel();
         const c = UP ? C : null;
         $('#bd-sum').textContent = UP ? (c.name || '') : [D.subraces[ch.sub]?.name || D.races[ch.race]?.name, ch.classes.map((e) => `${D.classes[e.id]?.name || ''} ${e.levels}`).join(' / ')].filter(Boolean).join(' ');
         if (step === 'class' && !UP && view.cls !== 'list') stepBox.insertAdjacentHTML('beforeend', `${hpHtml()}<div class="bd-sect"><h3>Multiclass</h3>${level() > ch.classes.reduce((t, e) => t + 1, 0)
             ? `<p><button type="button" class="btn small" data-act="clsadd">Add another class</button>${view.cls > 0 ? ` <button type="button" class="btn small" data-act="clsdel" data-i="${view.cls}">Remove ${esc(D.classes[ch.classes[view.cls]?.id]?.name || 'this class')}</button>` : ''}</p><p class="hint">Split your ${level()} levels between classes. The first class gets what's left.</p>`
-            : '<p class="hint">Raise the starting level on Name and look to add another class.</p>'}</div>`);
+            : '<p class="hint">Raise the starting level on Name and look to add another class.</p>'}
+            <ul class="hint bd-mc"><li>You split your levels between classes. Your total level is the sum of them.</li><li>Each class only gives its features up to its own level, so spreading out means the high-level features come later, or never. That is the trade-off.</li><li>Your first class gives the full starting proficiencies; later classes give only a few.</li><li>Taking a class normally needs 13 in its main ability. Here that is only a warning.</li></ul></div>`);
     }
     function go(k) {
+        closePanel(false);
         step = k; ch.step = k;
         if (location.hash.slice(1) !== k) history.replaceState(null, '', location.pathname + location.search + '#' + k);
         if (k === 'class' && !UP) view.cls = ch.classes.length ? 0 : 'list';
@@ -625,16 +720,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (path === 'camp') ch.camp = v;
         else set(path, v);
         save();
-        if ('redraw' in el.dataset || el.tagName === 'SELECT') { const f = el.name ? `[name="${CSS.escape(el.name)}"][value="${CSS.escape(el.value)}"]` : `[data-b="${CSS.escape(path)}"]`; render(); $(f)?.focus(); }
+        if ('redraw' in el.dataset || el.tagName === 'SELECT') { const f = el.name ? `[name="${CSS.escape(el.name)}"][value="${CSS.escape(el.value)}"]` : `[data-b="${CSS.escape(path)}"]`; render(); if (!fromPanel) $(f)?.focus(); }
         else if (step === 'review') render();
     }
     main.addEventListener('change', (e) => {
         const el = e.target;
+        if (el.dataset.sf) { view.sf[el.dataset.sf][el.dataset.f] = el.type === 'checkbox' ? el.checked : el.value; render(); return void $(`[data-sf="${CSS.escape(el.dataset.sf)}"][data-f="${el.dataset.f}"]`)?.focus(); }
         if (el.dataset.pers) { if (el.value !== '') { const opts = persOptions(D.backgrounds[ch.bg], PERS.find(([k]) => k === el.dataset.pers)[2]); ch.details[el.dataset.pers] = opts[+el.value]; save(); render(); } return; }
         if (el.dataset.pick) {
             const list = arr(el.dataset.pick).filter((x) => x !== el.value), n = +el.dataset.n || 1;
             if (el.checked) { if (list.length >= n) { el.checked = false; return toast(`You can choose ${n}. Untick one first.`, 'note'); } list.push(el.value); }
-            set(el.dataset.pick, list); save(); const keep = `[data-pick="${CSS.escape(el.dataset.pick)}"][value="${CSS.escape(el.value)}"]`; render(); $(keep)?.focus();
+            set(el.dataset.pick, list); save(); const keep = `[data-pick="${CSS.escape(el.dataset.pick)}"][value="${CSS.escape(el.value)}"]`; render(); if (!fromPanel) $(keep)?.focus();
             return;
         }
         if (el.dataset.b !== undefined && el.type !== 'text' && el.tagName !== 'TEXTAREA' && el.type !== 'search') change(el);
@@ -649,14 +745,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             set(el.dataset.b, v); saveSoon();
         }
     });
+    main.addEventListener('toggle', (e) => { const d = e.target; if (d.dataset?.fold !== undefined && !('auto' in d.dataset)) view.fold[d.dataset.fold] = d.open; }, true);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !panel.hidden) { e.preventDefault(); closePanel(); } });
     main.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'bd-extra') { e.preventDefault(); $('[data-act=extra]').click(); } });
     main.addEventListener('click', async (e) => {
+        const nb = e.target.closest('[data-info]');
+        if (nb) return openPanel(nb);
         const b = e.target.closest('[data-act]');
         if (!b) return;
         const act = b.dataset.act;
         if (act === 'go') return go(b.dataset.k);
         if (act === 'next') { const i = STEPS.findIndex(([k]) => k === step); return i === STEPS.length - 1 ? finish(b) : go(STEPS[i + 1][0]); }
         if (act === 'back') { const i = STEPS.findIndex(([k]) => k === step); return i > 0 && go(STEPS[i - 1][0]); }
+        if (act === 'pclose') return closePanel();
+        if (act === 'ppick') {
+            const el = pOpen && $(pOpen.pk);
+            if (!el) return;
+            if (el.disabled) return toast('You can choose no more. Untick one first.', 'note');
+            fromPanel = true; el.click(); fromPanel = false; return fillPanel();
+        }
+        if (act === 'spdel') { set(b.dataset.p, arr(b.dataset.p).filter((x) => x !== b.dataset.v)); save(); return render(); }
         if (act === 'az') { view.az[b.dataset.k] = view.az[b.dataset.k] === b.dataset.v ? '' : b.dataset.v; return render(); }
         if (act === 'more') { view.more[b.dataset.k] = true; return render(); }
         // class
