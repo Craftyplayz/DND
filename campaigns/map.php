@@ -27,7 +27,8 @@ if (!$c) http_response_code(404);
 <?php if ($c): ?>
     <main class="mp" id="main" data-c="<?= h($c['id']) ?>" data-me="<?= h(live_key($c['id'], $user['sub'])) ?>"<?= $isDm ? ' data-dm' : '' ?>>
         <h1 class="mp-sr">Map · <?= h($c['name']) ?></h1>
-        <div class="bar mp-bar"><a class="btn small" href="/campaigns/<?= h($c['id']) ?>"><?= h($c['name']) ?></a><span class="mp-barin" data-mp="bar"></span><?= auth_button() ?></div>
+        <div class="bar mp-bar"><a class="btn small" href="/campaigns/<?= h($c['id']) ?>"><?= h($c['name']) ?></a><span class="mp-barin" data-mp="bar"></span>
+            <?php if ($isDm): // the TV (ROADMAP 1.7): a tab of its own, to drag to the TV ?><a class="btn small" href="/campaigns/<?= h($c['id']) ?>/table" target="_blank" rel="noopener" data-act="tv">Open Table view</a><?php endif; ?><?= auth_button() ?></div>
         <div class="mp-tools bar" data-mp="tools" hidden></div>
         <div class="mp-wrap">
             <div class="mp-view" data-mp="view" aria-label="Map"></div>
@@ -43,6 +44,7 @@ if (!$c) http_response_code(404);
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/dmedit.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/conds.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/map.js')) ?>" defer></script>
     <script>

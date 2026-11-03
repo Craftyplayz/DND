@@ -136,7 +136,8 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
         <section class="card cp-fight" id="cp-fight" aria-label="Fight" hidden></section>
         <?php // the battle map on the table (ROADMAP 1.6, assets/js/map.js), live; the full-screen map page is a click away ?>
         <section class="card cp-map" id="cp-map" data-me="<?= h(live_key($c['id'], $user['sub'])) ?>" aria-label="Map">
-            <h2>Map <a class="btn small" href="/campaigns/<?= h($c['id']) ?>/map">Open full screen</a></h2>
+            <h2>Map <a class="btn small" href="/campaigns/<?= h($c['id']) ?>/map">Open full screen</a><?php if ($isDm): // the TV (ROADMAP 1.7): its own tab, to drag to the TV ?>
+                <a class="btn small" href="/campaigns/<?= h($c['id']) ?>/table" target="_blank" rel="noopener" data-act="tv">Open Table view</a><?php endif; ?></h2>
             <div class="mp-barin" data-mp="bar"></div>
             <div class="mp-view" data-mp="view"></div>
             <div data-mp="tray" hidden></div>
@@ -287,7 +288,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
     </main>
 
     <?php site_footer(); ?>
-    <?php if ($c && !$past): ?><script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script><script src="<?= h(asset('/sheets/player/dmedit.js')) ?>" defer></script><script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
+    <?php if ($c && !$past): ?><script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script><script src="<?= h(asset('/sheets/player/dmedit.js')) ?>" defer></script><script src="<?= h(asset('/assets/js/conds.js')) ?>" defer></script><script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
         <script src="<?= h(asset('/assets/js/handouts.js')) ?>" defer></script><?php if ($isDm): ?><script src="<?= h(asset('/campaigns/dm.js')) ?>" defer></script><?php endif; ?>
         <script src="<?= h(asset('/assets/js/map.js')) ?>" defer></script>
         <script>addEventListener('DOMContentLoaded', () => { const s = document.getElementById('cp-map'), m = document.getElementById('main'); BattleMap.mount(s, m.dataset.id, { dm: m.dataset.role !== 'player', me: s.dataset.me }); });</script><?php endif; ?>

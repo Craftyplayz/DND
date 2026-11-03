@@ -4,7 +4,10 @@
 //       [data-mp=tools] (the DM's fog and grid tools), [data-mp=view] (the map), [data-mp=tray] ("Not placed"),
 //       [data-mp=tok] (the DM's picked token), [data-mp=maps] (the DM's map list), [data-mp=fight] (the fight, fight.js),
 //       [data-mp=paused]. dm: the DM or a co-DM; me: this player's live key (their own rulers come back to them); full: the
-//       map page (the DM's tools), else a view with moving and the ruler only.
+//       map page (the DM's tools), else a view with moving and the ruler only. table: the Table view (ROADMAP 1.7, with Live.as):
+//       read-only, nothing to click or drag, names always under the tokens, keys + / - zoom and 0 fits; top(): pixels the
+//       strip covers at the top, kept clear when fitting; onDraw(state): after every draw.
+// Party tokens show Down with death-save ticks and conditions (assets/js/conds.js) to everyone, never HP.
 // Coordinates are the original picture's pixels throughout; the stage is scaled to the screen with one CSS transform.
 // Nothing about the view is stored: every open starts at Fit.
 window.BattleMap = (() => {
@@ -27,7 +30,7 @@ window.BattleMap = (() => {
         const part = (n) => root.querySelector(`[data-mp=${n}]`);
         const view = part('view');
         const S = {
-            c, dm: !!opts.dm, full: !!opts.full, me: opts.me || '', v: null, m: null, sel: null, tool: 'move', brush: 'brush', fogMode: 'reveal',
+            c, dm: !!opts.dm && !opts.table, full: !!opts.full && !opts.table, table: !!opts.table, me: opts.me || '', v: null, m: null, sel: null, tool: 'move', brush: 'brush', fogMode: 'reveal',
             preview: false, lines: true, armed: false, fog: null, dirty: false, undo: [], gridOk: false, k: 1, tx: 0, ty: 0, fitted: '',
             rulers: {}, mine: null, pick: null, paused: false, failed: false, mons: null,
         };
@@ -40,13 +43,13 @@ window.BattleMap = (() => {
             toks = $('.mp-toks'), svg = $('.mp-ruler'), box = $('.mp-box'), msg = $('.mp-msg');
         const offline = () => S.failed || !navigator.onLine;
         // players' moves pause with the live updates too; the DM's edits only when the site can't be reached
-        const canEdit = () => !offline() && (S.dm || !S.paused);
+        const canEdit = () => !S.table && !offline() && (S.dm || !S.paused);
         const myView = () => S.dm && !S.preview;
 
         // ---- loading ----
         async function load() {
             try {
-                const r = await fetch('/campaigns/maps.php?c=' + encodeURIComponent(c) + (S.dm && S.sel ? '&m=' + encodeURIComponent(S.sel) : ''), { cache: 'no-store' });
+                const r = await fetch('/campaigns/maps.php?c=' + encodeURIComponent(c) + (S.dm && S.sel ? '&m=' + encodeURIComponent(S.sel) : '') + (S.table ? '&as=table' : ''), { cache: 'no-store' });
                 if (!r.ok) throw new Error(r.status);
                 const v = await r.json();
                 const was = S.m;
@@ -73,6 +76,7 @@ window.BattleMap = (() => {
         // ---- drawing ----
         function draw() {
             drawBar(); drawTools(); drawStage(); drawTray(); drawTok(); drawMaps(); drawPaused();
+            opts.onDraw?.(S);
         }
         function drawPaused() {
             const el = part('paused');
@@ -151,15 +155,18 @@ window.BattleMap = (() => {
             for (const t of m.tokens.filter(shown)) {
                 let el = have.get(t.k);
                 have.delete(t.k);
-                const html = face(t) + `<span class="mp-name">${esc(t.name)}</span>`;
+                // a party character: conditions as icons, and death-save ticks while down (1.7)
+                const html = face(t) + `<span class="mp-name">${esc(t.name)}</span>` + (t.kind === 'pc' ? (window.Conds?.row(t.conds) || '') + (t.down ? window.Conds?.saves(t.saves) || '' : '') : '');
                 if (!el) { el = document.createElement('button'); el.type = 'button'; el.className = 'mp-tok'; el.dataset.k = t.k; toks.append(el); }
                 if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
                 const span = (SIZES[t.size] || 1) * m.grid.s;
                 if (S.drag?.k !== t.k) Object.assign(el.style, { left: t.x + 'px', top: t.y + 'px' });
                 Object.assign(el.style, { width: span + 'px', height: span + 'px' });
-                el.className = 'mp-tok' + (t.turn ? ' on' : '') + (t.status === 'bloodied' ? ' bloodied' : '') + (t.status === 'down' ? ' down' : '') + (t.hidden ? ' hid' : '')
+                const down = t.status === 'down' || (t.kind === 'pc' && t.down);
+                el.className = 'mp-tok' + (t.turn ? ' on' : '') + (t.status === 'bloodied' ? ' bloodied' : '') + (down ? ' down' : '') + (t.hidden ? ' hid' : '')
                     + (t.mine ? ' mine' : '') + (movable(t) && canEdit() ? ' can' : '') + (S.pick === t.k ? ' picked' : '') + (S.drag?.k === t.k ? ' drag' : '');
-                el.setAttribute('aria-label', t.name + (t.turn ? ', their turn' : '') + (t.status === 'down' ? ', down' : t.status === 'bloodied' ? ', bloodied' : '') + (t.hidden ? ', hidden from players' : ''));
+                el.setAttribute('aria-label', t.name + (t.turn ? ', their turn' : '') + (down ? ', down' : t.status === 'bloodied' ? ', bloodied' : '') + (t.hidden ? ', hidden from players' : '')
+                    + (t.conds?.length ? ', ' + t.conds.join(', ') : ''));
             }
             for (const el of have.values()) el.remove();
         }
@@ -364,10 +371,10 @@ window.BattleMap = (() => {
 
         // ---- the view: pan, zoom, fit ----
         function fit() {
-            const m = S.m, r = view.getBoundingClientRect();
+            const m = S.m, r = view.getBoundingClientRect(), top = Math.min(r.height / 2, opts.top?.() || 0);
             if (!m || !r.width) return;
-            S.k = Math.min(r.width / m.w, r.height / m.h) * 0.96;
-            S.tx = (r.width - m.w * S.k) / 2; S.ty = (r.height - m.h * S.k) / 2;
+            S.k = Math.min(r.width / m.w, (r.height - top) / m.h) * 0.96;
+            S.tx = (r.width - m.w * S.k) / 2; S.ty = top + (r.height - top - m.h * S.k) / 2;
             place(); drawRulers();
         }
         function zoom(f, cx, cy) {
@@ -385,7 +392,7 @@ window.BattleMap = (() => {
             const g = S.m.grid, [x0, y0, cols, rows] = cells(g, S.m.w, S.m.h), col = Math.floor((p[0] - x0) / g.s), row = Math.floor((p[1] - y0) / g.s);
             return col < 0 || row < 0 || col >= cols || row >= rows ? -1 : row * cols + col;
         };
-        view.addEventListener('wheel', (e) => { if (!S.m) return; e.preventDefault(); const r = view.getBoundingClientRect(); zoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+        view.addEventListener('wheel', (e) => { if (!S.m || S.table) return; e.preventDefault(); const r = view.getBoundingClientRect(); zoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
         view.addEventListener('contextmenu', (e) => e.preventDefault());
         const ptrs = new Map();
         let G = null; // the gesture under way: {type: pan | pinch | token | brush | rect | grid | ruler, id, ...}
@@ -404,7 +411,7 @@ window.BattleMap = (() => {
         const gridOf = (a, b) => { const s = (Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1])) / 2; return s < 8 ? null : { s, ox: ((Math.min(a[0], b[0]) % s) + s) % s, oy: ((Math.min(a[1], b[1]) % s) + s) % s }; };
         const joint = () => { if (G?.type === 'ruler') { S.ruler.push(S.ruler[S.ruler.length - 1].slice()); drawRulers(); } };
         view.addEventListener('pointerdown', (e) => {
-            if (!S.m) return;
+            if (!S.m || S.table) return; // the Table view: nothing to click or drag
             if (e.button === 2) { e.preventDefault(); return joint(); } // right click mid-drag: a corner in the ruler
             ptrs.set(e.pointerId, [e.clientX, e.clientY]);
             if (ptrs.size === 2) {
@@ -592,6 +599,14 @@ window.BattleMap = (() => {
         });
         root.addEventListener('submit', (e) => { if (e.target.matches('[data-mp=upform]')) e.preventDefault(); });
         addEventListener('keydown', (e) => {
+            // the Table view: + and - zoom about the middle, 0 fits again (no on-screen controls)
+            if (S.table && S.m && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                const r = view.getBoundingClientRect();
+                if (e.key === '+' || e.key === '=') zoom(1.25, r.width / 2, r.height / 2);
+                else if (e.key === '-' || e.key === '_') zoom(0.8, r.width / 2, r.height / 2);
+                else if (e.key === '0') fit();
+                return;
+            }
             if (!S.m || !S.full || e.target.closest?.('input, select, textarea, [contenteditable]') || document.querySelector('dialog[open]')) return;
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && S.dm && S.full) { e.preventDefault(); return undo(); }
             if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) { S.armed = !S.armed; return drawBar(); }
@@ -661,7 +676,7 @@ window.BattleMap = (() => {
 
         // ---- live: moves, rulers and changes from the others ----
         function onMessage(m) {
-            if (m.type === 'map' || m.type === 'fight' || m.type === 'campaign') {
+            if (m.type === 'map' || m.type === 'fight' || m.type === 'campaign' || m.type === 'status') {
                 if (m.draft && S.dirty) return; // our own draft coming back while we draw more
                 return load();
             }

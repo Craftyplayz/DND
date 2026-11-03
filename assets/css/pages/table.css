@@ -1,0 +1,80 @@
+/* The Table view (campaigns/table.php, assets/js/table.js): the TV. Always dark, nothing to click, text sized for the far end of
+   the room (vmin, so the same on any TV). The map fills the screen; the turn order runs along the top, the rolls sit in the
+   bottom-left corner, a handout covers everything, and the party shows when no map is on the table. */
+.tv-body { overflow: hidden; background: var(--sunken); }
+.tv-body.tv-still, .tv-body.tv-still * { cursor: none; }
+.tv { position: fixed; inset: 0; overflow: hidden; color: var(--text); font-size: 2.4vmin; }
+.tv-map, .tv .mp-view { position: absolute; inset: 0; }
+.tv .mp-view { min-height: 0; background: var(--sunken); border: 0; border-radius: 0; }
+.tv .mp-tok { cursor: default; }
+/* a faint grid, and every name always under its token, the same size on screen at any zoom */
+.tv .mp-grid { opacity: .5; }
+.tv .mp-name { top: 100%; bottom: auto; display: block; padding: 2px 8px; background: rgb(0 0 0 / .7); border: 0; color: var(--text-hi); font-size: 20px; font-weight: 700; transform: translateX(-50%) scale(calc(1 / var(--k, 1))); transform-origin: top center; }
+
+/* no map on the table: the campaign and its party */
+.tv-idle { position: absolute; inset: 0; z-index: 1; display: grid; align-content: center; justify-items: center; gap: 4vmin; padding: 4vmin; background: var(--bg); text-align: center; }
+.tv-idle[hidden] { display: none; }
+.tv-name { margin: 0; color: var(--text-hi); font-size: 8vmin; line-height: 1.1; }
+.tv-party { display: flex; flex-wrap: wrap; justify-content: center; gap: 4vmin; margin: 0; padding: 0; list-style: none; }
+.tv-party li { display: grid; justify-items: center; gap: 1.5vmin; width: 20vmin; font-size: 3vmin; }
+.tv-party b { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-party .fi-face, .tv-card .fi-face { width: 100%; height: auto; aspect-ratio: 1; border-radius: 50%; font-size: 6vmin; }
+
+/* the turn order: from whoever's turn it is, left to right; the cards shrink as there are more (--n, up to 14) */
+.tv-strip { position: absolute; top: 1.5vmin; left: 50%; z-index: 3; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 1vmin 1.5vmin;
+    width: max-content; max-width: 98vw; padding: 1vmin 1.5vmin; background: rgb(0 0 0 / .7); border-radius: var(--radius-lg); transform: translateX(-50%); --s: min(11vmin, calc(78vw / (var(--n) + 2))); }
+.tv-strip[hidden] { display: none; }
+.tv-round { align-self: center; color: var(--muted); font-size: 2.4vmin; text-align: center; text-transform: uppercase; }
+.tv-round b { display: block; color: var(--text-hi); font-size: 5vmin; line-height: 1; }
+.tv-cards { display: flex; align-items: flex-start; gap: 1vmin; margin: 0; padding: 0; list-style: none; }
+.tv-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: .4vmin; width: var(--s); font-size: calc(var(--s) * .2); text-align: center; }
+.tv-card .fi-face { font-size: calc(var(--s) * .34); border: .4vmin solid var(--line-strong); }
+.tv-card.now { width: calc(var(--s) * 1.35); font-size: calc(var(--s) * .24); }
+.tv-card.now .fi-face { border-color: var(--accent); box-shadow: 0 0 0 .5vmin var(--accent); }
+.tv-card.bloodied .fi-face { border-color: var(--danger-line); }
+.tv-card.down .fi-face { filter: grayscale(1); opacity: .6; }
+.tv-card.down::before { position: absolute; top: 0; left: 0; width: 100%; aspect-ratio: 1; background: linear-gradient(45deg, transparent 46%, var(--danger-line) 46% 54%, transparent 54%),
+    linear-gradient(-45deg, transparent 46%, var(--danger-line) 46% 54%, transparent 54%); content: ""; }
+.tv-n { width: 100%; overflow: hidden; color: var(--text-hi); text-overflow: ellipsis; white-space: nowrap; }
+.tv-next { padding: 0 .8vmin; background: var(--accent-soft); border-radius: 999px; color: var(--text-hi); font-size: .85em; }
+.tv-more { align-self: center; color: var(--text-hi); font-size: calc(var(--s) * .4); font-weight: 700; }
+.tv-card .cond-row { justify-content: center; gap: .4vmin; }
+.tv-card .cond-ic { width: calc(var(--s) * .3); height: calc(var(--s) * .3); }
+.tv-card .cond-saves { gap: .5vmin; }
+.tv-card .cond-saves i { width: calc(var(--s) * .12); height: calc(var(--s) * .12); border-width: .3vmin; }
+.tv-wait { flex-basis: 100%; margin: 0; color: var(--text); font-size: 2.6vmin; text-align: center; }
+.tv-cards.slide { animation: tv-slide calc(var(--base) * 3) ease-out; }
+@keyframes tv-slide { from { transform: translateX(calc(var(--s) + 1vmin)); } }
+@media (prefers-reduced-motion: reduce) { .tv-cards.slide { animation: none; } }
+
+/* the last rolls, older ones fading */
+.tv-log { position: absolute; bottom: 2vmin; left: 2vmin; z-index: 3; display: grid; gap: .8vmin; max-width: 44vw; margin: 0; padding: 0; list-style: none; }
+.tv-roll { padding: .8vmin 1.6vmin; background: rgb(0 0 0 / .75); border-radius: var(--radius); font-size: 2.6vmin; line-height: 1.3; }
+.tv-roll b { color: var(--text-hi); }
+.tv-roll small { display: block; color: var(--muted); font-size: .8em; }
+.tv-tot { color: var(--highlight); font-size: 1.3em; font-weight: 700; }
+.tv-roll.nat20 { background: var(--ok-bg); box-shadow: 0 0 0 .4vmin var(--ok-line); }
+.tv-roll.nat1 { background: var(--danger-bg); box-shadow: 0 0 0 .4vmin var(--danger-line); }
+.tv-roll:nth-last-child(n + 4) { opacity: .75; }
+.tv-roll:nth-last-child(n + 6) { opacity: .5; }
+.tv-roll:nth-last-child(n + 8) { opacity: .3; }
+
+/* the handout on the TV: over everything but the dice */
+.tv-ho { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; gap: 2vmin; padding: 4vmin; background: var(--bg); }
+.tv-ho[hidden] { display: none; }
+.tv-ho h2 { margin: 0; color: var(--text-hi); font-size: 6vmin; line-height: 1.1; text-align: center; }
+.tv-hotext { margin: 0; font-size: 3.2vmin; text-align: center; white-space: pre-line; }
+.tv-hotext-only { justify-content: center; }
+.tv-hotext-only .tv-hotext { font-size: 5vmin; }
+.tv-pics { display: grid; flex: 1; grid-template-columns: repeat(var(--n), 1fr); gap: 2vmin; min-height: 0; }
+.tv-pics img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+
+/* reconnecting, and the one-time full screen prompt */
+.tv-badge { position: absolute; top: 2vmin; right: 2vmin; z-index: 6; margin: 0; padding: .6vmin 1.4vmin; background: var(--gold-bg); border: 1px solid var(--gold-line); border-radius: 999px; font-size: 2vmin; }
+.tv-badge[hidden] { display: none; }
+.tv-full { position: absolute; top: 50%; left: 50%; z-index: 7; display: grid; gap: 1vmin; padding: 3vmin 5vmin; background: var(--btn); border: 2px solid var(--btn-line); border-radius: var(--radius-lg);
+    box-shadow: var(--lift); color: var(--on-btn); font: inherit; font-size: 4vmin; font-weight: 700; transform: translate(-50%, -50%); cursor: pointer; }
+.tv-full small { font-size: 2vmin; font-weight: 400; }
+.tv-full[hidden] { display: none; }
+/* the 3D dice (dice/dice3d.js) over the map and the order, under a handout's text */
+#hb-throw { position: fixed; inset: 0; z-index: 4; width: 100vw; height: 100vh; pointer-events: none; }
