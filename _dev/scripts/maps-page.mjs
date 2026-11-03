@@ -3,7 +3,7 @@
 // Pat plays Lock on a phone-sized screen. Browser A is Chrome (Firefox with --firefox), browser B the other one.
 //   node _dev/scripts/maps-page.mjs [--firefox]   (needs: cd live && npm install, and includes/config.php for sign-in)
 // Uses stand-in account and session folders in the temp folder, never private/dnd/accounts or private/sessions.
-import { mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
@@ -83,8 +83,11 @@ try {
         x.putImageData(d, 0, 0); c.toBlob((b) => { const i = document.querySelector('[data-mp=file]'), dt = new DataTransfer(); dt.items.add(new File([b], 'Crypt.png', { type: 'image/png' })); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); done(b.size); }, 'image/png'); })`);
     is('the picture is over 4 MB', size > 4 * 1024 * 1024, true);
     is('uploaded: the map opens on the grid tool', (await until(dm, text('.mp-title'), (t) => t === 'Crypt', 30000)), 'Crypt');
-    is('the original kept exactly as uploaded, put on the table', [readFileSync(join(mapDir(), 'original.png')).length, readFileSync(join(ACCOUNTS, 'campaigns', CAMP, 'maps', 'table.json'), 'utf8').includes(mapJson().id)], [size, true]);
-    is('the map list shows it, on the table', (await until(dm, text('[data-mp=maps]'), (t) => t.includes('On the table'))).includes('Crypt'), true);
+    const tableJson = join(ACCOUNTS, 'campaigns', CAMP, 'maps', 'table.json');
+    is('the original kept exactly as uploaded, not put on the table by itself', [readFileSync(join(mapDir(), 'original.png')).length, existsSync(tableJson) && readFileSync(tableJson, 'utf8').includes(mapJson().id)], [size, false]);
+    await until(dm, `!!document.querySelector('[data-mpa=activate]')`, Boolean);
+    await click(dm, '[data-mpa=activate]');
+    is('Put on the table: the map list shows it on the table', (await until(dm, text('[data-mp=maps]'), (t) => t.includes('On the table'))).includes('Crypt'), true);
 
     // grid: a box dragged over one square (100 px); the whole grid follows
     await until(dm, `!!document.querySelector('.mp-grid.mp-fit')`, Boolean);

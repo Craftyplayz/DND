@@ -499,7 +499,7 @@ section stays cards + View. The plan as first written is kept below the "Built" 
     on the campaign page; their map shows the turn order with "Your turn" / "You're up next".
   - Maps: a plain named list per campaign, `accounts/campaigns/<id>/maps/<map id>/` (`original.<ext>` as uploaded,
     `work.webp` and `thumb.webp`, `public-<n>.webp` for every send, all kept, and `map.json` with grid, draft fog, sent fog
-    and tokens); `maps/table.json` names the one map "On the table", which players follow live, fight or not. The DM's list
+    and tokens); `maps/table.json` names the one map "On the table", which players follow live, fight or not (never set by itself, even for the first map: the DM presses Put on the table). The DM's list
     is a thumbnail grid (the one on the table in blue) with Put on the table, Rename and Archive; archived maps fold under
     "Archived (N)" with Unarchive. Nothing is deleted, copied to other campaigns or replaced (a new picture is a new map).
   - Upload: DM and co-DMs, JPG / PNG / WebP / GIF (a GIF's first frame), anything else refused with a message, 4 MB

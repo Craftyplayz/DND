@@ -631,9 +631,9 @@ window.BattleMap = (() => {
                 state.textContent = 'Making the map...';
                 const out = await post({ op: 'upload', up: id, name: file.name.replace(/\.[^.]+$/, '') }, true);
                 if (!out) throw new Error(S.err);
-                if (!S.v.active) await post({ op: 'activate', m: out.map }, true); // the first map goes on the table
+                // never put on the table by itself, even the first map: the DM picks it (owner's choice)
                 S.sel = out.map; S.dirty = false; S.uploading = false;
-                toast('Map uploaded. Fit the grid, reveal what players should see, then Send to table.', 'ok');
+                toast('Map uploaded. Fit the grid, reveal what players should see, then Put on the table and Send to table.', 'ok');
                 S.tool = 'grid';
                 await load();
             } catch (x) {
