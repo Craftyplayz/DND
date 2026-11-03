@@ -152,7 +152,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
                 <h2 id="dm-ho-h">Handouts</h2>
                 <div class="dm-split">
                     <div><div class="dm-bar"><button type="button" class="btn small" data-dm="hnew">New handout</button></div><div class="dm-list" id="dm-hlist"></div></div>
-                    <div class="dm-edit" id="dm-hedit"></div>
+                    <div class="dm-edit form" id="dm-hedit"></div>
                 </div>
                 <details class="dm-arch" id="dm-harch" hidden></details>
             </section>
@@ -160,7 +160,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
                 <h2 id="dm-notes-h">Notes <span class="n">only you and co-DMs see these</span></h2>
                 <div class="dm-split">
                     <div><div class="dm-bar"><button type="button" class="btn small" data-dm="nnew">New note</button><input class="field" type="search" id="dm-nsearch" placeholder="Search notes" aria-label="Search notes" autocomplete="off"></div><div class="dm-list" id="dm-nlist"></div></div>
-                    <div class="dm-edit" id="dm-nedit"></div>
+                    <div class="dm-edit form" id="dm-nedit"></div>
                 </div>
                 <details class="dm-arch" id="dm-narch" hidden></details>
                 <datalist id="dm-ngroups"></datalist>

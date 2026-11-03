@@ -162,7 +162,7 @@ window.DmTools = (() => {
             $('#dm-hedit').innerHTML = `<label>Title <input class="field" data-hf="title" value="${esc(h.title)}" autocomplete="off"></label>
                 <label>Text (optional) <textarea class="field" data-hf="text">${esc(h.text)}</textarea></label>
                 <div><div class="dm-pics" id="dm-pics"></div>
-                    <p><label class="btn small">Add pictures<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden data-dm-file></label> <span class="muted" id="dm-up"></span></p></div>
+                    <p><button type="button" class="btn small" data-dm="hfile">Add pictures</button><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden data-dm-file aria-label="Add pictures"> <span class="muted" id="dm-up"></span></p></div>
                 <label class="check"><input type="checkbox" data-hf="table"${h.table ? ' checked' : ''}> Show on the Table view <small class="muted">only when sent to everyone</small></label>
                 <fieldset class="dm-to"><legend>Who gets it</legend>
                     <label class="check"><input type="checkbox" data-to="everyone"${to === 'everyone' ? ' checked' : ''}> Everyone, and players who join later</label>
@@ -254,6 +254,7 @@ window.DmTools = (() => {
                 drawH(); drawHEdit(); $('#dm-hedit [data-hf=title]').focus();
             }
             else if (a === 'hopen') { openH = id; drawH(); drawHEdit(); }
+            else if (a === 'hfile') $('[data-dm-file]').click();
             else if (a === 'hsend') {
                 const to = pickTo[openH] ?? (merged(openH).to || 'everyone');
                 if (!to.length) return toast('Pick who gets the handout.', 'err');
