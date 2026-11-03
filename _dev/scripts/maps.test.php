@@ -36,6 +36,13 @@ $is('not a picture refused', mp_create($A, $c, '111', 'Notes', __FILE__)[0], 400
 $is('a PNG makes a map', [$code, $m['w'], $m['h'], $m['ext']], [200, 400, 300, 'png']);
 $dir = mp_root($A, $c['id']) . "/{$m['id']}";
 $is('original kept as uploaded, working copy and thumbnail made', [is_file("$dir/original.png"), is_file("$dir/work.webp"), is_file("$dir/thumb.webp")], [true, true, true]);
+// a big picture: everyone's copy is shrunk to 2048 px on its longest side, the original keeps its size
+$big = sys_get_temp_dir() . '/mp-big-' . getmypid() . '.png';
+imagepng(imagecreatetruecolor(5000, 2500), $big);
+[, $bm] = mp_create($A, $c, '111', 'Big', $big);
+$bw = getimagesize(mp_root($A, $c['id']) . "/{$bm['id']}/work.webp");
+$is('big map: copy 2048 px wide, original 5000', [$bw[0], $bw[1], $bm['w']], [2048, 1024, 5000]);
+mp_op($A, $c, '111', ['op' => 'archive', 'on' => true, 'm' => $bm['id']]);
 $op = function ($sub, $body) use ($A, $c, $m) { return mp_op($A, $c, $sub, $body + ['m' => $m['id']]); };
 
 // the grid: partial edge squares count; the draft starts fully fogged

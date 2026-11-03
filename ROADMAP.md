@@ -503,7 +503,7 @@ section stays cards + View. The plan as first written is kept below the "Built" 
     is a thumbnail grid (the one on the table in blue) with Put on the table, Rename and Archive; archived maps fold under
     "Archived (N)" with Unarchive. Nothing is deleted, copied to other campaigns or replaced (a new picture is a new map).
   - Upload: DM and co-DMs, JPG / PNG / WebP / GIF (a GIF's first frame), anything else refused with a message, 4 MB
-    chunks, no size limit. Masked copies come from a working copy (longest side 4096 px); PHP's memory is raised only for
+    chunks, no size limit. Masked copies come from a working copy (longest side 2048 px, WebP quality 80; players' masked copies quality 75, so maps load fast); PHP's memory is raised only for
     the decode and render. Pictures go through `campaigns/maps.php`, which checks membership; the original and the
     working copy only to the DM and co-DMs, players only the map on the table as last sent. GD with JPEG and WebP is in
     the Dockerfile.

@@ -19,7 +19,7 @@
 require_once __DIR__ . '/initiative.php';
 require_once __DIR__ . '/live.php';
 
-const MP_WORK = 4096;
+const MP_WORK = 2048; // small copies so maps load fast for everyone (owner's choice); the original keeps full detail
 const MP_TYPES = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp', IMAGETYPE_GIF => 'gif'];
 const MP_SIZES = ['T' => 0.5, 'S' => 1, 'M' => 1, 'L' => 2, 'H' => 3, 'G' => 4]; // squares across
 
@@ -144,7 +144,7 @@ function mp_create($accounts, $c, $sub, $name, $file)
     $dir = mp_root($accounts, $c['id']) . "/$id";
     if (!@mkdir($dir, 0750, true)) return [500, ['error' => "Couldn't save the map."]];
     $thumb = imagescale($work, 320, -1, IMG_BICUBIC);
-    $ok = imagewebp($work, "$dir/work.webp", 90) && imagewebp($thumb, "$dir/thumb.webp", 75) && @rename($file, "$dir/original.$ext");
+    $ok = imagewebp($work, "$dir/work.webp", 80) && imagewebp($thumb, "$dir/thumb.webp", 75) && @rename($file, "$dir/original.$ext");
     if (!$ok) return [500, ['error' => "Couldn't save the map."]];
     $grid = mp_grid(max(8, round(min($w, $h) / 10)), 0, 0, $w, $h);
     $m = ['id' => $id, 'name' => cp_clean_name($name) ?? 'Map', 'created' => (int)round(microtime(true) * 1000), 'by' => $sub, 'archived' => 0, 'ext' => $ext,
@@ -175,7 +175,7 @@ function mp_render($accounts, $cid, $m)
         }
     }
     $tmp = "$dir/.public-{$s['n']}.webp." . getmypid();
-    return imagewebp($im, $tmp, 82) && @rename($tmp, "$dir/public-{$s['n']}.webp");
+    return imagewebp($im, $tmp, 75) && @rename($tmp, "$dir/public-{$s['n']}.webp");
 }
 
 // ---- tokens ----
