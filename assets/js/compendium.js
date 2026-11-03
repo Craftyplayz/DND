@@ -1,50 +1,111 @@
-// Compendium (/compendium/): one searchable list of spells, monsters, items, magic items and rules.
-// Lists load on first open (spells.json + extra-spells.json, monsters.json, items.php?list=1, rules.js); an entry's full text
-// loads when it is clicked, through the cached proxies. "Add to sheet" and "Add to encounter" leave a request in localStorage
-// (hb-pending / mon-pending) that the sheet applies when it opens, or at once if it is already open (see sheet.js, monster.js).
-// Settings follow the account through assets/js/sync.js: compendium-view (tab and filters), compendium-favs, compendium-recent.
+// Compendium (/compendium/): one searchable list of spells, monsters, items, magic items, classes, races, backgrounds, feats and rules.
+// Player content comes from sheets/player/content/<rules>-<file>.json (built by _dev/scripts/build-content.mjs), one file per tab group,
+// loaded the first time a tab (or the All tab, or a link) needs it; an entry's text is in the data, so it opens without another fetch.
+// Monsters are monsters.json, with a stat block fetched through monsters.php when one is opened; rules are rules.js.
+// Entries from the content files are keyed by rules version ("spell:2014:fireball"): 2014 and 2024 share indexes, so they never merge.
+// "Add to sheet" and "Add to encounter" leave a request in localStorage (hb-pending / mon-pending) that the sheet applies when it opens,
+// or at once if it is already open (see sheet.js, monster.js).
+// Settings follow the account through assets/js/sync.js: compendium-view (tab and filters), compendium-rules (2014 / 2024 / both),
+// compendium-favs, compendium-recent.
 document.addEventListener('DOMContentLoaded', () => {
     'use strict';
-    const { $, esc, toast, store, debounce, num } = UI;
+    const { $, esc, store, debounce, num } = UI;
     const cloud = 'cloud' in $('#main').dataset;
-    const TABS = [['all', 'All'], ['spell', 'Spells'], ['monster', 'Monsters'], ['item', 'Items'], ['magic', 'Magic items'], ['rule', 'Rules'], ['fav', 'Favourites'], ['recent', 'Recent']];
-    const TYPE_NAME = { spell: 'Spell', monster: 'Monster', item: 'Item', magic: 'Magic item', rule: 'Rule' };
-    const TYPE_PLURAL = { spell: 'spells', monster: 'monsters', item: 'items', magic: 'magic items', rule: 'rules' };
-    const BATCH = 50, GROUP = 5, SRD = 'SRD 5.1';
+    const TABS = [['all', 'All'], ['spell', 'Spells'], ['monster', 'Monsters'], ['item', 'Items'], ['magic', 'Magic items'], ['class', 'Classes'], ['race', 'Races'],
+        ['background', 'Backgrounds'], ['feat', 'Feats'], ['rule', 'Rules'], ['fav', 'Favourites'], ['recent', 'Recent']];
+    const TYPE_NAME = { spell: 'Spell', monster: 'Monster', item: 'Item', magic: 'Magic item', class: 'Class', subclass: 'Subclass', race: 'Race', subrace: 'Subrace', background: 'Background', feat: 'Feat', rule: 'Rule' };
+    const TYPE_PLURAL = { spell: 'spells', monster: 'monsters', item: 'items', magic: 'magic items', class: 'classes', subclass: 'subclasses', race: 'races', subrace: 'subraces', background: 'backgrounds', feat: 'feats', rule: 'rules' };
+    // the types each tab lists (subclasses sit with classes, subraces with races)
+    const TAB_TYPES = { class: ['class', 'subclass'], race: ['race', 'subrace'] };
+    const typesOf = (t) => TAB_TYPES[t] || [t];
+    const GROUPS = ['spell', 'monster', 'item', 'magic', 'class', 'race', 'background', 'feat', 'rule'];
+    const BATCH = 50, GROUP = 5, SRD = 'SRD 5.1', RULES = ['2014', '2024'];
     const RARITY = ['Common', 'Uncommon', 'Rare', 'Very Rare', 'Legendary', 'Artifact', 'Varies'];
     const SIZES = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan', 'Titanic'];
     const CRS = [0, 0.125, 0.25, 0.5, ...Array.from({ length: 30 }, (_, i) => i + 1)];
     const crText = (n) => ({ 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' })[n] || String(n);
     const SECTION = { sense: 'Sense', cond: 'Condition', skill: 'Skill', prop: 'Weapon property', lang: 'Language', armour: 'Armour', dmg: 'Damage type', act: 'Action', spell: 'Spellcasting rule', hp: 'Hit points' };
-    // the filters each type has: [name, label, kind]
+    const ABIL = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+    // the filters each tab has: [name, label, kind]
     const FILTERS = {
-        spell: [['level', 'Level'], ['school', 'School'], ['conc', 'Concentration', 'yn'], ['ritual', 'Ritual', 'yn'], ['src', 'Source']],
+        spell: [['level', 'Level'], ['school', 'School'], ['cls', 'Class'], ['conc', 'Concentration', 'yn'], ['ritual', 'Ritual', 'yn']],
         monster: [['crmin', 'Lowest CR', 'cr'], ['crmax', 'Highest CR', 'cr'], ['size', 'Size'], ['mtype', 'Type'], ['src', 'Source book']],
         item: [['cat', 'Category']],
         magic: [['cat', 'Category'], ['rarity', 'Rarity']],
+        class: [['kind', 'Show'], ['cls', 'Class']],
+        race: [['kind', 'Show']],
     };
 
-    const entries = [], byKey = new Map(), texts = new Map(), failed = new Set(), loaded = new Set();
+    const entries = [], byKey = new Map(), texts = new Map(), failed = new Set(), loaded = new Set(), loading = new Map();
     const key = (e) => e.t + ':' + e.id;
     function addEntry(e) {
         if (byKey.has(key(e))) return;
         entries.push(e); byKey.set(key(e), e);
     }
-    const byName = (a, b) => a.name.localeCompare(b.name);
+    const byName = (a, b) => a.name.localeCompare(b.name) || String(a.r || '').localeCompare(String(b.r || ''));
+    // "a-slug_like-this" -> "A slug like this"
+    const nice = (s) => String(s || '').replace(/^(skill|saving-throw)-/, '').replace(/[-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
+    const name = (x) => (x && typeof x === 'object' ? x.name || nice(x.index) : nice(x));
+    // Compendium keys from before the content files ("spell:fireball", "spell:wd:x", "item:eq:x", "magic:magic:x") are the 2014 entries now
+    function canon(k) {
+        const i = k.indexOf(':'), t = k.slice(0, i);
+        let id = k.slice(i + 1);
+        if (!['spell', 'item', 'magic'].includes(t) || /^\d{4}:/.test(id)) return k;
+        id = id.replace(/^(wd|eq|magic):/, '');
+        return `${t}:2014:${id}`;
+    }
 
     // ---- lists ----
     const getJson = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); };
-    const loaders = {
-        async spell() {
-            const [srd, extra] = await Promise.all([getJson('/compendium/spells.json'), getJson('/sheets/player/extra-spells.json')]);
-            for (const [id, name, level, school, time, conc, ritual, range, dur] of srd.list) {
-                addEntry({ t: 'spell', id, name, sub: [level ? 'Level ' + level : 'Cantrip', school, time].join(' · '), hay: school, tags: [], f: { level, school, conc: !!conc, ritual: !!ritual, src: SRD }, raw: { level, school, time, range, dur, conc, ritual } });
-            }
-            for (const s of extra) {
-                addEntry({ t: 'spell', id: 'wd:' + s.index, name: s.name, sub: [s.level ? 'Level ' + s.level : 'Cantrip', s.school, s.casting_time].join(' · '), hay: s.school, extra: true, tags: [['Extra', 'p'], [s.source]],
-                    f: { level: s.level, school: s.school, conc: !!s.concentration, ritual: !!s.ritual, src: s.source }, raw: s });
+    const CONTENT = '/sheets/player/content/';
+    // which content file each type lives in
+    const FILE = { spell: 'spells', item: 'items', magic: 'items', class: 'classes', subclass: 'classes', race: 'origins', subrace: 'origins', background: 'origins', feat: 'origins' };
+    const prereq = (list) => (Array.isArray(list) ? list : []).map((p) => (typeof p === 'string' ? p : p.desc || (p.ability_score ? `${ABIL[p.ability_score] || p.ability_score} ${p.minimum_score}+` : ''))).filter(Boolean).join('; ');
+    const itemCat = (x) => {
+        const c = [x.equipment_category && (x.equipment_category.index || x.equipment_category), ...(x.equipment_categories || [])].join(' ');
+        return /weapon/.test(c) ? 'Weapon' : /armor/.test(c) ? 'Armor' : /ammunition/.test(c) ? 'Ammunition' : /tool|gaming|instrument/.test(c) ? 'Tools' : /mount|vehicle/.test(c) ? 'Mounts and vehicles' : 'Adventuring gear';
+    };
+    const skills = (list) => (list || []).filter((p) => /^skill-/.test(p)).map(nice);
+    const content = {
+        spells(r, j) {
+            for (const s of Object.values(j.spells || {})) {
+                addEntry({ t: 'spell', id: r + ':' + s.index, r, name: s.name, sub: [s.level ? 'Level ' + s.level : 'Cantrip', s.school, s.casting_time].join(' · '), hay: s.school, tags: [],
+                    f: { level: s.level, school: s.school, conc: !!s.concentration, ritual: !!s.ritual, cls: (s.classes || []).map(nice) }, d: s });
             }
         },
+        items(r, j) {
+            for (const x of Object.values(j.equipment || {})) {
+                const cat = itemCat(x);
+                addEntry({ t: 'item', id: r + ':' + x.index, r, name: x.name, sub: cat, hay: cat, tags: [], f: { cat }, d: x });
+            }
+            for (const x of Object.values(j.magic_items || {})) {
+                const cat = String(x.type || '').replace(/\s*\(.*$/, ''), rarity = /varies|by /i.test(x.rarity) ? 'Varies' : x.rarity;
+                addEntry({ t: 'magic', id: r + ':' + x.index, r, name: x.name, sub: [cat, rarity].filter(Boolean).join(' · '), hay: cat, tags: rarity ? [[rarity]] : [], f: { cat, rarity }, d: x });
+            }
+        },
+        classes(r, j) {
+            const cls = j.classes || {};
+            for (const c of Object.values(cls)) {
+                addEntry({ t: 'class', id: r + ':' + c.index, r, name: c.name, sub: `Hit die d${c.hit_die}` + (c.spellcasting ? ` · Spellcaster (${ABIL[c.spellcasting.spellcasting_ability] || ''})` : ''), hay: 'class', tags: [], f: { kind: 'Classes', cls: c.name }, d: c });
+            }
+            for (const s of Object.values(j.subclasses || {})) {
+                const of = (cls[s.class] || {}).name || nice(s.class);
+                addEntry({ t: 'subclass', id: r + ':' + s.index, r, name: s.name, sub: `${of} subclass` + (s.subclass_flavor ? ' · ' + s.subclass_flavor : ''), hay: of, tags: [], f: { kind: 'Subclasses', cls: of }, d: s });
+            }
+        },
+        origins(r, j) {
+            const races = j.races || {};
+            for (const x of Object.values(races)) addEntry({ t: 'race', id: r + ':' + x.index, r, name: x.name, sub: [x.size, x.speed ? `Speed ${x.speed} ft.` : ''].filter(Boolean).join(' · '), hay: 'race', tags: [], f: { kind: 'Races' }, d: x });
+            for (const x of Object.values(j.subraces || {})) {
+                const of = (races[x.race] || {}).name || nice(x.race);
+                addEntry({ t: 'subrace', id: r + ':' + x.index, r, name: x.name, sub: `${of} subrace`, hay: of, tags: [], f: { kind: 'Subraces' }, d: x });
+            }
+            for (const x of Object.values(j.backgrounds || {})) addEntry({ t: 'background', id: r + ':' + x.index, r, name: x.name, sub: skills(x.starting_proficiencies).join(', ') || 'Background', hay: '', tags: [], f: {}, d: x });
+            for (const x of Object.values(j.feats || {})) addEntry({ t: 'feat', id: r + ':' + x.index, r, name: x.name, sub: prereq(x.prerequisites) ? 'Prerequisite: ' + prereq(x.prerequisites) : 'No prerequisite', hay: '', tags: [], f: {}, d: x });
+        },
+    };
+    // a job is one file: "2014-spells", "monster" or "rule"
+    const jobs = {
         async monster() {
             const j = await getJson('/sheets/monster/monsters.json');
             sources = j.sources;
@@ -53,19 +114,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 addEntry({ t: 'monster', id, name, sub: `CR ${crText(cr)} · ${[size, type].filter(Boolean).join(' ')}`, hay: type, tags: [[book, src === 'srd' ? 'g' : '']], f: { cr, size, mtype: type, src: book }, src });
             }
         },
-        async item() {
-            const j = await getJson('/compendium/items.php?list=1');
-            for (const [id, name, cat] of j.eq) addEntry({ t: 'item', id, name, sub: cat, hay: cat, tags: [[SRD, 'g']], f: { cat, src: SRD } });
-            for (const [id, name, cat, rarity, variant] of j.magic) {
-                addEntry({ t: 'magic', id, name, sub: [cat, rarity].filter(Boolean).join(' · '), hay: cat, tags: [[SRD, 'g']].concat(rarity ? [[rarity]] : []), f: { cat, rarity, src: SRD }, variant });
-            }
-        },
         rule: () => new Promise((ok, no) => {
             const s = document.createElement('script');
             s.src = '/sheets/player/rules.js';
             s.onload = () => {
                 for (const [sec, items] of Object.entries(window.HB_RULES || {})) for (const [k, text] of Object.entries(items)) {
-                    addEntry({ t: 'rule', id: sec + ':' + k, name: k.replace(/\b[a-z]/g, (c) => c.toUpperCase()), sub: SECTION[sec] || sec, hay: SECTION[sec] || '', tags: [[SRD, 'g']], f: { src: SRD }, text });
+                    addEntry({ t: 'rule', id: sec + ':' + k, name: k.replace(/\b[a-z]/g, (c) => c.toUpperCase()), sub: SECTION[sec] || sec, hay: SECTION[sec] || '', tags: [[SRD, 'g']], f: {}, text });
                 }
                 ok();
             };
@@ -73,44 +127,69 @@ document.addEventListener('DOMContentLoaded', () => {
             document.head.appendChild(s);
         }),
     };
+    for (const r of RULES) for (const f of Object.keys(content)) jobs[r + '-' + f] = async () => content[f](r, await getJson(`${CONTENT}${r}-${f}.json`));
     let sources = {};
-    function load(t) {
-        failed.delete(t);
-        return loaders[t]().then(() => loaded.add(t)).catch(() => failed.add(t)).then(() => { entries.sort(byName); refresh(); openFromUrl(); });
+    // the jobs a type needs, for the rules picked (or for one version)
+    const jobsOf = (t, rules) => (FILE[t] ? (rules ? [rules] : rulesOn()).map((r) => r + '-' + FILE[t]) : [t]);
+    const jobsOfKey = (k) => { const [t, r] = k.split(':'); return jobsOf(t, FILE[t] && RULES.includes(r) ? r : null).filter((j) => jobs[j]); };
+    function wanted() {
+        const t = S.tab;
+        const keys = t === 'fav' ? favs() : t === 'recent' ? recents() : null;
+        const out = keys ? keys.flatMap(jobsOfKey) : (t === 'all' ? GROUPS : typesOf(t)).flatMap((x) => jobsOf(x));
+        if (want) out.push(...jobsOfKey(want));
+        return [...new Set(out)];
     }
+    function load(j) {
+        if (loaded.has(j)) return Promise.resolve();
+        if (loading.has(j)) return loading.get(j);
+        failed.delete(j);
+        const p = jobs[j]().then(() => loaded.add(j)).catch(() => failed.add(j)).then(() => { loading.delete(j); entries.sort(byName); drawTabs(); refresh(); openFromUrl(); });
+        loading.set(j, p);
+        return p;
+    }
+    const ensure = () => { for (const j of wanted()) load(j); };
 
     // ---- state ----
     const params = new URLSearchParams(location.search);
     const saved = store.get('compendium-view', {});
-    const S = { tab: 'all', q: '', f: {}, sel: null };
+    const S = { tab: 'all', q: '', f: {}, sel: null, rules: 'both' };
     S.tab = TABS.some(([k]) => k === (params.get('tab') || saved.tab)) ? params.get('tab') || saved.tab : 'all';
     S.q = params.get('q') || '';
-    if (params.get('t') && params.get('i') && !params.get('tab') && TABS.some(([k]) => k === params.get('t'))) S.tab = params.get('t');
+    let want = params.get('t') && params.get('i') ? canon(params.get('t') + ':' + params.get('i')) : '';
+    const wantTab = want && TABS.find(([k]) => typesOf(k).includes(want.split(':')[0]));
+    if (wantTab && !params.get('tab')) S.tab = wantTab[0];
     S.f = S.tab === saved.tab ? Object.assign({}, saved.f || {}) : {};
     for (const [k, v] of params) if (k.startsWith('f.')) S.f[k.slice(2)] = v;
-    let want = params.get('t') && params.get('i') ? params.get('t') + ':' + params.get('i') : '';
+    const r0 = store.get('compendium-rules', 'both');
+    S.rules = ['2014', '2024', 'both'].includes(r0) ? r0 : 'both';
+    const rulesOn = () => (S.rules === 'both' ? RULES : [S.rules]);
 
-    const favs = () => store.get('compendium-favs', []).filter((k) => typeof k === 'string');
-    const recents = () => store.get('compendium-recent', []).filter((k) => typeof k === 'string');
+    const favs = () => store.get('compendium-favs', []).filter((k) => typeof k === 'string').map(canon);
+    const recents = () => store.get('compendium-recent', []).filter((k) => typeof k === 'string').map(canon);
     const isFav = (e) => favs().includes(key(e));
 
     // ---- search ----
     function matches(e) {
-        const f = S.f, t = S.tab;
-        if (!FILTERS[t]) return true;
-        const v = e.f;
+        const f = S.f, v = e.f;
+        if (!FILTERS[S.tab]) return true;
         if (f.level !== undefined && f.level !== '' && v.level !== +f.level) return false;
-        for (const k of ['school', 'mtype', 'size', 'src', 'cat', 'rarity']) if (f[k] && v[k] !== f[k]) return false;
+        for (const k of ['school', 'mtype', 'size', 'src', 'cat', 'rarity', 'kind']) if (f[k] && v[k] !== f[k]) return false;
+        if (f.cls && !(Array.isArray(v.cls) ? v.cls.includes(f.cls) : v.cls === f.cls)) return false;
         for (const k of ['conc', 'ritual']) if (f[k] && v[k] !== (f[k] === 'yes')) return false;
         if (f.crmin !== undefined && f.crmin !== '' && v.cr < +f.crmin) return false;
         if (f.crmax !== undefined && f.crmax !== '' && v.cr > +f.crmax) return false;
         return true;
     }
+    // entries of the other rules version are hidden (favourites and recent show everything)
+    const inRules = (e) => !e.r || S.rules === 'both' || e.r === S.rules;
     function results() {
-        const t = S.tab;
-        let pool = t === 'all' ? entries : t === 'fav' ? favs().map((k) => byKey.get(k)).filter(Boolean) : t === 'recent' ? recents().map((k) => byKey.get(k)).filter(Boolean) : entries.filter((e) => e.t === t);
+        const t = S.tab, types = typesOf(t);
+        let pool = t === 'fav' ? favs().map((k) => byKey.get(k)).filter(Boolean) : t === 'recent' ? recents().map((k) => byKey.get(k)).filter(Boolean)
+            : entries.filter((e) => (t === 'all' || types.includes(e.t)) && inRules(e));
         pool = pool.filter(matches);
-        if (!S.q.trim()) return pool;
+        // with no search, classes and races come before their subclasses and subraces
+        const under = (e) => e.t === 'subclass' || e.t === 'subrace';
+        if (!S.q.trim()) return t === 'fav' || t === 'recent' ? pool : [...pool.filter((e) => !under(e)), ...pool.filter(under)];
         const scored = [];
         for (const e of pool) {
             let s = Fuzzy.score(S.q, e.name);
@@ -125,29 +204,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const list = $('#cp-list'), more = $('#cp-more'), detail = $('#cp-detail'), dbody = $('#cp-dbody');
     let shown = [], at = 0, grouped = false;
     const tag = ([text, kind]) => `<span class="badge${kind ? ' ' + kind : ''}">${esc(text)}</span>`;
+    // the rules version is shown only when both are listed (or the entry is from the version not picked)
+    const tagsOf = (e) => (e.hb ? [['Homebrew', 'p']] : []).concat(e.r && (S.rules === 'both' || e.r !== S.rules) ? [[e.r, 'b']] : [], e.tags);
     const row = (e) => `<button type="button" class="cp-row${S.sel === key(e) ? ' on' : ''}" data-k="${esc(key(e))}"${S.sel === key(e) ? ' aria-current="true"' : ''}>
-        <span class="cp-name">${esc(e.name)}</span><span class="cp-tags">${(e.hb ? [['Homebrew', 'p']] : []).concat(e.tags).map(tag).join('')}</span><small class="cp-sub">${esc(e.sub)}</small></button>`;
+        <span class="cp-name">${esc(e.name)}</span><span class="cp-tags">${tagsOf(e).map(tag).join('')}</span><small class="cp-sub">${esc(e.sub)}</small></button>`;
     const skeleton = () => '<div class="cp-sk" aria-hidden="true"></div>'.repeat(8);
+    const jobName = (j) => { const [r, f] = j.split('-'); return f ? `${r} ${({ spells: 'spells', items: 'items and magic items', classes: 'classes', origins: 'races, backgrounds and feats' })[f]}` : TYPE_PLURAL[j]; };
 
     let io;
     function refresh() {
-        const all = results();
+        const all = results(), need = wanted();
         shown = all; at = 0;
         const total = all.length;
-        const busy = Object.keys(loaders).some((t) => !loaded.has(t) && !failed.has(t));
+        const busy = need.some((j) => !loaded.has(j) && !failed.has(j));
         grouped = S.tab === 'all';
         $('#cp-count').textContent = total ? `${num(total)} ${total === 1 ? 'result' : 'results'}` : '';
         let html = '';
-        for (const t of Object.keys(loaders)) if (failed.has(t) && (S.tab === 'all' || S.tab === t || (t === 'item' && S.tab === 'magic'))) {
-            html += `<p class="err">Couldn't load the ${t === 'item' ? 'items and magic items' : TYPE_PLURAL[t]} list. <button type="button" class="btn small" data-retry="${t}">Try again</button></p>`;
-        }
+        for (const j of need) if (failed.has(j)) html += `<p class="err">Couldn't load the ${esc(jobName(j))} list. <button type="button" class="btn small" data-retry="${esc(j)}">Try again</button></p>`;
         if (grouped) {
             // while searching, the type with the best match comes first
-            for (const t of S.q.trim() ? [...new Set(all.map((e) => e.t))] : Object.keys(TYPE_NAME)) {
-                const g = all.filter((e) => e.t === t);
+            const tabOf = (t) => (t === 'subclass' ? 'class' : t === 'subrace' ? 'race' : t);
+            for (const t of S.q.trim() ? [...new Set(all.map((e) => tabOf(e.t)))] : GROUPS) {
+                const g = all.filter((e) => typesOf(t).includes(e.t));
                 if (!g.length) continue;
-                html += `<h2 class="cp-gh">${TYPE_NAME[t] === 'Rule' ? 'Rules' : TYPE_NAME[t] + 's'} <span class="n">${num(g.length)}</span></h2>${g.slice(0, GROUP).map(row).join('')}`;
-                if (g.length > GROUP) html += `<button type="button" class="btn small cp-showall" data-tab="${t}">Show all ${num(g.length)} ${TYPE_PLURAL[t]}</button>`;
+                const label = TABS.find(([k]) => k === t)[1];
+                html += `<h2 class="cp-gh">${label} <span class="n">${num(g.length)}</span></h2>${g.slice(0, GROUP).map(row).join('')}`;
+                if (g.length > GROUP) html += `<button type="button" class="btn small cp-showall" data-tab="${t}">Show all ${num(g.length)} ${label.toLowerCase()}</button>`;
             }
             shown = [];
         } else html += all.slice(0, BATCH).map(row).join('');
@@ -173,17 +255,18 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(() => { if (more.getClientRects().length && more.getBoundingClientRect().top < innerHeight + 600) next(); });
     }
 
-    // ---- tabs and filters ----
+    // ---- tabs, rules and filters ----
     $('#cp-tabs').innerHTML = TABS.map(([k, n]) => `<button type="button" role="tab" data-tab="${k}">${n}</button>`).join('');
     function drawTabs() {
         for (const b of $('#cp-tabs').children) { const on = b.dataset.tab === S.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); }
+        for (const i of document.querySelectorAll('#cp-rules input')) i.checked = i.value === S.rules;
         const fl = FILTERS[S.tab] || [], box = $('#cp-filters');
-        const pool = entries.filter((e) => e.t === S.tab);
+        const pool = entries.filter((e) => typesOf(S.tab).includes(e.t) && inRules(e));
         const opts = (name, kind) => {
             if (kind === 'yn') return ['yes', 'Yes', 'no', 'No'];
             if (kind === 'cr') return CRS.flatMap((c) => [c, crText(c)]);
             if (name === 'level') return Array.from({ length: 10 }, (_, i) => [i, i ? 'Level ' + i : 'Cantrip']).flat();
-            let vals = [...new Set(pool.map((e) => e.f[name]).filter(Boolean))];
+            let vals = [...new Set(pool.flatMap((e) => e.f[name]).filter(Boolean))];
             vals = name === 'size' ? vals.sort((a, b) => SIZES.indexOf(a) - SIZES.indexOf(b)) : name === 'rarity' ? vals.sort((a, b) => RARITY.indexOf(a) - RARITY.indexOf(b)) : vals.sort((a, b) => (a === SRD ? -1 : b === SRD ? 1 : a.localeCompare(b)));
             return vals.flatMap((v) => [v, v]);
         };
@@ -193,6 +276,12 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let i = 0; i < o.length; i += 2) h += `<option value="${esc(o[i])}"${String(o[i]) === cur ? ' selected' : ''}>${esc(o[i + 1])}</option>`;
             return `<label>${label}<select class="field" data-f="${name}">${h}</select></label>`;
         }).join('') + (fl.length ? '<button type="button" class="btn small" data-clear>Clear filters</button>' : '');
+        // a saved filter this tab no longer has (the old spell Source, an old item category) would hide everything with no way to see why
+        const settled = wanted().every((j) => loaded.has(j));
+        for (const k of Object.keys(S.f)) {
+            const sel = box.querySelector(`[data-f="${CSS.escape(k)}"]`);
+            if (S.f[k] !== '' && (!sel || (settled && sel.value !== String(S.f[k])))) delete S.f[k];
+        }
         $('#cp-fbtn').hidden = !fl.length;
         box.hidden = !fl.length;
     }
@@ -205,9 +294,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (S.sel) { const e = byKey.get(S.sel); if (e) { p.set('t', e.t); p.set('i', e.id); } }
         history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : ''));
     }
-    function setTab(t) { S.tab = t; S.f = {}; drawTabs(); refresh(); persist(); }
+    function setTab(t) { S.tab = t; S.f = {}; drawTabs(); refresh(); persist(); ensure(); }
 
     $('#cp-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
+    $('#cp-rules').addEventListener('change', (e) => {
+        S.rules = e.target.value;
+        store.set('compendium-rules', S.rules);
+        drawTabs(); refresh(); ensure();
+    });
     $('#cp-q').value = S.q;
     $('#cp-q').addEventListener('input', debounce((e) => { S.q = e.target.value; refresh(); persist(); }, 80));
     $('#cp-filters').addEventListener('change', (e) => { const s = e.target.closest('[data-f]'); if (s) { S.f[s.dataset.f] = s.value; refresh(); persist(); } });
@@ -219,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (r) openEntry(byKey.get(r.dataset.k));
         else if (t) setTab(t.dataset.tab);
         else if (e.target.closest('[data-clear]')) clearFilters();
-        else if (e.target.closest('[data-retry]')) { const t2 = e.target.closest('[data-retry]').dataset.retry; load(t2); }
+        else if (e.target.closest('[data-retry]')) load(e.target.closest('[data-retry]').dataset.retry);
     });
     $('#cp-filters').addEventListener('click', (e) => { if (e.target.closest('[data-clear]')) clearFilters(); });
 
@@ -228,32 +322,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const kv = (rows) => `<div class="kv">${rows.filter((r) => r[1] !== '' && r[1] != null).map(([k, v]) => `<span>${esc(k)}</span><span>${esc(v)}</span>`).join('')}</div>`;
     const fmtSpeed = (sp) => Object.entries(sp || {}).filter(([k, v]) => k !== 'hover' && v).map(([k, v]) => { const t = typeof v === 'number' ? v + ' ft.' : v; return k === 'walk' ? t : `${k} ${t}`; }).join(', ');
     const signed = (n) => (n >= 0 ? '+' : '−') + Math.abs(n);
-
-    function spellHtml(e, s) {
-        const r = e.raw;
-        if (e.extra) {
-            const wd = `<a href="https://dnd5e.wikidot.com/spell:${esc(r.index)}" target="_blank" rel="noopener">dnd5e.wikidot.com</a>`;
-            const text = s && (s.desc || []).length
-                ? `<div class="cp-text">${s.desc.map(para).join('')}${(s.higher_level || []).length ? `<h3>At higher levels</h3>${s.higher_level.map(para).join('')}` : ''}</div><p class="muted cp-credit">Text from ${wd}</p>`
-                : `<p class="note">Couldn't load the text. Read it on ${wd}.</p>`;
-            return `${kv([['Level', r.level ? 'Level ' + r.level : 'Cantrip'], ['School', r.school], ['Casting time', r.casting_time], ['Range', r.range], ['Components', (r.components || []).join(', ') + (r.material ? ` (${r.material})` : '')], ['Duration', r.duration], ['Book', r.source]])}${text}`;
+    // text paragraphs as the content files keep them: "- " lines are a list, runs of "a | b" lines are a table (the first row its head)
+    function textHtml(ps) {
+        let h = '';
+        const lines = (Array.isArray(ps) ? ps : [ps]).flatMap((p) => String(p ?? '').split('\n')).map((p) => p.trim()).filter(Boolean);
+        for (let i = 0; i < lines.length;) {
+            if (lines[i].startsWith('- ')) {
+                let ul = '';
+                for (; i < lines.length && lines[i].startsWith('- '); i++) ul += `<li>${esc(lines[i].slice(2))}</li>`;
+                h += `<ul>${ul}</ul>`;
+            } else if (lines[i].includes(' | ')) {
+                const rows = [];
+                for (; i < lines.length && lines[i].includes(' | '); i++) rows.push(lines[i].split(' | '));
+                const [top, ...rest] = rows;
+                h += `<div class="table-wrap"><table class="table"><thead><tr>${top.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${rest.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+            } else h += para(lines[i++]);
         }
-        return `${kv([['Level', s.level ? 'Level ' + s.level : 'Cantrip'], ['School', s.school], ['Casting time', s.casting_time], ['Range', s.range], ['Components', (s.components || []).join(', ') + (s.material ? ` (${s.material})` : '')], ['Duration', s.duration]])}
+        return `<div class="cp-text">${h}</div>`;
+    }
+    const openLink = (k, label) => `<button type="button" class="cp-link" data-open="${esc(k)}">${esc(label)}</button>`;
+    const build = '<div class="cp-add"><a class="btn primary" href="/characters/build">Build a character</a></div>';
+
+    function spellHtml(s) {
+        return `${kv([['Level', s.level ? 'Level ' + s.level : 'Cantrip'], ['School', s.school], ['Casting time', s.casting_time], ['Range', s.range], ['Components', (s.components || []).join(', ') + (s.material ? ` (${s.material})` : '')],
+            ['Duration', s.duration], ['Classes', (s.classes || []).map(nice).join(', ')]])}
             <div class="badges">${s.concentration ? '<span class="badge">Concentration</span>' : ''}${s.ritual ? '<span class="badge">Ritual</span>' : ''}</div>
-            <div class="cp-text">${(s.desc || []).map(para).join('')}${(s.higher_level || []).length ? `<h3>At higher levels</h3>${s.higher_level.map(para).join('')}` : ''}</div>`;
+            ${textHtml(s.desc)}${(s.higher_level || []).length ? `<h3>At higher levels</h3>${textHtml(s.higher_level)}` : ''}`;
     }
     function monsterHtml(e, { src, m }) {
         const srd = src === 'srd', FULL = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
         const ac = srd ? (m.armor_class || [])[0] || {} : { value: m.armor_class, type: m.armor_desc };
         const acText = srd ? `${ac.value}${ac.type ? ' (' + ac.type + ')' : ''}` : `${ac.value ?? ''}${ac.type ? ' (' + ac.type + ')' : ''}`;
-        const saves = [], skills = [];
+        const saves = [], skl = [];
         if (srd) for (const p of m.proficiencies || []) {
             const n = p.proficiency?.name || '';
             if (n.startsWith('Saving Throw: ')) saves.push(`${n.slice(14)} ${signed(p.value)}`);
-            else if (n.startsWith('Skill: ')) skills.push(`${n.slice(7)} ${signed(p.value)}`);
+            else if (n.startsWith('Skill: ')) skl.push(`${n.slice(7)} ${signed(p.value)}`);
         } else {
             FULL.forEach((f) => { if (m[f + '_save'] != null) saves.push(`${f.slice(0, 3).replace(/^./, (c) => c.toUpperCase())} ${signed(m[f + '_save'])}`); });
-            for (const [k, v] of Object.entries(m.skills || {})) skills.push(`${k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())} ${signed(v)}`);
+            for (const [k, v] of Object.entries(m.skills || {})) skl.push(`${k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())} ${signed(v)}`);
         }
         const txt = (x) => (Array.isArray(x) ? x.map((y) => (typeof y === 'string' ? y : y.name)).join(', ') : String(x || ''));
         const senses = srd ? Object.entries(m.senses || {}).map(([k, v]) => `${k.replace(/_/g, ' ')} ${v}`).join(', ') : m.senses;
@@ -263,36 +370,100 @@ document.addEventListener('DOMContentLoaded', () => {
             ${kv([['Armour class', acText], ['Hit points', `${m.hit_points}${m.hit_points_roll || m.hit_dice ? ' (' + (m.hit_points_roll || m.hit_dice) + ')' : ''}`], ['Speed', fmtSpeed(m.speed)]])}
             <div class="table-wrap"><table class="table cp-abil"><thead><tr>${FULL.map((f) => `<th class="num">${f.slice(0, 3).toUpperCase()}</th>`).join('')}</tr></thead>
             <tbody><tr>${FULL.map((f) => `<td class="num">${m[f] ?? 10} (${signed(Math.floor(((m[f] ?? 10) - 10) / 2))})</td>`).join('')}</tr></tbody></table></div>
-            ${kv([['Saving throws', saves.join(', ')], ['Skills', skills.join(', ')], ['Vulnerabilities', txt(m.damage_vulnerabilities)], ['Resistances', txt(m.damage_resistances)], ['Damage immunities', txt(m.damage_immunities)],
+            ${kv([['Saving throws', saves.join(', ')], ['Skills', skl.join(', ')], ['Vulnerabilities', txt(m.damage_vulnerabilities)], ['Resistances', txt(m.damage_resistances)], ['Damage immunities', txt(m.damage_immunities)],
                 ['Condition immunities', txt(m.condition_immunities)], ['Senses', senses], ['Languages', m.languages], ['Challenge', crText(e.f.cr) + (m.xp ? ` (${num(m.xp)} XP)` : '')]])}
             ${block('Traits', m.special_abilities)}${block('Actions', m.actions)}${block('Bonus actions', m.bonus_actions)}${block('Reactions', m.reactions)}
             ${m.legendary_desc || (m.legendary_actions || []).length ? `<h3>Legendary actions</h3>${m.legendary_desc ? para(m.legendary_desc) : ''}${(m.legendary_actions || []).map((a) => `<p><b>${esc(a.name)}.</b> ${esc(a.desc)}</p>`).join('')}` : ''}
             ${book ? `<p class="muted cp-credit">${esc(book.title)} (${esc(book.licence)}). ${esc(book.copyright)}</p>` : ''}`;
     }
-    function itemHtml(e, s) {
+    const cost = (c) => (c && c.quantity != null ? `${num(c.quantity)} ${c.unit}` : '');
+    const dmg = (d) => (d && d.damage_dice ? `${d.damage_dice} ${String(name(d.damage_type)).toLowerCase()}` : '');
+    function itemHtml(e) {
+        const x = e.d;
         if (e.t === 'magic') {
-            const [type, ...rest] = s.desc || [];
-            return `<div class="badges">${s.rarity ? `<span class="badge${/legendary|artifact/i.test(s.rarity) ? ' cp-gold' : ''}">${esc(s.rarity)}</span>` : ''}${s.attunement ? `<span class="badge b">${esc(s.attunement)}</span>` : ''}</div>
-                ${type ? `<p class="muted">${esc(type)}</p>` : ''}<div class="cp-text">${rest.map(para).join('')}</div>
-                ${(s.variants || []).length ? `<h3>Variants</h3><ul>${s.variants.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>` : ''}`;
+            const att = x.attunement === true ? 'Requires attunement' : x.attunement ? String(x.attunement) : '';
+            return `<div class="badges">${x.rarity ? `<span class="badge${/legendary|artifact/i.test(x.rarity) ? ' cp-gold' : ''}">${esc(x.rarity)}</span>` : ''}${att ? `<span class="badge b">${esc(att)}</span>` : ''}</div>
+                ${x.type ? `<p class="muted">${esc(x.type)}</p>` : ''}${textHtml(x.desc)}`;
         }
-        return `${kv([['Category', s.category], ['Cost', s.cost], ['Weight', s.weight ? s.weight + ' lb' : ''], ['Damage', s.damage], ['Armour class', s.ac]])}
-            <div class="badges">${(s.props || []).map((p) => `<span class="badge">${esc(p)}</span>`).join('')}</div><div class="cp-text">${(s.desc || []).map(para).join('')}</div>`;
+        const ac = x.armor_class, rng = x.range || {}, thr = x.throw_range || {};
+        const props = (x.properties || []).map(name);
+        return `${kv([['Category', [e.f.cat, x.weapon_category || x.category_range, x.armor_category, x.tool_category, x.vehicle_category].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(' · ')], ['Cost', cost(x.cost)], ['Weight', x.weight ? x.weight + ' lb' : ''],
+            ['Damage', [dmg(x.damage), x.two_handed_damage ? `${dmg(x.two_handed_damage)} two-handed` : ''].filter(Boolean).join(', ')],
+            ['Range', rng.long ? `${rng.normal}/${rng.long} ft.` : thr.long ? `${thr.normal}/${thr.long} ft. thrown` : ''],
+            ['Armour class', ac && ac.base != null ? `${ac.base}${ac.dex_bonus ? ' + DEX' + (ac.max_bonus ? ` (max ${ac.max_bonus})` : '') : ''}` : ''], ['Strength', x.str_minimum ? x.str_minimum + '+' : ''],
+            ['Stealth', x.stealth_disadvantage ? 'Disadvantage' : ''], ['Mastery', x.mastery ? nice(x.mastery) : ''], ['Speed', x.speed && x.speed.quantity ? `${x.speed.quantity} ${x.speed.unit}` : ''],
+            ['Contents', (x.contents || []).map((c) => `${c.quantity > 1 ? c.quantity + ' ' : ''}${nice(c.item)}`).join(', ')],
+            ['Uses', (x.utilize || []).map((u) => u.name + (u.dc ? ` (DC ${u.dc.dc_value})` : '')).join(', ')]])}
+            <div class="badges">${props.map((p) => `<span class="badge">${esc(p)}</span>`).join('')}</div>${textHtml([...(x.desc || []), ...(x.description || []), ...(x.special || [])])}`;
     }
-    function ruleHtml(e) {
-        let h = '', ul = false;
-        for (const p of e.text) {
-            if (p.startsWith('- ')) { h += (ul ? '' : '<ul>') + `<li>${esc(p.slice(2))}</li>`; ul = true; } else { h += (ul ? '</ul>' : '') + para(p); ul = false; }
-        }
-        return `<p class="muted">${esc(e.sub)}</p><div class="cp-text">${h}${ul ? '</ul>' : ''}</div>`;
+    // features per level: [{ level, features: [{ name, desc, choices }] }]
+    const features = (levels) => (levels || []).flatMap((l) => (l.features || []).map((f) => `<h3>${esc(f.name)} <small class="muted">Level ${l.level}</small></h3>${textHtml(f.desc)}
+        ${f.choices && (f.choices.options || []).length ? `<ul>${f.choices.options.map((o) => `<li><b>${esc(o.name)}.</b> ${esc((o.desc || []).join(' '))}</li>`).join('')}</ul>` : ''}`)).join('');
+    function classHtml(e) {
+        const c = e.d, lv = c.levels || [];
+        // the table's columns: the class's own counters, then cantrips, spells known and each slot level that is ever above 0
+        const cs = [...new Set(lv.flatMap((l) => Object.keys(l.class_specific || {})))];
+        const sp = [...new Set(lv.flatMap((l) => Object.keys(l.spellcasting || {})))].filter((k) => lv.some((l) => l.spellcasting && +l.spellcasting[k]));
+        const head = ['Level', 'Proficiency bonus', 'Features', ...cs.map(nice), ...sp.map((k) => k.replace(/^spell_slots_level_(\d)$/, (m, n) => ['1st', '2nd', '3rd'][n - 1] || n + 'th') .replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()))];
+        const cell = (v) => (v === undefined || v === null || v === 0 ? '–' : String(v));
+        const table = `<div class="table-wrap"><table class="table cp-levels"><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${lv.map((l) => `<tr><td class="num">${l.level}</td><td class="num">+${l.prof_bonus}</td>
+            <td>${esc((l.features || []).map((f) => f.name).join(', ') || '–')}</td>${cs.map((k) => `<td>${esc(cell((l.class_specific || {})[k]))}</td>`).join('')}${sp.map((k) => `<td class="num">${esc(cell((l.spellcasting || {})[k]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+        const subs = (c.subclasses || []).map((s) => byKey.get(`subclass:${e.r}:${s}`)).filter(Boolean).sort(byName);
+        const mc = c.multi_classing || {}, mcPre = prereq(mc.prerequisites) || ((mc.prerequisite_options || {}).from?.options || []).map((o) => `${ABIL[o.ability_score]} ${o.minimum_score}+`).join(' or ');
+        const eq = [...(c.starting_equipment || []).map((x) => `${x.quantity > 1 ? x.quantity + ' ' : ''}${nice(x.equipment)}`), ...(c.starting_equipment_options || []).map((o) => o.desc)].filter(Boolean);
+        return `${textHtml(c.desc)}
+            ${kv([['Hit die', 'd' + c.hit_die], ['Saving throws', (c.saving_throws || []).map((s) => ABIL[s] || nice(s)).join(', ')], ['Proficiencies', (c.proficiencies || []).filter((p) => !/^saving-throw-/.test(p)).map(nice).join(', ')],
+                ['Skills', (c.proficiency_choices || []).map((p) => p.desc).filter(Boolean).join('; ')], ['Spellcasting', c.spellcasting ? ABIL[c.spellcasting.spellcasting_ability] || '' : ''], ['Multiclassing', mcPre]])}
+            ${eq.length ? `<h3>Starting equipment</h3><ul>${eq.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+            <h3>${esc(c.name)} table</h3>${table}
+            ${subs.length ? `<h3>${esc(c.subclass_flavor || 'Subclasses')}</h3><ul class="cp-subs">${subs.map((s) => `<li>${openLink(key(s), s.name)}</li>`).join('')}</ul>` : ''}
+            <h2 class="cp-h">Features</h2>${features(lv)}${build}`;
     }
+    function subclassHtml(e) {
+        const s = e.d, of = byKey.get(`class:${e.r}:${s.class}`);
+        const spellName = (i) => (byKey.get(`spell:${e.r}:${i}`) || {}).name || nice(i);
+        const sp = (s.spells || []).map((x) => [(x.prerequisites || []).map((p) => String(p).replace(/^.*-(\d+)$/, 'Level $1')).join(', '), spellName(x.spell)]);
+        return `<p class="muted">${of ? openLink(key(of), of.name) : esc(nice(s.class))} subclass${s.subclass_flavor ? ' · ' + esc(s.subclass_flavor) : ''}</p>${textHtml(s.desc)}
+            ${sp.length ? `<h3>Subclass spells</h3>${kv(sp)}` : ''}<h2 class="cp-h">Features</h2>${features(s.levels)}${build}`;
+    }
+    const bonuses = (b) => (b || []).map((x) => `${ABIL[x.ability_score] || nice(x.ability_score)} ${signed(x.bonus)}`).join(', ');
+    const traits = (t) => (t || []).map((x) => `<h3>${esc(x.name)}</h3>${textHtml(x.desc)}`).join('');
+    function raceHtml(e) {
+        const x = e.d, subs = (x.subraces || []).map((s) => byKey.get(`subrace:${e.r}:${s}`)).filter(Boolean).sort(byName);
+        return `${x.desc ? textHtml(x.desc) : ''}${kv([['Ability scores', bonuses(x.ability_bonuses)], ['Size', x.size], ['Speed', x.speed ? x.speed + ' ft.' : ''], ['Languages', x.language_desc || (x.languages || []).map(nice).join(', ')]])}
+            ${x.size_description ? `<h3>Size</h3>${textHtml(x.size_description)}` : ''}${x.age ? `<h3>Age</h3>${textHtml(x.age)}` : ''}${x.alignment ? `<h3>Alignment</h3>${textHtml(x.alignment)}` : ''}
+            ${traits(x.traits)}${subs.length ? `<h3>Subraces</h3><ul class="cp-subs">${subs.map((s) => `<li>${openLink(key(s), s.name)}</li>`).join('')}</ul>` : ''}${build}`;
+    }
+    function subraceHtml(e) {
+        const x = e.d, of = byKey.get(`race:${e.r}:${x.race}`);
+        return `<p class="muted">${of ? openLink(key(of), of.name) : esc(nice(x.race))} subrace</p>${x.desc ? textHtml(x.desc) : ''}${kv([['Ability scores', bonuses(x.ability_bonuses)]])}${traits(x.traits)}${build}`;
+    }
+    // a background's d6 / d8 table of personality traits, ideals, bonds or flaws
+    const rollTable = (title, o) => {
+        const opts = ((o || {}).from || {}).options || [];
+        if (!opts.length) return '';
+        const die = 'd' + opts.length;
+        return `<h3>${title}</h3><div class="table-wrap"><table class="table"><thead><tr><th class="num">${die}</th><th>${title.replace(/s$/, '')}</th></tr></thead><tbody>${opts.map((x, i) => `<tr><td class="num">${i + 1}</td><td>${esc(x.string || x.desc || '')}</td></tr>`).join('')}</tbody></table></div>`;
+    };
+    function backgroundHtml(e) {
+        const x = e.d, ft = x.feature || {}, lang = x.language_options;
+        return `${textHtml(x.desc)}${kv([['Proficiencies', (x.starting_proficiencies || []).map(nice).join(', ')], ['Languages', lang && lang.choose ? `${lang.choose} of your choice` : ''],
+            ['Ability scores', (x.ability_scores || []).map((a) => ABIL[a] || nice(a)).join(', ')], ['Feat', x.feat || ''],
+            ['Equipment', [...(x.starting_equipment || []).map((q) => `${q.quantity > 1 ? q.quantity + ' ' : ''}${nice(q.equipment)}`), ...(x.starting_equipment_options || []).map((o) => o.desc)].filter(Boolean).join('; ')]])}
+            ${ft.name ? `<h3>Feature: ${esc(ft.name)}</h3>${textHtml(ft.desc)}` : ''}
+            ${rollTable('Personality traits', x.personality_traits)}${rollTable('Ideals', x.ideals)}${rollTable('Bonds', x.bonds)}${rollTable('Flaws', x.flaws)}${build}`;
+    }
+    const featHtml = (e) => `${prereq(e.d.prerequisites) ? kv([['Prerequisite', prereq(e.d.prerequisites)]]) : ''}${textHtml(e.d.desc)}`;
+    function ruleHtml(e) { return `<p class="muted">${esc(e.sub)}</p>${textHtml(e.text)}`; }
+    const HTML = { spell: (e) => spellHtml(e.d), item: itemHtml, magic: itemHtml, class: classHtml, subclass: subclassHtml, race: raceHtml, subrace: subraceHtml, background: backgroundHtml, feat: featHtml, rule: ruleHtml };
 
-    const sourceLink = (e) => (e.t === 'spell' ? `https://www.dnd5eapi.co/api/2014/spells/${e.id}` : e.t === 'monster' ? (e.src === 'srd' ? `https://www.dnd5eapi.co/api/2014/monsters/${e.id.slice(4)}` : `https://open5e.com/monsters/${e.id.slice(4)}`)
-        : e.t === 'item' ? `https://www.dnd5eapi.co/api/2014/equipment/${e.id.slice(3)}` : `https://www.dnd5eapi.co/api/2014/magic-items/${e.id.slice(6)}`);
-    const url = (e) => (e.t === 'spell' ? `/sheets/player/spells.php?i=${encodeURIComponent(e.id)}` : e.t === 'monster' ? `/sheets/monster/monsters.php?i=${encodeURIComponent(e.id)}` : `/compendium/items.php?i=${encodeURIComponent(e.id)}`);
+    // only monsters, and content entries without their text, are fetched
+    const hasText = (e) => e.t !== 'monster' && !(e.d && (e.t === 'spell' || e.t === 'magic') && !(e.d.desc || []).join('').trim());
+    const fallback = (e) => (e.t === 'spell' ? `/sheets/player/spells.php?i=${encodeURIComponent(e.d.src === 'srd' ? e.d.index : 'wd:' + e.d.index)}` : `/compendium/items.php?i=magic:${encodeURIComponent(e.d.index)}`);
+    const sourceLink = (e) => (e.t === 'monster' ? (e.src === 'srd' ? `https://www.dnd5eapi.co/api/2014/monsters/${e.id.slice(4)}` : `https://open5e.com/monsters/${e.id.slice(4)}`) : fallback(e));
     async function fetchText(e) {
         if (texts.has(key(e))) return texts.get(key(e));
-        const r = await fetch(url(e));
+        const r = await fetch(e.t === 'monster' ? `/sheets/monster/monsters.php?i=${encodeURIComponent(e.id)}` : fallback(e));
         if (!r.ok) throw new Error(r.status);
         const j = await r.json();
         texts.set(key(e), j);
@@ -302,24 +473,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const STAR = (on) => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1.5l1.9 4.1 4.5.5-3.3 3.1.9 4.4L8 11.3 3.99 13.6l.9-4.4L1.6 6.1l4.5-.5z" fill="${on ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
     let qty = 1;
     function actions(e) {
-        if (e.t === 'rule') return '';
         if (e.t === 'monster') return `<div class="cp-add"><span class="cp-qty"><button type="button" class="btn small" data-qty="-1" aria-label="One fewer">&minus;</button><b id="cp-n">${qty}</b><button type="button" class="btn small" data-qty="1" aria-label="One more">+</button></span>
             <button type="button" class="btn primary" data-add="enc">Add to encounter</button></div>`;
-        return '<div class="cp-add"><button type="button" class="btn primary" data-add="sheet">Add to sheet</button></div>';
+        return ['spell', 'item', 'magic', 'feat'].includes(e.t) ? '<div class="cp-add"><button type="button" class="btn primary" data-add="sheet">Add to sheet</button></div>' : '';
     }
     function head(e) {
         const on = isFav(e);
         return `<div class="cp-title"><h2>${esc(e.name)}</h2><span class="cp-tools">
             <button type="button" class="btn small" data-fav aria-pressed="${on}" aria-label="${on ? 'Remove from favourites' : 'Add to favourites'}" title="${on ? 'Remove from favourites' : 'Add to favourites'}">${STAR(on)}</button>
             <button type="button" class="btn small" data-link>Copy link</button></span></div>
-            <div class="badges">${(e.hb ? [['Homebrew', 'p']] : []).concat(e.tags).map(tag).join('')}</div>`;
+            <div class="badges">${tagsOf(e).map(tag).join('')}</div>`;
     }
     let token = 0;
     async function openEntry(e) {
         if (!e) return;
         const mine = ++token;
         S.sel = key(e); qty = 1;
-        const r = recents().filter((k) => k !== key(e));
+        const r = store.get('compendium-recent', []).filter((k) => typeof k === 'string' && canon(k) !== key(e));
         r.unshift(key(e));
         store.set('compendium-recent', r.slice(0, 10));
         for (const b of list.querySelectorAll('.cp-row')) { const on = b.dataset.k === S.sel; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); }
@@ -328,14 +498,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const top = head(e);
         const draw = (body) => { if (mine === token) { dbody.innerHTML = top + body + actions(e) + '<div id="cp-msg"></div>'; detail.scrollTop = 0; } };
         if (e.html !== undefined) return draw(e.html);
-        if (e.t === 'rule') return draw(ruleHtml(e));
+        if (hasText(e)) return draw(HTML[e.t](e));
         dbody.innerHTML = top + '<div class="cp-sk" aria-hidden="true"></div><div class="cp-sk" aria-hidden="true"></div><p class="muted">Loading ' + esc(e.name) + '...</p>';
         detail.focus({ preventScroll: true });
         try {
             const j = await fetchText(e);
-            draw(e.t === 'spell' ? spellHtml(e, j) : e.t === 'monster' ? monsterHtml(e, j) : itemHtml(e, j));
+            if (e.t === 'monster') draw(monsterHtml(e, j));
+            else { Object.assign(e.d, { desc: j.desc || [], higher_level: e.d.higher_level?.length ? e.d.higher_level : j.higher_level || [] }); draw(HTML[e.t](e)); }
         } catch (err) {
-            if (e.extra) return draw(spellHtml(e, null));
             if (mine === token) dbody.innerHTML = top + `<p class="err">Couldn't load ${esc(e.name)}. Try again in a minute, or read it at <a href="${esc(sourceLink(e))}" target="_blank" rel="noopener">its source</a>. <button type="button" class="btn small" data-reopen>Try again</button></p>`;
         }
     }
@@ -344,19 +514,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!want) return;
         const e = byKey.get(want);
         if (e) { want = ''; openEntry(e); return; }
-        // the entry's list hasn't come in yet (or failed): wait for the list that has it
-        const t = want.split(':')[0];
-        if (loaded.has(t) || failed.has(t)) { want = ''; dbody.innerHTML = '<p class="note">That entry isn\'t in the compendium.</p>'; detail.classList.add('open'); document.body.classList.add('cp-lock'); }
+        // the entry's list hasn't come in yet (or failed): wait for the file that has it
+        if (jobsOfKey(want).every((j) => loaded.has(j) || failed.has(j))) { want = ''; dbody.innerHTML = '<p class="note">That entry isn\'t in the compendium.</p>'; detail.classList.add('open'); document.body.classList.add('cp-lock'); }
     }
 
     $('#cp-back').addEventListener('click', () => { S.sel = null; closeDetail(); persist(); for (const b of list.querySelectorAll('.cp-row.on')) b.classList.remove('on'); });
     detail.addEventListener('click', (ev) => {
         const e = byKey.get(S.sel), b = ev.target.closest('button');
         if (!e || !b) return;
-        if (b.dataset.fav !== undefined) {
-            const f = favs(), i = f.indexOf(key(e));
-            if (i >= 0) f.splice(i, 1); else f.push(key(e));
-            store.set('compendium-favs', f);
+        if (b.dataset.open) openEntry(byKey.get(b.dataset.open));
+        else if (b.dataset.fav !== undefined) {
+            const all = store.get('compendium-favs', []).filter((k) => typeof k === 'string'), i = all.findIndex((k) => canon(k) === key(e));
+            if (i >= 0) all.splice(i, 1); else all.push(key(e));
+            store.set('compendium-favs', all);
             b.setAttribute('aria-pressed', i < 0); b.innerHTML = STAR(i < 0);
             b.setAttribute('aria-label', i < 0 ? 'Remove from favourites' : 'Add to favourites'); b.title = b.getAttribute('aria-label');
             if (S.tab === 'fav') refresh();
@@ -370,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---- requests to the sheets (applied there, see sheet.js and monster.js) ----
     const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
-    const lock = (name, fn) => (navigator.locks ? navigator.locks.request(name, fn) : fn());
+    const lock = (n, fn) => (navigator.locks ? navigator.locks.request(n, fn) : fn());
     const queue = (k, item) => lock(k, () => {
         let q = [];
         try { q = JSON.parse(localStorage.getItem(k)); } catch (e) { }
@@ -400,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const level = (c) => (Array.isArray(c.classes) ? c.classes : []).reduce((n, k) => n + (+k.level || 0), 0) || 1;
     const line = (c) => [`Level ${level(c)}`, c.race, (Array.isArray(c.classes) ? c.classes : []).map((k) => k.name).filter(Boolean).join(' / ')].filter(Boolean).join(' | ');
     function hasEntry(c, e) {
-        const type = e.t === 'spell' ? 'spells' : 'items', n = e.name.trim().toLowerCase();
+        const type = e.t === 'spell' ? 'spells' : e.t === 'feat' ? 'list' : 'items', n = e.name.trim().toLowerCase();
         const onSheet = (Array.isArray(c.panels) ? c.panels : []).some((p) => p && p.type === type && (p.rows || []).some((r) => r && String(r.name || '').trim().toLowerCase() === n));
         let q = [];
         try { q = JSON.parse(localStorage.getItem('hb-pending')) || []; } catch (x) { }
@@ -409,15 +579,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function sheetRequest(c, e) {
         const base = { id: uid(), char: c.id, name: e.name };
         if (e.t === 'spell') return { ...base, kind: 'spell', lvl: e.f.level };
+        // a feat is a Passive abilities row (the sheet's ROW.list) with the feat's text
+        if (e.t === 'feat') return { ...base, kind: 'feat', src: 'Feat', text: [prereq(e.d.prerequisites) && 'Prerequisite: ' + prereq(e.d.prerequisites), ...(e.d.desc || [])].filter(Boolean).join('\n\n') };
         const cat = e.t === 'magic' ? 'Magic items' : e.f.cat === 'Weapon' ? 'Weapons' : e.f.cat === 'Armor' ? 'Armour' : 'Gear';
-        const s = texts.get(key(e));
-        return { ...base, kind: 'item', cat, fill: e.t === 'item', notes: e.t === 'magic' && s ? (s.desc || []).join('\n\n') : '' };
+        return { ...base, kind: 'item', cat, fill: e.t === 'item', notes: e.t === 'magic' ? (e.d.desc || []).join('\n\n') : '' };
     }
     const dlg = (id) => document.getElementById(id);
     document.addEventListener('click', (ev) => { if (ev.target.closest('[data-close]')) ev.target.closest('dialog').close(); });
     async function addToSheet(e) {
-        // a magic item's text is saved on the row, so it needs to have loaded
-        if (e.t === 'magic' && !texts.has(key(e))) { try { await fetchText(e); } catch (x) { return note("Couldn't load the item's text. Try again in a minute.", 'err'); } }
         const chars = await characters();
         const body = dlg('cp-pick-body');
         if (!chars.length) {
@@ -435,13 +604,13 @@ document.addEventListener('DOMContentLoaded', () => {
         dlg('cp-pick').showModal();
     }
     async function give(c, e) {
-        const name = c.name || 'Unnamed character';
+        const nm = c.name || 'Unnamed character';
         const go = async () => {
             try { await queue('hb-pending', sheetRequest(c, e)); } catch (x) { return note("Couldn't save the request: this browser's storage is full or blocked.", 'err'); }
-            note(`${esc(e.name)} will be on ${esc(name)}'s sheet. <a href="/characters/${encodeURIComponent(c.id)}">Open ${esc(name)}</a>`);
+            note(`${esc(e.name)} will be on ${esc(nm)}'s sheet. <a href="/characters/${encodeURIComponent(c.id)}">Open ${esc(nm)}</a>`);
         };
         if (!hasEntry(c, e)) return go();
-        $('#cp-dup-text').textContent = `${name} already has ${e.name}. Add another?`;
+        $('#cp-dup-text').textContent = `${nm} already has ${e.name}. Add another?`;
         dlg('cp-dup').showModal();
         $('#cp-dup-yes').onclick = () => { dlg('cp-dup').close(); go(); };
     }
@@ -468,5 +637,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     drawTabs();
     refresh();
-    for (const t of Object.keys(loaders)) load(t).then(drawTabs);
+    ensure();
 });

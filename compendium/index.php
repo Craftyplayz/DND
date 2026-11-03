@@ -1,7 +1,7 @@
 <?php
-// Compendium: search spells, monsters, items, magic items and rules; add them to a character or an encounter.
-// The lists load in the browser (assets/js/compendium.js); a clicked entry's full text comes through the cached
-// proxies sheets/player/spells.php, sheets/monster/monsters.php and compendium/items.php.
+// Compendium: search spells, monsters, items, magic items, classes, races, backgrounds, feats and rules; add them to a
+// character or an encounter. The lists load in the browser (assets/js/compendium.js) from sheets/player/content/ (2014 and
+// 2024 rules), monsters.json and rules.js; a monster's stat block comes through the cached proxy sheets/monster/monsters.php.
 $site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/compendium.css']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/monsters.json'), true) ?: [])['sources'] ?? [];
@@ -19,7 +19,14 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
     <main class="page cp" id="main"<?= auth_user() ? ' data-cloud' : '' ?>>
         <?= site_breadcrumbs(site_current_path()) ?>
         <h1 class="page-title">Compendium</h1>
-        <p class="page-lede">Spells, monsters, items and rules from the SRD 5.1 and open-licence books, with the extra spells and your homebrew.</p>
+        <p class="page-lede">Spells, monsters, items, classes, races, backgrounds, feats and rules for the 2014 and 2024 rules, with your homebrew.</p>
+
+        <fieldset class="cp-rules" id="cp-rules">
+            <legend>Rules</legend>
+            <label class="check"><input type="radio" name="cp-rules" value="2014"> 2014</label>
+            <label class="check"><input type="radio" name="cp-rules" value="2024"> 2024</label>
+            <label class="check"><input type="radio" name="cp-rules" value="both" checked> Both</label>
+        </fieldset>
 
         <div class="stabs cp-tabs" id="cp-tabs" role="tablist" aria-label="Type"></div>
         <div class="bar cp-bar">
@@ -40,13 +47,13 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
             </aside>
         </div>
 
-        <p class="muted cp-foot">SRD 5.1 data from dnd5eapi.co and open-licence monsters from Open5e, cached for 30 days. <button type="button" class="cp-link" id="cp-credits-btn">Credits</button></p>
+        <p class="muted cp-foot">Monster stat blocks from dnd5eapi.co (SRD 5.1) and Open5e, cached for 30 days. <button type="button" class="cp-link" id="cp-credits-btn">Credits</button></p>
 
         <dialog class="dlg" id="cp-credits" aria-labelledby="cp-credits-t">
             <h2 id="cp-credits-t">Credits</h2>
             <div class="cp-credits">
                 <p>This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC, available at <a href="https://dnd.wizards.com/resources/systems-reference-document" target="_blank" rel="noopener">dnd.wizards.com</a>. The SRD 5.1 is licensed under the <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">Creative Commons Attribution 4.0 International License</a>.</p>
-                <p>The text of the extra spells is read from <a href="https://dnd5e.wikidot.com/" target="_blank" rel="noopener">dnd5e.wikidot.com</a> when you open one and isn't kept on this site.</p>
+                <p>The books the classes, races, backgrounds, feats, spells and items come from are listed on the <a href="/credits/">Credits</a> page.</p>
                 <h3>Monster books</h3>
                 <ul>
                     <?php foreach ($sources as $s): ?>

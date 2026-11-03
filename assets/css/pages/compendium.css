@@ -1,6 +1,8 @@
 /* Compendium (/compendium/): type tabs, search bar, filters, the results list with endless scroll and the detail beside it (full screen on a phone). */
 .cp [hidden] { display: none !important; }
-.cp-tabs { margin-top: 16px; }
+.cp-rules { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 16px 0 0; padding: 0; border: 0; }
+.cp-rules legend { float: left; margin-right: 4px; padding: 0; color: var(--muted); font-size: 14px; }
+.cp-tabs { margin-top: 12px; }
 .cp-bar .cp-q { flex: 1 1 260px; }
 .cp-filter-btn { display: none; }
 .cp-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin: 0 0 16px; }
@@ -35,6 +37,11 @@
 .cp-detail .kv { margin: 10px 0; }
 .cp-text p:last-child { margin-bottom: 0; }
 .cp-abil th, .cp-abil td { text-align: center; white-space: nowrap; }
+.cp-levels th, .cp-levels td { font-size: 13px; white-space: nowrap; }
+.cp-levels td:nth-child(3) { min-width: 180px; white-space: normal; }
+.cp-detail h2.cp-h { margin: 20px 0 4px; font-size: 17px; }
+.cp-detail h3 small { font-weight: 400; }
+.cp-subs { columns: 2 160px; margin: 0; padding-left: 20px; }
 .cp-credit { margin-top: 16px; font-size: 12px; }
 .cp-add { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
 .cp-qty { display: inline-flex; align-items: center; gap: 8px; }
