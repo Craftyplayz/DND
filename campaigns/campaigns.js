@@ -70,6 +70,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ask(`Remove ${b.dataset.name}?`, 'Their characters leave the campaign too. They can join again with the link, so make a new link if they shouldn\'t.', 'Remove',
                 async (y) => !!(await send({ act: 'remove', member: b.dataset.sub }, y)) && (location.reload(), true));
         }
+        else if (act === 'codm' && b.dataset.on) {
+            ask(`Make ${b.dataset.name} a co-DM?`, "They'll see every character sheet in the party, hidden rolls and rolls sent to the DM, and can run fights and sessions. They can't rename or delete the campaign, make a new link, remove players or pick co-DMs. You can make them a player again at any time.", 'Make co-DM',
+                async (y) => !!(await send({ act: 'codm', member: b.dataset.sub, on: true }, y)) && (location.reload(), true));
+        }
+        else if (act === 'codm') { if (await send({ act: 'codm', member: b.dataset.sub, on: false }, b)) location.reload(); }
         else if (act === 'leave') {
             ask('Leave this campaign?', 'Your characters stay in My Characters. You can join again with a link from the DM.', 'Leave',
                 async (y) => !!(await send({ act: 'leave' }, y)) && (location.href = '/campaigns/', true));
@@ -92,6 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (r.status === 404) { location.href = '/campaigns/'; return; } // removed, or the campaign was deleted
             if (!r.ok) return;
             const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+            // made a co-DM or a player again: more of the page changes (the invite card), so load it all
+            if (doc.querySelector('#main')?.dataset.role !== $('#main').dataset.role) { location.reload(); return; }
             for (const sel of ['#cp-head', '#cp-sess', '#cp-players']) { const fresh = doc.querySelector(sel); if (fresh) $(sel)?.replaceWith(fresh); }
             dots();
         } catch (e) { }

@@ -112,6 +112,32 @@ try {
             // old ?c=<id> links redirect (301) to it; the list and the join page still work
             const old = await fetch(BASE + '/campaigns/?c=' + id, { redirect: 'manual' });
             is(`${name} old ?c= link is a 301`, [old.status, old.headers.get('location')], [301, '/campaigns/' + id]);
+
+            // co-DMs: the DM makes the player one (asked first); they get the DM's view but none of the DM-only tools
+            await go(BASE + '/campaigns/' + id);
+            await click('[data-act=codm]', 'ask');
+            is(`${name} making a co-DM asks first`, await text('#cp-ask-title'), 'Make Pat a co-DM?');
+            await click('#cp-ask-yes');
+            is(`${name} co-DM badge`, await ev(`[...document.querySelectorAll('#cp-players .badge.b')].map((x) => x.textContent).join(',')`), 'DM,Co-DM');
+            is(`${name} co-DM in the lede`, await text('.page-lede'), 'Dee is the DM · Pat is a co-DM · 0 players');
+            is(`${name} co-DM on their party card`, await ev(`[...document.querySelectorAll('.cp-owner')].map((x) => x.textContent).join(',')`), 'DM: Dee,Co-DM: Pat');
+            await as('pl');
+            await go(BASE + '/campaigns/' + id);
+            is(`${name} co-DM opens every party sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card a.btn')].map((a) => a.getAttribute('href')))`), '["/characters/dmpc","/characters/lock"]');
+            is(`${name} co-DM: invite link and sessions, no DM-only tools`, await ev(`JSON.stringify([!!document.querySelector('#cp-link'), !!document.querySelector('[data-act=session]'), !!document.querySelector('[data-act=code], #cp-rename, [data-act=delete], [data-act=remove], [data-act=codm]'), !!document.querySelector('[data-act=leave]')])`), '[true,true,false,true]');
+            await go(BASE + '/characters/dmpc');
+            is(`${name} co-DM sees the DM's sheet read-only`, [await text('.hb-roname'), await ev(`[...document.querySelectorAll('#hb-sheet input')].every((i) => i.disabled)`)], ['Brannoc', true]);
+            await go(BASE + '/campaigns/');
+            is(`${name} listed under co-DM`, await ev(`[...document.querySelectorAll('.sec-h')].map((h) => h.firstChild.textContent.trim()).join(',')`), "You're a co-DM");
+            errs('co-DM');
+            await as('dm');
+            await go(BASE + '/campaigns/' + id);
+            await click('[data-act=codm]');
+            is(`${name} made a player again`, [await ev(`document.querySelectorAll('#cp-players .badge.b').length`), await text('[data-act=codm]')], [1, 'Make co-DM']);
+            await as('pl');
+            await go(BASE + '/characters/dmpc');
+            is(`${name} a player again can't open the DM's sheet`, await text('#hb-sheet h2'), 'Character not found');
+            await as('dm');
             await go(BASE + '/campaigns/?c=' + id);
             is(`${name} old ?c= link lands on the new URL`, await ev(`location.pathname + location.search`), '/campaigns/' + id);
             is(`${name} no link on the page uses ?c=<id>`, await ev(`[...document.querySelectorAll('a[href]')].some((a) => /campaigns\\/\\?c=[^&]*$/.test(a.getAttribute('href')))`), false);

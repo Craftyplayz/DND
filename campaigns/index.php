@@ -1,6 +1,7 @@
 <?php
 // Campaigns. /campaigns/ lists the campaigns you DM and play in and makes new ones; /campaigns/<id> is one campaign:
-// the party's characters, the players, your characters in it, and for the DM the join link, rename, remove and delete.
+// the party's characters, the players, your characters in it, for the DM and co-DMs the join link and party sheets, and
+// for the DM alone a new link, rename, remove, delete and making players co-DMs (or players again).
 // Changes go through campaigns/api.php (campaigns.js). With the live relay (includes/live.php) the party, the players and
 // who's online update by themselves; #cp-head, #cp-sess and #cp-players are what campaigns.js swaps in from a fresh copy of
 // the page. The table log (ROADMAP 1.3) fills #cp-log live (assets/js/live.js); ?c=<id>&s=<n> shows a past session's rolls.
@@ -18,7 +19,19 @@ if (isset($_GET['c']) && !isset($_GET['s']) && preg_match('/^[A-Za-z0-9_-]+$/', 
 }
 $c = $user && isset($_GET['c']) ? cp_get($accounts, $_GET['c']) : null;
 if ($c && cp_member($c, $user['sub']) < 0) $c = null;
-$isDm = $c && $c['dm'] === $user['sub'];
+$isDm = $c && cp_is_dm($c, $user['sub']); // the DM or a co-DM
+$isOwner = $c && cp_is_owner($c, $user['sub']); // the DM alone: invite links, rename, delete, remove, co-DMs
+
+// "Dee is the DM · Pat is a co-DM · 2 players", under a campaign's title and on its tile (co-DMs aren't counted as players)
+function cp_people($c)
+{
+    $co = array_column(array_filter($c['members'], fn($m) => !cp_is_owner($c, $m['sub']) && cp_is_dm($c, $m['sub'])), 'name');
+    $players = count($c['members']) - 1 - count($co);
+    $last = array_pop($co);
+    return ($c['members'][0]['name'] ?? 'DM') . ' is the DM'
+        . ($last === null ? '' : ' · ' . ($co ? implode(', ', $co) . " and $last are co-DMs" : "$last is a co-DM"))
+        . ' · ' . ($players === 1 ? '1 player' : "$players players");
+}
 
 // a character's card (cp_card() in includes/campaigns.php) as HTML
 function cp_card_html($card, $who, $href)
@@ -68,9 +81,8 @@ elseif ($c) {
         if (!$card) continue; // the owner deleted it
         $count++;
         $own = $m['sub'] === $user['sub'];
-        $party .= cp_card_html($card, ($m['sub'] === $c['dm'] ? 'DM: ' : '') . $m['name'], $own || $isDm ? '/characters/' . rawurlencode($l['id']) : null);
+        $party .= cp_card_html($card, (cp_is_owner($c, $m['sub']) ? 'DM: ' : (cp_is_dm($c, $m['sub']) ? 'Co-DM: ' : '')) . $m['name'], $own || $isDm ? '/characters/' . rawurlencode($l['id']) : null);
     }
-    $players = count($c['members']) - 1;
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $link = (preg_match('/^(localhost|127\.0\.0\.1)(:\d+)?$/', $host) ? 'http' : 'https') . "://$host/campaigns/join/{$c['code']}";
 }
@@ -83,7 +95,7 @@ else {
     $lists = $user ? cp_mine($accounts, $user['sub']) : null;
 }
 $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>' . h($k['name']) . '</b><span>'
-    . h(($k['members'][0]['name'] ?? 'DM') . ' is the DM · ' . (count($k['members']) - 1 === 1 ? '1 player' : (count($k['members']) - 1) . ' players')) . '</span></a>';
+    . h(cp_people($k)) . '</span></a>';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -95,7 +107,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
 <body>
     <?php site_header(); ?>
 
-    <main class="page cp" id="main"<?= $c && !$past ? ' data-id="' . h($c['id']) . '"' : '' ?>>
+    <main class="page cp" id="main"<?= $c && !$past ? ' data-id="' . h($c['id']) . '" data-role="' . ($isOwner ? 'dm' : ($isDm ? 'codm' : 'player')) . '"' : '' ?>>
         <?= site_breadcrumbs(site_current_path()) ?>
 <?php if ($past): ?>
         <h1 class="page-title"><?= $_GET['s'] === 'unsorted' ? 'Rolls outside sessions' : 'Session ' . (int)$_GET['s'] ?></h1>
@@ -106,7 +118,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
         <p class="note" id="cp-paused" hidden>Live updates paused. Checking for changes every 10 seconds.</p>
         <div id="cp-head">
         <h1 class="page-title"><?= h($c['name']) ?></h1>
-        <p class="page-lede"><?= h($c['members'][0]['name']) ?> is the DM · <?= $players === 1 ? '1 player' : "$players players" ?></p>
+        <p class="page-lede"><?= h(cp_people($c)) ?></p>
 
         <h2 class="sec-h">Party <span class="n"><?= $count === 1 ? '1 character' : "$count characters" ?></span></h2>
         <?php if ($party !== ''): ?>
@@ -156,12 +168,17 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
                     <?php foreach ($c['members'] as $m): ?>
                         <div class="rowi" data-key="<?= h(live_key($c['id'], $m['sub'])) ?>"><span class="grow"><?= h($m['name']) ?><?= $m['sub'] === $user['sub'] ? ' <span class="muted">(you)</span>' : '' ?></span>
                             <span class="badge g cp-on" hidden>Online</span>
-                            <?php if ($m['sub'] === $c['dm']): ?><span class="badge b">DM</span>
-                            <?php elseif ($isDm): ?><button type="button" class="btn small" data-act="remove" data-sub="<?= h($m['sub']) ?>" data-name="<?= h($m['name']) ?>">Remove</button><?php endif; ?>
+                            <?php $co = !cp_is_owner($c, $m['sub']) && cp_is_dm($c, $m['sub']); ?>
+                            <?php if (cp_is_owner($c, $m['sub'])): ?><span class="badge b">DM</span>
+                            <?php else: ?>
+                                <?php if ($co): ?><span class="badge b">Co-DM</span><?php endif; ?>
+                                <?php if ($isOwner): ?><button type="button" class="btn small" data-act="codm" data-on="<?= $co ? '' : '1' ?>" data-sub="<?= h($m['sub']) ?>" data-name="<?= h($m['name']) ?>"><?= $co ? 'Make player' : 'Make co-DM' ?></button>
+                                <button type="button" class="btn small" data-act="remove" data-sub="<?= h($m['sub']) ?>" data-name="<?= h($m['name']) ?>">Remove</button><?php endif; ?>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 </div>
-                <?php if (!$isDm): ?><p><button type="button" class="btn small" data-act="leave">Leave campaign</button></p><?php endif; ?>
+                <?php if (!$isOwner): ?><p><button type="button" class="btn small" data-act="leave">Leave campaign</button></p><?php endif; ?>
             </section>
 
             <?php if ($isDm): ?>
@@ -172,9 +189,11 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
                         <input class="field mono" id="cp-link" value="<?= h($link) ?>" readonly aria-label="Join link">
                         <button type="button" class="btn small" data-act="copy">Copy link</button>
                     </div>
-                    <p><button type="button" class="btn small" data-act="code">Make a new link</button> <span class="muted">The old link stops working.</span></p>
+                    <?php if ($isOwner): ?><p><button type="button" class="btn small" data-act="code">Make a new link</button> <span class="muted">The old link stops working.</span></p><?php endif; ?>
                 </section>
+            <?php endif; ?>
 
+            <?php if ($isOwner): ?>
                 <section class="card">
                     <h2>Campaign</h2>
                     <form class="form" id="cp-rename">
@@ -211,10 +230,13 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
                     <div class="actions"><button class="btn primary" type="submit">Create campaign</button></div>
                 </form>
             </section>
-            <?php if ($lists['dm']): ?>
-                <h2 class="sec-h">You're the DM <span class="n"><?= count($lists['dm']) ?></span></h2>
-                <div class="hub-grid"><?= implode('', array_map($tile, $lists['dm'])) ?></div>
-            <?php endif; ?>
+            <?php // cp_mine()'s 'dm' list has the campaigns you co-DM too; they get their own heading here
+            foreach (['the DM' => true, 'a co-DM' => false] as $role => $own): $list = array_filter($lists['dm'], fn($k) => cp_is_owner($k, $user['sub']) === $own); ?>
+                <?php if ($list): ?>
+                <h2 class="sec-h">You're <?= $role ?> <span class="n"><?= count($list) ?></span></h2>
+                <div class="hub-grid"><?= implode('', array_map($tile, $list)) ?></div>
+                <?php endif; ?>
+            <?php endforeach; ?>
             <?php if ($lists['player']): ?>
                 <h2 class="sec-h">You're playing in <span class="n"><?= count($lists['player']) ?></span></h2>
                 <div class="hub-grid"><?= implode('', array_map($tile, $lists['player'])) ?></div>
