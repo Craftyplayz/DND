@@ -50,6 +50,18 @@ tl_add($A, $c(), $p1, $roll('r-000014', ['char' => 'lock', 'title' => 'Offline',
 $is('offline roll in time order', array_slice($names($dm), 0, 3), ['Lock:Stealth', 'Lock:Offline', 'Ozzy:Insight']);
 $is('rolled in the future becomes now', tl_add($A, $c(), $p1, $roll('r-000015', ['char' => 'lock', 'at' => PHP_INT_MAX]))[1]['entry']['at'] <= microtime(true) * 1000, true);
 
+// a co-DM sees and rolls as the DM does; made a player again, they see what a player sees
+$player = $names($p1);
+cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '222', 'on' => true]);
+$is('a co-DM sees whispers and hidden rolls', $names($p1), $names($dm));
+$is("a co-DM can't whisper", tl_add($A, $c(), $p1, $roll('r-000030', ['vis' => 'dm']))[0], 400);
+$e = tl_add($A, $c(), $p1, $roll('r-000031', ['name' => 'Wolf', 'vis' => 'hidden', 'title' => 'Bite', 'at' => 5000]))[1]['entry'] ?? null;
+$is("a co-DM rolls hidden for a monster, marked as the DM's", [$e['name'] ?? null, $e['dm'] ?? null, $e['vis'] ?? null], ['Wolf', true, 'hidden']);
+$is('a player sees the co-DM roll only as rolled', in_array('Wolf:-', $names($p2), true), true);
+$is('the DM sees it', in_array('Wolf:Bite', $names($dm), true), true);
+cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '222', 'on' => false]);
+$is('demoted: a player again', array_values(array_filter($names($p1), fn($n) => $n !== 'Wolf:Bite')), $player); // their own roll stays theirs
+
 // sessions: only rolls during one go into it
 $is("can't end what isn't running", tl_session($A, $c(), false)[0], 400);
 [$code, $out, $camp] = tl_session($A, $c(), true);

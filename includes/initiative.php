@@ -9,7 +9,8 @@
 // An entry: {"id", "kind": "pc" | "monster" | "plain", "char" | "mon" | "name", "init" (null until rolled), "bonus",
 //   "tie" (a silent d20 roll-off between equal init and bonus), "secret" (rolled hidden or to the DM), "hidden" (monsters),
 //   "name" (monsters: the last name seen, kept if the monster goes), "ac" (monsters, from the Monster Sheet)}
-// Monster HP is never kept here: it's read from the DM's monster save (<accounts>/monsters/<dm sub>/<id>.json).
+// Monster HP is never kept here: it's read from the monster save of whoever added it, "by" (the DM or a co-DM;
+// <accounts>/monsters/<by>/<id>.json; entries from before co-DMs have no "by" and use the DM's).
 require_once __DIR__ . '/tablelog.php';
 
 function fi_file($accounts, $id)
@@ -29,9 +30,18 @@ function fi_write($accounts, $id, $f)
     return @file_put_contents($tmp, json_encode($f, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) !== false && @rename($tmp, $file);
 }
 
-function fi_monster($accounts, $c, $monId)
+// $by: whose Monster Sheet it's saved in (the DM or a co-DM who added it; entries from before co-DMs have none: the DM)
+function fi_monster($accounts, $c, $monId, $by = null)
 {
-    return ch_ok_id($monId) ? ch_json("$accounts/monsters/{$c['dm']}/$monId.json") : null;
+    $by = is_string($by) && $by !== '' ? $by : $c['dm'];
+    return ch_ok_id($monId) && !preg_match('#[/\\\\.]#', $by) ? ch_json("$accounts/monsters/$by/$monId.json") : null;
+}
+
+// the fight entry for monster $monId, or null (cloud.php's ?hp=&c=: a co-DM changing the HP of the DM's monster)
+function fi_entry_mon($accounts, $c, $monId)
+{
+    foreach (fi_read($accounts, $c['id'])['entries'] ?? [] as $e) if (($e['mon'] ?? null) === $monId) return $e;
+    return null;
 }
 
 function fi_num($v)
@@ -72,7 +82,7 @@ function fi_hp($hp, $op)
 function fi_down($accounts, $c, $e)
 {
     if ($e['kind'] !== 'monster') return false;
-    $m = fi_monster($accounts, $c, $e['mon']);
+    $m = fi_monster($accounts, $c, $e['mon'], $e['by'] ?? null);
     return $m && fi_status($m['hp'] ?? []) === 'down';
 }
 
@@ -156,13 +166,15 @@ function fi_int($v)
     return is_numeric($v) ? (int)round((float)$v) : null;
 }
 
-// One DM change: [http code, response, log entries to publish]. The caller holds cp_lock() and checked it's the DM.
+// One DM change: [http code, response, log entries to publish]. The caller holds cp_lock() and checked it's the DM or a
+// co-DM ($sub: whose Monster Sheet added monsters come from; the DM when left out).
 //   {op: "start"} | {op: "end"} | {op: "round1"} | {op: "next"} | {op: "prev"}
 //   {op: "add", items: [{kind: "pc", char} | {kind: "monster", mon, init, bonus, ac} | {kind: "plain", name, init}]}
 //   {op: "remove" | "init" | "move" | "hide", e: entry id, value | dir | on}
 // Every op but "start" carries v, the fight the DM was looking at.
-function fi_op($accounts, $c, $body)
+function fi_op($accounts, $c, $body, $sub = null)
 {
+    $sub = $sub ?? $c['dm'];
     $op = (string)($body['op'] ?? '');
     $f = fi_read($accounts, $c['id']);
     $logs = [];
@@ -208,10 +220,10 @@ function fi_op($accounts, $c, $body)
                 foreach ($f['entries'] as $x) if (($x['char'] ?? null) === $id) continue 2;
                 fi_place($f, ['id' => fi_new_id($f), 'kind' => 'pc', 'char' => $id, 'init' => fi_int($it['init'] ?? null), 'bonus' => 0, 'tie' => 0, 'secret' => false, 'hidden' => false]);
             } elseif ($kind === 'monster') {
-                $m = fi_monster($accounts, $c, (string)($it['mon'] ?? ''));
+                $m = fi_monster($accounts, $c, (string)($it['mon'] ?? ''), $sub);
                 if (!$m) return [400, ['error' => 'Save that monster to your account first (sign in on the Monster Sheet).'], []];
                 foreach ($f['entries'] as $x) if (($x['mon'] ?? null) === $m['id']) continue 2;
-                fi_place($f, ['id' => fi_new_id($f), 'kind' => 'monster', 'mon' => $m['id'], 'name' => mb_substr((string)($m['name'] ?? ''), 0, 80), 'init' => fi_int($it['init'] ?? null),
+                fi_place($f, ['id' => fi_new_id($f), 'kind' => 'monster', 'mon' => $m['id'], 'by' => $sub,'name' => mb_substr((string)($m['name'] ?? ''), 0, 80), 'init' => fi_int($it['init'] ?? null),
                     'bonus' => fi_int($it['bonus'] ?? 0) ?? 0, 'tie' => 0, 'secret' => true, 'hidden' => false, 'ac' => fi_int($it['ac'] ?? null)]);
             } elseif ($kind === 'plain') {
                 $name = cp_clean_name($it['name'] ?? '');
@@ -251,15 +263,15 @@ function fi_roll($accounts, $c, $user, $roll)
     if (!preg_match('/^Initiative\b/', (string)($roll['title'] ?? ''))) return false;
     $f = fi_read($accounts, $c['id']);
     if (!$f || (int)($roll['fight'] ?? 0) !== $f['n'] || !is_numeric($roll['total'] ?? null)) return false;
-    $dm = $c['dm'] === $user['sub'];
+    $dm = cp_is_dm($c, $user['sub']);
     $char = (string)($roll['char'] ?? '');
     if ($char !== '') {
         if ((fi_party($c)[$char] ?? null) !== $user['sub'] || in_array($char, $f['out'], true)) return false;
         $match = fn($x) => ($x['char'] ?? null) === $char;
         $new = ['kind' => 'pc', 'char' => $char, 'hidden' => false];
-    } elseif ($dm && ($m = fi_monster($accounts, $c, (string)($roll['mon'] ?? '')))) {
+    } elseif ($dm && ($m = fi_monster($accounts, $c, (string)($roll['mon'] ?? ''), $user['sub']))) {
         $match = fn($x) => ($x['mon'] ?? null) === $m['id'];
-        $new = ['kind' => 'monster', 'mon' => $m['id'], 'name' => mb_substr((string)($m['name'] ?? ''), 0, 80), 'hidden' => false, 'ac' => null];
+        $new = ['kind' => 'monster', 'mon' => $m['id'], 'by' => $user['sub'], 'name' => mb_substr((string)($m['name'] ?? ''), 0, 80), 'hidden' => false, 'ac' => null];
     } else return false;
     $i = -1;
     foreach ($f['entries'] as $k => $x) if ($match($x)) $i = $k;
@@ -278,7 +290,7 @@ function fi_view($accounts, $c, $sub, $f = null)
 {
     $f ??= fi_read($accounts, $c['id']);
     if (!$f) return null;
-    $dm = $c['dm'] === $sub;
+    $dm = cp_is_dm($c, $sub);
     $party = fi_party($c);
     $vis = [];
     foreach ($f['entries'] as $e) {
@@ -291,7 +303,7 @@ function fi_view($accounts, $c, $sub, $f = null)
             if ($o['mine'] || $dm) $o['char'] = $e['char'];
             if ($dm && $ch) $o['hp'] = ['cur' => fi_num($ch['hp']['cur'] ?? 0), 'temp' => fi_num($ch['hp']['temp'] ?? 0)];
         } elseif ($e['kind'] === 'monster') {
-            $m = fi_monster($accounts, $c, $e['mon']);
+            $m = fi_monster($accounts, $c, $e['mon'], $e['by'] ?? null);
             $o += ['name' => trim((string)($m['name'] ?? '')) !== '' ? mb_substr($m['name'], 0, 80) : ($e['name'] ?: 'Monster'),
                 'art' => fi_art((string)($m['art'] ?? '')), 'status' => $m ? fi_status($m['hp'] ?? []) : 'healthy'];
             if ($dm) {

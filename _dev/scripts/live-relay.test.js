@@ -67,6 +67,14 @@ const last = (ws, type) => ws.got.filter((m) => m.type === type).pop();
         is('removed player dropped', await pl2.closed, 4403);
         await wait(async () => last(dm, 'presence')?.online.length === 2);
         is('presence after removal', last(dm, 'presence').online.sort(), ['dm1', 'pl1']);
+        // a co-DM promoted or demoted: their socket closes with 4401 (the page reconnects with the new role), nobody else's
+        const co = await open('who=co1:dm');
+        await publish({ campaign: 'camp1', rekey: ['co1'] });
+        is('rekeyed socket closed for a reconnect', await co.closed, 4401);
+        await publish({ campaign: 'camp1', msg: { type: 'secret2' }, to: 'dm' });
+        await wait(async () => last(dm, 'secret2'));
+        is('others stay connected', [!!last(dm, 'secret2'), pl.readyState], [true, WebSocket.OPEN]);
+        await wait(async () => last(dm, 'presence')?.online.length === 2);
         pl.close();
         await wait(async () => last(dm, 'presence')?.online.length === 1);
         is('presence after leaving', last(dm, 'presence').online, ['dm1']);

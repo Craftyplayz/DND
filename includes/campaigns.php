@@ -1,8 +1,9 @@
 <?php
 // Campaigns, for signed-in players: one folder per campaign, <accounts>/campaigns/<id>/campaign.json
 //   {"id", "name", "dm": <google sub>, "code": <join code>, "created": <unix time>,
-//    "members": [{"sub", "name", "joined", "characters": [{"sheet": "player", "id": <character id>}]}]}
-// The DM is always members[0]. A campaign only links characters (My Characters, accounts/characters/<id>/); it never
+//    "members": [{"sub", "name", "joined", "characters": [{"sheet": "player", "id": <character id>}]}],
+//    "codms": [<google sub>, ...] (co-DMs: members the DM promoted; missing in older campaigns, meaning none)}
+// The DM is always members[0]. cp_is_dm() (DM or co-DM) and cp_is_owner() (the DM alone) are the only role checks. A campaign only links characters (My Characters, accounts/characters/<id>/); it never
 // copies or writes them, so the player's own save stays the only copy. Deleting moves the folder to campaigns/.deleted/.
 // Used by campaigns/api.php (changes), campaigns/index.php and campaigns/join/ (pages), characters/index.php (DM access).
 // Every function takes the accounts folder, so _dev/scripts/campaigns.test.php gets its own.
@@ -58,12 +59,24 @@ function cp_member($c, $sub)
     return -1;
 }
 
-// ['dm' => [...], 'player' => [...]] campaigns of this player, newest first
+// the DM: the campaign's creator. Only they rename, delete, make a new join link, remove players and pick co-DMs.
+function cp_is_owner($c, $sub)
+{
+    return is_string($sub) && $sub !== '' && ($c['dm'] ?? null) === $sub;
+}
+
+// the DM or a co-DM: everything else the DM can do (party sheets, fights, sessions, hidden rolls and whispers)
+function cp_is_dm($c, $sub)
+{
+    return cp_is_owner($c, $sub) || (cp_member($c, $sub) >= 0 && in_array($sub, (array)($c['codms'] ?? []), true));
+}
+
+// ['dm' => [...], 'player' => [...]] campaigns of this player, newest first; 'dm' includes the ones they co-DM
 function cp_mine($accounts, $sub)
 {
     $out = ['dm' => [], 'player' => []];
     foreach (cp_all($accounts) as $c) {
-        if (($c['dm'] ?? null) === $sub) $out['dm'][] = $c;
+        if (cp_is_dm($c, $sub)) $out['dm'][] = $c;
         elseif (cp_member($c, $sub) >= 0) $out['player'][] = $c;
     }
     foreach ($out as &$list) usort($list, fn($a, $b) => ($b['created'] ?? 0) <=> ($a['created'] ?? 0));
@@ -77,11 +90,11 @@ function cp_by_code($accounts, $code)
     return null;
 }
 
-// does $sub DM a campaign that this character is attached to? (read-only access to the sheet)
+// does $sub DM or co-DM a campaign that this character is attached to? (read-only access to the sheet)
 function cp_dm_sees($accounts, $sub, $charId)
 {
     foreach (cp_all($accounts) as $c) {
-        if (($c['dm'] ?? null) !== $sub) continue;
+        if (!cp_is_dm($c, $sub)) continue;
         foreach ($c['members'] as $m) foreach ($m['characters'] ?? [] as $l) if (($l['id'] ?? null) === $charId) return true;
     }
     return false;
@@ -154,6 +167,12 @@ function cp_clone_char($accounts, $sub, $charId)
     return ch_write($dir, json_encode($ch, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ? $id : null;
 }
 
+// $sub is no longer a co-DM (left, removed or demoted); "codms" is only written once a campaign has had one
+function cp_drop_codm(&$c, $sub)
+{
+    if (isset($c['codms'])) $c['codms'] = array_values(array_filter((array)$c['codms'], fn($s) => $s !== $sub));
+}
+
 // the name other players see: the Google name, never the email
 function cp_who($user)
 {
@@ -195,7 +214,7 @@ function cp_act($accounts, $user, $body)
     $c = cp_get($accounts, $body['id'] ?? '');
     $me = $c ? cp_member($c, $sub) : -1;
     if ($me < 0) return [404, ['error' => 'No such campaign.']];
-    $dm = $c['dm'] === $sub;
+    $owner = cp_is_owner($c, $sub);
     // by reference: it saves $c as changed below (an arrow function would keep the copy from this line)
     $save = function ($out) use ($accounts, &$c) { return cp_put($accounts, $c) ? [200, $out] : [500, ['error' => "Couldn't save the campaign."]]; };
 
@@ -246,11 +265,12 @@ function cp_act($accounts, $user, $body)
         return [200, ['kept' => $c['id'], 'changed' => $changed]];
     }
     if ($act === 'leave') {
-        if ($dm) return [400, ['error' => "The DM can't leave. Delete the campaign instead."]];
+        if ($owner) return [400, ['error' => "The DM can't leave. Delete the campaign instead."]];
         array_splice($c['members'], $me, 1);
+        cp_drop_codm($c, $sub);
         return $save(['left' => true]);
     }
-    if (!$dm) return [403, ['error' => 'Only the DM can do that.']];
+    if (!$owner) return [403, ['error' => 'Only the DM can do that.']];
     if ($act === 'rename') {
         $name = cp_clean_name($body['name'] ?? '');
         if ($name === null) return [400, ['error' => 'Give the campaign a name.']];
@@ -265,8 +285,19 @@ function cp_act($accounts, $user, $body)
         $i = cp_member($c, (string)($body['member'] ?? ''));
         if ($i < 0) return [404, ['error' => 'That player is not in this campaign.']];
         if ($i === $me) return [400, ['error' => "The DM can't be removed."]];
+        cp_drop_codm($c, $c['members'][$i]['sub']);
         array_splice($c['members'], $i, 1);
         return $save(['removed' => true]);
+    }
+    // {act: "codm", member, on}: make a player a co-DM, or a player again
+    if ($act === 'codm') {
+        $who = (string)($body['member'] ?? '');
+        $i = cp_member($c, $who);
+        if ($i < 0) return [404, ['error' => 'That player is not in this campaign.']];
+        if ($i === $me) return [400, ['error' => "You're the DM already."]];
+        cp_drop_codm($c, $who);
+        if (!empty($body['on'])) $c['codms'][] = $who;
+        return $save(['codms' => $c['codms'] ?? []]);
     }
     if ($act === 'delete') {
         $gone = "$accounts/campaigns/.deleted";

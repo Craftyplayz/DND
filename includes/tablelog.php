@@ -50,7 +50,7 @@ function tl_view($c, $sub, $e)
 {
     $mine = ($e['sub'] ?? null) === $sub;
     $out = ['mine' => $mine] + array_diff_key($e, ['sub' => 1]);
-    if ($c['dm'] === $sub || $mine || ($e['vis'] ?? '') === 'public') return $out;
+    if (cp_is_dm($c, $sub) || $mine || ($e['vis'] ?? '') === 'public') return $out;
     if (($e['vis'] ?? '') === 'hidden') return ['id' => $e['id'], 'at' => $e['at'], 'dm' => true, 'name' => $e['name'], 'vis' => 'hidden', 'mine' => false];
     return null; // a whisper to the DM
 }
@@ -76,7 +76,7 @@ function tl_add($accounts, $c, $user, $roll)
 {
     if (!is_array($roll) || !preg_match('/^[\w-]{8,40}$/', (string)($roll['id'] ?? ''))) return [400, ['error' => "That isn't a roll."]];
     $sub = $user['sub'];
-    $dm = $c['dm'] === $sub;
+    $dm = cp_is_dm($c, $sub);
     $vis = $roll['vis'] ?? 'public';
     if (!in_array($vis, $dm ? ['public', 'hidden'] : ['public', 'dm'], true)) return [400, ['error' => "That isn't a way to share a roll."]];
     // a character must be one of this player's in the campaign; its name comes from its save, not from the roll

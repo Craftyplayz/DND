@@ -113,12 +113,40 @@ $is('new link differs', $new !== $old, true);
 $is('old link stops working', cp_act($A, $other, ['act' => 'join', 'code' => $old])[0], 404);
 $is('new link works', cp_act($A, $other, ['act' => 'join', 'code' => $new])[0], 200);
 
+// co-DMs: an older campaign has no "codms" and loads unchanged; only the DM picks them
+$c = cp_get($A, $id);
+$is('older campaign: no codms key, only the DM is a DM', [array_key_exists('codms', $c), cp_is_dm($c, '111'), cp_is_dm($c, '222'), cp_is_owner($c, '111')], [false, true, false, true]);
+$is('nobody is a DM by an empty id', [cp_is_dm($c, ''), cp_is_owner(['dm' => null], null)], [false, false]);
+cp_act($A, $other, ['act' => 'characters', 'id' => $id, 'characters' => ['oz1']]);
+$is('player cannot pick co-DMs', cp_act($A, $pl, ['act' => 'codm', 'id' => $id, 'member' => '222', 'on' => true])[0], 403);
+$is('DM is not their own co-DM', cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '111', 'on' => true])[0], 400);
+$is('only members become co-DMs', cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '999', 'on' => true])[0], 404);
+$is('DM makes a co-DM', cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '222', 'on' => true]), [200, ['codms' => ['222']]]);
+$is('twice adds them once', cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '222', 'on' => true])[1], ['codms' => ['222']]);
+$c = cp_get($A, $id);
+$is('a co-DM is a DM but not the owner', [cp_is_dm($c, '222'), cp_is_owner($c, '222'), cp_is_dm($c, '333')], [true, false, false]);
+$is('everything else in the campaign is unchanged', [$c['dm'], $c['name'], $c['code'], count($c['members'])], ['111', 'Crown', $new, 3]);
+$is('co-DM sees party sheets', [cp_dm_sees($A, '222', 'oz1'), cp_dm_sees($A, '222', 'dmpc')], [true, true]);
+$is("co-DM's campaigns list it with the DM's", in_array($id, array_column(cp_mine($A, '222')['dm'], 'id'), true) && !cp_mine($A, '222')['player'], true);
+foreach (['rename' => ['name' => 'x'], 'code' => [], 'remove' => ['member' => '333'], 'delete' => [], 'codm' => ['member' => '333', 'on' => true]] as $act => $more)
+    $is("co-DM can't $act", cp_act($A, $pl, ['act' => $act, 'id' => $id] + $more)[0], 403);
+$is('a co-DM no longer in the campaign is no DM', cp_is_dm(['dm' => '111', 'codms' => ['999'], 'members' => [['sub' => '111']]], '999'), false);
+$is('DM makes them a player again', cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '222', 'on' => false]), [200, ['codms' => []]]);
+$is('demoted: no party sheets', [cp_is_dm(cp_get($A, $id), '222'), cp_dm_sees($A, '222', 'oz1')], [false, false]);
+cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '222', 'on' => true]);
+cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '333', 'on' => true]);
+
 // remove, leave
 $is("DM can't remove themselves", cp_act($A, $dm, ['act' => 'remove', 'id' => $id, 'member' => '111'])[0], 400);
 $is('DM removes a player', cp_act($A, $dm, ['act' => 'remove', 'id' => $id, 'member' => '333'])[0], 200);
 $is('removed player is out', cp_member(cp_get($A, $id), '333'), -1);
+$is('a removed co-DM is no co-DM any more', cp_get($A, $id)['codms'], ['222']);
 $is("DM can't leave", cp_act($A, $dm, ['act' => 'leave', 'id' => $id])[0], 400);
-$is('player leaves', cp_act($A, $pl, ['act' => 'leave', 'id' => $id])[0], 200);
+$is('player (a co-DM) leaves', cp_act($A, $pl, ['act' => 'leave', 'id' => $id])[0], 200);
+$is('a co-DM who left is no co-DM', cp_get($A, $id)['codms'], []);
+cp_act($A, $pl, ['act' => 'join', 'code' => $new]);
+$is('joining again: a player', cp_is_dm(cp_get($A, $id), '222'), false);
+cp_act($A, $pl, ['act' => 'leave', 'id' => $id]);
 $is('left player no longer linked for the DM', cp_dm_sees($A, '111', 'lock'), false);
 $is('character still there after leaving', is_file("$A/characters/lock/character.json"), true);
 

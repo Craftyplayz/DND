@@ -52,9 +52,10 @@ window.Fight = (() => {
             return r.ok;
         } catch (e) { toast("Couldn't reach the site. Check your connection and try again.", 'err'); return false; }
     }
-    async function hpPost(mon, op) {
+    // c: the campaign, so a co-DM can change the HP of the DM's monsters (and the other way round)
+    async function hpPost(mon, op, c) {
         try {
-            const r = await fetch('/sheets/monster/cloud.php?hp=' + encodeURIComponent(mon), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) });
+            const r = await fetch('/sheets/monster/cloud.php?hp=' + encodeURIComponent(mon) + '&c=' + encodeURIComponent(c), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) });
             if (!r.ok) toast((await r.json().catch(() => ({}))).error || "Couldn't change the hit points. Try again.", 'err');
         } catch (e) { toast("Couldn't reach the site. Check your connection and try again.", 'err'); }
     }
@@ -177,7 +178,7 @@ window.Fight = (() => {
                 const op = { k: ev.submitter?.value === 'heal' ? 'heal' : 'dmg', n };
                 form.querySelector('input').value = '';
                 document.activeElement?.blur();
-                return (p().opts.onHp || hpPost)(form.dataset.mon, op);
+                return (p().opts.onHp || hpPost)(form.dataset.mon, op, c);
             }
             const kind = form.dataset.fiAdd;
             const item = kind === 'pc' ? { kind, char: form.querySelector('select').value } : { kind, name: form.name.value, init: form.init.value === '' ? null : +form.init.value };

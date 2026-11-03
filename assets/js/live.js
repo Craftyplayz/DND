@@ -73,6 +73,7 @@ window.Live = (() => {
                 ws = null;
                 if (closed) return;
                 if (e.code === 4403) return onMessage({ type: 'removed' });
+                if (e.code === 4401) { open(); return load(); } // promoted to co-DM or back: in again with the new role
                 if (!paused) { paused = true; onPaused(true); startPoll(); }
             };
         }

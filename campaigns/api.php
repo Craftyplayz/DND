@@ -7,10 +7,11 @@
 //   POST {"act": "clone", "id", "char"}             -> {"char"}: a copy of your character, in this campaign in its place
 //   POST {"act": "keep", "id", "char"}              your character leaves every other campaign
 //   POST {"act": "leave", "id"}                     players only
-//   POST {"act": "rename" | "code" | "remove" | "delete", "id", ...}   DM only
+//   POST {"act": "rename" | "code" | "remove" | "delete", "id", ...}   DM only (not co-DMs)
+//   POST {"act": "codm", "id", "member", "on": bool}  DM only: make a player a co-DM, or a player again -> {"codms"}
 //   POST {"act": "roll", "id", "roll": {...}}       a roll for the table log (includes/tablelog.php)
-//   POST {"act": "session", "id", "start": bool}    the DM starts or ends a session
-//   POST {"act": "fight", "id", "op", ...}           the DM runs the initiative tracker (includes/initiative.php, fi_op);
+//   POST {"act": "session", "id", "start": bool}    the DM or a co-DM starts or ends a session
+//   POST {"act": "fight", "id", "op", ...}           the DM or a co-DM runs the initiative tracker (includes/initiative.php, fi_op);
 //                                                      409 {"stale"} when the fight changed since the DM's copy ("v")
 // An initiative roll also joins the fight (fi_roll). Fight changes only tell pages "fight": each loads campaigns/fight.php.
 // After a change, the live relay tells everyone with the campaign open, and drops anyone who left or was removed.
@@ -42,10 +43,10 @@ $act = $body['act'] ?? '';
 if ($act === 'roll' || $act === 'session' || $act === 'fight') {
     $c = cp_get($accounts, $body['id'] ?? '');
     if (!$c || cp_member($c, $user['sub']) < 0) cp_out(404, ['error' => 'No such campaign.']);
-    if ($act !== 'roll' && $c['dm'] !== $user['sub']) cp_out(403, ['error' => 'Only the DM can do that.']);
+    if ($act !== 'roll' && !cp_is_dm($c, $user['sub'])) cp_out(403, ['error' => 'Only the DM can do that.']);
     $logs = [];
     $fight = false;
-    if ($act === 'fight') [$code, $out, $logs] = fi_op($accounts, $c, $body);
+    if ($act === 'fight') [$code, $out, $logs] = fi_op($accounts, $c, $body, $user['sub']);
     else [$code, $out] = $act === 'roll' ? tl_add($accounts, $c, $user, $body['roll'] ?? null) : tl_session($accounts, $c, !empty($body['start']));
     if ($code === 200 && $act === 'roll' && empty($out['again'])) $fight = fi_roll($accounts, $c, $user, $body['roll']);
     flock($lock, LOCK_UN);
@@ -56,7 +57,7 @@ if ($act === 'roll' || $act === 'session' || $act === 'fight') {
     if ($code === 200 && $act === 'roll' && empty($out['again'])) {
         // each player gets only what tl_view lets them see
         $e = $out['entry'];
-        $players = array_map(fn($m) => live_key($c['id'], $m['sub']), array_filter($c['members'], fn($m) => $m['sub'] !== $c['dm']));
+        $players = array_map(fn($m) => live_key($c['id'], $m['sub']), array_filter($c['members'], fn($m) => !cp_is_dm($c, $m['sub'])));
         // "mine" is left off: each page knows its own rolls by the ids it sent
         $full = ['type' => 'roll', 'entry' => ['mine' => false] + tl_view($c, $c['dm'], $e)];
         if ($e['vis'] === 'public') live_publish($c['id'], $full);
@@ -74,6 +75,8 @@ $id = $out['id'] ?? $body['id'] ?? null;
 if ($code === 200 && cp_ok_id($id)) {
     $c = cp_get($accounts, $id); // null once deleted: everyone is dropped
     live_publish($id, ['type' => 'campaign'], array_map(fn($m) => live_key($id, $m['sub']), $c['members'] ?? []));
+    // a new role: their open pages reconnect, so the relay hears it (a demoted co-DM stops getting the DM's messages)
+    if ($act === 'codm') live_publish($id, null, null, null, [live_key($id, (string)$body['member'])]);
 }
 foreach ($out['changed'] ?? [] as $o) live_publish($o, ['type' => 'campaign']);
 cp_out($code, $out);

@@ -140,6 +140,25 @@ $is('archived 0 is not archived', array_values(array_filter($dv['entries'], fn($
 $arc = array_values(array_filter(fi_read($A, $c['id'])['entries'], fn($e) => ($e['mon'] ?? '') === 'gob2'))[0]['id'];
 $is('the DM removes an archived monster', [$op(['op' => 'remove', 'e' => $arc])[0], in_array('gob2', array_column(fi_read($A, $c['id'])['entries'], 'mon'), true)], [200, false]);
 
+// a co-DM (Pat) runs the fight with monsters from their own Monster Sheet; the DM sees and changes them too
+$co = $c + ['codms' => ['222']];
+cp_put($A, $co);
+@mkdir("$A/monsters/222", 0777, true);
+foreach (['wolf' => 'Wolf', 'wolf2' => 'Wolf 2'] as $id => $name) file_put_contents("$A/monsters/222/$id.json", json_encode(['id' => $id, 'name' => $name, 'updated' => 1, 'abilities' => [], 'hp' => ['cur' => 11, 'base' => 11, 'temp' => 0, 'mod' => 0]]));
+$coOp = fn($body) => fi_op($A, $co, $body + ['v' => fi_read($A, $co['id'])['v']], '222');
+$is("a co-DM can't add the DM's monster from their sheet", $coOp(['op' => 'add', 'items' => [['kind' => 'monster', 'mon' => 'gob1', 'init' => 3]]])[0], 400);
+$is('a co-DM adds their own monster', $coOp(['op' => 'add', 'items' => [['kind' => 'monster', 'mon' => 'wolf', 'init' => 9]]])[0], 200);
+$is("the entry says whose it is; an entry from before co-DMs (no by) is the DM's", [fi_entry_mon($A, $co, 'wolf')['by'] ?? null, fi_entry_mon($A, $co, 'gob1')['by'] ?? null, fi_monster($A, $co, 'gob1')['name'] ?? null], ['222', '111', 'Goblin 1']);
+$is("a co-DM's initiative roll adds their monster", [fi_roll($A, $co, $pat, ['title' => 'Initiative', 'fight' => 1, 'mon' => 'wolf2', 'total' => 4]), fi_entry_mon($A, $co, 'wolf2')['by'] ?? null], [true, '222']);
+$hpOf = fn($v, $mon) => array_values(array_filter($v['entries'], fn($e) => ($e['mon'] ?? '') === $mon))[0]['hp'] ?? null;
+$cv = fi_view($A, $co, '222');
+$is("a co-DM sees what the DM sees: numbers, HP of everyone's monsters, the party", [isset($cv['party']), $hpOf($cv, 'wolf')['max'] ?? null, $hpOf($cv, 'gob1')['cur'] ?? null], [true, 11, 7]);
+$is("the DM sees the co-DM's monster HP", $hpOf(fi_view($A, $co, '111'), 'wolf')['cur'] ?? null, 11);
+$is('a player still sees no numbers or HP', [isset(fi_view($A, $co, '333')['party']), $hpOf(fi_view($A, $co, '333'), 'wolf')], [false, null]);
+$is('without the co-DM mark, Pat sees a player view', isset(fi_view($A, $c, '222')['party']), false);
+$is('a monster owner never leaves the monsters folder', fi_monster($A, $c, 'gob1', '../111'), null);
+cp_put($A, $c);
+
 // ending moves the fight to fights/<n>.json
 $is('end', $op(['op' => 'end'])[0], 200);
 $is('ended: kept as fight 1, no current fight', [is_file("$A/campaigns/{$c['id']}/fights/1.json"), fi_read($A, $c['id']), fi_view($A, $c, '222')], [true, null, null]);

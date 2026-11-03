@@ -1,6 +1,6 @@
 <?php
 // Asked by the live relay (live/relay.js) when a browser connects, with that browser's cookie:
-//   GET ?c=<campaign id>  -> {"key", "role": "dm" | "player"} when the signed-in player is in it, else 403.
+//   GET ?c=<campaign id>  -> {"key", "role": "dm" (the DM or a co-DM) | "player"} when the signed-in player is in it, else 403.
 //   GET ?c=me             -> {"key", "role": "me", "room"}: the player's own room, for their open Monster Sheets (ROADMAP 1.4)
 // It only tells you about yourself, so it's harmless if called from outside.
 require __DIR__ . '/../includes/auth.php';
@@ -16,4 +16,4 @@ if (!$c || cp_member($c, $user['sub']) < 0) {
     http_response_code(403);
     exit('{"error":"Not in this campaign."}');
 }
-echo json_encode(['key' => live_key($c['id'], $user['sub']), 'role' => $c['dm'] === $user['sub'] ? 'dm' : 'player']);
+echo json_encode(['key' => live_key($c['id'], $user['sub']), 'role' => cp_is_dm($c, $user['sub']) ? 'dm' : 'player']);

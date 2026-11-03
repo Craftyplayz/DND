@@ -3,8 +3,9 @@
 //   connect     the browser's cookie goes to live/auth.php, which says if this player is in the campaign: {key, role}.
 //               Players appear by key (a hash per campaign, never the Google id); everyone in the room gets "presence".
 //               ?c=me joins the player's own room (auth.php names it: "room"), where their Monster Sheets hear HP changes.
-//   POST /publish {campaign, msg?, to?, members?}   from PHP only (includes/live.php), never through Apache:
-//               msg goes to everyone in the room, or to: "dm" / [keys]; members (keys) drops anyone no longer in it.
+//   POST /publish {campaign, msg?, to?, members?, rekey?}   from PHP only (includes/live.php), never through Apache:
+//               msg goes to everyone in the room, or to: "dm" / [keys]; members (keys) drops anyone no longer in it;
+//               rekey (keys) closes their sockets with 4401, and their pages reconnect with the new role (co-DMs).
 // If this process is down, pages say "live updates paused" and reload state from PHP every 10 s, so nothing is lost.
 'use strict';
 const http = require('node:http');
@@ -28,9 +29,10 @@ const server = http.createServer((req, res) => {
         req.on('data', (d) => { body += d; if (body.length > 1e6) req.destroy(); });
         req.on('end', () => {
             try {
-                const { campaign, msg, to, members } = JSON.parse(body);
+                const { campaign, msg, to, members, rekey } = JSON.parse(body);
                 if (Array.isArray(members)) for (const s of room(campaign)) if (!members.includes(s.key)) s.close(4403, 'not in the campaign');
                 if (msg) send(campaign, msg, (s) => !to || (to === 'dm' ? s.role === 'dm' : Array.isArray(to) && to.includes(s.key)));
+                if (Array.isArray(rekey)) for (const s of room(campaign)) if (rekey.includes(s.key)) { s.role = ''; s.close(4401, 'role changed'); }
                 res.end('ok');
             } catch (e) { res.statusCode = 400; res.end('bad message'); }
         });

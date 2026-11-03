@@ -4,7 +4,8 @@
 //   GET              -> {"chars": {"<id>": <updated>, ...}, "hpAt": {"<id>": <hpAt>, ...}}
 //   GET ?id=<id>     -> that character
 //   POST a character -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"})
-//   POST ?hp=<id> {"op": {...}} -> {"hp", "hpAt"}: one hit point change (see below)
+//   POST ?hp=<id> {"op": {...}} -> {"hp", "hpAt"}: one hit point change (see below); with &c=<campaign id>, also a
+//                    monster another DM or co-DM of that campaign put in its fight
 //   DELETE ?id=<id>  -> archives it (players can't delete monsters, ROADMAP 0.5): the monster gets "archived", nothing is removed
 // Hit points (ROADMAP 1.4) change from more than one place at once (two Monster Sheets, the campaign page, the
 // initiative tracker), so once a monster's HP has been changed through ?hp= its "hp" is only ever changed that way:
@@ -43,7 +44,13 @@ function cl_fights($accounts, $sub, $id)
 
 $user = auth_user();
 if (!$user) cl_out(401, ['error' => 'Sign in to save monsters to your account.']);
-$dir = CL_ACCOUNTS . '/' . $user['sub'];
+// ?hp=<id>&c=<campaign>: the DM or a co-DM changes the HP of a monster in that campaign's fight that another of them added
+$owner = $user['sub'];
+// (POST only: a POST with ?hp= always takes the HP branch below, so nothing else ever writes another player's folder)
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_GET['hp'], $_GET['c']) && ($camp = cp_get($accounts, $_GET['c'])) && cp_is_dm($camp, $owner) && ($e = fi_entry_mon($accounts, $camp, (string)$_GET['hp']))) {
+    $owner = $e['by'] ?? $camp['dm'];
+}
+$dir = CL_ACCOUNTS . '/' . $owner;
 $okId = function ($id) { return is_string($id) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id); };
 $read = function ($file) { $c = is_file($file) ? json_decode((string)file_get_contents($file), true) : null; return is_array($c) ? $c : null; };
 $stamp = fn($c, $k) => isset($c[$k]) && is_numeric($c[$k]) ? (float)$c[$k] : 0;
@@ -104,8 +111,8 @@ if (isset($_GET['hp'])) {
     flock($lock, LOCK_UN);
     $out = ['id' => $id, 'hp' => $c['hp'], 'hpAt' => $c['hpAt']];
     // the DM's open Monster Sheets, then every fight this monster is in (players load what they may see)
-    live_publish('me-' . live_key('me', $user['sub']), ['type' => 'mhp'] + $out);
-    cl_fights($accounts, $user['sub'], $id);
+    live_publish('me-' . live_key('me', $owner), ['type' => 'mhp'] + $out);
+    cl_fights($accounts, $owner, $id);
     cl_out(200, $out);
 }
 

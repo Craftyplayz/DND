@@ -1914,9 +1914,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         await Fight.act(camp().id, 'add', { items });
     }
     // a change from the tracker to one of these monsters goes the same way as the damage form
-    function fightHp(id, op) {
+    function fightHp(id, op, cid) {
         const c = db.chars[id];
-        if (!c) return fetch('cloud.php?hp=' + encodeURIComponent(id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) });
+        // not one of these: another DM's or co-DM's monster in this campaign's fight
+        if (!c) return fetch('cloud.php?hp=' + encodeURIComponent(id) + '&c=' + encodeURIComponent(cid), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) });
         hpApply(c, op);
         hpOp(c, op);
         store(); drawSide();
