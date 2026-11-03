@@ -1745,7 +1745,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         $('#hb-rolls').innerHTML = html;
         clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, 12000);
     }
-    let camps = [], tlog = [], watching = null, watchId = '', logTab = 'mine';
+    let camps = [], tlog = [], tloaded = false, watching = null, watchId = '', logTab = 'mine';
     const sent = new Set();
     const camp = () => (tableChoice() === 'none' ? null : camps.find((x) => x.id === tableChoice()) || (camps.length === 1 && !tableChoice() ? camps[0] : null));
     async function loadCamps() {
@@ -1761,11 +1761,19 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const id = camp()?.id || '';
         if (id === watchId) return;
         watching?.close();
-        watching = null; watchId = id; tlog = [];
+        watching = null; watchId = id; tlog = []; tloaded = false;
         if (!id) { logTab = 'mine'; return; }
         watching = Live.watch(id, {
             onRolls(list, all) {
-                if (all) tlog = list;
+                if (all) {
+                    // a reload (reconnect, or polling with no relay) cards the rolls that came in meanwhile; the first load is
+                    // history, and a roll older than the log we hold was trimmed off it, not missed
+                    if (tloaded) {
+                        const had = new Set(tlog.map((x) => x.id)), from = tlog[0]?.at ?? 0;
+                        for (const e of list.filter((x) => !had.has(x.id) && !sent.has(x.id) && x.at >= from).slice(-5)) tableCard(e);
+                    }
+                    tlog = list; tloaded = true;
+                }
                 else for (const e of list) {
                     const i = tlog.findIndex((x) => x.id === e.id);
                     if (i >= 0) tlog[i] = e; else { tlog.push(e); if (!sent.has(e.id)) tableCard(e); }

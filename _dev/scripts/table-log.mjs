@@ -124,6 +124,23 @@ try {
     await until(pat, `!!document.querySelector('[data-act=logtab]')`, Boolean);
     const tabs = await pat.ev(`!!document.querySelector('[data-act=logtab][data-t=table]')`);
     is('roll log has a Table tab (wide screens)', tabs || (await pat.ev(`innerWidth < 1200`)), true);
+
+    // 6. a roll missed while the relay is down still pops up once, from the log reload; the old history never does
+    await go(dm, BASE + '/sheets/monster/');
+    await until(dm, `(document.querySelector('.hb-tray') || document.querySelector('[data-act=tray]').click(), document.querySelector('[data-act=tablepick]')?.value || '')`, (v) => v === CAMP);
+    const cards = `[...document.querySelectorAll('#hb-rolls .hb-rollcard')].map((c) => c.textContent.replace(/\\s+/g, ' ').trim())`;
+    is('no cards for the history on opening', [await pat.ev(cards + '.length'), await dm.ev(cards + '.length')], [0, 0]);
+    for (const b of [pat, dm]) await b.ev(`(() => { window.loads = 0; const f = window.fetch; window.fetch = (u, o) => (String(u).includes('/campaigns/log.php?c=') && window.loads++, f(u, o));
+        window.missed = 0; new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => n.textContent?.includes('Ozzy: Missed') && window.missed++))).observe(document.querySelector('#hb-rolls'), { childList: true }); })()`);
+    relay.kill();
+    const missed = await fetch(`${BASE}/campaigns/api.php`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: 'dndsid=' + SID.sam },
+        body: JSON.stringify({ act: 'roll', id: CAMP, roll: { id: 'samrollwhilerelaydown', char: 'ozzy', title: 'Missed', expr: '1d20', shown: '7', total: '7' } }) });
+    is("Sam's roll saved with the relay down", missed.status, 200);
+    // the pages poll every 10 s once the relay drops: the first reload cards it, the next one doesn't again
+    for (const [who, b] of [['player sheet', pat], ['Monster Sheet', dm]]) is(`${who}: the missed roll pops up after the reload`, (await until(b, `${cards}.filter((t) => t.startsWith('Ozzy: Missed')).length`, (n) => n > 0, 25000)), 1);
+    // a third reload has started, so the second one has been drawn: still one card ever made
+    await until(pat, 'window.loads', (n) => n >= 3, 35000);
+    is('player sheet: carded once, not again on the next reload', [await pat.ev('window.loads >= 3'), await pat.ev('window.missed')], [true, 1]);
     for (const [who, b] of [['player', pat], ['DM', dm]]) is(`no console errors (${who})`, b.errors.filter((e) => !/backup\.php|prefs\.php|WebSocket|offline/.test(e) && !e.includes(RELAY)), []);
 } finally { pat.close(); dm.close(); relay.kill(); web.kill(); rmSync(TMP, { recursive: true, force: true }); }
 console.log(bad ? `${bad} check(s) failed` : 'table log ok');
