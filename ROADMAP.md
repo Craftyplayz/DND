@@ -807,8 +807,7 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
     Class and level (searchable list rows with an icon tile and A to Z; the class's description, what each level gets, subclass at
     its level, skills and proficiencies, feature picks, ability score improvements (+2, +1 and +1, or a feat), spells with the
     class's counts, hit points rolled or averaged, more classes for multiclassing with the ability minimums as a warning) → Race
-    (subraces replace the list with a Back button; one subrace is picked for you; the race's own picks; an optional culture
-    from the content) → Ability scores (point buy with over-budget allowed and warned, standard array, 4d6 drop lowest as six
+    (subraces replace the list with a Back button; one subrace is picked for you; the race's own picks) → Ability scores (point buy with over-budget allowed and warned, standard array, 4d6 drop lowest as six
     separate 3D throws, manual) → Background (or a custom one; languages, 2024 ability scores, alignment, faith, lifestyle,
     looks, personality traits, ideals, bonds and flaws picked, rolled or typed, allies, enemies, organisations, backstory) →
     Equipment (the class and background choices with packs unpacked, or gold rolled with the 3D dice, plus extra gear) → Review.

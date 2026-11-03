@@ -46,6 +46,8 @@ try {
         const draft = async () => { const id = new URLSearchParams(await ev('location.search')).get('id'); return (await db()).chars[id]; };
         const h2 = () => ev(`document.querySelector('#bd-step h2')?.textContent`);
         const trace = (m) => process.env.BUILDER_TRACE && console.log(`${name} ${((Date.now() - T0) / 1000).toFixed(1)} s: ${m}`), T0 = Date.now();
+        // a click that loads another page: Firefox breaks a wait that starts while the old page is still unloading
+        const nav = async (sel) => { await click(sel); await sleep(1000); };
         const step = async (k) => { trace('step ' + k); await click(`[data-act=go][data-k=${k}]`); await b.until(`document.querySelector('[data-act=go][data-k=${k}][aria-current=step]')`); };
         try {
             // ---- signed out: a level 3 fighter ----
@@ -135,18 +137,23 @@ try {
             await b.until(`document.querySelector('[data-b="details.traits"]')?.value`, 60000);
             await step('equipment');
             await step('review');
+            trace('on review');
             is(`${name} review shows the character`, await ev(`[document.querySelector('.bd-review b').textContent, !!document.querySelector('.bd-review').textContent.includes('Moradin'), !!document.querySelector('.bd-review').textContent.includes('Chain mail')].join()`), 'Brannoc,true,true');
+            trace('review checked');
             errs('the builder');
             const id = new URLSearchParams(await ev('location.search')).get('id');
-            await click('[data-act=next]');
-            await b.until(`location.pathname === '/characters/${id}' && document.querySelector('[data-k=name]')`, 30000).catch(async (e) => { console.log('at', await ev('location.href'), await ev(`document.querySelector('[data-act=next]')?.textContent`), b.errors.join(' | ')); throw e; });
+            await nav('[data-act=next]');
+            await b.until(`location.pathname === '/characters/${id}' && document.querySelector('[data-k=name]')`, 30000);
+            trace('on the sheet');
             const c = (await db()).chars[id];
+            trace('read the sheet');
             is(`${name} finished: a normal character`, [c.draft, c.name, c.race, c.classes.map((k) => `${k.name} ${k.level}`).join(), c.ac, c.panels.find((p) => p.type === 'details').f.faith], [0, 'Brannoc', 'Hill Dwarf', 'Fighter 3', '16 [Chain mail] + 1 [Defense] + 2 [Shield]', 'Moradin']);
             is(`${name} the sheet says it's ready, and shows the details panel`, await ev(`[document.querySelector('.toasts')?.textContent.includes('is ready'), [...document.querySelectorAll('.hb-tabs button, .hb-panel h2')].some((x) => x.textContent === 'Character details')].join()`), 'true,true');
             errs('the finished sheet');
+            trace('sheet checked');
 
             // level up: fighter 4 takes an ability score improvement, then Undo
-            await click('#hb-barin a[href^="/characters/build?up="]');
+            await nav('#hb-barin a[href^="/characters/build?up="]');
             await b.until(`document.querySelector('[data-act=upcls][data-id=fighter]')`);
             await click('[data-act=upcls][data-id=fighter]');
             await b.until(`document.querySelector('[data-b="entry.asi.4.k"]')`);
@@ -155,7 +162,7 @@ try {
             await step('review');
             is(`${name} level up review`, await ev(`document.querySelector('.bd-review').textContent.includes('Fighter 4')`), true);
             const str = c.abilities[0].score;
-            await click('[data-act=next]');
+            await nav('[data-act=next]');
             await b.until(`location.pathname === '/characters/${id}' && document.querySelector('.hb-undo')`, 15000);
             const up = (await db()).chars[id];
             is(`${name} levelled up`, [up.classes[0].level, up.abilities[0].score, up.build.ups.length], [4, Math.min(20, str + 2), 1]);
@@ -174,10 +181,10 @@ try {
             await b.until(`location.search.includes('id=')`);
             await go(BASE + '/characters/');
             is(`${name} Unfinished with Resume, not in the grid`, await ev(`[!document.querySelector('#ch-draft').hidden, document.querySelector('#ch-draft-grid .ch-card b')?.textContent, document.querySelector('#ch-draft-grid .ch-acts a')?.textContent, [...document.querySelectorAll('#ch-grid .ch-card b')].map((x) => x.textContent).join()].join('|')`), 'true|Half done|Resume|Brannoc');
-            await click('#ch-draft-grid .ch-acts a');
+            await nav('#ch-draft-grid .ch-acts a');
             await b.until(`document.querySelector('[data-b=name]')?.value === 'Half done'`);
             await ev(`window.confirm = () => true; 0`);
-            await click('[data-act=cancel]');
+            await nav('[data-act=cancel]');
             await b.until(`location.pathname === '/characters/' && document.querySelector('#ch-arc')`);
             is(`${name} Cancel archives the draft`, await ev(`[document.querySelector('#ch-draft').hidden, document.querySelector('#ch-arc-grid').textContent.includes('Half done')].join()`), 'true,true');
             errs('My Characters');
@@ -209,7 +216,7 @@ try {
             const vid = new URLSearchParams(await ev('location.search')).get('id');
             await sleep(2000); // the draft's account copy (sent 1.5 s after the last change)
             is(`${name} a draft makes no versions in the account`, existsSync(join(ACCOUNTS, 'characters', vid, 'history')) ? readdirSync(join(ACCOUNTS, 'characters', vid, 'history')).length : 0, 0);
-            await click('[data-act=next]');
+            await nav('[data-act=next]');
             await b.until(`location.pathname === '/characters/${vid}' && document.querySelector('[data-k=name]')`, 15000);
             await sleep(500);
             const hist = readdirSync(join(ACCOUNTS, 'characters', vid, 'history')).filter((f) => /^\d+\.json$/.test(f));

@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rules = () => ch.rules || '2014';
 
     // ---- data: the character's rules version only (content.js); spells and equipment load when a step needs them ----
-    const BASE = ['classes', 'subclasses', 'races', 'subraces', 'cultures', 'backgrounds', 'feats', 'languages'];
+    const BASE = ['classes', 'subclasses', 'races', 'subraces', 'backgrounds', 'feats', 'languages'];
     let D = await hbContent(rules(), BASE);
     if (!D) { stepBox.innerHTML = '<h2>Couldn\x27t load the rules</h2><p>The builder needs a connection once to load the classes, races and backgrounds. Check your connection and reload the page.</p>'; return; }
     let ICONS = {};
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---- dice: the sheet's 3D dice (dice/dice3d.js), rolls kept in this character's roll log ----
     const ver = (($('script[src*="/builder.js"]')?.src || '').match(/\?v=\d+/) || [''])[0];
-    let d3 = null, styleMod = null;
+    let d3 = null, styleMod = null, diceStyle = null;
     const die = (n) => { const a = new Uint32Array(1); crypto.getRandomValues(a); return (a[0] % n) + 1; };
     async function roll(title, groups, shown = null) {
         const quick = () => groups.map(([n, k]) => [n, Array.from({ length: k }, () => die(n))]);
@@ -102,7 +102,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const m = await (d3 ||= import('/dice/dice3d.js' + ver));
                 const cm = await (styleMod ||= import('/dice/choice.js' + ver).catch(() => null));
-                const style = cm ? await cm.styleFrom(cm.readChoice() || { set: { key: 'purple', builtin: true } }, m) : 'purple';
+                // the dice style is made once per page and reused by every throw
+                const style = await (diceStyle ||= cm ? cm.styleFrom(cm.readChoice() || { set: { key: 'purple', builtin: true } }, m) : 'purple');
                 got = await m.throwDice(groups, { style, accent: getComputedStyle(main).getPropertyValue('--btn').trim() || '#5b3f8f', sound: true });
             } catch (e) { d3 = null; got = quick(); }
         }
@@ -386,15 +387,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             + `<div class="bd-hero">${iconFor('races', ch.sub || ch.race, (s || r).name)}<div><h2>${esc((s || r).name)}</h2><div class="badges"><span class="badge b">${esc(bonusText(r, s))}</span><span class="badge">Speed ${r.speed} ft</span><span class="badge">${esc(r.size || '')}</span></div>${src(s || r)}</div></div>
             ${desc(r.desc)}${s ? desc(s.desc) : ''}<div class="bd-desc">${[r.age, r.size_description, r.language_desc].filter(Boolean).map((p) => `<p class="muted">${esc(p)}</p>`).join('')}</div>
             <div class="bd-sect"><h3>Traits</h3><dl class="bd-traits">${[...(r.traits || []), ...(s?.traits || [])].map((t) => `<div><dt>${esc(t.name)}</dt><dd>${esc((Array.isArray(t.desc) ? t.desc : [t.desc]).filter(Boolean).join(' '))}</dd></div>`).join('') || '<p class="muted">No traits listed.</p>'}</dl></div>
-            ${raceChoicesHtml()}${cultureHtml()}`;
+            ${raceChoicesHtml()}`;
     };
-    function cultureHtml() {
-        const list = B.listOf(D, 'cultures', rules()).filter((x) => !(x.races || []).length || (x.races || []).some((r) => (r.index || r) === ch.race));
-        if (!list.length) return '';
-        const cu = D.cultures[ch.culture];
-        return `<div class="bd-sect"><h3>Culture <span class="muted">optional</span></h3><label class="bd-inl">Culture ${sel('culture', [['', 'None'], ...list.map((x) => [x.id, x.name])], 'Culture', ch.culture || '')}</label>
-            ${cu ? `<div class="bd-desc">${desc(cu.desc)}<dl class="bd-traits">${(cu.traits || []).map((t) => `<div><dt>${esc(t.name)}</dt><dd>${esc((Array.isArray(t.desc) ? t.desc : [t.desc]).join(' '))}</dd></div>`).join('')}</dl>${src(cu)}</div>` : ''}</div>`;
-    }
     function raceChoicesHtml() {
         const list = B.raceChoices(ch, D);
         if (!list.length) return '<div class="bd-sect"><h3>Your picks</h3><p class="hint">No picks needed for this race.</p></div>';
@@ -686,7 +680,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (act === 'uproll') { b.disabled = true; const d = +D.classes[ch.cls]?.hit_die || 8, r = await roll(`Hit points, level up`, [[d, 1]]); ch.hp.roll = r[0][1][0]; save(); return render(); }
         // race
         if (act === 'race') {
-            if (ch.race !== b.dataset.id) { if (Object.keys(ch.raceOpts).length) toast('The race picks were cleared.', 'note'); ch.race = b.dataset.id; ch.sub = ''; ch.culture = ''; ch.raceOpts = {}; }
+            if (ch.race !== b.dataset.id) { if (Object.keys(ch.raceOpts).length) toast('The race picks were cleared.', 'note'); ch.race = b.dataset.id; ch.sub = ''; ch.raceOpts = {}; }
             const subs = subsOfRace(ch.race);
             if (subs.length === 1) ch.sub = subs[0].id; // one subrace: picked for you (Q19)
             view.race = subs.length > 1 && !ch.sub ? 'subs' : 'detail';
@@ -773,7 +767,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!store(db)) { btn.disabled = false; btn.textContent = 'Finish level up'; return; }
             try { sessionStorage.setItem('hb-levelup', JSON.stringify({ id: UP, before: C })); sessionStorage.removeItem('hb-up-' + UP); } catch (x) { }
             if (cloud) await post('cloud.php', after).catch(() => { });
-            post('backup.php', after).catch(() => { });
+            await post('backup.php', after).catch(() => { }); // waited for: a navigation while it's still sending broke the next page in Firefox
             return void (location.href = '/characters/' + encodeURIComponent(UP) + '?levelled=1');
         }
         save();
@@ -781,7 +775,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const db = load(), c = db.chars[id];
         c.draft = 0; c.updated = Date.now();
         if (!store(db)) { btn.disabled = false; btn.textContent = 'Finish'; return; }
-        post('backup.php', c).catch(() => { });
+        await post('backup.php', c).catch(() => { });
         if (cloud) {
             const r = await post('cloud.php', c).catch(() => null);
             const camp = campOf();

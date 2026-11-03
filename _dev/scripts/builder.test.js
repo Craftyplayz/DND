@@ -331,7 +331,7 @@ assert.strictEqual(bd.skills.find((s) => s.name === 'Stealth').p, 0.5);
 assert.strictEqual(bd.skills.find((s) => s.name === 'Insight').p, 1);
 
 // ---- the imported content (sheets/player/content/, when it's there; CONTENT_DIR to try another copy) ----
-// every class, race, subrace, culture and background of each rules version builds at levels 1, 5 and 20 with each class's first
+// every class, race, subrace and background of each rules version builds at levels 1, 5 and 20 with each class's first
 // options, without throwing and with sane numbers; the content's text-only choices are skipped, as a player would type them
 const fs = require('fs'), path = require('path');
 const CDIR = process.env.CONTENT_DIR || path.join(__dirname, '../../sheets/player/content');

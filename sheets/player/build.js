@@ -54,7 +54,7 @@
     }
 
     // ---- content ----
-    const KINDS = ['classes', 'subclasses', 'races', 'subraces', 'cultures', 'backgrounds', 'feats', 'spells', 'languages', 'equipment', 'magic_items', 'packs', 'categories'];
+    const KINDS = ['classes', 'subclasses', 'races', 'subraces', 'backgrounds', 'feats', 'spells', 'languages', 'equipment', 'magic_items', 'packs', 'categories'];
     // one content file into a rules version's data; an entry with the same index is replaced (the importer keeps one of each)
     function addContent(out, d, rules = '2014', src = '') {
         if (!isObj(d)) return out;
@@ -524,12 +524,6 @@
             if (race.traits?.some((t) => t.index === 'breath-weapon')) tracker(c, M, 'Breath Weapon', 1, 'short', 'count', race.name);
             if (race.traits?.some((t) => t.index === 'relentless-endurance')) tracker(c, M, 'Relentless Endurance', 1, 'long', 'count', race.name);
         }
-        const cu = data.cultures?.[ch.culture];
-        if (cu) {
-            for (const l of cu.languages || []) if (typeof (l?.index || l) === 'string' && LANGS.some((x) => norm(x) === norm(l?.index || l))) giveLang(c, l);
-            passive(c, M, cu.name, sumText(cu.desc), cu.name, 'race', 'Culture');
-            for (const t of cu.traits || []) passive(c, M, t.name, sumText(t.desc), cu.name, 'race', 'Culture');
-        }
         // ability scores: base + bonuses (ASIs come with the levels)
         const base = baseScores(ch), bon = bonuses(ch, data);
         for (const a of c.abilities) if (a.key in base) a.score = base[a.key] + bon[a.key];
@@ -603,7 +597,7 @@
 
     // a new, empty set of choices (the builder's "build" record)
     function blankChoices() {
-        return { v: 1, step: 'name', rules: '2014', camp: '', name: '', level: 1, classes: [], hp: { mode: 'avg', rolls: {} }, race: '', sub: '', culture: '', raceOpts: {},
+        return { v: 1, step: 'name', rules: '2014', camp: '', name: '', level: 1, classes: [], hp: { mode: 'avg', rolls: {} }, race: '', sub: '', raceOpts: {},
             method: 'pb', pb: Object.fromEntries(AB.map((a) => [a, 8])), std: {}, man: Object.fromEntries(AB.map((a) => [a, 10])), sets: [], assign: {},
             bg: '', bgOpts: {}, details: {}, equip: { mode: 'gear', picks: {}, gold: 0, extra: [] } };
     }
