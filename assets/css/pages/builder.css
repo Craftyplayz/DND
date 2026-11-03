@@ -1,0 +1,146 @@
+/* The character builder (/characters/build): a step list beside one step card, list rows with an icon tile and a chevron
+   (classes, races, backgrounds), picks, ability scores and the review. The look follows _dev/mockups/builder/. */
+.bd [hidden] { display: none !important; }
+.bd :where(button:not(.btn)) { font: inherit; color: inherit; }
+.bd-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.bd-top h1 { flex: 1 1 260px; margin: 0; }
+.bd-sum { font-size: 15px; font-weight: 400; }
+.bd-saved { font-size: 13px; }
+.bd-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
+.bd-main { min-width: 0; }
+.bd-steps { position: sticky; top: 16px; }
+.bd-steps ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.bd-steps button { display: flex; width: 100%; gap: 8px; align-items: center; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); text-align: left; cursor: pointer; }
+.bd-steps button .n { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--btn2); font-size: 12px; }
+.bd-steps button[aria-current=step] { background: var(--accent-soft); border-color: var(--btn-line); }
+.bd-steps button.done .n { background: var(--ok-bg); border: 1px solid var(--ok-line); }
+.bd-steps summary { display: none; }
+.bd-step { display: grid; gap: 14px; }
+.bd-step > h2 { margin: 0; font-size: 20px; }
+.bd-step h3 { margin: 0; font-size: 16px; }
+.bd-step h4 { margin: 8px 0 4px; font-size: 14px; color: var(--muted); }
+.bd-step p { margin: 0; }
+.bd .hint { margin: 0; color: var(--muted); font-size: 13px; }
+.bd-nav { display: flex; gap: 8px; justify-content: space-between; margin-top: 16px; }
+.bd-credit { margin-top: 24px; font-size: 13px; }
+
+/* a searchable list of rows */
+.bd-find { display: grid; gap: 8px; }
+.bd-az { display: flex; flex-wrap: wrap; gap: 4px; }
+.bd-az button { min-width: 28px; padding: 3px 6px; background: var(--btn2); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
+.bd-az button[aria-pressed=true] { background: var(--accent-soft); border-color: var(--btn-line); }
+.bd-list { display: grid; gap: 8px; }
+.bd-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 8px 14px 8px 8px; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); text-align: left; cursor: pointer; transition: border-color var(--fast), background var(--fast); }
+.bd-row:hover { border-color: var(--accent); background: var(--card2); }
+.bd-row[aria-current=true] { border-color: var(--btn-line); background: var(--accent-soft); }
+.bd-nm { flex: 1; min-width: 0; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 15px; overflow-wrap: anywhere; }
+.bd-nm small { display: block; margin-top: 2px; color: var(--muted); font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 12.5px; }
+.bd-chev { flex: none; color: var(--muted); font-size: 32px; line-height: 1; }
+/* the icon tile (iconFor in builder.js): its own colour and white symbol, or a letter on the kind's colour */
+.bd-ic { flex: none; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 10px; background: var(--btn); color: var(--on-btn); font-weight: 700; font-size: 22px; }
+.bd-ic svg { width: 32px; height: 32px; }
+.bd-ic svg :where(path, circle, rect, polygon, g) { fill: currentColor; }
+.bd-ic svg [fill=none] { fill: none; }
+.bd-ic-races { background: var(--ok-line); }
+.bd-ic-backgrounds { background: var(--info-line); }
+.bd-ic-subclasses { background: var(--btn-line); }
+.bd-hero { display: flex; align-items: center; gap: 14px; }
+.bd-hero .bd-ic { width: 64px; height: 64px; }
+.bd-hero h2 { margin: 0 0 4px; text-transform: uppercase; letter-spacing: .06em; font-size: 20px; }
+.bd-hero .badges { margin: 0; }
+.bd-crumb { display: flex; }
+.bd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bd-desc { display: grid; gap: 8px; }
+
+/* sections and picks */
+.bd-sect { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.bd-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 10px; }
+.bd-pick { position: relative; display: block; cursor: pointer; }
+.bd-pick input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.bd-pick .box { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; height: 100%; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.bd-pick .box .bd-ic { width: 36px; height: 36px; font-size: 16px; }
+.bd-pick .box .bd-ic svg { width: 22px; height: 22px; }
+.bd-pick .box small { flex-basis: 100%; color: var(--muted); }
+.bd-pick:hover .box { border-color: var(--accent); }
+.bd-pick input:checked + .box { background: var(--accent-soft); border-color: var(--btn-line); box-shadow: inset 0 0 0 1px var(--btn-line); }
+.bd-pick input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bd-checks { margin: 0; padding: 0; border: 0; min-width: 0; }
+.bd-checks legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
+.bd-cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 2px 10px; }
+.bd-unlock { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.bd-unlock li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 10px; background: var(--card2); border-radius: var(--radius); font-size: 14px; }
+.bd-unlock li.todo { border-left: 3px solid var(--highlight); }
+.bd .lv { flex: none; min-width: 52px; font-weight: 700; color: var(--accent); }
+.bd-asi { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bd-inl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bd-row2 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bd-row2 .field { flex: 1 1 220px; }
+.bd-fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 10px; }
+.bd-fgrid label, .bd-wide { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
+.bd-wide textarea { width: 100%; }
+.bd-pers { display: grid; gap: 6px; }
+.bd-traits { margin: 0; display: grid; gap: 8px; font-size: 14px; }
+.bd-traits dt { font-weight: 700; }
+.bd-traits dd { margin: 0; color: var(--muted); }
+.bd-pack { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); flex-basis: 100%; }
+.bd-eq { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 8px; }
+.bd-lvl { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.bd-lvl label { position: relative; }
+.bd-lvl input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.bd-lvl span { display: block; padding: 6px 0; text-align: center; background: var(--card2); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.bd-lvl input:checked + span { background: var(--accent-soft); border-color: var(--btn-line); font-weight: 700; }
+.bd-lvl input:focus-visible + span { outline: 2px solid var(--accent); }
+.bd .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; width: fit-content; }
+.bd .seg label { position: relative; }
+.bd .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.bd .seg span { display: block; padding: 7px 14px; background: var(--btn2); cursor: pointer; font-size: 14px; }
+.bd .seg input:checked + span { background: var(--btn); color: var(--on-btn); }
+.bd .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bd-art { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.bd-art img, .bd-noart { width: 96px; height: 96px; border-radius: var(--radius-lg); object-fit: cover; }
+.bd-noart { display: grid; place-items: center; background: var(--card2); border: 1px dashed var(--line-strong); color: var(--muted); font-size: 12px; }
+
+/* hit points and ability scores */
+.bd-hp { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; }
+.bd-hp div { display: grid; gap: 2px; padding: 6px 8px; background: var(--card2); border-radius: var(--radius); font-size: 12px; }
+.bd-hp b { font-size: 17px; }
+.bd-big { font-size: 20px; font-weight: 700; }
+.bd-over { color: var(--danger-line); }
+.bd-abil { display: grid; gap: 8px; }
+.bd-ab { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.bd-ab .nm { font-weight: 700; }
+.bd-ab .calc { font-variant-numeric: tabular-nums; }
+.bd-ab .calc b { font-size: 18px; }
+.bd-ab .ctl { justify-self: end; }
+.bd-ab .ctl input { width: 80px; }
+.bd-pm { display: inline-flex; align-items: center; gap: 6px; }
+.bd-pm b { min-width: 2ch; text-align: center; }
+.bd-cost { max-width: 460px; }
+.bd-sets { display: grid; gap: 6px; }
+.bd-set { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: var(--card2); border-radius: var(--radius); }
+.bd-set.dim { opacity: .55; }
+.bd-die { display: inline-grid; place-items: center; width: 30px; height: 30px; background: var(--card); border: 1px solid var(--line-strong); border-radius: 6px; font-weight: 700; }
+.bd-die.lo { opacity: .5; text-decoration: line-through; }
+
+/* review */
+.bd-review { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; }
+.bd-review .card { margin: 0; }
+.bd-review h3 { color: var(--sheet-accent); margin-bottom: 6px; }
+.bd-review ul { margin: 0; padding-left: 18px; font-size: 14px; }
+.bd-review p { margin: 0 0 6px; }
+.bd-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bd .note ul { margin: 4px 0 0; padding-left: 18px; }
+
+@media (max-width: 760px) {
+    .bd { padding-bottom: 84px; }
+    .bd-layout { grid-template-columns: minmax(0, 1fr); }
+    .bd-steps { position: static; }
+    .bd-steps summary { display: block; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; font-weight: 700; }
+    .bd-steps details ol { margin-top: 4px; }
+    .bd-lvl { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .bd-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; margin: 0; padding: 10px 16px; background: var(--sunken); border-top: 1px solid var(--line-strong); }
+    .bd-nav .btn { flex: 1; justify-content: center; }
+    .bd-ab { grid-template-columns: 44px minmax(0, 1fr); }
+    .bd-ab .ctl { grid-column: 1 / -1; justify-self: stretch; }
+    .bd-ab .ctl select, .bd-ab .ctl input { width: 100%; }
+}

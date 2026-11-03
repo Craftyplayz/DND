@@ -110,6 +110,14 @@ ch_art_save($A, '555', 'v1', $png);
 ch_restore($A, '555', 'v1', 1, json_encode(['artUrl' => $url1] + json_decode($v(99), true)));
 $is('old portrait is current again', [file_get_contents(ch_art_file($A, 'v1')), count(glob("$A/characters/v1/history/art-*"))], [$jpg2, 2]);
 
+// a character still in the builder (ROADMAP 4.2, "draft") makes no versions; Finish (draft 0) makes the first
+$d = fn($u, $draft, $name) => json_encode(['id' => 'dr1', 'updated' => $u, 'name' => $name, 'abilities' => [], 'draft' => $draft]);
+ch_save($A, '111', $d(1, 1, 'A'));
+ch_save($A, '111', $d(2, 1, 'B'));
+$is('drafts save but make no versions', [json_decode(file_get_contents("$A/characters/dr1/character.json"), true)['name'], count(glob("$A/characters/dr1/history/*.json"))], ['B', 0]);
+ch_save($A, '111', $d(3, 0, 'B'));
+$is('Finish makes version 1', array_map('basename', glob("$A/characters/dr1/history/*.json")), ['1.json']);
+
 // clean up the temp folder (test data only)
 $rm = function ($p) use (&$rm) { if (is_dir($p) && !is_link($p)) { foreach (array_diff(scandir($p), ['.', '..']) as $f) $rm("$p/$f"); rmdir($p); } else @unlink($p); };
 $rm($A);

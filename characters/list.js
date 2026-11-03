@@ -3,7 +3,8 @@
 // sheets/player/sheet.js (the newer "updated" wins), so a new device shows everything. The sheet tidies (normalises)
 // characters when it opens them, so this page stores what the account sends as it is.
 // Characters are archived, never deleted (ROADMAP 0.5): an "archived" time on the character, synced like any edit. Archived
-// ones wait in a folded "Archived" section under the grid, with Unarchive.
+// ones wait in a folded "Archived" section under the grid, with Unarchive. Characters still in the builder (ROADMAP 4.2, "draft")
+// wait in "Unfinished" with Resume (/characters/build?id=<id>). Create a character asks: the builder or a blank sheet.
 document.addEventListener('DOMContentLoaded', async () => {
     'use strict';
     const { $, esc, toast } = UI;
@@ -39,18 +40,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             name: (a, b) => (a.c.name || '').localeCompare(b.c.name || ''), '-level': (a, b) => level(b.c) - level(a.c),
         }[sort.value];
         shown.sort(by);
-        const live = all.filter(({ c }) => !c.archived), arch = all.filter(({ c }) => c.archived);
+        const live = all.filter(({ c }) => !c.archived && !c.draft), arch = all.filter(({ c }) => c.archived), drafts = shown.filter(({ c }) => !c.archived && c.draft);
         $('#ch-count').textContent = live.length === 1 ? '1 character' : `${live.length} characters`;
         const card = ({ c }) => {
-            const url = '/characters/' + encodeURIComponent(c.id), name = c.name || 'Unnamed character';
+            const url = c.draft ? '/characters/build?id=' + encodeURIComponent(c.id) : '/characters/' + encodeURIComponent(c.id), name = c.name || 'Unnamed character';
             const act = c.archived ? 'unarc' : 'arc';
             return `<article class="ch-card">
                 <a class="ch-top" href="${url}">${art(c)}<span class="ch-who"><b>${esc(name)}</b><small>${esc(line(c))}</small></span></a>
-                <div class="ch-acts"><a class="btn small" href="${url}">View</a><button type="button" class="btn small" data-act="${act}" data-id="${esc(c.id)}">${c.archived ? 'Unarchive' : 'Archive'}</button></div>
+                <div class="ch-acts"><a class="btn small" href="${url}">${c.draft && !c.archived ? 'Resume' : 'View'}</a><button type="button" class="btn small" data-act="${act}" data-id="${esc(c.id)}">${c.archived ? 'Unarchive' : 'Archive'}</button></div>
             </article>`;
         };
-        const liveShown = shown.filter(({ c }) => !c.archived), arcShown = shown.filter(({ c }) => c.archived);
+        const liveShown = shown.filter(({ c }) => !c.archived && !c.draft), arcShown = shown.filter(({ c }) => c.archived);
         grid.innerHTML = liveShown.map(card).join('') || `<p class="muted">${live.length ? 'No characters match that search.' : 'No characters yet. Create one to get started.'}</p>`;
+        $('#ch-draft').hidden = !drafts.length;
+        $('#ch-draft-n').textContent = `(${drafts.length})`;
+        $('#ch-draft-grid').innerHTML = drafts.map(card).join('');
         arcBox.hidden = !arch.length;
         $('#ch-arc-n').textContent = `(${arch.length})`;
         arcGrid.innerHTML = arcShown.map(card).join('') || '<p class="muted">No archived characters match that search.</p>';
@@ -77,16 +81,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const t = setTimeout(() => el.remove(), 15000);
         el.querySelector('button').addEventListener('click', () => { clearTimeout(t); el.remove(); fn(); });
     }
+    const newDlg = $('#ch-new');
     $('#main').addEventListener('click', (e) => {
         const b = e.target.closest('[data-act]');
         if (!b) return;
         const id = b.dataset.id;
+        if (b.dataset.act === 'create') { e.preventDefault(); return newDlg.showModal(); }
+        if (b.dataset.act === 'newclose') return newDlg.close();
         if (b.dataset.act === 'arc') { const c = setArchived(id, true); if (c) offerUndo(`Archived ${c.name || 'the character'}`, () => setArchived(id, false)); }
         if (b.dataset.act === 'unarc') setArchived(id, false);
     });
     q.addEventListener('input', draw);
     sort.addEventListener('change', draw);
     draw();
+    // the Compendium's "Create a character" comes here with #create
+    if (location.hash === '#create') { history.replaceState(null, '', location.pathname); newDlg.showModal(); }
 
     if (!cloud) return;
     try {

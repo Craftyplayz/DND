@@ -9,6 +9,7 @@
 //   POST {"act": "leave", "id"}                     players only
 //   POST {"act": "rename" | "code" | "remove" | "delete", "id", ...}   DM only (not co-DMs)
 //   POST {"act": "codm", "id", "member", "on": bool}  DM only: make a player a co-DM, or a player again -> {"codms"}
+//   POST {"act": "rules", "id", "methods", "hp"}  the DM or a co-DM: how characters are built (ROADMAP 4.2) -> {"rules"}
 //   POST {"act": "roll", "id", "roll": {...}}       a roll for the table log (includes/tablelog.php)
 //   POST {"act": "session", "id", "start": bool}    the DM or a co-DM starts or ends a session
 //   POST {"act": "fight", "id", "op", ...}           the DM or a co-DM runs the initiative tracker (includes/initiative.php, fi_op);

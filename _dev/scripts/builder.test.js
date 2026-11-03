@@ -330,5 +330,36 @@ const bd = B.levelUp(B.build(choices('bard', 1), data, M), { cls: 'bard', entry:
 assert.strictEqual(bd.skills.find((s) => s.name === 'Stealth').p, 0.5);
 assert.strictEqual(bd.skills.find((s) => s.name === 'Insight').p, 1);
 
+// ---- the imported content (sheets/player/content/, when it's there; CONTENT_DIR to try another copy) ----
+// every class, race, subrace, culture and background of each rules version builds at levels 1, 5 and 20 with each class's first
+// options, without throwing and with sane numbers; the content's text-only choices are skipped, as a player would type them
+const fs = require('fs'), path = require('path');
+const CDIR = process.env.CONTENT_DIR || path.join(__dirname, '../../sheets/player/content');
+let built = 0;
+const idx = fs.existsSync(path.join(CDIR, 'index.json')) ? JSON.parse(fs.readFileSync(path.join(CDIR, 'index.json'), 'utf8')) : { files: [] };
+for (const rules of ['2014', '2024']) {
+    const files = (idx.files || []).filter((f) => f.rules === rules && !/spells|items/.test(f.file)).map((f) => JSON.parse(fs.readFileSync(path.join(CDIR, f.file), 'utf8')));
+    if (!files.length) continue;
+    const D = B.mergeContent(rules === '2014' ? srd : {});
+    files.forEach((f) => B.addContent(D, f, rules));
+    const races = B.listOf(D, 'races', rules), bgs = B.listOf(D, 'backgrounds', rules);
+    for (const [i, cls] of B.listOf(D, 'classes', rules).entries()) for (const L of [1, 5, 20]) {
+        const race = races[i % races.length], sub = B.listOf(D, 'subraces', rules).find((x) => (x.race?.index || x.race) === race?.id);
+        const ch = Object.assign(B.blankChoices(), { rules, name: 'Smoke', race: race?.id || '', sub: sub?.id || '', bg: bgs[i % bgs.length]?.id || '', method: 'std', std: { STR: 15, DEX: 14, CON: 13, INT: 12, WIS: 10, CHA: 8 } });
+        const subs = B.subsOf(cls.id, D, rules);
+        const e = { id: cls.id, levels: L, sub: L >= B.subLevel(cls.id, D) && subs[0] ? subs[0].id : '', profs: {}, opts: {}, asi: {}, picks: {}, spells: [] };
+        (cls.proficiency_choices || []).forEach((pc, j) => { e.profs[j] = (pc.from?.options || []).slice(0, pc.choose).map((o) => o.item?.index || o.item); });
+        for (let lv = 1; lv <= L; lv++) for (const f of B.featuresAt(cls.id, e.sub, lv, D)) if (f.choices?.options) e.opts[f.index] = f.choices.options.slice(0, f.choices.choose || 1).map((o) => o.index);
+        for (const lv of B.asiLevels(cls)) if (lv <= L) e.asi[lv] = { k: '+2', a: ['CON'] };
+        ch.classes = [e];
+        let c;
+        try { c = B.build(ch, D, M); } catch (x) { bad++; console.log(`FAIL content ${rules} ${cls.id} ${L} (${race?.id}, ${ch.bg}): ${x.stack.split('\n').slice(0, 3).join(' ')}`); continue; }
+        built++;
+        const lvl = c.classes.reduce((t, k) => t + k.level, 0);
+        if (lvl !== L || !(c.hp.base >= L) || c.abilities.some((a) => !(a.score >= 1 && a.score <= 30))) { bad++; console.log(`FAIL content ${rules} ${cls.id} ${L}: level ${lvl}, hp base ${c.hp.base}, scores ${c.abilities.map((a) => a.score)}`); }
+    }
+}
+if (built) console.log(`content: ${built} characters built from the imported classes`);
+
 if (bad) { console.log(`${bad} value(s) differ from the hand-worked sheets`); process.exit(1); }
 console.log(`builder ok (${SHEETS.length} hand-worked sheets)`);

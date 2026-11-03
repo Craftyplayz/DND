@@ -1156,6 +1156,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="hb-gap"></span>
             <button type="button" class="btn small" data-act="rest" data-r="short">Short rest</button>
             <button type="button" class="btn small" data-act="rest" data-r="long">Long rest</button>
+            ${CHAR && !DMM && C.updated ? (C.draft ? `<a class="btn small primary" href="/characters/build?id=${esc(encodeURIComponent(C.id))}">Resume building</a>` : `<a class="btn small" href="/characters/build?up=${esc(encodeURIComponent(C.id))}">Level up</a>`) : ''}
             <button type="button" class="btn small primary" data-act="custom">Customise</button>`;
     }
 
@@ -1494,6 +1495,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="actions"><button class="btn primary" id="hb-ddb-go">Import character</button><button type="button" class="btn" data-act="close">Cancel</button></div>
             </form>`;
     }
+    // Edit > New: the builder or an empty sheet (ROADMAP 4.2)
+    function newDlg() {
+        return `<h2>Create a character</h2><p class="muted">Build it step by step, or start from an empty sheet and fill it in yourself.</p>
+            <div class="hub-grid hb-newgrid"><a class="hub-card" href="/characters/build"><b>Build step by step</b><span>Class, race, ability scores, background and equipment, at any level from 1 to 20</span></a>
+            <button type="button" class="hub-card" data-act="newblank"><b>Blank character</b><span>An empty sheet. Fill in everything yourself</span></button></div>
+            <div class="actions"><button type="button" class="btn" data-act="close">Cancel</button></div>`;
+    }
     function fromDdbData(x) {
         const c = blank(), P = (type) => c.panels.find((p) => p.type === type);
         Object.assign(c, {
@@ -1658,7 +1666,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const open = { more: false, hp: false, manage: false };
     const openRows = new Set();
     let dlgMode = null;
-    const dlgHTML = () => (dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : dlgMode.kind === 'ddb' ? ddbDlg() : formulaDlg(dlgMode));
+    const dlgHTML = () => (dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : dlgMode.kind === 'ddb' ? ddbDlg() : dlgMode.kind === 'new' ? newDlg() : formulaDlg(dlgMode));
     // ---- dice: a card for each roll and the dice tray in the bottom-left corner ----
     const DICE = [4, 6, 8, 10, 12, 20, 100], tray = { open: false, pool: {} };
     // this character's own dice (C.view.dice, a copy of a Dice Sets choice kept from Customise), else
@@ -2188,7 +2196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // player's open sheets get them live (the campaign room); otherwise the sheet takes them when it opens, and the account
     // puts any a save lacks into it. Each is applied once (dmApplied), with a "DM: ..." line in the roll log and a 15 s Undo;
     // the DMs are told when one didn't apply (a conflict, a removed row) or was undone.
-    const DM_NO = new Set(['new', 'import', 'ddb', 'versions', 'archive', 'unarchive', 'art', 'artdel', 'cropsave', 'addpanel', 'mv', 'logclear', 'diceown', 'campkeep', 'campclone']);
+    const DM_NO = new Set(['new', 'newblank', 'import', 'ddb', 'versions', 'archive', 'unarchive', 'art', 'artdel', 'cropsave', 'addpanel', 'mv', 'logclear', 'diceown', 'campkeep', 'campclone']);
     const dmPlayer = $('#main').dataset.dmPlayer || 'the player';
     const jclone = (x) => JSON.parse(JSON.stringify(x));
     // a new row from the sheet's own maker, for the list at path (a DM's added row is cut to its shape)
@@ -2371,7 +2379,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // what an archived character still does: look, roll, open things, and come back
     const VIEW_ACTS = new Set(['skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
-        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions']);
+        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'newblank', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions']);
 
     // ---- events ----
     const main = $('.hb');
@@ -2725,7 +2733,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (act === 'mv') { const j = i + +b.dataset.d; [C.panels[i], C.panels[j]] = [C.panels[j], C.panels[i]]; }
         else if (act === 'art') return $('#hb-artfile').click();
         else if (act === 'artdel') { snap(b); C.art = ''; C.artUrl = ''; }
-        else if (act === 'new') return switchTo(blank());
+        else if (act === 'new') return showDlg({ kind: 'new' });
+        else if (act === 'newblank') { dlg.close(); return switchTo(blank()); }
         else if (act === 'import') return $('#hb-file').click();
         else if (act === 'export') return exportChar(C);
         else if (act === 'archive') return setArchived(true);
@@ -2786,5 +2795,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // the worked-out max HP (calc, ROADMAP 1.5) of a character saved before it was kept, or changed by an upgrade
     else if (!RO && C.updated && !C.archived && C.calc.hpMax !== hpMax()) saveNow(false);
     takePending();
+    // from the builder (ROADMAP 4.2 and 4.3): ?built=1 after Finish, ?levelled=1 after a level up (with its Undo)
+    {
+        const q = new URLSearchParams(location.search);
+        if (CHAR && (q.has('built') || q.has('levelled'))) {
+            history.replaceState(null, '', location.pathname);
+            let note = '', up = null;
+            try { note = sessionStorage.getItem('hb-built-note') || ''; sessionStorage.removeItem('hb-built-note'); up = JSON.parse(sessionStorage.getItem('hb-levelup') || 'null'); sessionStorage.removeItem('hb-levelup'); } catch (e) { }
+            if (q.has('built')) toast(`${C.name || 'Your character'} is ready. Everything on the sheet can still be changed.${note ? ' ' + note : ''}`, 'ok', 8000);
+            else if (up && up.id === C.id && isObj(up.before)) {
+                const lv = level();
+                offerUndo(`Levelled up to level ${lv}`, () => { const b = normalise(up.before); b.updated = Date.now(); switchTo(b); toast('Level up undone.', 'ok'); });
+            }
+        }
+    }
     loadCamps();
 });

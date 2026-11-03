@@ -421,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const chars = await characters();
         const body = dlg('cp-pick-body');
         if (!chars.length) {
-            body.innerHTML = '<p>You have no characters yet.</p><p><a class="btn" href="/characters/new">Create a character</a></p>';
+            body.innerHTML = '<p>You have no characters yet.</p><p><a class="btn" href="/characters/#create">Create a character</a></p>';
             return dlg('cp-pick').showModal();
         }
         if (chars.length === 1) return give(chars[0], e);

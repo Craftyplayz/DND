@@ -44,7 +44,7 @@ $site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/c
         <?= site_breadcrumbs(site_current_path()) ?>
         <div class="ch-head">
             <h1 class="page-title">My Characters</h1>
-            <a class="btn primary" href="/characters/new">Create a character</a>
+            <a class="btn primary" href="/characters/build" data-act="create">Create a character</a>
         </div>
         <div class="bar ch-bar">
             <input class="field ch-q" type="search" id="ch-q" placeholder="Search by name, level, class, species or campaign" aria-label="Search characters" autocomplete="off">
@@ -58,10 +58,24 @@ $site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/c
             <span class="muted" id="ch-count"></span>
         </div>
         <div class="grid ch-grid" id="ch-grid"><noscript><p class="err">This page needs JavaScript.</p></noscript></div>
+        <?php // characters still in the builder (ROADMAP 4.2), with Resume; list.js shows it when there are some ?>
+        <details class="ch-arc" id="ch-draft" open hidden><summary class="sec-h">Unfinished <span class="n" id="ch-draft-n"></span></summary>
+            <div class="grid ch-grid" id="ch-draft-grid"></div>
+        </details>
         <?php // archived characters (ROADMAP 0.5), folded away; list.js shows it when there are some ?>
         <details class="ch-arc" id="ch-arc" hidden><summary class="sec-h">Archived <span class="n" id="ch-arc-n"></span></summary>
             <div class="grid ch-grid" id="ch-arc-grid"></div>
         </details>
+        <?php // Create a character: the builder or an empty sheet (ROADMAP 4.2); /characters/#create opens it (the Compendium links there) ?>
+        <dialog class="dlg" id="ch-new" aria-labelledby="ch-new-h">
+            <h2 id="ch-new-h">Create a character</h2>
+            <p class="muted">Build it step by step, or start from an empty sheet and fill it in yourself.</p>
+            <div class="hub-grid ch-newgrid">
+                <a class="hub-card" href="/characters/build"><b>Build step by step</b><span>Class, race, ability scores, background and equipment, at any level from 1 to 20</span></a>
+                <a class="hub-card" href="/characters/new"><b>Blank character</b><span>An empty sheet. Fill in everything yourself</span></a>
+            </div>
+            <div class="actions"><button type="button" class="btn" data-act="newclose">Cancel</button></div>
+        </dialog>
         <p class="muted"><?= auth_user() ? 'Characters are saved in this browser and in your account.' : 'Signed out, characters are saved in this browser only. Sign in to keep them in your Google account.' ?></p>
     </main>
 

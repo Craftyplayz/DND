@@ -232,6 +232,25 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
                 </section>
             <?php endif; ?>
 
+            <?php // the DM's character rules (ROADMAP 4.2): what the character builder offers a character built for this campaign
+            $rules = cp_rules($c); $mNames = ['pb' => 'Point buy', 'std' => 'Standard array', 'roll' => '4d6 drop lowest', 'man' => 'Manual']; $hNames = ['avg' => 'Take the average', 'roll' => 'Roll the hit die']; ?>
+            <section class="card" id="cp-rules">
+                <h2>Character rules</h2>
+                <?php if ($isDm): ?>
+                    <form class="form" id="cp-rulesf">
+                        <p class="muted">What the character builder offers when a player builds a character for this campaign.</p>
+                        <fieldset><legend>Ability scores</legend>
+                            <?php foreach ($mNames as $k => $t): ?><label class="check"><input type="checkbox" name="m" value="<?= $k ?>"<?= in_array($k, $rules['methods'], true) ? ' checked' : '' ?>> <?= h($t) ?></label><?php endforeach; ?>
+                        </fieldset>
+                        <fieldset><legend>Hit points after level 1</legend>
+                            <?php foreach ($hNames as $k => $t): ?><label class="check"><input type="checkbox" name="hp" value="<?= $k ?>"<?= in_array($k, $rules['hp'], true) ? ' checked' : '' ?>> <?= h($t) ?></label><?php endforeach; ?>
+                        </fieldset>
+                        <div class="actions"><button class="btn" type="submit">Save rules</button></div>
+                    </form>
+                <?php else: ?>
+                    <p class="muted">Ability scores: <?= h(implode(', ', array_map(fn($k) => $mNames[$k], $rules['methods']))) ?>. Hit points: <?= h(implode(' or ', array_map(fn($k) => strtolower($hNames[$k]), $rules['hp']))) ?>.</p>
+                <?php endif; ?>
+            </section>
             <?php if ($isOwner): ?>
                 <section class="card">
                     <h2>Campaign</h2>

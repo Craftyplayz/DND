@@ -25,6 +25,7 @@ function site_pages()
     return [
         '/' => ['D&D', 'Our D&D campaign tools', false],
         '/characters/' => ['My Characters', 'Your characters on a sheet you can change to fit any homebrew rules', true],
+        '/characters/build/' => ['Character Builder', 'Make a character step by step: class, race, ability scores, background and equipment, at any level', false],
         '/sheets/monster/' => ['Monster Sheet', 'Editable monster stat blocks for an encounter, with HP tracking and clickable dice rolls', true],
         '/campaigns/' => ['Campaigns', 'Make a campaign, invite your players with a link and keep the party together', true],
         '/compendium/' => ['Compendium', 'Search spells, monsters, items, magic items and rules, and add them to a character or an encounter', true],

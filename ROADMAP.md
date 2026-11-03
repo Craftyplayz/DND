@@ -799,8 +799,37 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
   hard-coded `CLASSES`, `RACES` and `HIT_DIE` lists but keeps their names, so existing characters still match.
 - Size: 1.5 days. Done: a test confirms every class has levels 1-20 with features, spell slots and proficiency bonus.
 
-**4.2 Step-by-step builder**
-- What: "New character → Build" goes through race → class → background → ability scores → skills and
+**4.2 Step-by-step builder** (built 2026-11-03 with 4.3, from the owner's answers in the builder questions and the approved
+mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where they differ)
+- Built:
+  - `/characters/build` (`characters/build/index.php` + `builder.js`, steps in the `#hash`): Name and look (name, starting level
+    1 to 20, rules 2014 or 2024 when there's 2024 content, "Building for" a campaign when signed in, portrait cut to a square) →
+    Class and level (searchable list rows with an icon tile and A to Z; the class's description, what each level gets, subclass at
+    its level, skills and proficiencies, feature picks, ability score improvements (+2, +1 and +1, or a feat), spells with the
+    class's counts, hit points rolled or averaged, more classes for multiclassing with the ability minimums as a warning) → Race
+    (subraces replace the list with a Back button; one subrace is picked for you; the race's own picks; an optional culture
+    from the content) → Ability scores (point buy with over-budget allowed and warned, standard array, 4d6 drop lowest as six
+    separate 3D throws, manual) → Background (or a custom one; languages, 2024 ability scores, alignment, faith, lifestyle,
+    looks, personality traits, ideals, bonds and flaws picked, rolled or typed, allies, enemies, organisations, backstory) →
+    Equipment (the class and background choices with packs unpacked, or gold rolled with the 3D dice, plus extra gear) → Review.
+  - The rules are `sheets/player/build.js` (`HbBuild.build(choices, data, model)`), with no page in it; `_dev/scripts/builder.test.js`
+    checks all 12 SRD classes at levels 1, 5 and 20 against a hand-worked table, point buy, drop lowest, multiclass slots,
+    races, level up, and builds every imported class without errors. The character model (`blank()`, `ROW`, panels) moved to
+    `sheets/player/model.js`, shared by the sheet and the builder.
+  - The draft is a real character (`draft: 1`, its picks in `build`), saved on every change to the browser, the account and
+    the backups, with no versions until Finish (`ch_write` skips drafts). My Characters lists it under Unfinished with Resume and
+    Archive; Save and exit keeps it, Cancel archives it after asking. Finish makes the first version, attaches it to the campaign
+    and opens the sheet with a note. Rolls (hit points, 4d6, gold, personality) go in its roll log with their dice.
+  - Rows the builder adds carry `source` (and passive abilities `src`: "Fighter 1", "Hill Dwarf", "Background", so they land in
+    the right tab); the review shows "From: ..." for each feature. A new Character details panel on the sheet holds background,
+    faith, lifestyle, looks, personality, allies, enemies, organisations and backstory (new characters only; old ones can add it).
+  - "Create a character" (My Characters, the sheet's Edit > New, the Compendium) asks: Build step by step or Blank character.
+  - Campaign rules: a Character rules card on the campaign page; the DM or a co-DM picks the allowed ability score methods
+    and hit point ways (all allowed until set); the builder offers only those for a character built for that campaign.
+  - Content: one loader (`sheets/player/content.js`, `hbContent(rules, kinds)`) gives each rules version its own data
+    (srd-build.json plus the content files for 2014; the 2024 files alone), loading spells and equipment only when a step needs
+    them. Icons come from `sheets/player/icons.json` through `iconFor()`, with a letter tile where there's none.
+- What (plan): "New character → Build" goes through race → class → background → ability scores → skills and
   proficiencies → equipment → name and art. Ability score methods: point buy (27 points), standard array,
   4d6 drop lowest (rolled with the 3D dice, every roll kept in the character's roll log), or manual. The
   campaign setting decides which methods are allowed; with no campaign the player picks.
@@ -810,8 +839,14 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 - Size: 5 days. Done: building an SRD level-1 character of each of the 12 classes gives the correct HP, AC,
   saves, skills, attacks and spells, checked by a test against hand-worked sheets.
 
-**4.3 Level-up flow**
-- What: a "Level up" button. Pick the class (multiclass allowed; SRD prerequisites are shown as a warning, not
+**4.3 Level-up flow** (built 2026-11-03 with 4.2)
+- Built: a Level up button on a finished character's sheet opens `/characters/build?up=<id>`: the builder's class screen for
+  the next level only (an existing class or a new one, with the multiclass minimums as a warning), its new features and picks,
+  subclass, ability score improvement or feat, new spells, and hit points rolled or averaged (the campaign's rules apply).
+  `HbBuild.levelUp` only adds rows and raises numbers (slots, resources, hit points); it never edits a row the player has.
+  Finish saves it and the sheet offers Undo for 15 seconds, which puts back the exact character from before.
+  Not built: flagging rows "changed by you" (level up never changes existing rows, so there's nothing to flag yet).
+- What (plan): a "Level up" button. Pick the class (multiclass allowed; SRD prerequisites are shown as a warning, not
   a block). HP: roll the hit die or take the average, as the campaign setting says (rolled in the 3D dice and
   logged). Adds new features, resources and spell slots, offers subclass, ASI or feat at the right levels, and
   updates hit dice.

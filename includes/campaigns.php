@@ -2,7 +2,8 @@
 // Campaigns, for signed-in players: one folder per campaign, <accounts>/campaigns/<id>/campaign.json
 //   {"id", "name", "dm": <google sub>, "code": <join code>, "created": <unix time>,
 //    "members": [{"sub", "name", "joined", "characters": [{"sheet": "player", "id": <character id>}]}],
-//    "codms": [<google sub>, ...] (co-DMs: members the DM promoted; missing in older campaigns, meaning none)}
+//    "codms": [<google sub>, ...] (co-DMs: members the DM promoted; missing in older campaigns, meaning none),
+//    "rules": {"methods": ["pb", "std", "roll", "man"], "hp": ["avg", "roll"]} (ROADMAP 4.2: how characters are built; missing means all allowed)}
 // The DM is always members[0]. cp_is_dm() (DM or co-DM) and cp_is_owner() (the DM alone) are the only role checks. A campaign only links characters (My Characters, accounts/characters/<id>/); it never
 // copies or writes them, so the player's own save stays the only copy. Deleting moves the folder to campaigns/.deleted/.
 // Used by campaigns/api.php (changes), campaigns/index.php and campaigns/join/ (pages), characters/index.php (DM access).
@@ -213,6 +214,16 @@ function cp_clean_name($name)
     return $name === '' ? null : mb_substr($name, 0, CP_NAME);
 }
 
+// the campaign's character rules (ROADMAP 4.2): which ability score methods and hit point ways the builder offers
+const CP_METHODS = ['pb', 'std', 'roll', 'man'];
+const CP_HP = ['avg', 'roll'];
+function cp_rules($c)
+{
+    $r = is_array($c['rules'] ?? null) ? $c['rules'] : [];
+    $pick = fn($have, $all) => array_values(array_intersect($all, is_array($have) ? $have : $all)) ?: $all;
+    return ['methods' => $pick($r['methods'] ?? null, CP_METHODS), 'hp' => $pick($r['hp'] ?? null, CP_HP)];
+}
+
 // One change from campaigns/api.php: [http code, response]. $body is the decoded JSON {act, ...}.
 // The caller holds cp_lock().
 function cp_act($accounts, $user, $body)
@@ -296,6 +307,15 @@ function cp_act($accounts, $user, $body)
         array_splice($c['members'], $me, 1);
         cp_drop_codm($c, $sub);
         return $save(['left' => true]);
+    }
+    // {act: "rules", methods, hp}: the DM or a co-DM sets how characters are built (at least one of each stays allowed)
+    if ($act === 'rules') {
+        if (!cp_is_dm($c, $sub)) return [403, ['error' => 'Only the DM can do that.']];
+        $m = array_values(array_intersect(CP_METHODS, (array)($body['methods'] ?? [])));
+        $hp = array_values(array_intersect(CP_HP, (array)($body['hp'] ?? [])));
+        if (!$m || !$hp) return [400, ['error' => 'Allow at least one way to set ability scores and one way to get hit points.']];
+        $c['rules'] = ['methods' => $m, 'hp' => $hp];
+        return $save(['rules' => $c['rules']]);
     }
     if (!$owner) return [403, ['error' => 'Only the DM can do that.']];
     if ($act === 'rename') {

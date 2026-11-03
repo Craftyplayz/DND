@@ -44,21 +44,31 @@
         add(race?.ability_bonuses); add(sub?.ability_bonuses); add(bg?.ability_bonuses);
         const opt = race?.ability_bonus_options;
         if (opt) for (const k of (ch.raceOpts?.ab || []).slice(0, opt.choose)) { const o = (opt.from?.options || []).find((x) => AK(x.ability_score?.index || x.ability_score) === AK(k)); if (o) out[AK(k)] += +o.bonus || 1; }
+        // 2024 backgrounds: +2 and +1, or +1 to all three, of the background's three abilities
+        const bgAb = (bg?.ability_scores || []).map(AK), pick = ch.bgOpts?.ab || {};
+        if (bgAb.length) {
+            if (pick.k === '111') for (const a of bgAb) out[a] += 1;
+            else if (pick.k === '21') { if (bgAb.includes(AK(pick.two))) out[AK(pick.two)] += 2; if (bgAb.includes(AK(pick.one)) && AK(pick.one) !== AK(pick.two)) out[AK(pick.one)] += 1; }
+        }
         return out;
     }
 
     // ---- content ----
-    const KINDS = ['classes', 'subclasses', 'races', 'subraces', 'backgrounds', 'feats', 'spells', 'languages', 'equipment', 'packs', 'categories'];
-    // srd-build.json first, then each content file; an entry with the same index is replaced (the importer keeps one of each)
-    function mergeContent(srd, ...more) {
-        const out = { meta: srd?.meta || {} };
-        for (const k of KINDS) out[k] = {};
-        for (const [i, d] of [srd, ...more].entries()) {
-            if (!isObj(d)) continue;
-            for (const k of KINDS) for (const [id, e] of Object.entries(isObj(d[k]) ? d[k] : {})) {
-                out[k][id] = isObj(e) ? Object.assign({ rules: '2014', src: i ? '' : 'SRD 5.1' }, e) : e;
-            }
+    const KINDS = ['classes', 'subclasses', 'races', 'subraces', 'cultures', 'backgrounds', 'feats', 'spells', 'languages', 'equipment', 'magic_items', 'packs', 'categories'];
+    // one content file into a rules version's data; an entry with the same index is replaced (the importer keeps one of each)
+    function addContent(out, d, rules = '2014', src = '') {
+        if (!isObj(d)) return out;
+        for (const k of KINDS) for (const [id, e] of Object.entries(isObj(d[k]) ? d[k] : {})) {
+            (out[k] ||= {})[id] = isObj(e) ? Object.assign({ rules, src }, e) : e;
         }
+        return out;
+    }
+    // srd-build.json (or {} for 2024, which has no srd-build) first, then the content files of the same rules version
+    function mergeContent(srd, ...more) {
+        const out = { meta: srd?.meta || {}, loaded: [] };
+        for (const k of KINDS) out[k] = {};
+        addContent(out, srd, '2014', 'SRD 5.1');
+        for (const d of more) addContent(out, d, d?.meta?.rules || '2014');
         return out;
     }
     // one kind's entries for this rules version (2014 or 2024), sorted by name
@@ -201,6 +211,9 @@
     // SRD equipment categories the starting equipment picks from (the content files can add their own as "categories")
     function category(id, data, M) {
         if (Array.isArray(data.categories?.[id])) return data.categories[id];
+        // the content's equipment lists its categories
+        const own = Object.entries(data.equipment || {}).filter(([, e]) => (e.equipment_categories || []).includes(id) || e.equipment_category === id || e.equipment_category?.index === id).map(([k]) => k);
+        if (own.length) return own;
         const w = M.WEAPONS.map((x) => weaponIdx(x[0]));
         return { 'simple-weapons': w.slice(0, 14), 'simple-melee-weapons': w.slice(0, 10), 'martial-weapons': w.slice(14), 'martial-melee-weapons': w.slice(14, 32),
             'holy-symbols': ['amulet', 'emblem', 'reliquary'], 'arcane-foci': ['crystal', 'orb', 'rod', 'staff', 'wand'], 'druidic-foci': ['sprig-of-mistletoe', 'totem', 'wooden-staff', 'yew-wand'],
@@ -243,6 +256,7 @@
     // one starting-equipment choice (an "(a) or (b)" line): pick = {o: option, items: [category picks]}
     function equipChoice(set, pick, data, M) {
         const items = [...(pick?.items || [])];
+        if (!set.from) return String(pick?.text || '').split(',').map((x) => x.trim()).filter(Boolean).map((name) => ({ ref: '', name, n: 1 }));
         if (set.from?.option_set_type === 'options_array') return optionItems(set.from.options?.[+pick?.o || 0], items, data, M);
         return choiceItems(set, items, data, M);
     }
@@ -336,7 +350,12 @@
             const first = L.at === 1, set = first ? cls : cls.multi_classing || {};
             for (const p of first ? cls.proficiencies || [] : set.proficiencies || []) giveProf(c, p, M);
             if (first) for (const a of cls.saving_throws || []) giveProf(c, 'saving-throw-' + (a.index || a), M);
-            (set.proficiency_choices || []).forEach((pc, i) => { for (const p of (e.profs?.[i] || []).slice(0, pc.choose)) giveProf(c, p, M); });
+            (set.proficiency_choices || []).forEach((pc, i) => {
+                for (const p of (e.profs?.[i] || []).slice(0, pc.choose)) giveProf(c, p, M);
+                // a choice the content gives only in words: what the player typed goes in the proficiency notes
+                const t = String(e.ptext?.[i] || '').trim();
+                if (!pc.from && t) c.profs.notes = [c.profs.notes, `${cls.name}: ${t}`].filter(Boolean).join('\n');
+            });
         }
         const lvl = cls.levels?.[L.n - 1] || {};
         for (const f of featuresAt(L.cls, L.n >= subLevel(L.cls, data) ? e.sub : '', L.n, data)) {
@@ -411,8 +430,8 @@
         };
         let armour = null, shield = false;
         for (const it of items) {
-            const w = M.WEAPONS.find((x) => weaponIdx(x[0]) === it.ref || (it.name && norm(x[0]) === norm(it.name)));
-            const a = ARMOUR[it.ref];
+            const w = M.WEAPONS.find((x) => weaponIdx(x[0]) === it.ref || norm(x[0]) === norm(it.ref) || (it.name && norm(x[0]) === norm(it.name)));
+            const a = ARMOUR[it.ref] || Object.values(ARMOUR).find(([n]) => [it.ref, it.name, String(it.ref).replace(/-armou?r$/, '')].some((x) => x && norm(n).replace(/armour$/, '') === norm(x).replace(/armou?r$/, '')));
             const name = it.name || (it.ref ? itemName(it.ref, data, M) : '');
             const pack = PACKS[it.ref] || data.packs?.[it.ref];
             if (pack) { for (const [n, nmx] of pack) addItem(inv, M, nmx, n * it.n, 'Gear', it.from); continue; }
@@ -502,6 +521,12 @@
             if (race.traits?.some((t) => t.index === 'breath-weapon')) tracker(c, M, 'Breath Weapon', 1, 'short', 'count', race.name);
             if (race.traits?.some((t) => t.index === 'relentless-endurance')) tracker(c, M, 'Relentless Endurance', 1, 'long', 'count', race.name);
         }
+        const cu = data.cultures?.[ch.culture];
+        if (cu) {
+            for (const l of cu.languages || []) if (typeof (l?.index || l) === 'string' && LANGS.some((x) => norm(x) === norm(l?.index || l))) giveLang(c, l);
+            passive(c, M, cu.name, sumText(cu.desc), cu.name, 'race', 'Culture');
+            for (const t of cu.traits || []) passive(c, M, t.name, sumText(t.desc), cu.name, 'race', 'Culture');
+        }
         // ability scores: base + bonuses (ASIs come with the levels)
         const base = baseScores(ch), bon = bonuses(ch, data);
         for (const a of c.abilities) if (a.key in base) a.score = base[a.key] + bon[a.key];
@@ -511,7 +536,12 @@
             if (dp) dp.f.background = bg.name;
             for (const p of bg.starting_proficiencies || []) giveProf(c, p, M);
             for (const l of (bo.langs || []).slice(0, bg.language_options?.choose || 0)) giveLang(c, l);
-            if (bg.feature) passive(c, M, bg.feature.name, sumText(bg.feature.desc), 'Background', 'other', bg.name);
+            if (bg.feature?.name) passive(c, M, bg.feature.name, sumText(bg.feature.desc), 'Background', 'other', bg.name);
+            // 2024: the background's feat, by name ("Magic Initiate (Cleric)" finds Magic Initiate)
+            if (typeof bg.feat === 'string' && bg.feat) {
+                const ft = Object.values(data.feats || {}).find((f) => norm(f.name) === norm(bg.feat)) || Object.values(data.feats || {}).find((f) => norm(bg.feat).startsWith(norm(f.name)));
+                passive(c, M, bg.feat, ft ? sumText(ft.desc) : '', 'Background', 'other', bg.name);
+            }
         } else if (ch.bg === 'custom') {
             if (dp) dp.f.background = bo.name || 'Custom background';
             for (const s of (bo.skills || []).slice(0, 2)) giveProf(c, 'skill-' + s, M);
@@ -535,7 +565,7 @@
         const items = startingItems(ch, data, M);
         applyGear(c, items, data, M);
         const inv = panel(c, 'items');
-        if (inv) inv.coins.gp = (ch.equip?.mode === 'gold' ? +ch.equip.gold || 0 : +data.backgrounds?.[ch.bg]?.starting_gold?.quantity || 0);
+        if (inv) inv.coins.gp = (ch.equip?.mode === 'gold' ? +ch.equip.gold || 0 : (+data.backgrounds?.[ch.bg]?.starting_gold?.quantity || +data.backgrounds?.[ch.bg]?.starting_gold || 0));
         jackOfAllTrades(c);
         const con = c.abilities.find((a) => a.key === 'CON');
         c.hp.cur = c.hp.base + mod(+con?.score || 10) * total(ch) + (+c.hp.mod || 0);
@@ -570,12 +600,12 @@
 
     // a new, empty set of choices (the builder's "build" record)
     function blankChoices() {
-        return { v: 1, step: 'name', rules: '2014', camp: '', name: '', level: 1, classes: [], hp: { mode: 'avg', rolls: {} }, race: '', sub: '', raceOpts: {},
+        return { v: 1, step: 'name', rules: '2014', camp: '', name: '', level: 1, classes: [], hp: { mode: 'avg', rolls: {} }, race: '', sub: '', culture: '', raceOpts: {},
             method: 'pb', pb: Object.fromEntries(AB.map((a) => [a, 8])), std: {}, man: Object.fromEntries(AB.map((a) => [a, 10])), sets: [], assign: {},
             bg: '', bgOpts: {}, details: {}, equip: { mode: 'gear', picks: {}, gold: 0, extra: [] } };
     }
 
-    const HbBuild = { AB, STD, PB_COST, PB_BUDGET, mod, pbCost, dropLowest, baseScores, bonuses, mergeContent, listOf, levels, total, profBonus, asiLevels, subLevel, subsOf,
+    const HbBuild = { AB, STD, PB_COST, PB_BUDGET, mod, pbCost, dropLowest, baseScores, bonuses, addContent, mergeContent, listOf, levels, total, profBonus, asiLevels, subLevel, subsOf,
         featuresAt, PICKS, chooseN, casterOf, slotsFor, maxSpellLevel, spellCounts, spellPool, alwaysPrepared, PREPARED, profKind, langName, LANGS, ARMOUR, PACKS, category,
         itemName, goldDice, equipChoice, startingItems, raceChoices, ANCESTRY, hpAt, build, levelUp, blankChoices, words };
     if (typeof module === 'object' && module.exports) module.exports = HbBuild; else root.HbBuild = HbBuild;

@@ -7,3 +7,5 @@
 .ch-arc summary.sec-h { display: list-item; cursor: pointer; }
 /* Undo after archiving, as on the sheet */
 .hb-undo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 14px; border-radius: var(--radius); font-size: 14px; background: var(--info-bg); border: 1px solid var(--info-line); }
+/* Create a character: the two ways, side by side (one column on phones) */
+.ch-newgrid { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); margin-top: 12px; }

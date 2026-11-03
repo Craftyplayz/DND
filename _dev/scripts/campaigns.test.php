@@ -38,6 +38,13 @@ $is('lists for the DM', in_array($id, array_column(cp_mine($A, '111')['dm'], 'id
 $is('lists for the player', array_column(cp_mine($A, '222')['player'], 'id'), [$id]);
 $is('a stranger sees nothing', cp_mine($A, '333'), ['dm' => [], 'player' => []]);
 
+// character rules (ROADMAP 4.2): all allowed until the DM or a co-DM sets them; at least one of each; players can't
+$is('rules default to everything', cp_rules(cp_get($A, $id)), ['methods' => ['pb', 'std', 'roll', 'man'], 'hp' => ['avg', 'roll']]);
+$is('a player can\'t set rules', cp_act($A, $pl, ['act' => 'rules', 'id' => $id, 'methods' => ['std'], 'hp' => ['avg']])[0], 403);
+$is('rules need one of each', cp_act($A, $dm, ['act' => 'rules', 'id' => $id, 'methods' => [], 'hp' => ['avg']])[0], 400);
+$is('the DM sets rules (unknown ones dropped)', cp_act($A, $dm, ['act' => 'rules', 'id' => $id, 'methods' => ['std', 'x', 'roll'], 'hp' => ['avg']]), [200, ['rules' => ['methods' => ['std', 'roll'], 'hp' => ['avg']]]]);
+$is('rules read back', cp_rules(cp_get($A, $id)), ['methods' => ['std', 'roll'], 'hp' => ['avg']]);
+
 // characters: only your own, only from the account
 $is("someone else's character refused", cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['oz1']])[0], 400);
 $is('unknown character refused', cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['../x']])[0], 400);

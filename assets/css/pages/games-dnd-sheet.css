@@ -479,3 +479,8 @@ dialog.hb-ver { width: min(640px, calc(100vw - 32px)); }
 .hb-dmbar p { margin: 0; }
 .hb-dmnotes { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .hb-dmnotes li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+/* Edit > New: the builder or an empty sheet (ROADMAP 4.2); the Blank one is a button styled as a hub card */
+.hb-newgrid { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); margin-top: 12px; }
+.hb-newgrid button.hub-card { width: 100%; font: inherit; text-align: left; cursor: pointer; }
+/* Character details (4.2) */
+.hb-details-f { margin-bottom: 8px; }

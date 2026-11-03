@@ -76,7 +76,8 @@ try {
             // the fields the new code may add: a monster's "enc" (ROADMAP 3.1, every old monster starts in Unsorted) and a
             // character's "hoPanel" (ROADMAP 3.4, false until the character is in a campaign while signed in, never here)
             // and (ROADMAP 1.5) "dmApplied", the DM edits applied (none here), and "calc", the sheet's worked-out max HP
-            const added = key === 'monster-sheet' ? ['enc'] : ['hoPanel', 'dmApplied', 'calc'];
+            // and (ROADMAP 4.2) "draft" (0: not in the builder) and "build" (the builder's picks; {} for one it didn't make)
+            const added = key === 'monster-sheet' ? ['enc'] : ['hoPanel', 'dmApplied', 'calc', 'draft', 'build'];
             if (OLD && before[c.id] && after[c.id]) for (const k of Object.keys(after[c.id])) if (!(k in before[c.id]) && !added.includes(k)) miss.push(`${k}: added`);
             if (key !== 'monster-sheet' && after[c.id]) {
                 const a = after[c.id], nm = (x) => parseFloat(x) || 0, con = a.abilities.find((x) => String(x.key).toLowerCase() === 'con');
@@ -85,6 +86,8 @@ try {
                 if (!('calc' in c) && JSON.stringify(a.calc) !== JSON.stringify({ hpMax: max }) && JSON.stringify(a.calc) !== '{"hpMax":0}') miss.push(`calc: ${JSON.stringify(a.calc)}, not {"hpMax":${max}}`);
             }
             if (key === 'monster-sheet' && after[c.id] && !('enc' in c) && after[c.id].enc !== '') miss.push(`enc: ${JSON.stringify(after[c.id].enc)}, not Unsorted`);
+            if (key !== 'monster-sheet' && after[c.id] && !('draft' in c) && after[c.id].draft !== 0) miss.push(`draft: ${JSON.stringify(after[c.id].draft)}, not 0`);
+            if (key !== 'monster-sheet' && after[c.id] && !('build' in c) && JSON.stringify(after[c.id].build) !== '{}') miss.push(`build: ${JSON.stringify(after[c.id].build).slice(0, 80)}, not {}`);
             if (key !== 'monster-sheet' && after[c.id] && !('hoPanel' in c) && after[c.id].hoPanel !== false) miss.push(`hoPanel: ${JSON.stringify(after[c.id].hoPanel)}, not false`);
             if (miss.length) { failed++; console.log(`FAIL ${path} ${from}: ${miss.length} value(s) changed or gone\n  ` + miss.slice(0, 8).join('\n  ')); }
         }
