@@ -5,12 +5,14 @@
 //   notes/history/<note id>/<n>.json   every save of it
 //   handouts/<id>.json                 {id, title, text, images: [{id, ext, name}], to, table, archived, created, updated,
 //                                       sent, edited}. to: null (a draft), "everyone" (every member, later joiners too)
-//                                       or [sub, ...]. table: "Show on the Table view" (1.7). edited: last change while sent.
+//                                       or [sub, ...]. table: the old "Show on the Table view" switch, kept as it was but
+//                                       unused since 1.7 (handouts/tv.json). edited: last change while sent.
+//   handouts/tv.json                   {id, at}: the handout on the TV (Table view, 1.7), or id null
 //   handouts/<id>/<image id>.<ext>     its pictures, as uploaded; handouts/history/<id>/<n>.json every save of it
 //   handouts/seen/<sub>.json           {handout id: ms}: when this player last opened each (the New and Updated marks)
 //   handouts/.incoming/<upload id>     a picture on its way in, 4 MB at a time
 // Notes and drafts are the DM's and co-DMs' alone (cp_is_dm). ho_sees() alone decides who may see a handout, for its JSON,
-// its pictures and the relay; ho_table() is what the Table view may show. Nothing is deleted: notes and handouts are archived,
+// its pictures and the relay; ho_tv() is the one handout the Table view may show (1.7). Nothing is deleted: notes and handouts are archived,
 // and a picture taken off a handout stays in its folder.
 // Every function takes the accounts folder, so _dev/scripts/handouts.test.php gets its own.
 require_once __DIR__ . '/campaigns.php';
@@ -81,7 +83,7 @@ function ho_get($accounts, $cid, $id)
 function ho_all($accounts, $cid)
 {
     $out = [];
-    foreach (glob(ho_dir($accounts, $cid) . '/*.json') ?: [] as $f) if ($h = ch_json($f)) $out[] = $h;
+    foreach (glob(ho_dir($accounts, $cid) . '/*.json') ?: [] as $f) if (ho_ok_id(basename($f, '.json')) && ($h = ch_json($f))) $out[] = $h; // not tv.json
     return $out;
 }
 
@@ -95,11 +97,31 @@ function ho_sees($c, $sub, $h)
     return empty($h['archived']) && ($to === 'everyone' || (is_array($to) && in_array($sub, $to, true)));
 }
 
-// what the Table view may show (1.7): only a handout with its switch on that went to everyone, so one sent to some players
-// never reaches the shared screen
-function ho_table($accounts, $c)
+// The handout on the TV (ROADMAP 1.7): handouts/tv.json {"id", "at"}, set by the DM's "Show on TV now" and cleared by
+// "Take off TV". Only one sent to everyone and not archived ever shows, so one sent to some players never reaches the shared
+// screen; one that stops being that (unshared, sent to fewer, archived) comes off the TV for good. The old per-handout
+// "Show on the Table view" switch ("table") stays in the files as it was, unused.
+function ho_tv_id($accounts, $cid)
 {
-    return array_values(array_filter(ho_all($accounts, $c['id']), fn($h) => !empty($h['table']) && empty($h['archived']) && ($h['to'] ?? null) === 'everyone'));
+    return ch_json(ho_dir($accounts, $cid) . '/tv.json')['id'] ?? null;
+}
+
+function ho_tv($accounts, $c)
+{
+    $h = ho_get($accounts, $c['id'], ho_tv_id($accounts, $c['id']));
+    return $h && ho_tv_ok($h) ? $h : null;
+}
+
+function ho_tv_ok($h)
+{
+    return empty($h['archived']) && ($h['to'] ?? null) === 'everyone';
+}
+
+function ho_tv_set($accounts, $cid, $id)
+{
+    $dir = ho_dir($accounts, $cid);
+    if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) return false;
+    return @file_put_contents("$dir/tv.json", json_encode(['id' => $id, 'at' => (int)round(microtime(true) * 1000)])) !== false;
 }
 
 // the players (not the DM or co-DMs) who see it: their live keys get its messages
@@ -115,16 +137,17 @@ function ho_seen_file($accounts, $cid, $sub)
     return ho_dir($accounts, $cid) . '/seen/' . preg_replace('/[^\w-]/', '_', $sub) . '.json';
 }
 
-// a handout as this member gets it; a player gets no recipients, switches or archive state
-function ho_view($c, $sub, $h, $seen)
+// a handout as this member gets it; a player (and the Table view, CP_TABLE) gets no recipients, switches or archive state;
+// the DM also gets "tv": it's the one on the TV now ($tv: that handout's id)
+function ho_view($c, $sub, $h, $seen, $tv = null)
 {
-    $q = 'c=' . rawurlencode($c['id']) . '&h=' . rawurlencode($h['id']) . '&img=';
+    $q = 'c=' . rawurlencode($c['id']) . '&h=' . rawurlencode($h['id']) . ($sub === CP_TABLE ? '&as=table' : '') . '&img=';
     $imgs = array_map(fn($i) => ['id' => $i['id'], 'name' => $i['name'], 'url' => '/campaigns/handouts.php?' . $q . rawurlencode($i['id'])], $h['images'] ?? []);
     $at = $seen[$h['id']] ?? 0;
     $out = ['id' => $h['id'], 'title' => $h['title'], 'text' => $h['text'], 'images' => $imgs, 'sent' => $h['sent'] ?? 0, 'edited' => $h['edited'] ?? 0,
         'new' => !$at, 'updated' => $at && ($h['edited'] ?? 0) > $at];
     if (!cp_is_dm($c, $sub)) return $out;
-    return $out + ['to' => $h['to'] ?? null, 'table' => !empty($h['table']), 'archived' => $h['archived'] ?? 0, 'created' => $h['created'] ?? 0, 'updated' => $h['updated'] ?? 0];
+    return $out + ['to' => $h['to'] ?? null, 'tv' => $tv === $h['id'] && ho_tv_ok($h), 'archived' => $h['archived'] ?? 0, 'created' => $h['created'] ?? 0, 'updated' => $h['updated'] ?? 0];
 }
 
 // every handout this member may see, newest first (sent time for players, last change for the DM)
@@ -132,7 +155,8 @@ function ho_list($accounts, $c, $sub)
 {
     $seen = ch_json(ho_seen_file($accounts, $c['id'], $sub)) ?: [];
     $dm = cp_is_dm($c, $sub);
-    $list = array_map(fn($h) => ho_view($c, $sub, $h, $seen), array_values(array_filter(ho_all($accounts, $c['id']), fn($h) => ho_sees($c, $sub, $h))));
+    $tv = $dm ? ho_tv_id($accounts, $c['id']) : null;
+    $list = array_map(fn($h) => ho_view($c, $sub, $h, $seen, $tv), array_values(array_filter(ho_all($accounts, $c['id']), fn($h) => ho_sees($c, $sub, $h))));
     usort($list, fn($a, $b) => $dm ? $b['updated'] <=> $a['updated'] : $b['sent'] <=> $a['sent']);
     return $list;
 }
@@ -141,7 +165,8 @@ function ho_list($accounts, $c, $sub)
 function ho_image($accounts, $c, $sub, $hid, $img)
 {
     $h = ho_get($accounts, $c['id'], $hid);
-    if (!$h || !ho_sees($c, $sub, $h)) return null;
+    // the Table view: only the handout on the TV
+    if (!$h || !($sub === CP_TABLE ? (ho_tv($accounts, $c)['id'] ?? null) === $h['id'] : ho_sees($c, $sub, $h))) return null;
     foreach ($h['images'] ?? [] as $i) if ($i['id'] === $img) {
         $f = ho_dir($accounts, $c['id']) . "/$hid/{$i['id']}.{$i['ext']}";
         return is_file($f) ? $f : null;
@@ -202,11 +227,13 @@ function ho_act($accounts, $c, $sub, $body)
     $id = $body['id'] ?? ($body['handout']['id'] ?? null);
     $h = ho_get($accounts, $c['id'], $id);
     $msg = fn($type) => ['type' => $type, 'id' => $id];
-    // the DM's other pages hear about every change; players only about what they see
+    $tv = ho_tv_id($accounts, $c['id']);
+    // the DM's other pages hear about every change; players only about what they see; the Table view (1.7) about the one on the TV
     $live = fn($before, $after) => array_values(array_filter([[$msg('handout'), 'dm'],
         ($k = ho_keys($c, $after)) ? [$msg('handout'), $k] : null,
-        ($g = array_values(array_diff($before ? ho_keys($c, $before) : [], $k))) ? [$msg('handout-gone'), $g] : null]));
-    $view = fn($h) => ho_view($c, $sub, $h, ch_json(ho_seen_file($accounts, $c['id'], $sub)) ?: []);
+        ($g = array_values(array_diff($before ? ho_keys($c, $before) : [], $k))) ? [$msg('handout-gone'), $g] : null,
+        $tv !== null && $tv === $id ? [['type' => 'tv'], [cp_table_key($c['id'])]] : null]));
+    $view = fn($h) => ho_view($c, $sub, $h, ch_json(ho_seen_file($accounts, $c['id'], $sub)) ?: [], ho_tv_id($accounts, $c['id']));
 
     if ($act === 'open') {
         if (!$h || !ho_sees($c, $sub, $h)) return [404, ['error' => 'No such handout.']];
@@ -218,18 +245,22 @@ function ho_act($accounts, $c, $sub, $body)
     }
     if (!cp_is_dm($c, $sub)) return [403, ['error' => 'Only the DM can do that.']];
     $now = (int)round(microtime(true) * 1000);
-    $save = function ($new, $before) use ($dir, $id, $view, $live) {
-        return ho_write($dir, $id, $new) ? [200, ['handout' => $view($new)], $live($before, $new)] : [500, ['error' => "Couldn't save the handout."]];
+    $save = function ($new, $before) use ($accounts, $c, $dir, $id, $view, $live, $tv) {
+        if (!ho_write($dir, $id, $new)) return [500, ['error' => "Couldn't save the handout."]];
+        // no longer for everyone (or archived): off the TV for good, so sending it again doesn't put it back
+        if ($tv === $id && !ho_tv_ok($new)) ho_tv_set($accounts, $c['id'], null);
+        return [200, ['handout' => $view($new)], $live($before, $new)];
     };
 
-    // {handout: {id, title, text, table, updated}}: a new draft, or a change to one (kept unless the stored copy is newer)
+    // {handout: {id, title, text, updated}}: a new draft, or a change to one (kept unless the stored copy is newer). The old
+    // "table" switch it may carry is ignored: a stored one stays as it was (the TV button replaced it, ROADMAP 1.7)
     if ($act === 'save') {
         $in = $body['handout'] ?? null;
         if (!is_array($in) || !ho_ok_id($id) || !is_numeric($in['updated'] ?? null)) return [400, ['error' => "That isn't a handout."]];
         if ($h && $h['updated'] > $in['updated']) return [409, ['handout' => $view($h)]];
         $new = ($h ?: ['id' => $id, 'title' => '', 'text' => '', 'images' => [], 'to' => null, 'table' => false, 'archived' => 0, 'created' => $now, 'sent' => 0, 'edited' => 0]);
-        $new = array_merge($new, ['title' => ho_clean_title($in['title'] ?? ''), 'text' => str_replace("\r\n", "\n", (string)($in['text'] ?? '')), 'table' => !empty($in['table']), 'updated' => +$in['updated']]);
-        if ($h && [$h['title'], $h['text'], $h['table']] === [$new['title'], $new['text'], $new['table']]) return [200, ['handout' => $view($h)], []];
+        $new = array_merge($new, ['title' => ho_clean_title($in['title'] ?? ''), 'text' => str_replace("\r\n", "\n", (string)($in['text'] ?? '')), 'updated' => +$in['updated']]);
+        if ($h && [$h['title'], $h['text']] === [$new['title'], $new['text']]) return [200, ['handout' => $view($h)], []];
         if ($h && $h['to'] !== null && [$h['title'], $h['text']] !== [$new['title'], $new['text']]) $new['edited'] = $now;
         return $save($new, $h);
     }
@@ -240,6 +271,15 @@ function ho_act($accounts, $c, $sub, $body)
         $to = ho_clean_to($c, $body['to'] ?? null);
         if ($to === null) return [400, ['error' => 'Pick who gets the handout.']];
         return $save(array_merge($h, ['to' => $to, 'sent' => $h['to'] === null ? $now : $h['sent'], 'updated' => max($now, $h['updated'] + 1)]), $h);
+    }
+    // {on: bool}: "Show on TV now" puts it on the Table view in place of any other (only one sent to everyone); "Take off TV"
+    if ($act === 'tv') {
+        $on = !empty($body['on']);
+        if ($on && !ho_tv_ok($h)) return [400, ['error' => 'Send it to everyone first. Only handouts everyone has go on the TV.']];
+        if (!$on && $tv !== $h['id']) return [200, ['handout' => $view($h)], []];
+        if (!ho_tv_set($accounts, $c['id'], $on ? $h['id'] : null)) return [500, ['error' => "Couldn't change the TV."]];
+        $was = $tv !== null && $tv !== $h['id'] ? [['type' => 'handout', 'id' => $tv], 'dm'] : null; // the one it replaced
+        return [200, ['handout' => $view($h)], array_values(array_filter([[$msg('handout'), 'dm'], $was, [['type' => 'tv'], [cp_table_key($c['id'])]]]))];
     }
     // back to a draft: it goes from the players' pages
     if ($act === 'unshare') return $save(array_merge($h, ['to' => null, 'updated' => max($now, $h['updated'] + 1)]), $h);

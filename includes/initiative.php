@@ -79,6 +79,23 @@ function fi_hp($hp, $op)
     return $hp;
 }
 
+// what everyone may see of a party character's health (ROADMAP 1.7): {"down": at 0 HP or less, "saves": {"ok", "bad"} death
+// saves while down, "conds": its conditions}, from the character's save with the DM's edits still on their way (dm_char).
+// Never its HP numbers. null when the character is gone.
+function fi_pc($accounts, $char)
+{
+    $ch = dm_char($accounts, $char);
+    if (!$ch) return null;
+    $down = is_numeric($ch->hp->cur ?? null) && $ch->hp->cur <= 0;
+    $saves = null;
+    if ($down) foreach (is_array($ch->panels ?? null) ? $ch->panels : [] as $p) if (is_object($p) && ($p->type ?? '') === 'combat') {
+        $saves = ['ok' => max(0, min(3, (int)fi_num($p->ok ?? 0))), 'bad' => max(0, min(3, (int)fi_num($p->bad ?? 0)))];
+        break;
+    }
+    $conds = array_values(array_slice(array_map(fn($x) => mb_substr(trim($x), 0, 40), array_filter(is_array($ch->conditions ?? null) ? $ch->conditions : [], fn($x) => is_string($x) && trim($x) !== '')), 0, 20));
+    return ['down' => $down, 'saves' => $down ? ($saves ?? ['ok' => 0, 'bad' => 0]) : null, 'conds' => $conds];
+}
+
 // a monster at 0 HP or less has no turn
 function fi_down($accounts, $c, $e)
 {
@@ -286,8 +303,10 @@ function fi_roll($accounts, $c, $user, $roll)
     return fi_write($accounts, $c['id'], $f);
 }
 
-// what $sub may see of the fight, or null when none runs. Players get no numbers, no hidden entries and monster HP
-// only as healthy / bloodied / down; the DM gets everything, with player HP to read.
+// what $sub may see of the fight, or null when none runs. Players (and the Table view, CP_TABLE: ROADMAP 1.7) get no numbers,
+// no hidden entries (while a hidden monster has its turn, a "DM's turn" card stands in its place: id "dm-turn", kind "dm") and
+// monster HP only as healthy / bloodied / down; party characters as down, death saves and conditions (fi_pc), never HP.
+// The DM gets everything, with player HP to read. "waiting": while rolling in, the party characters that haven't rolled yet.
 function fi_view($accounts, $c, $sub, $f = null)
 {
     $f ??= fi_read($accounts, $c['id']);
@@ -296,7 +315,11 @@ function fi_view($accounts, $c, $sub, $f = null)
     $party = fi_party($c);
     $vis = [];
     foreach ($f['entries'] as $e) {
-        if ($e['hidden'] && !$dm) continue;
+        if ($e['hidden'] && !$dm) {
+            // nothing about it but that the DM is acting now: no name, no picture, no id
+            if ($f['phase'] === 'running' && $f['turn'] === $e['id']) $vis[] = ['id' => 'dm-turn', 'kind' => 'dm', 'name' => "DM's turn", 'art' => ''];
+            continue;
+        }
         $o = ['id' => $e['id'], 'kind' => $e['kind']];
         if ($e['kind'] === 'pc') {
             $card = cp_card($accounts, $e['char']);
@@ -305,6 +328,7 @@ function fi_view($accounts, $c, $sub, $f = null)
             $o += ['name' => $card['name'] ?? 'Gone character', 'art' => fi_art($card['art'] ?? ''), 'mine' => ($party[$e['char']] ?? null) === $sub];
             if ($o['mine'] || $dm) $o['char'] = $e['char'];
             if ($dm && $ch) $o['hp'] = ['cur' => fi_num($ch->hp->cur ?? 0), 'temp' => fi_num($ch->hp->temp ?? 0), 'max' => fi_num($ch->calc->hpMax ?? 0) ?: null];
+            $o += fi_pc($accounts, $e['char']) ?? [];
         } elseif ($e['kind'] === 'monster') {
             $m = fi_monster($accounts, $c, $e['mon'], $e['by'] ?? null);
             $o += ['name' => trim((string)($m['name'] ?? '')) !== '' ? mb_substr($m['name'], 0, 80) : ($e['name'] ?: 'Monster'),
@@ -321,11 +345,14 @@ function fi_view($accounts, $c, $sub, $f = null)
     $shown = fn($id) => $id !== null && in_array($id, array_column($vis, 'id'), true) ? $id : null;
     $i = fi_index($f, (string)$f['turn']);
     $next = $f['phase'] === 'running' && $i >= 0 ? fi_after($accounts, $c, $f, $i) : null;
+    $turn = $shown($f['turn']) ?? ($i >= 0 && $f['phase'] === 'running' ? $shown('dm-turn') : null);
     $out = ['n' => $f['n'], 'v' => $f['v'], 'phase' => $f['phase'], 'round' => $f['round'], 'startedAt' => $f['startedAt'],
-        'now' => (int)round(microtime(true) * 1000), 'turn' => $shown($f['turn']), 'next' => $next ? $shown($f['entries'][$next[0]]['id']) : null, 'entries' => $vis];
+        'now' => (int)round(microtime(true) * 1000), 'turn' => $turn, 'next' => $next ? $shown($f['entries'][$next[0]]['id']) : null, 'entries' => $vis];
     // characters of this player that may still roll in (taken out by the DM: no)
     $in = array_column(array_filter($f['entries'], fn($e) => $e['kind'] === 'pc' && $e['init'] !== null), 'char');
     $out['canRoll'] = array_values(array_filter(array_keys($party, $sub, true), fn($id) => !in_array($id, $f['out'], true) && !in_array($id, $in, true)));
+    $out['waiting'] = [];
+    if ($f['phase'] === 'rolling') foreach ($party as $id => $owner) if (!in_array($id, $f['out'], true) && !in_array($id, $in, true) && ($card = cp_card($accounts, $id))) $out['waiting'][] = $card['name'];
     if ($dm) {
         $here = array_column(array_filter($f['entries'], fn($e) => $e['kind'] === 'pc'), 'char');
         $out['party'] = [];

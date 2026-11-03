@@ -4,6 +4,9 @@
 //                                           the DM and co-DMs also get "players" [{sub, name}] to send to
 //   GET ?c=<id>&h=<handout>&img=<image>  -> one of its pictures, if you may see the handout
 //   GET ?c=<id>&notes=1                  -> {"notes": [...]}: DM and co-DMs only
+//   GET ?c=<id>&as=table                 -> {"tv": handout | null}: the Table view (1.7) gets only the one on the TV, as players
+//                                           do (its pictures with &as=table)
+//   POST {"c", "act": "tv", "id", "on"}  -> "Show on TV now" / "Take off TV" (ho_act)
 //   POST {"c", "act": "note", "note"}    -> {"note"}; 409 {"note"} when the stored copy is newer
 //   POST {"c", "act": "save" | "send" | "unshare" | "archive" | "restore" | "image" | "unimage" | "open", ...}  (ho_act)
 //   POST ?c=<id>&up=<upload id>&at=<bytes so far> with a piece of a picture (application/octet-stream, up to 4 MB)
@@ -38,9 +41,11 @@ if ($method === 'POST' && stripos($type, 'application/json') === 0) {
     $cid = (string)($body['c'] ?? '');
 }
 $c = cp_get($accounts, $cid);
-if (!$c || cp_member($c, $sub) < 0) ho_out(404, ['error' => 'No such campaign.']);
+$sub = cp_viewer($c, $user); // ?as=table: the Table view (ROADMAP 1.7), which sees only the handout on the TV
+if ($sub === null) ho_out(404, ['error' => 'No such campaign.']);
 $dm = cp_is_dm($c, $sub);
 
+if ($method === 'GET' && $sub === CP_TABLE && !isset($_GET['img'])) ho_out(200, ['tv' => ($h = ho_tv($accounts, $c)) ? ho_view($c, CP_TABLE, $h, []) : null]);
 if ($method === 'GET') {
     if (isset($_GET['img'])) {
         $f = ho_image($accounts, $c, $sub, (string)($_GET['h'] ?? ''), (string)$_GET['img']);

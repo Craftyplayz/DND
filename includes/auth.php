@@ -3,6 +3,20 @@
 // auth_user() reads it, auth_require() limits a page to the ADMIN_EMAILS in config.php.
 // Without includes/config.php sign-in is off: no button, nobody signed in, /private/ closed.
 
+// The Table view (ROADMAP 1.7, campaigns/table.php) only reads: a change sent from its tab (?as=table, or a page whose address
+// is /campaigns/<id>/table) is refused here, before any endpoint looks at it, even though the DM's own cookie comes with it.
+function auth_table_tab()
+{
+    $from = (string)parse_url((string)($_SERVER['HTTP_REFERER'] ?? ''), PHP_URL_PATH);
+    return ($_GET['as'] ?? '') === 'table' || preg_match('#^/campaigns/[A-Za-z0-9_-]+/table/?$#', $from);
+}
+if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true) && auth_table_tab()) {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    exit('{"error":"The Table view can\'t change anything."}');
+}
+
 if (is_file(__DIR__ . '/config.php')) require_once __DIR__ . '/config.php';
 const AUTH_COOKIE = 'dndsid';
 const AUTH_DAYS = 30;

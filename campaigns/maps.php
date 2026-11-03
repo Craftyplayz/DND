@@ -1,6 +1,7 @@
 <?php
 // Battle maps (ROADMAP 1.6) for campaign members; includes/maps.php does the work and mp_view() decides what each one gets.
 //   GET ?c=<campaign>[&m=<map>]              -> {"role", "active", "map", "maps" (DM)}: the map on the table (a DM: any map)
+//   GET ...&as=table                         -> any of the GETs as the Table view (ROADMAP 1.7, the DM and co-DMs): role "table"
 //   GET ?c=&m=&img=public&n=<n>              -> the players' copy of the n-th sent fog (players: the map on the table, its last send)
 //   GET ?c=&m=&img=work | original | thumb   -> the DM and co-DMs only
 //   GET ?c=&mons                             -> the DM's own monsters, to add to the fight or drop on the map
@@ -26,8 +27,9 @@ $post = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST';
 $type = $_SERVER['CONTENT_TYPE'] ?? '';
 $body = $post && stripos($type, 'application/json') === 0 ? json_decode((string)file_get_contents('php://input', false, null, 0, 1024 * 1024), true) : null;
 $c = $user ? cp_get($accounts, (string)($_GET['c'] ?? $body['c'] ?? '')) : null;
-if (!$c || cp_member($c, $user['sub']) < 0) mp_out($user ? 403 : 401, ['error' => $user ? "You're not in this campaign." : 'Sign in to see the map.']);
-$sub = $user['sub'];
+// ?as=table: the Table view (ROADMAP 1.7) reads as CP_TABLE, so it gets exactly what players get (it can't post: auth.php)
+$sub = cp_viewer($c, $user);
+if ($sub === null) mp_out($user ? 403 : 401, ['error' => $user ? "You're not in this campaign." : 'Sign in to see the map.']);
 $dm = cp_is_dm($c, $sub);
 
 if (!$post && isset($_GET['img'])) {

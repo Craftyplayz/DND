@@ -49,10 +49,12 @@ server.on('upgrade', async (req, sock, head) => {
     let origin = '';
     try { origin = new URL(req.headers.origin || '').host; } catch (e) { }
     if (!origin || (origin !== req.headers.host && req.headers.origin !== ORIGIN)) return deny();
-    let c = new URL(req.url, 'http://relay').searchParams.get('c') || '';
+    const q = new URL(req.url, 'http://relay').searchParams;
+    let c = q.get('c') || '';
     let who = null;
     try {
-        const r = await fetch(AUTH + '?c=' + encodeURIComponent(c), { headers: { cookie: req.headers.cookie || '' }, signal: AbortSignal.timeout(5000) });
+        // as=table: the DM's Table view tab (ROADMAP 1.7) joins as role "table" with the table's own key, never getting "dm" messages
+        const r = await fetch(AUTH + '?c=' + encodeURIComponent(c) + (q.get('as') === 'table' ? '&as=table' : ''), { headers: { cookie: req.headers.cookie || '' }, signal: AbortSignal.timeout(5000) });
         if (r.ok) who = await r.json();
     } catch (e) { }
     if (!who || !who.key) return deny();

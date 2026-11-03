@@ -199,7 +199,7 @@ function mp_tokens($accounts, $c, $m, $f)
             'fight' => $e ? $e['id'] : null, 'turn' => $e && $f['phase'] === 'running' && $f['turn'] === $e['id']];
         if ($t['kind'] === 'pc') {
             $card = cp_card($accounts, $t['char']);
-            $o += ['name' => $card['name'] ?? 'Gone character', 'art' => fi_art($card['art'] ?? ''), 'owner' => $party[$t['char']], 'hidden' => false];
+            $o += ['name' => $card['name'] ?? 'Gone character', 'art' => fi_art($card['art'] ?? ''), 'owner' => $party[$t['char']], 'hidden' => false, 'pc' => fi_pc($accounts, $t['char'])];
         } elseif ($t['kind'] === 'monster') {
             $mon = fi_monster($accounts, $c, $t['mon'], $t['by']);
             $o += ['name' => trim((string)($mon['name'] ?? '')) !== '' ? mb_substr($mon['name'], 0, 80) : ($t['name'] ?? 'Monster'), 'art' => fi_art((string)($mon['art'] ?? '')),
@@ -232,28 +232,31 @@ function mp_player_sees($m, $t)
     return $t['kind'] === 'pc' || (!$t['hidden'] && mp_in_sight($m, $t));
 }
 
-// what one viewer gets of a token: players never get owners, fight ids or hidden marks
+// what one viewer gets of a token: players never get owners, fight ids or hidden marks. A party character's token carries
+// down, death saves and conditions for everyone (fi_pc, ROADMAP 1.7), never HP.
 function mp_tok_out($t, $sub, $dm)
 {
     $mine = $t['kind'] === 'pc' && $t['owner'] === $sub;
     $o = ['k' => $t['k'], 'kind' => $t['kind'], 'name' => $t['name'], 'art' => $t['art'], 'size' => $t['size'], 'x' => $t['x'], 'y' => $t['y'],
         'placed' => $t['placed'], 'turn' => $t['turn'], 'mine' => $mine, 'status' => $t['status'] ?? null];
+    if ($t['kind'] === 'pc' && $t['pc']) $o += $t['pc'];
     if ($dm) $o += ['hidden' => $t['hidden'], 'fight' => $t['fight']];
     return $o;
 }
 
 // ---- what each person sees ----
 
-// $role: "dm" (the DM or a co-DM: everything, any map, the draft fog and the unmasked picture) or "player" (the map on the
-// table only, with the sent fog, its masked picture and the tokens mp_player_sees() lets through). The Table view (1.7)
-// adds a role here. $mid: the map a DM opens (default: the one on the table).
+// $role: "dm" (the DM or a co-DM: everything, any map, the draft fog and the unmasked picture), "player" (the map on the
+// table only, with the sent fog, its masked picture and the tokens mp_player_sees() lets through) or "table" (the Table view,
+// ROADMAP 1.7, $sub CP_TABLE: what a player gets, with no token of its own; its picture addresses say as=table).
+// $mid: the map a DM opens (default: the one on the table).
 function mp_view($accounts, $c, $sub, $mid = null, $role = null)
 {
-    $role ??= cp_is_dm($c, $sub) ? 'dm' : 'player';
+    $role ??= $sub === CP_TABLE ? 'table' : (cp_is_dm($c, $sub) ? 'dm' : 'player');
     $dm = $role === 'dm';
     $active = mp_active($accounts, $c['id']);
     $m = $dm && $mid ? mp_read($accounts, $c['id'], $mid) : $active;
-    $base = '/campaigns/maps.php?c=' . rawurlencode($c['id']);
+    $base = '/campaigns/maps.php?c=' . rawurlencode($c['id']) . ($role === 'table' ? '&as=table' : '');
     $out = ['role' => $role, 'active' => $active['id'] ?? null, 'map' => null];
     if ($dm) $out['maps'] = array_map(fn($x) => ['id' => $x['id'], 'name' => $x['name'], 'archived' => $x['archived'], 'sent' => (bool)$x['sent'],
         'thumb' => "$base&m={$x['id']}&img=thumb"], mp_list($accounts, $c['id']));
@@ -308,10 +311,10 @@ function mp_fight_sync($accounts, $c, $before, $after)
 
 // ---- changes ----
 
-// the live keys of the players (not the DM or co-DMs) in a campaign
+// the live keys of the players (not the DM or co-DMs) in a campaign, and the Table view's (1.7), which sees what they see
 function mp_players($c)
 {
-    return array_values(array_map(fn($m) => live_key($c['id'], $m['sub']), array_filter($c['members'], fn($m) => !cp_is_dm($c, $m['sub']))));
+    return [...array_values(array_map(fn($m) => live_key($c['id'], $m['sub']), array_filter($c['members'], fn($m) => !cp_is_dm($c, $m['sub'])))), cp_table_key($c['id'])];
 }
 
 // One change: [http code, response, live messages [[msg, to], ...]] (to: null everyone, "dm", or a list of keys).

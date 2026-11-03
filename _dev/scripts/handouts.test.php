@@ -42,10 +42,14 @@ $is('another player cannot open it', $act('333', ['act' => 'open', 'id' => 'hand
 $is('Pat opens it', $act('222', ['act' => 'open', 'id' => 'hand0001'])[0], 200);
 $is('opened: not new (kept on the server, so on every device)', [ho_list($A, $c, '222')[0]['new'], ho_list($A, $c, '222')[0]['updated']], [false, false]);
 
-// the Table flag never shows a handout sent to some players
-$act('111', ['act' => 'save', 'handout' => ['id' => 'hand0001', 'title' => 'The map', 'text' => "Line 1\nLine 2", 'table' => true, 'updated' => 2e12]]); // sending stamps the time now, so later edits come from the clock too
-$is('table switch stored', ho_get($A, $CID, 'hand0001')['table'], true);
-$is('a one-player handout never reaches the Table view', ho_table($A, $c), []);
+// the old "Show on the Table view" switch (3.4) stays in the file as it was, no longer changed (1.7's TV button replaced it)
+file_put_contents("$A/campaigns/$CID/handouts/hand0001.json", json_encode(['table' => true] + ho_get($A, $CID, 'hand0001')));
+$act('111', ['act' => 'save', 'handout' => ['id' => 'hand0001', 'title' => 'The map', 'text' => "Line 1\nLine 2!", 'table' => false, 'updated' => 2e12]]); // sending stamps the time now, so later edits come from the clock too
+$is('the old switch kept as stored, unused', ho_get($A, $CID, 'hand0001')['table'], true);
+// the TV never shows a handout sent to some players
+$is('a one-player handout cannot go on the TV', $act('111', ['act' => 'tv', 'id' => 'hand0001', 'on' => true])[0], 400);
+$is('a one-player handout never reaches the Table view', [ho_tv($A, $c), ho_image($A, $c, CP_TABLE, 'hand0001', 'x')], [null, null]);
+$is('players cannot use the TV button', $act('222', ['act' => 'tv', 'id' => 'hand0001', 'on' => true])[0], 403);
 
 // editing a sent handout: Updated mark, history, live to its recipients
 $before = $hist('hand0001');
@@ -65,7 +69,19 @@ $is('333 has it as new', ho_list($A, $c, '333')[0]['new'], true);
 // everyone, and a player who joins later
 $act('111', ['act' => 'send', 'id' => 'hand0001', 'to' => 'everyone']);
 $is('everyone: both players', [$ids('222'), $ids('333')], [['hand0001'], ['hand0001']]);
-$is('the Table view gets an everyone handout with the switch on', array_column(ho_table($A, $c), 'id'), ['hand0001']);
+[$code, $out, $live] = $act('444', ['act' => 'tv', 'id' => 'hand0001', 'on' => true]);
+$is('Show on TV now (a co-DM): the DM pages and the Table view told', [$code, $out['handout']['tv'], ho_tv($A, $c)['id'], $live],
+    [200, true, 'hand0001', [[['type' => 'handout', 'id' => 'hand0001'], 'dm'], [['type' => 'tv'], [cp_table_key($CID)]]]]);
+$tvv = ho_view($c, CP_TABLE, ho_tv($A, $c), []);
+$is('the Table view gets it as a player does', array_keys($tvv), ['id', 'title', 'text', 'images', 'sent', 'edited', 'new', 'updated']);
+$is('an edit to the one on the TV tells the Table view', ($l = $act('111', ['act' => 'save', 'handout' => ['id' => 'hand0001', 'title' => 'The map', 'text' => 'Line 1 on TV', 'updated' => 3.2e12]])[2])[count($l) - 1], [['type' => 'tv'], [cp_table_key($CID)]]);
+$act('111', ['act' => 'save', 'handout' => ['id' => 'hand0002', 'title' => 'Second', 'updated' => 3.3e12]]);
+$act('111', ['act' => 'send', 'id' => 'hand0002', 'to' => 'everyone']);
+[, , $live] = $act('111', ['act' => 'tv', 'id' => 'hand0002', 'on' => true]);
+$is('one on the TV at a time: the new one replaces it', [ho_tv($A, $c)['id'], $live[1]], ['hand0002', [['type' => 'handout', 'id' => 'hand0001'], 'dm']]);
+$is('Take off TV', [$act('111', ['act' => 'tv', 'id' => 'hand0002', 'on' => false])[0], ho_tv($A, $c)], [200, null]);
+$act('111', ['act' => 'archive', 'id' => 'hand0002']);
+$act('111', ['act' => 'tv', 'id' => 'hand0001', 'on' => true]);
 $c = $camp(['111', '222', '333', '444', '555'], ['444']);
 $is('a later joiner sees an everyone handout', $ids('555'), ['hand0001']);
 // a player who leaves loses every handout, even "everyone" ones
@@ -93,7 +109,9 @@ foreach (['jpg' => "\xFF\xD8\xFF\xE0xx", 'gif' => 'GIF89axx', 'webp' => 'RIFF123
 }
 $is('recipient gets the picture', ho_image($A, $c, '333', 'hand0001', $img) !== null, true);
 $is('DM gets the picture', ho_image($A, $c, '111', 'hand0001', $img) !== null, true);
+$is('the Table view gets the picture of the one on the TV, as=table in its address', [ho_image($A, $c, CP_TABLE, 'hand0001', $img) !== null, str_contains(ho_view($c, CP_TABLE, ho_tv($A, $c), [])['images'][0]['url'], '&as=table&')], [true, true]);
 $act('111', ['act' => 'send', 'id' => 'hand0001', 'to' => ['555']]);
+$is('sent to fewer than everyone: off the TV for good', [ho_tv_id($A, $CID), ho_image($A, $c, CP_TABLE, 'hand0001', $img)], [null, null]);
 $is('a non-recipient cannot get the picture', ho_image($A, $c, '333', 'hand0001', $img), null);
 $is('a stranger cannot get the picture', ho_image($A, $c, '999', 'hand0001', $img), null);
 $is('a made-up picture id', ho_image($A, $c, '111', 'hand0001', '../hand0001'), null);
@@ -108,7 +126,7 @@ $act('111', ['act' => 'send', 'id' => 'hand0001', 'to' => 'everyone']);
 [$code, , $live] = $act('444', ['act' => 'archive', 'id' => 'hand0001']);
 $is('co-DM archives; everyone loses it live', [$code, end($live)[0]['type']], [200, 'handout-gone']);
 $is('archived is never deleted', is_file("$A/campaigns/$CID/handouts/hand0001.json"), true);
-$is('archived: players see nothing, DM still does', [$ids('333'), $ids('111')], [[], ['hand0001']]);
+$is('archived: players see nothing, DM still does', [$ids('333'), in_array('hand0001', $ids('111'), true)], [[], true]);
 $is('an archived one cannot be sent', $act('111', ['act' => 'send', 'id' => 'hand0001', 'to' => 'everyone'])[0], 400);
 $act('111', ['act' => 'restore', 'id' => 'hand0001']);
 $is('restored as a draft', [ho_get($A, $CID, 'hand0001')['archived'], ho_get($A, $CID, 'hand0001')['to'], $ids('333')], [0, null, []]);
@@ -122,7 +140,7 @@ $is('an older copy gets the stored one back', no_save($A, $c, '111', ['body' => 
 $is('every save in history', count(glob("$A/campaigns/$CID/notes/history/note0001/*.json")), 2);
 no_save($A, $c, '111', ['archived' => 30, 'updated' => 30] + $note);
 $is('an archived note stays', no_all($A, $CID)[0]['archived'], 30);
-$is('notes never in the Table view', json_encode(ho_table($A, $c)), '[]');
+$is('notes never in the Table view', json_encode(ho_tv($A, $c)), 'null');
 
 // deleting the campaign takes notes and handouts with it into campaigns/.deleted/
 cp_act($A, ['sub' => '111', 'name' => 'Dee'], ['act' => 'delete', 'id' => $CID]);

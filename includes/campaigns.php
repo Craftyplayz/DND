@@ -8,6 +8,7 @@
 // Used by campaigns/api.php (changes), campaigns/index.php and campaigns/join/ (pages), characters/index.php (DM access).
 // Every function takes the accounts folder, so _dev/scripts/campaigns.test.php gets its own.
 require_once __DIR__ . '/characters.php';
+require_once __DIR__ . '/live.php';
 
 const CP_NAME = 80; // characters in a campaign name
 
@@ -69,6 +70,25 @@ function cp_is_owner($c, $sub)
 function cp_is_dm($c, $sub)
 {
     return cp_is_owner($c, $sub) || (cp_member($c, $sub) >= 0 && in_array($sub, (array)($c['codms'] ?? []), true));
+}
+
+// The Table view (ROADMAP 1.7): the DM's own signed-in tab, but every filter treats it as this stand-in "sub", which is never
+// a member, a DM or anyone's owner, so it gets what a player with no characters gets and nothing "mine". The filters that
+// show the table something extra (a hidden monster's turn as "DM's turn", the handout on the TV) check for it by name.
+const CP_TABLE = 'table';
+
+// who a request reads as: the signed-in player, or CP_TABLE for ?as=table from the DM or a co-DM; null: not allowed
+function cp_viewer($c, $user)
+{
+    if (!$c || !$user || cp_member($c, $user['sub']) < 0) return null;
+    if (($_GET['as'] ?? '') !== 'table') return $user['sub'];
+    return cp_is_dm($c, $user['sub']) ? CP_TABLE : null;
+}
+
+// the Table view's key in the campaign's live room (every DM's table tab shares it)
+function cp_table_key($cid)
+{
+    return live_key($cid, CP_TABLE);
 }
 
 // ['dm' => [...], 'player' => [...]] campaigns of this player, newest first; 'dm' includes the ones they co-DM

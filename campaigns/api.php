@@ -63,11 +63,16 @@ if ($act === 'roll' || $act === 'session' || $act === 'fight') {
         $players = array_map(fn($m) => live_key($c['id'], $m['sub']), array_filter($c['members'], fn($m) => !cp_is_dm($c, $m['sub'])));
         // "mine" is left off: each page knows its own rolls by the ids it sent
         $full = ['type' => 'roll', 'entry' => ['mine' => false] + tl_view($c, $c['dm'], $e)];
-        if ($e['vis'] === 'public') live_publish($c['id'], $full);
+        // a public roll with its dice says which set to throw them with on the Table view (1.7): the roller's own
+        if ($e['vis'] === 'public') live_publish($c['id'], isset($e['dice']) ? $full + ['set' => tl_dice_set($accounts, $e['sub'], $e['char'])] : $full);
         else {
             live_publish($c['id'], $full, null, 'dm');
             if ($e['vis'] === 'dm') live_publish($c['id'], $full, null, [live_key($c['id'], $e['sub'])]);
-            else live_publish($c['id'], ['type' => 'roll', 'entry' => tl_view($c, '', $e)], null, array_values($players));
+            // a whisper ("dm") never reaches the Table view; a hidden DM roll reaches it, and players, as "DM rolled" only
+            else {
+                live_publish($c['id'], ['type' => 'roll', 'entry' => tl_view($c, '', $e)], null, array_values($players));
+                live_publish($c['id'], ['type' => 'roll', 'entry' => tl_view($c, CP_TABLE, $e)], null, [cp_table_key($c['id'])]);
+            }
         }
     }
     cp_out($code, $out);
@@ -76,10 +81,11 @@ if ($act === 'roll' || $act === 'session' || $act === 'fight') {
 flock($lock, LOCK_UN);
 $id = $out['id'] ?? $body['id'] ?? null;
 if ($code === 200 && cp_ok_id($id)) {
-    $c = cp_get($accounts, $id); // null once deleted: everyone is dropped
-    live_publish($id, ['type' => 'campaign'], array_map(fn($m) => live_key($id, $m['sub']), $c['members'] ?? []));
-    // a new role: their open pages reconnect, so the relay hears it (a demoted co-DM stops getting the DM's messages)
-    if ($act === 'codm') live_publish($id, null, null, null, [live_key($id, (string)$body['member'])]);
+    $c = cp_get($accounts, $id); // null once deleted: everyone is dropped (the Table view too, ROADMAP 1.7)
+    live_publish($id, ['type' => 'campaign'], $c ? [...array_map(fn($m) => live_key($id, $m['sub']), $c['members']), cp_table_key($id)] : []);
+    // a new role: their open pages reconnect, so the relay hears it (a demoted co-DM stops getting the DM's messages, and the
+    // Table view tabs ask again, so a demoted co-DM's one is turned away)
+    if ($act === 'codm') live_publish($id, null, null, null, [live_key($id, (string)$body['member']), cp_table_key($id)]);
 }
 foreach ($out['changed'] ?? [] as $o) live_publish($o, ['type' => 'campaign']);
 cp_out($code, $out);

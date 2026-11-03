@@ -15,7 +15,7 @@
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
 require __DIR__ . '/../../includes/auth.php';
 require __DIR__ . '/../../includes/characters.php';
-require __DIR__ . '/../../includes/dmedits.php';
+require __DIR__ . '/../../includes/initiative.php';
 require_once __DIR__ . '/../../includes/live.php';
 // DND_ACCOUNTS: a stand-in folder for the local checks in _dev/scripts/, so they never touch real accounts
 if (!defined('CL_ACCOUNTS')) define('CL_ACCOUNTS', getenv('DND_ACCOUNTS') ?: __DIR__ . '/../../private/dnd/accounts');
@@ -72,6 +72,7 @@ if (isset($_GET['restore'])) cl_done(ch_restore(CL_ACCOUNTS, $sub, $id, $_GET['r
 // lists them for the sheet. A version that brings in DM edits is marked in history/dm.json.
 $id = (string)((json_decode($body, true) ?: [])['id'] ?? '');
 $had = ch_ok_id($id) ? (array)(ch_json(CL_ACCOUNTS . "/characters/$id/character.json")['dmApplied'] ?? []) : [];
+$health = ch_ok_id($id) ? fi_pc(CL_ACCOUNTS, $id) : null; // down, death saves and conditions, which everyone sees (ROADMAP 1.7)
 $cpl = cp_lock(CL_ACCOUNTS);
 if (!$cpl) cl_out(500, ['error' => "Couldn't lock the campaigns folder."]);
 [$save, $in, $notes, $applied] = dm_merge(CL_ACCOUNTS, $body, cp_who($user));
@@ -85,6 +86,13 @@ if ($r[0] === 200) {
     if ($applied) $r[1]['dm'] = $applied;
 }
 flock($cpl, LOCK_UN);
-// the DMs' open copies of this sheet load it again
-if ($r[0] === 200) foreach (cp_char_in(CL_ACCOUNTS, $id) as $c) live_publish($c['id'], ['type' => 'char', 'char' => $id], null, 'dm');
+// the DMs' open copies of this sheet load it again; when it went down, got up, or its death saves or conditions changed,
+// everyone's fight and map load again ("status" says nothing more: each page gets what it may see)
+if ($r[0] === 200) {
+    $changed = fi_pc(CL_ACCOUNTS, $id) !== $health;
+    foreach (cp_char_in(CL_ACCOUNTS, $id) as $c) {
+        live_publish($c['id'], ['type' => 'char', 'char' => $id], null, 'dm');
+        if ($changed) live_publish($c['id'], ['type' => 'status']);
+    }
+}
 cl_done($r, $id);

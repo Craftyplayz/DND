@@ -9,7 +9,7 @@
 // The live relay tells the player's open sheets about new edits ("dmedit", to that player only) and the DMs' open copies about
 // changes ("char", "dmnote"). The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here.
 require __DIR__ . '/../../includes/auth.php';
-require __DIR__ . '/../../includes/dmedits.php';
+require __DIR__ . '/../../includes/initiative.php';
 require_once __DIR__ . '/../../includes/live.php';
 // DND_ACCOUNTS: a stand-in folder for the local checks in _dev/scripts/, so they never touch real accounts
 $accounts = getenv('DND_ACCOUNTS') ?: __DIR__ . '/../../private/dnd/accounts';
@@ -58,12 +58,15 @@ if (!$cpl) dm_out(500, ['error' => "Couldn't lock the characters folder."]);
 
 if ($act === 'send') {
     $c = cp_get($accounts, (string)($b->c ?? ''));
+    $health = ch_ok_id($char) ? fi_pc($accounts, $char) : null; // what everyone sees of it (ROADMAP 1.7)
     [$code, $out, $queued] = dm_send($accounts, $user, $c, $char, $b->edits ?? null);
     flock($cpl, LOCK_UN);
     flock($chl, LOCK_UN);
     if ($queued) {
         $owner = ch_meta($accounts, $char)['owner'] ?? '';
         live_publish($c['id'], ['type' => 'dmedit', 'char' => $char, 'edits' => $queued], null, [live_key($c['id'], $owner)]);
+        // down, death saves or conditions changed: everyone's fight and map load again
+        if (fi_pc($accounts, $char) !== $health) live_publish($c['id'], ['type' => 'status']);
     }
     if ($queued || ($out['refused'] ?? [])) live_publish($c['id'], ['type' => 'char', 'char' => $char], null, 'dm');
     dm_out($code, $out);

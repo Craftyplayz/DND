@@ -2,9 +2,11 @@
 // A campaign's table log (ROADMAP 1.3): every roll shared from a sheet. While the DM runs session <n> rolls go to
 // <accounts>/campaigns/<id>/sessions/<n>.json, otherwise to sessions/unsorted.json: {"started", "ended", "entries": [...]}.
 // An entry: {"id", "at" (when it was rolled, ms), "sub", "dm" (rolled by the DM), "name", "char", "title", "expr", "shown",
-// "total", "nat" ("20", "1" or ""), "vis", "offline"}. vis: "public", "hidden" (a DM roll players see only as "DM rolled")
-// or "dm" (a player's roll only they and the DM see). tl_view() alone decides what a player gets, for the log page and
-// for what the relay sends, so a hidden result or a whisper never reaches anyone it isn't for.
+// "total", "nat" ("20", "1" or ""), "vis", "offline", "dice" (since 1.7, only on rolls sent with it: [[sides, [values]], ...],
+// what each die showed, so the Table view's 3D dice land on the real numbers; older entries have none)}. vis: "public", "hidden"
+// (a DM roll players see only as "DM rolled") or "dm" (a player's roll only they and the DM see). tl_view() alone decides what a
+// player (or the Table view, CP_TABLE) gets, for the log page and for what the relay sends, so a hidden result or a whisper
+// never reaches anyone it isn't for.
 require_once __DIR__ . '/campaigns.php';
 
 function tl_dir($accounts, $id)
@@ -51,7 +53,8 @@ function tl_view($c, $sub, $e)
     $mine = ($e['sub'] ?? null) === $sub;
     $out = ['mine' => $mine] + array_diff_key($e, ['sub' => 1]);
     if (cp_is_dm($c, $sub) || $mine || ($e['vis'] ?? '') === 'public') return $out;
-    if (($e['vis'] ?? '') === 'hidden') return ['id' => $e['id'], 'at' => $e['at'], 'dm' => true, 'name' => $e['name'], 'vis' => 'hidden', 'mine' => false];
+    // the Table view (1.7) shows a hidden roll only as "DM rolled", without even the name it was rolled as
+    if (($e['vis'] ?? '') === 'hidden') return ['id' => $e['id'], 'at' => $e['at'], 'dm' => true, 'name' => $sub === CP_TABLE ? 'DM' : $e['name'], 'vis' => 'hidden', 'mine' => false];
     return null; // a whisper to the DM
 }
 
@@ -69,6 +72,45 @@ function tl_tail($c, $sub, $log, $n = 200)
 function tl_str($v, $max)
 {
     return mb_substr(trim(is_scalar($v) ? (string)$v : ''), 0, $max);
+}
+
+// what each die of a roll showed, as the sheet sent it ([[sides, [values]], ...]), or null when it isn't that shape:
+// real dice (d4 to d20, d100 as 1-100), whole numbers on their faces, at most 60 dice
+function tl_dice($d)
+{
+    if (!is_array($d) || !$d || !array_is_list($d)) return null;
+    $out = [];
+    $n = 0;
+    foreach ($d as $g) {
+        if (!is_array($g) || count($g) !== 2 || !in_array($g[0] ?? null, [4, 6, 8, 10, 12, 20, 100], true) || !is_array($g[1] ?? null) || !array_is_list($g[1])) return null;
+        foreach ($g[1] as $v) if (!is_int($v) || $v < 1 || $v > $g[0]) return null;
+        if (($n += count($g[1])) > 60) return null;
+        $out[] = [$g[0], $g[1]];
+    }
+    return $out;
+}
+
+// the dice set a roll is thrown with on the Table view (1.7): the character's own dice (view.dice, picked in its
+// Customise), else the roller's dice-choice setting that follows their account (prefs.php), else null (plain dice)
+function tl_dice_set($accounts, $sub, $char)
+{
+    $own = $char !== '' && ch_ok_id($char) ? (ch_json("$accounts/characters/$char/character.json")['view']['dice'] ?? null) : null;
+    if (tl_safe_choice($own)) return $own;
+    $pref = ch_json("$accounts/prefs/" . preg_replace('/\D/', '', (string)$sub) . '.json')['dice-choice']['value'] ?? null;
+    $choice = is_string($pref) ? json_decode($pref, true) : null;
+    return tl_safe_choice($choice) ? $choice : null;
+}
+
+// a dice choice the Table view may load: its pieces are modules the DM's tab imports, so every "url" in it must be one of
+// this site's dice files (./sets/x.js and the like, dice/choice.js), never another site's script; the player wrote it
+function tl_safe_choice($ch)
+{
+    if (!is_array($ch) || !is_array($ch['set'] ?? null)) return false;
+    $ok = true;
+    array_walk_recursive($ch, function ($v, $k) use (&$ok) {
+        if ($k === 'url' && !(is_string($v) && preg_match('#^\./[a-z0-9_-]+(/[a-z0-9_.-]+)*\.js(\?v=\w+)?$#i', $v) && !str_contains($v, '..'))) $ok = false;
+    });
+    return $ok;
 }
 
 // a roll from a sheet: [http code, response]. The caller holds cp_lock() and has checked $user is in $c.
@@ -97,6 +139,7 @@ function tl_add($accounts, $c, $user, $roll)
         'title' => tl_str($roll['title'] ?? '', 200), 'expr' => tl_str($roll['expr'] ?? '', 200), 'shown' => tl_str($roll['shown'] ?? '', 500),
         'total' => tl_str($roll['total'] ?? '', 100), 'nat' => in_array($roll['nat'] ?? '', ['20', '1'], true) ? $roll['nat'] : '',
         'vis' => $vis, 'offline' => !empty($roll['offline'])];
+    if ($dice = tl_dice($roll['dice'] ?? null)) $e['dice'] = $dice;
     $file = tl_name($c);
     $log = tl_read($accounts, $c['id'], $file) ?? ['started' => null, 'ended' => null, 'entries' => []];
     foreach ($log['entries'] as $have) if ($have['id'] === $e['id']) return [200, ['entry' => $have, 'again' => true]]; // a resend

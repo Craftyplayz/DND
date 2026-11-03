@@ -103,7 +103,12 @@ $is("DM: the party character that isn't in yet", array_column($dv['party'], 'cha
 $op(['op' => 'round1']);
 $f = fi_read($A, $c['id']);
 $is('round 1 starts at the top, the timer runs', [$f['round'], $f['turn'] === $f['entries'][0]['id'], is_int($f['startedAt'])], [1, true, true]);
-$is('player sees no turn while the hidden monster acts', fi_view($A, $c, '222')['turn'], null);
+// a hidden monster's turn: players and the Table view (1.7) see a "DM's turn" card in its place, and nothing about the monster
+foreach (['222', CP_TABLE] as $who) {
+    $pv = fi_view($A, $c, $who);
+    $is("$who sees the DM's turn while the hidden monster acts", [$pv['turn'], $pv['entries'][0]], ['dm-turn', ['id' => 'dm-turn', 'kind' => 'dm', 'name' => "DM's turn", 'art' => '']]);
+    $is("$who gets no trace of the hidden monster", [str_contains(json_encode($pv), 'ogre'), str_contains(json_encode($pv), $f['entries'][0]['id']), count(array_filter($pv['entries'], fn($e) => $e['kind'] === 'dm'))], [false, false, 1]);
+}
 $roll($pat, ['char' => 'lock', 'total' => 1, 'expr' => '1d20 + 2']);
 $is('after round 1 a re-roll is ignored', $order()[1], 'lock');
 $mon('gob1', 'Goblin 1', 0, 7);
