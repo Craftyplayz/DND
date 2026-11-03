@@ -97,7 +97,7 @@ newer, and 401 when signed out.
 - **Spells:** slots for levels 1-9, spell points, sorcery points with Flexible Casting and metamagic, and a
   prepared checkbox (the Prepared tab shows for prepared casters or when switched on). Spell DC and attack are
   formulas. The picker has 319 SRD spells (dnd5eapi.co via `spells.php`, cached 30 days) plus 205 non-SRD spells
-  in `extra-spells.json` (stats only, text linked to wikidot).
+  in `extra-spells.json` (stats only; the text is fetched live from wikidot, never stored).
 - **Inventory:** categories, equipped, attunement with a slot cap, quantity, weight (total shown, no
   encumbrance), value, coins cp/sp/ep/gp/pp (typed like `5g5s`), and SRD gear suggestions.
 - **Resources:** counter, boxes, slots by level, sorcery points or ki. The max can be a formula, with a short,
@@ -603,7 +603,7 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 
 **5.1 Compendium**
 - What: `/compendium/`, searchable and filterable: spells (319 SRD + the 205 extra spells, which the owner
-  wants shown everywhere; stats only, text stays a wikidot link, never copied in), monsters (SRD + Open5e, as
+  wants shown everywhere; stats are kept, the text is fetched live from dnd5e.wikidot.com when opened, via `spells.php`, never stored), monsters (SRD + Open5e, as
   the monster sheet uses), items and magic items (SRD), conditions and rules text (`rules.js`). Campaign
   homebrew is mixed in and marked. "Add to sheet" / "Add to encounter" buttons.
 - Touches: reuses `spells.php`, `monsters.php` and `rules.js`, plus a new equipment/magic-item proxy (same
@@ -664,7 +664,7 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 | Dice fairness tallies in the account (0.2) | The owner's choice: `dice-test-counts` stays in the browser only. |
 | Any count or size limits | The owner wants no limits anywhere; only the proxy's request size is handled, by chunking. |
 | Copying official non-SRD classes, subclasses, races, monsters or spell text | Copyright. Only SRD 5.1 / CC content, plus homebrew. |
-| Removing the 205 extra spells | The owner keeps them and wants them shown everywhere. They are stats only, linking to wikidot for text. No more non-SRD content is added. |
+| Removing the 205 extra spells | The owner keeps them and wants them shown everywhere. Their stats are kept; the compendium and sheet show their text fetched live from wikidot, never stored. No non-SRD text is copied into the site's files, and no more is added. |
 | Guests (signed-out) in campaigns | Membership, logs and the DM view hang off the Google account. |
 | Strict rules builder that blocks choices | The owner wants "guided, then free": warnings only. |
 | PHP polling or Server-Sent Events for live play | Chosen: a Node relay. Polling only as the fallback when it's down. |

@@ -229,8 +229,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function spellHtml(e, s) {
         const r = e.raw;
         if (e.extra) {
-            return `${kv([['Level', r.level ? 'Level ' + r.level : 'Cantrip'], ['School', r.school], ['Casting time', r.casting_time], ['Range', r.range], ['Components', (r.components || []).join(', ') + (r.material ? ` (${r.material})` : '')], ['Duration', r.duration], ['Book', r.source]])}
-                <p class="note">Only the numbers are kept here. Read the spell's text on <a href="https://dnd5e.wikidot.com/spell:${esc(r.index)}" target="_blank" rel="noopener">dnd5e.wikidot.com</a>.</p>`;
+            const wd = `<a href="https://dnd5e.wikidot.com/spell:${esc(r.index)}" target="_blank" rel="noopener">dnd5e.wikidot.com</a>`;
+            const text = s && (s.desc || []).length
+                ? `<div class="cp-text">${s.desc.map(para).join('')}${(s.higher_level || []).length ? `<h3>At higher levels</h3>${s.higher_level.map(para).join('')}` : ''}</div><p class="muted cp-credit">Text from ${wd}</p>`
+                : `<p class="note">Couldn't load the text. Read it on ${wd}.</p>`;
+            return `${kv([['Level', r.level ? 'Level ' + r.level : 'Cantrip'], ['School', r.school], ['Casting time', r.casting_time], ['Range', r.range], ['Components', (r.components || []).join(', ') + (r.material ? ` (${r.material})` : '')], ['Duration', r.duration], ['Book', r.source]])}${text}`;
         }
         return `${kv([['Level', s.level ? 'Level ' + s.level : 'Cantrip'], ['School', s.school], ['Casting time', s.casting_time], ['Range', s.range], ['Components', (s.components || []).join(', ') + (s.material ? ` (${s.material})` : '')], ['Duration', s.duration]])}
             <div class="badges">${s.concentration ? '<span class="badge">Concentration</span>' : ''}${s.ritual ? '<span class="badge">Ritual</span>' : ''}</div>
@@ -323,13 +326,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const draw = (body) => { if (mine === token) { dbody.innerHTML = top + body + actions(e) + '<div id="cp-msg"></div>'; detail.scrollTop = 0; } };
         if (e.html !== undefined) return draw(e.html);
         if (e.t === 'rule') return draw(ruleHtml(e));
-        if (e.extra) return draw(spellHtml(e));
         dbody.innerHTML = top + '<div class="cp-sk" aria-hidden="true"></div><div class="cp-sk" aria-hidden="true"></div><p class="muted">Loading ' + esc(e.name) + '...</p>';
         detail.focus({ preventScroll: true });
         try {
             const j = await fetchText(e);
             draw(e.t === 'spell' ? spellHtml(e, j) : e.t === 'monster' ? monsterHtml(e, j) : itemHtml(e, j));
         } catch (err) {
+            if (e.extra) return draw(spellHtml(e, null));
             if (mine === token) dbody.innerHTML = top + `<p class="err">Couldn't load ${esc(e.name)}. Try again in a minute, or read it at <a href="${esc(sourceLink(e))}" target="_blank" rel="noopener">its source</a>. <button type="button" class="btn small" data-reopen>Try again</button></p>`;
         }
     }

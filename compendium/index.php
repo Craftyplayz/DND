@@ -46,7 +46,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
             <h2 id="cp-credits-t">Credits</h2>
             <div class="cp-credits">
                 <p>This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC, available at <a href="https://dnd.wizards.com/resources/systems-reference-document" target="_blank" rel="noopener">dnd.wizards.com</a>. The SRD 5.1 is licensed under the <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">Creative Commons Attribution 4.0 International License</a>.</p>
-                <p>The extra spells are listed by name and numbers only; their text stays on <a href="https://dnd5e.wikidot.com/" target="_blank" rel="noopener">dnd5e.wikidot.com</a>.</p>
+                <p>The text of the extra spells is read from <a href="https://dnd5e.wikidot.com/" target="_blank" rel="noopener">dnd5e.wikidot.com</a> when you open one and isn't kept on this site.</p>
                 <h3>Monster books</h3>
                 <ul>
                     <?php foreach ($sources as $s): ?>

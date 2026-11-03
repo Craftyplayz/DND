@@ -75,8 +75,8 @@ for (const name of ['chrome', 'firefox']) {
         ok(`${name} Fireball detail`, await ev(`document.querySelector('#cp-dbody h2').textContent === 'Fireball' && document.querySelector('#cp-dbody .cp-text').textContent.includes('bright streak')`));
         ok(`${name} spells tab opened for a spell link`, await ev(`document.querySelector('#cp-tabs .on').dataset.tab === 'spell'`));
         await open('/compendium/?t=spell&i=wd:absorb-elements');
-        await until(`document.querySelector('#cp-dbody .note')`, 'extra detail');
-        ok(`${name} extra spell is stats and a link`, await ev(`!document.querySelector('#cp-dbody .cp-text') && document.querySelector('#cp-dbody a[href*="wikidot.com/spell:absorb-elements"]') && document.querySelector('#cp-dbody .badge.p').textContent === 'Extra'`));
+        await until(`document.querySelector('#cp-dbody .cp-text, #cp-dbody .note')`, 'extra detail');
+        ok(`${name} extra spell shows fetched text plus a wikidot link`, await ev(`document.querySelector('#cp-dbody .cp-text')?.textContent.length > 50 && document.querySelector('#cp-dbody a[href*="wikidot.com/spell:absorb-elements"]') && document.querySelector('#cp-dbody .badge.p').textContent === 'Extra'`));
         await open('/compendium/?t=magic&i=magic:bag-of-holding');
         await until(`document.querySelector('#cp-dbody .cp-text')`, 'magic detail');
         ok(`${name} magic item rarity`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Uncommon')`));
@@ -91,6 +91,12 @@ for (const name of ['chrome', 'firefox']) {
         await open('/compendium/?t=spell&i=nope');
         await until(`document.querySelector('#cp-dbody .note')`, 'unknown entry');
         errs('deep links');
+        await b.block(/spells.php|backup.php|cloud.php/);
+        await open('/compendium/?t=spell&i=wd:absorb-elements');
+        await until(`document.querySelector('#cp-dbody .note')`, 'extra detail, fetch blocked');
+        ok(`${name} extra spell fetch fails`, await ev(`!document.querySelector('#cp-dbody .cp-text') && document.querySelector('#cp-dbody .note').textContent.includes("Couldn't load the text") && !!document.querySelector('#cp-dbody a[href*="wikidot.com/spell:absorb-elements"]') && !!document.querySelector('#cp-dbody .kv')`));
+        await b.block(/backup.php|cloud.php/);
+        b.errors.length = 0;
 
         // keyboard
         await open('/compendium/');
