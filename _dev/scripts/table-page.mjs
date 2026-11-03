@@ -6,7 +6,7 @@
 // it fetched and every WebSocket frame its role gets are searched for them. Then the relay goes away and comes back.
 //   node _dev/scripts/table-page.mjs [--firefox]   (needs: cd live && npm install, and includes/config.php for sign-in)
 // Uses stand-in account and session folders in the temp folder, never private/dnd/accounts or private/sessions.
-import { mkdirSync, writeFileSync, readFileSync, rmSync, utimesSync, statSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
@@ -88,7 +88,7 @@ const SECRETS = [['the hidden monster', /Secret Lurker|"lurker"/], ['the monster
 const leaks = (where, s) => { for (const [what, re] of SECRETS) if (re.test(s)) { bad++; console.log(`FAIL ${where} carried ${what}: ${s.match(re)[0]}`); } };
 
 const tv = await launch(FF ? 'firefox' : 'chrome'), pat = await launch(FF ? 'chrome' : 'firefox');
-let mark = 0;
+
 try {
     for (const b of [tv, pat]) await b.block(/backup\.php|prefs\.php/);
     await signIn(tv, SID.dm);
@@ -107,6 +107,7 @@ try {
     await go(tv, `${BASE}/campaigns/${CAMP}/table`);
     is('nothing on the table: the campaign and its party', await until(tv, `!document.querySelector('.tv-idle').hidden && ${text('.tv-idle')}`, (t) => t && t.includes('Lock')), 'Table Test LLockOOzzy');
     is('the one-time full screen prompt', await tv.ev(`!document.querySelector('.tv-full').hidden`), true);
+    if (process.env.TV_SHOT) writeFileSync(process.env.TV_SHOT + '-idle.png', await tv.shot(1280, 720));
     is('the page carries the table role for the live socket', await tv.ev(`Live.as`), 'table');
     // nothing the tab sends is taken: a change straight from the page is refused, and Live.send sends nothing
     is('a change from the table tab is refused', await tv.ev(`fetch('/campaigns/api.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ act: 'session', id: '${CAMP}', start: true }) }).then((r) => r.status)`), 403);
@@ -219,6 +220,7 @@ try {
     await pat.ev(`document.querySelector('[data-dm=htv]').click(); 1`);
     is('Show on TV now: the handout over the map', await until(tv, `!document.querySelector('.tv-ho').hidden && ${text('.tv-ho')}`, Boolean), 'The old mapTorn at one corner');
     is('the text alone, big', await tv.ev(`document.querySelector('.tv-ho').classList.contains('tv-hotext-only')`), true);
+    if (process.env.TV_SHOT) writeFileSync(process.env.TV_SHOT + '-handout.png', await tv.shot(1280, 720));
     is("the DM's list marks it On TV, the button says Take off TV", await until(pat, `document.querySelector('[data-dm=htv]')?.textContent + '|' + ${text('[data-dm=hopen][data-id=tvhand01]')}`, (v) => v.startsWith('Take')), 'Take off TV|The old map SentOn TV');
     await hand({ act: 'save', handout: { id: 'tvhand01', title: 'The old map', text: 'Torn at two corners', updated: Date.now() + 5000 } });
     is('an edit follows live', await until(tv, text('.tv-hotext'), (t) => t.includes('two')), 'Torn at two corners');
@@ -251,16 +253,14 @@ try {
     await startRelay();
     is('relay back: the badge goes', await until(tv, `document.querySelector('.tv-badge').hidden`, Boolean, 15000), true);
     is('no reload when nothing changed', await tv.ev(`window.__still === 1`), true);
-    // a new version of the site: the tab reloads itself (the relay comes back after an update)
-    const conds = join(ROOT, 'assets/js/conds.js'), was = statSync(conds).mtime;
-    utimesSync(conds, new Date(), new Date(Date.now() + 60000));
-    mark = was;
+    // a new version of the site: the tab reloads itself (the relay comes back after an update). The page here says it came from
+    // an older version, rather than the files changing under the other checks running beside this one
+    is('the page knows the version it came from', await tv.ev(`document.getElementById('main').dataset.ver`), await get(SID.dm, `/campaigns/table.php?c=${CAMP}&ver`).then((r) => r.json()).then((j) => j.ver));
+    await tv.ev(`document.getElementById('main').dataset.ver = 'older'; 1`);
     relay.kill();
     await until(tv, `!document.querySelector('.tv-badge').hidden`, Boolean);
     await startRelay();
     is('a new version: the tab reloads itself', await until(tv, `window.__still === undefined && document.readyState === 'complete' && !!document.querySelector('.tv-card')`, Boolean, 20000), true);
-    utimesSync(conds, new Date(), was);
-    mark = 0;
     is('after the reload: the same fight', await untilCards(tv, (c) => c[0] === 'monster now bloodied:Goblin'), ['monster now bloodied:Goblin', 'pc next:Ozzy', 'pc down:Lock']);
     // (the refused changes above, and the relay going away and the reload cutting its socket)
     is('no console errors on the Table view', tv.errors.filter((e) => !/403|Forbidden|WebSocket|ERR_CONNECTION_REFUSED|NS_ERROR_CONNECTION_REFUSED|can.t establish a connection|interrupted while the page was loading/i.test(e)), []);
@@ -273,7 +273,6 @@ try {
     bad++;
     console.log('FAIL', e.stack || e.message);
 } finally {
-    if (mark) try { utimesSync(join(ROOT, 'assets/js/conds.js'), new Date(), mark); } catch (e) { }
     for (const s of sockets) s.terminate?.();
     tv.close(); pat.close();
     relay?.kill(); web.kill();

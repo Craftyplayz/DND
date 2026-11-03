@@ -18,7 +18,7 @@
 .tv-party { display: flex; flex-wrap: wrap; justify-content: center; gap: 4vmin; margin: 0; padding: 0; list-style: none; }
 .tv-party li { display: grid; justify-items: center; gap: 1.5vmin; width: 20vmin; font-size: 3vmin; }
 .tv-party b { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tv-party .fi-face, .tv-card .fi-face { width: 100%; height: auto; aspect-ratio: 1; border-radius: 50%; font-size: 6vmin; }
+.tv-party .fi-face, .tv-card .fi-face { width: 100%; height: auto; aspect-ratio: 1; background: var(--card2); border: .4vmin solid var(--line-strong); border-radius: 50%; color: var(--text); font-size: 6vmin; }
 
 /* the turn order: from whoever's turn it is, left to right; the cards shrink as there are more (--n, up to 14) */
 .tv-strip { position: absolute; top: 1.5vmin; left: 50%; z-index: 3; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 1vmin 1.5vmin;
@@ -28,7 +28,8 @@
 .tv-round b { display: block; color: var(--text-hi); font-size: 5vmin; line-height: 1; }
 .tv-cards { display: flex; align-items: flex-start; gap: 1vmin; margin: 0; padding: 0; list-style: none; }
 .tv-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; gap: .4vmin; width: var(--s); font-size: calc(var(--s) * .2); text-align: center; }
-.tv-card .fi-face { font-size: calc(var(--s) * .34); border: .4vmin solid var(--line-strong); }
+.tv-card .fi-face { font-size: calc(var(--s) * .34); }
+.tv-card .fi-face.fi-dm { background: var(--purple-bg); color: var(--text-hi); }
 .tv-card.now { width: calc(var(--s) * 1.35); font-size: calc(var(--s) * .24); }
 .tv-card.now .fi-face { border-color: var(--accent); box-shadow: 0 0 0 .5vmin var(--accent); }
 .tv-card.bloodied .fi-face { border-color: var(--danger-line); }
@@ -76,5 +77,5 @@
     box-shadow: var(--lift); color: var(--on-btn); font: inherit; font-size: 4vmin; font-weight: 700; transform: translate(-50%, -50%); cursor: pointer; }
 .tv-full small { font-size: 2vmin; font-weight: 400; }
 .tv-full[hidden] { display: none; }
-/* the 3D dice (dice/dice3d.js) over the map and the order, under a handout's text */
+/* the 3D dice (dice/dice3d.js) over everything while they roll, a handout too (they fade a moment after they stop) */
 #hb-throw { position: fixed; inset: 0; z-index: 4; width: 100vw; height: 100vh; pointer-events: none; }

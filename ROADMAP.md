@@ -369,7 +369,8 @@ browser only; see CLAUDE.md and "Not planned")
   adds monsters from the Monster Sheet (linked: HP changes in the tracker and on the Monster Sheet are the same
   data), sets ties and order, and advances turns and rounds. Players see the order, the round and whose turn it
   is, as a row of portraits (character art) in turn order. Monster HP shows to players only as Healthy /
-  Bloodied (≤ half) / Down. Hidden monsters (1.6) are left out of the order players see. A "your turn" notice
+  Bloodied (≤ half) / Down. Hidden monsters (1.6) are left out of the order players see (since 1.7 their turn shows as a
+  "DM's turn" card). A "your turn" notice
   appears on that player's sheet.
 - Storage: `campaigns/<id>/initiative.json` (the current fight). Monster entries point to the DM's monster by
   id. HP is written to the DM's monster save through the monster sheet's own save path, so the newest-wins rule
@@ -534,7 +535,57 @@ section stays cards + View. The plan as first written is kept below the "Built" 
     `assets/css/pages/map.css`. Fight changes keep the map's tokens in step (`mp_fight_sync`, from `campaigns/api.php`).
     Checks: `maps.test.php`, `maps-page.mjs` (both browsers, `--firefox` swaps them), `initiative-page.mjs`.
 
-**1.7 Table view (TV / screen share)**
+**1.7 Table view (TV / screen share)** (built 2026-11-03 from the prototype `_dev/mockups/battlemap/table.html`; the owner's
+answers of that day are the "Built" notes, which replace the plan below where they differ)
+- Built:
+  - How it's used: the DM's PC is plugged into the TV. The DM or a co-DM presses **Open Table view** (the campaign page's Map
+    section and the map page's top bar), which opens `/campaigns/<id>/table` (`campaigns/table.php`) in a new tab of their own
+    signed-in browser; they move that tab to the TV. No pairing, no separate login. Players get a 404 there.
+  - The `table` role is real: that tab reads everything with `?as=table` (and joins the relay with `&as=table`), and
+    `cp_viewer()` turns the DM's request into the stand-in viewer `CP_TABLE`, which is nobody: not a member, not a DM, owns
+    nothing. So `fi_view`, `mp_view` (role `table`, picture addresses with `as=table`), `tl_view`, the handout filter and
+    `live/auth.php` (role `table`, its own key `cp_table_key()`, never the DM's messages) give it what a player with no
+    characters gets, and nothing "mine". Every change from the tab (`as=table`, or sent from a page at
+    `/campaigns/<id>/table`) is refused in `includes/auth.php` before any endpoint, and `Live.send` there sends nothing (it never
+    sends the DM's waiting rolls). Hidden roll results, whispers, monster and player HP, initiative numbers, hidden and fogged
+    tokens, the draft fog, the working and original map pictures, DM notes and drafts or one-player handouts never reach it.
+  - Look: the site's design, always dark, sized for a TV (vmin). The map fills the screen, always fitted below the order
+    (keys: F full screen, + and - zoom, 0 fits; no on-screen controls; a one-time "Click to go full screen" that goes after
+    30 s), a faint grid, every name under its token, live drags and rulers. Wake lock; the cursor hides when still.
+    `assets/js/map.js` draws it (`table: true`, read-only), not a second renderer.
+  - Turn order along the top: from whoever's turn it is, the round number, the current card bigger, "Next" on the one after,
+    "Waiting for: ..." (party characters not rolled in) while rolling in, cards shrinking as there are more and "+N" past 14,
+    a slide on each new turn, no sound. Art or initials, no initiative numbers, monsters Bloodied (red edge) / Down (grey
+    cross) as on the map. A hidden monster's turn shows a **DM's turn** card (id `dm-turn`, kind `dm`, nothing about the
+    monster), on the TV and on players' fight panels (map page and campaign page): `fi_view` changed for players too.
+  - Party characters (TV and every player, on tokens and fight cards): Down with death-save ticks, and conditions as icons
+    (set C of `_dev/mockups/condition-icons/`, the owner's pick; `assets/js/conds.js`; a condition a player made up gets its
+    first letter). Never HP numbers. `fi_pc()` reads them from the character's save with the DM's waiting edits
+    (`dm_char`); `sheets/player/cloud.php` and `sheets/player/dm.php` tell everyone "status" when they change.
+  - Dice: the last 8 rolls of the current session in the bottom-left corner, older ones fading, nat 20 / nat 1 lines marked,
+    hidden DM rolls as "DM rolled" only (the Table view gets no name either; players still see the name, as since 1.3),
+    whispers not at all. Each new public roll is thrown as big 3D dice (`dice/dice3d.js`, no sound) landing on the numbers
+    rolled: sheets now send a `dice` field (`[[sides, [values]], ...]`, new and additive: older log entries have none and
+    don't animate; coins have none), checked by `tl_dice()`. The set is the roller's: the character's own dice (its
+    `view.dice`), else their synced `dice-choice`, looked up by the server (`tl_dice_set`) and sent with the live roll; a
+    choice naming any script that isn't one of the site's dice files is dropped (plain dice). Rolls arriving together land
+    together; offline or late rolls (over 2 minutes) only get their log line; no WebGL: log only, silently.
+  - Handouts: a **Show on TV now** / **Take off TV** button on handouts sent to everyone (one on the TV at a time,
+    `handouts/tv.json`) replaces 3.4's "Show on the Table view" switch, whose stored value stays in the files, unused. The
+    handout covers the map: title, text, several pictures as a grid, text alone big. Edits follow live; unsharing, sending to
+    fewer or archiving takes it off for good.
+  - No map on the table: the campaign's name and the party's portraits only. A map on the table with no fight: the map. A map
+    never sent: a black rectangle, as players get.
+  - Reconnect: the same full catch-up as players, a small "Reconnecting..." badge, a check every 10 s while the relay is
+    down, and the tab reloads itself when the site's version (its own files) changed.
+  - Relay audit (every `live_publish`): nothing DM-only was going to players; the table key now gets what players get
+    (map moves, hidden rolls as "DM rolled", the TV handout), the `members` list keeps it, a co-DM change makes table tabs
+    ask again.
+  - Files: `campaigns/table.php`, `assets/js/table.js`, `assets/js/conds.js`, `assets/css/pages/table.css`. Checks:
+    `table.test.php` (one full state through every filter as the table, nothing secret comes out; the tab's changes
+    refused), `table-page.mjs` (both browsers, `--firefox` swaps them: live updates, every fetch and WebSocket frame searched,
+    the relay going away and coming back, a new version), `live-relay.test.js`, `handouts.test.php`, `initiative.test.php`.
+- The plan as first written:
 - How we play: the DM runs one PC. The laptop screen is the DM screen. A second browser tab, `/campaigns/table/?c=<id>`,
   is moved to the TV over HDMI (extended display) or is the only window shared to online players on Discord.
   It opens in the DM's own signed-in browser; there's no separate login or link.
@@ -718,8 +769,9 @@ change already lands in `sheets/player/`. The test copy is archived and must not
     sent in resumable 4 MB pieces, checked by their first bytes and served with nosniff. Made as a private draft; Send to
     picked players or "everyone" (every member, later joiners too); players can be changed, Unshare makes it a draft again,
     Archive is the only removal (it also unshares; Restore brings it back as a draft). Editing a sent one updates players
-    live with an "Updated" mark; every save is kept in its history. A per-handout "Show on the Table view" switch is
-    stored for 1.7 (`ho_table()`: only handouts sent to everyone). A player who leaves loses them all (files stay).
+    live with an "Updated" mark; every save is kept in its history. A per-handout "Show on the Table view" switch was
+    stored for 1.7; 1.7 replaced it with a "Show on TV now" button (the stored value stays, unused). A player who leaves
+    loses them all (files stay).
   - Players: a Handouts section on the campaign page and a new **Handouts panel type** on the sheet, added once
     (`hoPanel` in `blank()`) the first time a character is in a campaign, at the end of its panels; it can be moved or
     closed, and hides while the character is in no campaign or signed out. Several campaigns: grouped by campaign name.
