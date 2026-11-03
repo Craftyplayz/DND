@@ -39,8 +39,6 @@
 /* the icon tile (iconFor in builder.js): its own colour and white symbol, or a letter on the kind's colour */
 .bd-ic { flex: none; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 10px; background: var(--btn); color: var(--on-btn); font-weight: 700; font-size: 22px; }
 .bd-ic svg { width: 32px; height: 32px; }
-.bd-ic svg :where(path, circle, rect, polygon, g) { fill: currentColor; }
-.bd-ic svg [fill=none] { fill: none; }
 .bd-ic-races { background: var(--ok-line); }
 .bd-ic-backgrounds { background: var(--info-line); }
 .bd-ic-subclasses { background: var(--btn-line); }

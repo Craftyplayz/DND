@@ -42,7 +42,7 @@ header('X-Robots-Tag: noindex');
                 <div class="bd-nav"><button type="button" class="btn" data-act="back">Back</button><button type="button" class="btn primary" data-act="next">Next</button></div>
             </div>
         </div>
-        <p class="muted bd-credit">Classes, races, backgrounds and spells from the System Reference Document 5.1 by Wizards of the Coast, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC-BY-4.0</a>, and the content credited on each entry.</p>
+        <p class="muted bd-credit">Classes, races, backgrounds and spells from the System Reference Document 5.1 by Wizards of the Coast, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC-BY-4.0</a>, the content credited on each entry and icons from game-icons.net (CC BY 3.0). All sources are on the <a href="/credits/">Credits</a> page.</p>
         <script type="application/json" id="bd-camps"><?= json_encode($camps) ?></script>
         <input type="file" id="bd-artfile" accept="image/*" hidden>
     </main>
