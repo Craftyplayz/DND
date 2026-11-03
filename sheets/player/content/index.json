@@ -9,8 +9,8 @@
     "classes",
     "subclasses"
    ],
-   "bytes": 1908864,
-   "gzip": 443871
+   "bytes": 1995041,
+   "gzip": 454392
   },
   {
    "file": "2014-origins.json",
@@ -22,8 +22,8 @@
     "feats",
     "languages"
    ],
-   "bytes": 980238,
-   "gzip": 249191
+   "bytes": 984762,
+   "gzip": 249494
   },
   {
    "file": "2014-spells.json",
@@ -51,8 +51,8 @@
     "classes",
     "subclasses"
    ],
-   "bytes": 616222,
-   "gzip": 128715
+   "bytes": 657143,
+   "gzip": 133625
   },
   {
    "file": "2024-origins.json",
@@ -64,8 +64,8 @@
     "feats",
     "languages"
    ],
-   "bytes": 314604,
-   "gzip": 60748
+   "bytes": 317521,
+   "gzip": 61191
   },
   {
    "file": "2024-spells.json",
@@ -73,8 +73,8 @@
    "keys": [
     "spells"
    ],
-   "bytes": 497254,
-   "gzip": 111728
+   "bytes": 506979,
+   "gzip": 113511
   },
   {
    "file": "2024-items.json",
@@ -102,13 +102,13 @@
   },
   "2024": {
    "classes": 13,
-   "subclasses": 78,
+   "subclasses": 79,
    "races": 25,
    "subraces": 24,
    "backgrounds": 75,
    "feats": 208,
    "languages": 19,
-   "spells": 467,
+   "spells": 480,
    "equipment": 182,
    "magic_items": 760
   }
@@ -116,7 +116,7 @@
  "dropped": {
   "ua": 254,
   "duplicates": 1740,
-  "unresolved": 10,
+  "unresolved": 23,
   "skipped_by_sources": 400
  },
  "credits": [

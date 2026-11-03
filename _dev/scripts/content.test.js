@@ -58,6 +58,19 @@ const DIR = path.join(__dirname, '../../sheets/player/content');
     const hit = { barbarian: 12, bard: 8, cleric: 8, druid: 8, fighter: 10, monk: 8, paladin: 10, ranger: 10, rogue: 8, sorcerer: 6, warlock: 8, wizard: 6 };
     for (const r of ['2014', '2024']) for (const [k, h] of Object.entries(hit)) assert.strictEqual(data[r].classes[k]?.hit_die, h, `${r} ${k} hit die`);
     assert.ok(data['2014'].spells.fireball && data['2024'].spells.fireball && data['2014'].races.dwarf && data['2014'].backgrounds.acolyte);
+    // "merge in SRD picks" (owner, 2026-11-03): a wikidot class, race or background that won over the SRD's keeps the SRD's
+    // structured choices where the wiki only has words, so the builder can offer them as picks
+    const D14 = data['2014'], fighter = D14.classes.fighter;
+    assert.ok(fighter.levels[0].features.find((f) => /fighting style/i.test(f.name))?.choices?.options?.length >= 6, '2014 fighter fighting style options');
+    assert.ok(fighter.starting_equipment_options.length && fighter.starting_equipment_options.every((s) => s.from), '2014 fighter structured starting equipment');
+    assert.ok(fighter.proficiency_choices.every((s) => s.from), '2014 fighter proficiency choices');
+    assert.strictEqual(fighter.levels[3].ability_score_bonuses, 1, '2014 fighter level 4 ASI count');
+    assert.ok(D14.races.dwarf.traits.some((t) => t.proficiency_choices?.from?.options?.length === 3), '2014 dwarf tool choice');
+    assert.ok(D14.races.dragonborn.traits.some((t) => t.trait_specific?.subtrait_options), '2014 dragonborn ancestry choice');
+    assert.ok(D14.subraces['high-elf']?.traits.some((t) => t.trait_specific?.spell_options), '2014 high elf cantrip choice');
+    assert.ok(D14.backgrounds.acolyte.language_options?.from && D14.backgrounds.acolyte.starting_equipment_options.every((s) => s.from), '2014 acolyte languages and equipment');
+    assert.ok(D14.subclasses['life-domain']?.spells?.length, '2014 life domain spells');
+    assert.ok(fighter.filled?.includes('srd') && /fighter/i.test(fighter.desc?.[0] || ''), 'the wiki text stays, marked as filled from the SRD');
     assert.deepStrictEqual(index.counts, counts, 'index.json counts');
     assert.ok(index.credits.length >= 6 && index.credits.every((c) => c.name && c.copyright), 'credits');
     for (const r of Object.keys(counts)) console.log(r, Object.entries(counts[r]).map(([k, v]) => k + ' ' + v).join(', '));

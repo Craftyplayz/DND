@@ -56,6 +56,40 @@ const sources = [
     ['bf', bf.default, bf.SKIPPED],
 ];
 
+// The owner's rule (2026-11-03, "merge in SRD picks"): when a wikidot entry wins over the SRD's own entry for the same class,
+// subclass, race, subrace or background, it keeps wikidot's text but takes the SRD's structured fields wherever wikidot's are
+// missing or only words: proficiency and equipment choices, ability bonuses, language and trait choices, feature options
+// (fighting styles...), spellcasting and each level's numbers. fill(wiki, srd) returns the merged value.
+const SRD_FILL = new Set(['classes', 'subclasses', 'races', 'subraces', 'backgrounds']);
+const isEmpty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length) || (typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length);
+// a choice the wiki gives only in words: {desc, choose, from: null}
+const wordsOnly = (v) => v && typeof v === 'object' && !Array.isArray(v) && 'choose' in v && !v.from;
+const isChoice = (v) => v && typeof v === 'object' && !Array.isArray(v) && 'choose' in v;
+const matchKey = (o) => (o && typeof o === 'object' ? (o.level != null && !o.name ? 'L' + o.level : o.name ? 'N' + slug(String(o.name).replace(/^.*?:\s*/, '')) : o.index ? 'I' + o.index : null) : null);
+export function fill(w, s) {
+    if (isEmpty(w) || (wordsOnly(w) && isChoice(s) && !wordsOnly(s))) return s === undefined ? w : structuredClone(s);
+    if (Array.isArray(w) && Array.isArray(s)) {
+        // lists of choices: the SRD's whole list when any of the wiki's is words only
+        if ((w.some(wordsOnly) || w.some((x) => x === null)) && s.length && s.every((x) => isChoice(x) && !wordsOnly(x))) return structuredClone(s);
+        // levels, features, traits: matched by level or name, each filled in; the wiki's own order and entries stay
+        if (w.every((x) => matchKey(x)) && s.every((x) => matchKey(x))) {
+            // a name matches exactly, or as the end of the other ("Cantrip" is the SRD's "High Elf Cantrip")
+            const by = new Map(s.map((x) => [matchKey(x), x]));
+            const near = (k) => (k[0] === 'N' && k.length > 4 ? s.find((x) => { const q = matchKey(x); return q[0] === 'N' && (q.endsWith('-' + k.slice(1)) || k.endsWith('-' + q.slice(1))); }) : undefined);
+            return w.map((x) => { const m = by.get(matchKey(x)) ?? near(matchKey(x)); return m ? fill(x, m) : x; });
+        }
+        return w;
+    }
+    if (w && typeof w === 'object' && !Array.isArray(w) && s && typeof s === 'object' && !Array.isArray(s)) {
+        const o = { ...w };
+        for (const k of Object.keys(s)) if (!['index', 'name', 'src', 'rules', 'desc', 'subclasses', 'subraces', 'spells', 'class', 'race'].includes(k) || isEmpty(o[k])) o[k] = fill(o[k], s[k]);
+        // a subclass's spell list (domain and oath spells) when the wiki has none
+        if (isEmpty(w.spells) && Array.isArray(s.spells) && s.spells.length && s.spells.every((x) => x?.spell)) o.spells = structuredClone(s.spells);
+        return o;
+    }
+    return w;
+}
+
 export function merge(parts) {
     // parts: [{ id, data }] in source order. Returns { out: {R: {cat: {}}}, dropped: [...] }
     const out = Object.fromEntries(RULES.map((r) => [r, Object.fromEntries(CATS.map((c) => [c, {}]))]));
@@ -77,6 +111,18 @@ export function merge(parts) {
         if (m.has(k)) {
             const won = m.get(k);
             m.set(`m:${id}:${e.index}`, won); if (!m.has(`s:${slug(e.name)}`)) m.set(`s:${slug(e.name)}`, won);
+            // the SRD's picks go into the wikidot entry that won (see fill)
+            const w = out[r][cat][won];
+            if (SRD_FILL.has(cat) && /^wikidot/.test(w.src) && /^srd/.test(e.src)) {
+                const f = fill(w, e);
+                // references stay the wiki's (they're resolved against what was kept); a subclass with no spell list of its
+                // own takes the SRD's (domain and oath spells), resolved later by spell index like the wiki's
+                for (const key of ['class', 'race', 'subclasses', 'subraces', 'spells']) if (key in w) f[key] = w[key]; else delete f[key];
+                if (cat === 'subclasses' && isEmpty(w.spells) && e.spells?.length) f.spells = structuredClone(e.spells);
+                Object.defineProperty(f, '_id', { value: w._id });
+                out[r][cat][won] = f;
+                (f.filled ||= []).push(e.src);
+            }
             dropped.push({ why: 'duplicate', cat, rules: r, name: e.name, src: e.src, kept: out[r][cat][won].src });
             return null;
         }
