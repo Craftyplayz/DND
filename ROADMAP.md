@@ -623,50 +623,69 @@ answers of that day are the "Built" notes, which replace the plan below where th
 **1.8 Bring live play to `/sheets/player/`** (no longer needed: there's one sheet code now, so every live-play
 change already lands in `sheets/player/`. The test copy is archived and must not be used.)
 
-**1.9 Campaign page rework** (asked for 2026-11-03)
-- Own URL: a campaign opens at `/campaigns/<id>`, like `/characters/<id>`. `/campaigns/?c=<id>` redirects there
-  (301) so old links and bookmarks keep working. The design guide now says every item a player can have many of
-  gets `/<things>/<id>` and its own folder in `accounts/<things>/<id>/` (monsters move over when they're reworked).
-- Table log: shows only the running session (or the last one). The "Past rolls" links (`?c=<id>&s=<n>`) and the
-  past-session view go; the saved `sessions/<n>.json` files stay on disk untouched.
-- Sessions from the Discord bot replace past rolls: each recorded session shows on the campaign page with The
-  Pitboss's AI summary, the transcript and the audio (below).
-- The rest of the rework (layout, what else moves) gets its own interview with the owner before it's built.
+**1.9 Campaign page rework** (asked for 2026-11-03; owner's answers from the interview of that day; not built yet)
+- Already built: the own URL `/campaigns/<id>` and the 301 from `/campaigns/?c=<id>`; the log shows a running session. Still
+  to do: with no session running the log shows the "outside sessions" rolls, not the last session; Past rolls is still there.
+  Today the page is one long scroll: 4,043 px for a DM on a phone, 2,763 px for a player, and an empty map takes 602 px.
+- Tabs: pill tabs under the title: **Overview, Rolls, Handouts, Notes** (DM and co-DMs only), **Campaign**. They wrap to two
+  rows on a phone. Links are `#rolls`, `#handouts`, `#notes`, `#campaign`; back and reload stay on the tab. A plain
+  `/campaigns/<id>` always opens Overview, and no tab is remembered, so nothing needs saving to the account. One PHP page, so
+  tabs switch at once; the map starts only when Overview shows.
+- Header on every tab: title and people line. The DM and co-DMs have Start session / End session beside the title; End asks
+  first. Everyone sees the badge "Session 12 since 7:04 pm" while one runs (the site's own session numbers stay).
+- Overview, no session and no fight: "Last played 3 Nov 2026 · 34 rolls" (a link to Rolls), Party, new handouts, pinned notes,
+  Map. Session running or a fight on: Party, Fight, Map, then new handouts and pinned notes. Fight and Map stack full width on
+  every screen. Nobody is moved off the tab they're on when play starts; the Overview pill gets a dot during a fight.
+  - Party: compact tiles (portrait, name, a muted level and class line, player's name with DM or Co-DM), 2 per row on a phone,
+    a green dot when online. The whole tile opens the sheet for those allowed to, as View does today (1.5). A button in the Party
+    heading opens a dialog with today's checkboxes, Clone offer and archived note: "Add your character" (the primary button) with
+    none in the campaign, "Change characters" (plain) after.
+  - New handouts: players only, a line naming the unopened ones, linking to the Handouts tab, hidden when there are none.
+  - Pinned notes: DM and co-DMs only, titles linking to the Notes tab, hidden when there are none.
+  - Fight: as today, above the map and hidden with no fight, with a "Run the fight" link to the map page for DMs. No new controls.
+  - Map: still the live map with tokens, sized to the screen's height, shown only when a map is on the table. With none, players
+    see nothing and the DM and co-DMs get "No map on the table. Open maps". Uploads and map management stay on the map page.
+- Rolls tab (owner: the roll log isn't important enough for the main screen): the running session, or with none running the
+  **last session only**. Rolls made between sessions stay saved and don't show here, not even live. This is the campaign page
+  only: a new parameter on `campaigns/log.php`, while sheets, the Monster Sheet and the Table view keep what they get today.
+  Heading "Session 12" or "Last session: 12 · 3 Nov 2026 · 34 rolls". No session ever run: "No sessions yet. Rolls show here once
+  you start a session." for the DM and co-DMs, "No sessions yet." for players. The Past rolls links and the past-session view
+  go; `sessions/<n>.json` and `unsorted.json` stay on disk untouched.
+- Handouts and Notes tabs: today's editors, lists, search, groups, pins, archive and Show on TV move as they are (`dm.js`,
+  `handouts.js`). Players see a count on the pill when some are unopened ("Handouts 2").
+- Campaign tab: Players (online, badges, Make co-DM, Remove), Invite players, Character rules, Rename and Delete, Leave.
+  Permissions don't change:
 
-**1.10 Import sessions from The Pitboss (Pitstop)** (owner's answers 2026-11-03)
-- Today: the bot records a Discord voice call; its transcriber turns it into clips (`clips` table: start time,
-  speaker, text); "Summarise with Claude" on the call page asks questions, then saves a summary (`dnd_runs.summary`)
-  and a cumulative memory file `data/sessions/<campaign>/session-NN-<date>.md` (Players, NPCs, Places and factions,
-  Plot threads, Session log...). A campaign is a folder name like `dnd-1`; its page is
-  pitstop.craftyplayz.com/dnd/<name>, behind Discord login. Audio is `/voice/call/<id>/audio.ogg`.
-- Pitstop side (The Pitboss repo, its own stack; its CLAUDE.md asks about a version and changelog per commit):
-  - `GET /api/dnd` → campaign names. `GET /api/dnd/<name>` → `[{number, title, date, call_id, summary}]` from
-    `dnd.campaign_sessions()` plus the newest memory file. `GET /api/dnd/call/<id>/transcript` → `[{ms, speaker, text}]`
-    from `review.call_text`'s clips (with the name fixes applied). `GET /api/dnd/call/<id>/audio.ogg`.
-  - Read-only, and only with `Authorization: Bearer <DND_SYNC_TOKEN>` (a long random secret set in both stacks'
-    environment, never committed). No Discord login involved.
-- Link: the DM picks the Pitstop campaign in the campaign's settings (a dropdown from `/api/dnd`, "None" by
-  default). Stored as `pitstop` in `campaign.json`. Nothing imports until it's set.
-- Sync: pull, never pushed into. A loop in `docker/start.sh` (like the relay) runs `php includes/pitstop.php` every
-  10 minutes for linked campaigns; the DM's "Check for new sessions" button asks for a run straight away. It reaches
-  Pitstop on the home server directly (`PITSTOP_URL`, e.g. http://192.168.16.3:8643), not through Cloudflare.
-- Storage: `accounts/campaigns/<id>/recordings/<n>/` with `session.json` (Pitstop campaign, number, title, date,
-  call id, imported time), `summary.md`, `transcript.json` and `audio.ogg` (copied once, so it survives Pitstop
-  deleting the call), plus `recordings/memory.md` (the newest memory file). Never overwritten: a summary or memory
-  that changed on Pitstop puts the old copy in `recordings/<n>/history/` first. Unlinking keeps everything.
-- Who sees it: every campaign member (DM and players), nobody else. Audio and transcript go through a PHP endpoint
-  that checks membership, like `art.php`.
-- On the page: a Sessions section, newest first: number, title, date, the summary's overview, "Read the summary",
-  and a transcript viewer with click-a-line-to-play (reuse `transcripts/transcripts.php`'s viewer). The memory
-  file's Players, NPCs, Places and Plot threads show as a "Story so far" card.
-- `/transcripts/`: once its 2 sessions show on the campaign page, it moves to `private/archive/transcripts/`
-  (`git mv`; `transcripts/data` stays on the server, it's server-only data).
-- Server steps that ask the owner first (CLAUDE.md): adding `DND_SYNC_TOKEN` and `PITSTOP_URL` to the `dnd` stack
-  (`deploy.sh --compose`) and the token to the Pitstop stack.
-- Checks: `pitstop.test.php` (a fake Pitstop answers; import twice changes nothing; a changed summary keeps the
-  old one in history; a non-member gets 403 on audio), `campaign-sessions.mjs` (both browsers).
-- Size: ~1 day on Pitstop, ~3 days here. Done: a new summary saved on Pitstop shows on the campaign page within 10
-  minutes for every member, plays from any line, and is still there after the call is deleted on Pitstop.
+  | | DM | Co-DM | Player |
+  |---|---|---|---|
+  | Overview, Rolls, Players list | yes | yes | yes |
+  | Handouts | edit | edit | read |
+  | Notes tab, pinned notes | yes | yes | no |
+  | Invite link | yes | yes | no |
+  | Make a new link, Make co-DM, Remove, Rename, Delete | yes | no | no |
+  | Character rules | edit | edit | read |
+  | Leave campaign | no | yes | yes |
+
+- Existing links: `/campaigns/?c=<id>` keeps its 301. `/campaigns/?c=<id>&s=<n>` and `&s=unsorted` get a 301 to
+  `/campaigns/<id>#rolls`; non-members still get "Campaign not found". `/campaigns/<id>/map`, `/table` and join links don't change.
+- `/transcripts/` is archived in this change (owner's choice, knowing friends lose the 2 public sessions): `git mv` the viewer
+  and the uploader `/private/transcripts/` into `private/archive/`, for the owner only behind the site password. It leaves
+  `site_pages()`; `/transcripts/...` gets a 301 to `/campaigns/`. `transcripts/data` stays in its volume and in `deploy.sh`'s
+  counts, and must stop being public: the 301 covers `/transcripts/data/` too, so the archived viewer reads and serves the
+  audio itself. The Privacy page's line and the design guide's reference to it are updated.
+- Also fixed: the breadcrumb shows the campaign's name, not its id.
+- Design guide, same change (owner's yes): page-level pill tabs with #hash links for an item page with many areas, and the compact
+  character tile for a group of characters.
+- Checks: new `campaign-tabs.mjs` (both browsers, as DM, co-DM and player: each role's tabs, hash links, Overview order with and
+  without a session or fight, tiles, the characters dialog, unopened count, no sideways scroll at 320 to 2560); `table-log.mjs`
+  moves from the past-session pages to the Rolls tab and redirects; `campaigns-page.mjs`, `handouts-page.mjs`, `maps-page.mjs`,
+  `initiative-page.mjs`, `live-page.mjs` and `table-page.mjs` open the right tab first; a check that `/transcripts/data/` no
+  longer serves audio.
+- Size: ~4 days, one job. Done: a DM, a co-DM and a player each see the table above on a phone and a desktop; a session started
+  by the DM reorders Overview live for the others without moving their tab; an old `&s=2` link lands on Rolls; the Table view
+  and a sheet's Table tab behave as before.
+
+**1.10 Import sessions from The Pitboss (Pitstop)** (dropped 2026-11-03, see Not planned; the plan is in this file's git history)
 
 **1.11 Co-DMs** (owner's answers 2026-11-03)
 - What: a campaign can have any number of co-DMs. The DM (the creator, `dm` in `campaign.json`) makes a member a
@@ -704,7 +723,7 @@ change already lands in `sheets/player/`. The test copy is archived and must not
   every panel can be reached, and all actions work one-handed. A play test with the group goes fine.
 
 **2.2 Every page looks right on phone and laptop**
-- What: tidy spacing and components on the home page, campaigns, dice, transcripts and the D&D Beyond viewer
+- What: tidy spacing and components on the home page, campaigns, dice and the D&D Beyond viewer
   (until it's retired), in both colour schemes, following the design guide (`/design`). Keep the current style;
   just make it consistent.
 - Size: 2 days. Done: screenshots at 375, 768 and 1440 wide, in Chrome and Firefox, show no overflow or clipped
@@ -960,6 +979,7 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 
 | Item | Why |
 |---|---|
+| Import sessions from The Pitboss (was 1.10) | Dropped by the owner in the 1.9 interview, with AI summaries, transcripts and recorded audio on the campaign page. Would need a new interview to come back. |
 | Print / PDF export | Not picked by the owner. The browser's print stays as it is. |
 | Separate accessibility pass | Not picked. Every new feature still keeps today's level: labels, keyboard use, dialogs, reduced motion. |
 | Merging Quick Rolls into Dice Sets | The owner keeps both pages as they are. |
@@ -996,7 +1016,7 @@ up, because of CLAUDE.md rather than an open design question:
 | Phase | Features | Rough size |
 |---|---|---|
 | 0 Finish in-flight and storage | 4 (0.2 dropped) | ~5.5 days |
-| 1 Live table and campaigns | 9 (1.8 not needed) | ~27 days + 1.9 (sized after its interview) |
+| 1 Live table and campaigns | 9 (1.8 not needed, 1.10 dropped) | ~27 days (1.9 adds ~4, dropping 1.10 takes off ~4) |
 | 2 Phone and look | 3 | ~7 days |
 | 3 DM tools | 4 | ~8 days |
 | 4 Character building | 6 | ~18.5 days |
