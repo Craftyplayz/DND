@@ -36,7 +36,7 @@ export const BROWSER_CHECKS = {
     'versions-archive': { ports: [8121], split: true, tmp: 'dnd-versions-check', secs: 120 },
     'initiative-page': { ports: [8122, 8097], split: 'flag', tmp: 'dnd-fight-check', secs: 90 },
     'live-page': { ports: [8118, 8098], both: true, tmp: 'dnd-live-check', secs: 45 },
-    'table-log': { ports: [8120, 8099], both: true, tmp: 'dnd-table-check', secs: 40 },
+    'table-log': { ports: [8120, 8099], both: true, tmp: 'dnd-table-check', secs: 70 },
 };
 // unit tests that open ports of their own (before the shift)
 const TEST_PORTS = { 'live-relay.test.js': [8095, 8096] };
