@@ -31,6 +31,9 @@ mkdirSync(join(ACCOUNTS, 'monsters', '111'), { recursive: true });
 const DEX = (s) => [['STR', 'Strength', 8], ['DEX', 'Dexterity', s], ['CON', 'Constitution', 10], ['INT', 'Intelligence', 10], ['WIS', 'Wisdom', 8], ['CHA', 'Charisma', 8]].map(([key, name, score]) => ({ key, name, score, save: false, sb: '' }));
 for (const [id, name, hp, dex, ac] of [['gob', 'Goblin', 7, 14, '15'], ['ogre', 'Ogre', 59, 8, '11']])
     writeFileSync(join(ACCOUNTS, 'monsters', '111', id + '.json'), JSON.stringify({ id, name, updated: 5, cr: '1', abilities: DEX(dex), ac, init: 'DEX', hp: { cur: hp, base: hp, temp: 0, mod: 0 }, view: { noAnim: true } }));
+// Sam's own monster, for when Sam is a co-DM
+mkdirSync(join(ACCOUNTS, 'monsters', '333'), { recursive: true });
+writeFileSync(join(ACCOUNTS, 'monsters', '333', 'wolf.json'), JSON.stringify({ id: 'wolf', name: 'Wolf', updated: 5, cr: '1', abilities: DEX(15), ac: '13', init: 'DEX', hp: { cur: 11, base: 11, temp: 0, mod: 0 } }));
 const camp = (id, name, dm, members) => {
     mkdirSync(join(ACCOUNTS, 'campaigns', id), { recursive: true });
     writeFileSync(join(ACCOUNTS, 'campaigns', id, 'campaign.json'), JSON.stringify({ id, name, dm, code: id.slice(2), created: 1, members }));
@@ -132,6 +135,40 @@ try {
 
     // a stale DM change is refused
     is('a change from an old copy is refused', (await api(SID.dm, { act: 'fight', id: CAMP, op: 'next', v: 1 })).error, 'This fight changed, reloaded.');
+
+    // a co-DM: the DM makes Sam one while Sam has the campaign page open; it reconnects with the DM's view, live
+    await signIn(pat, SID.sam);
+    await go(pat, `${BASE}/campaigns/?c=${CAMP}`);
+    await until(pat, text('#cp-fight'), (t) => t.includes('Round 3'));
+    is('Sam (player) refused DM changes', (await api(SID.sam, { act: 'fight', id: CAMP, op: 'next', v: JSON.parse(await fight(SID.dm)).fight.v })).status, 403);
+    await until(pat, `document.querySelector('#cp-players .cp-on:not([hidden])') ? 1 : 0`, Boolean); // connected
+    is('the DM makes Sam a co-DM', (await api(SID.dm, { act: 'codm', id: CAMP, member: '333', on: true })).codms, ['333']);
+    const cv = await until(pat, text('#cp-fight'), (t) => t.includes('HP') && t.includes('Ogre'), 10000);
+    is("co-DM's open page: numbers, HP and the hidden ogre", [cv.includes('HP 59/59'), cv.includes('Ogre')], [true, true]);
+    is('co-DM page reloaded with the co-DM view', await until(pat, `document.querySelector('#main').dataset.role`, (v) => v === 'codm'), 'codm');
+    await until(pat, `document.querySelector('#cp-players .cp-on:not([hidden])') ? 1 : 0`, Boolean, 10000);
+    await api(SID.kit, { act: 'roll', id: CAMP, roll: { id: 'kitwhisper001', char: 'kitt', title: 'Insight', expr: '1d20', shown: '12', total: '12', vis: 'dm' } });
+    is("a roll sent to the DM reaches the co-DM live", (await until(pat, text('#cp-log'), (t) => t.includes('Insight'), 8000)).includes('Insight'), true);
+    const v0 = JSON.parse(await fight(SID.sam)).fight.v;
+    is('co-DM adds their own monster and runs turns', [(await api(SID.sam, { act: 'fight', id: CAMP, op: 'add', items: [{ kind: 'monster', mon: 'wolf', init: 12, bonus: 2, ac: 13 }], v: v0 })).status,
+        (await api(SID.sam, { act: 'fight', id: CAMP, op: 'next', v: v0 + 1 })).status], [200, 200]);
+    is("the DM sees the co-DM's wolf with its HP", JSON.parse(await fight(SID.dm)).fight.entries.find((e) => e.mon === 'wolf')?.hp, { cur: 11, max: 11, temp: 0 });
+    const hpAs = (sid, mon, op, c) => fetch(`${BASE}/sheets/monster/cloud.php?hp=${mon}${c ? '&c=' + c : ''}`, { method: 'POST', headers: { Cookie: 'dndsid=' + sid, 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) }).then((r) => r.status);
+    is("co-DM changes the DM's goblin HP only through the campaign", [await hpAs(SID.sam, 'gob', { k: 'dmg', n: 1 }), await hpAs(SID.sam, 'gob', { k: 'dmg', n: 1 }, CAMP), goblin().hp.cur], [404, 200, 2]);
+    await hpAs(SID.sam, 'gob', { k: 'heal', n: 1 }, CAMP);
+    is("the DM changes the co-DM's wolf HP", [await hpAs(SID.dm, 'wolf', { k: 'dmg', n: 4 }, CAMP), JSON.parse(readFileSync(join(ACCOUNTS, 'monsters', '333', 'wolf.json'), 'utf8')).hp.cur], [200, 7]);
+    is("a player can't change monster HP through a campaign", await hpAs(SID.kit, 'gob', { k: 'dmg', n: 1 }, CAMP), 404);
+    is('goblin back where it was', goblin().hp.cur, 3);
+    is('the DM makes Sam a player again', (await api(SID.dm, { act: 'codm', id: CAMP, member: '333', on: false })).codms, []);
+    const pv = await until(pat, text('#cp-fight'), (t) => !t.includes('HP') && !t.includes('Ogre'), 10000);
+    is("player again: no numbers or hidden ogre on the open page", [pv.includes('HP'), pv.includes('Ogre')], [false, false]);
+    await until(pat, `document.querySelector('#main').dataset.role`, (v) => v === 'player');
+    await until(pat, `document.querySelector('#cp-players .cp-on:not([hidden])') ? 1 : 0`, Boolean, 10000);
+    await api(SID.kit, { act: 'roll', id: CAMP, roll: { id: 'kitwhisper002', char: 'kitt', title: 'Perception', expr: '1d20', shown: '9', total: '9', vis: 'dm' } });
+    await api(SID.kit, { act: 'roll', id: CAMP, roll: { id: 'kitpublic0001', char: 'kitt', title: 'Athletics', expr: '1d20', shown: '5', total: '5' } });
+    const lg = await until(pat, text('#cp-log'), (t) => t.includes('Athletics'), 8000);
+    is('player again: a roll sent to the DM no longer reaches them', [lg.includes('Athletics'), lg.includes('Perception'), lg.includes('Insight')], [true, false, false]);
+    is('player again: DM changes refused', (await api(SID.sam, { act: 'fight', id: CAMP, op: 'next', v: JSON.parse(await fight(SID.dm)).fight.v })).status, 403);
 
     // the same goblin from two Monster Sheets and the campaign page, at once
     await signIn(pat, SID.dm); // Pat's browser is the DM's second device now
