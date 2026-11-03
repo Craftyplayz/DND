@@ -1,5 +1,6 @@
 // Builds sheets/monster/monsters.json, the Monster Sheet's search list: SRD 5.1 monsters from dnd5eapi.co
-// plus the open-licence books on Open5e (OGL, CC-BY, ORC), with duplicates removed (the SRD copy wins).
+// plus every open-licence book on Open5e (OGL, CC-BY, ORC), with duplicates removed: the SRD copy wins, then the newest book
+// (Tome of Beasts 2023 over Tome of Beasts 2016).
 // The page fetches each full stat block through monsters.php when it's picked.   usage: node _dev/scripts/build-monsters.js
 const fs = require('fs');
 const path = require('path');
@@ -7,6 +8,8 @@ const path = require('path');
 const OUT = path.join(__dirname, '../../sheets/monster/monsters.json');
 const OGL = path.join(__dirname, '../../sheets/monster/ogl.txt');
 const OPEN = /open gaming|creative commons|orc licen/i;
+// Open5e v1 book slugs whose v2 key differs
+const V2 = { 'wotc-srd': 'srd-2014', cc: 'ccdx', menagerie: 'a5e-mm', blackflag: 'bfrd', taldorei: 'tdcs' };
 
 // "Red Dragon, Adult" and "Adult Red Dragon" are the same name
 const nameKey = (n) => String(n).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').sort().join(' ');
@@ -48,7 +51,10 @@ async function build() {
     for (let url = 'https://api.open5e.com/v1/monsters/?limit=500'; url;) { const j = await getJSON(url); o5e.push(...j.results); url = j.next; }
 
     const open = docs.filter((d) => OPEN.test(d.license));
-    const rank = new Map(open.map((d, i) => [d.slug, i + 1]));
+    // newest book first: v1 books have no dates, so each takes its v2 entry's (the SRD's own copy first, a book without a date last)
+    const dates = new Map((await getJSON('https://api.open5e.com/v2/documents/?limit=200')).results.map((d) => [d.key, d.publication_date || '']));
+    const date = (slug) => (slug === 'wotc-srd' ? '9' : dates.get(V2[slug] || slug) || '');
+    const rank = new Map(open.slice().sort((a, b) => date(b.slug).localeCompare(date(a.slug))).map((d, i) => [d.slug, i + 1]));
     const entries = [
         ...srd.map((m) => ({ key: 'srd:' + m.index, name: m.name, src: 'srd', rank: 0, type: m.type, cr: +m.challenge_rating, size: String(m.size || '').replace(/^./, (c) => c.toUpperCase()) })),
         ...o5e.filter((m) => rank.has(m.document__slug)).map((m) => ({ key: 'o5e:' + m.slug, name: m.name, src: m.document__slug, rank: rank.get(m.document__slug),
