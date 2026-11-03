@@ -13,6 +13,10 @@ COPY --from=relay /relay/node_modules /opt/relay/node_modules
 # Node needs libstdc++; fail the build if it can't run
 RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 && rm -rf /var/lib/apt/lists/* && node --version
 
+# GD with JPEG, PNG and WebP: battle maps (includes/maps.php) cut the fog into the players' copy; fail the build without WebP
+RUN apt-get update && apt-get install -y --no-install-recommends libjpeg62-turbo-dev libpng-dev libwebp-dev && rm -rf /var/lib/apt/lists/* \
+    && docker-php-ext-configure gd --with-jpeg --with-webp && docker-php-ext-install -j"$(nproc)" gd \
+    && php -r 'exit(function_exists("imagewebp") && function_exists("imagecreatefromjpeg") ? 0 : 1);'
 # curl (D&D Beyond, spells, Google sign-in) and mbstring are built into this image; fail the build if that ever changes
 RUN php -m | grep -qx curl && php -m | grep -qx mbstring \
     && a2enmod rewrite headers remoteip proxy proxy_http proxy_wstunnel

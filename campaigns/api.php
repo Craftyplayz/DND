@@ -13,11 +13,12 @@
 //   POST {"act": "session", "id", "start": bool}    the DM or a co-DM starts or ends a session
 //   POST {"act": "fight", "id", "op", ...}           the DM or a co-DM runs the initiative tracker (includes/initiative.php, fi_op);
 //                                                      409 {"stale"} when the fight changed since the DM's copy ("v")
-// An initiative roll also joins the fight (fi_roll). Fight changes only tell pages "fight": each loads campaigns/fight.php.
+// An initiative roll also joins the fight (fi_roll). Every fight change also updates the battle map's tokens (mp_fight_sync). Fight changes only tell pages "fight": each loads campaigns/fight.php.
 // After a change, the live relay tells everyone with the campaign open, and drops anyone who left or was removed.
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
 require __DIR__ . '/../includes/auth.php';
 require __DIR__ . '/../includes/initiative.php';
+require __DIR__ . '/../includes/maps.php';
 require_once __DIR__ . '/../includes/live.php';
 // DND_ACCOUNTS: a stand-in folder for _dev/scripts/campaigns-page.mjs, so the check never touches real accounts
 $accounts = getenv('DND_ACCOUNTS') ?: __DIR__ . '/../private/dnd/accounts';
@@ -46,9 +47,11 @@ if ($act === 'roll' || $act === 'session' || $act === 'fight') {
     if ($act !== 'roll' && !cp_is_dm($c, $user['sub'])) cp_out(403, ['error' => 'Only the DM can do that.']);
     $logs = [];
     $fight = false;
+    $before = $act === 'session' ? null : fi_read($accounts, $c['id']); // the map on the table follows the fight (mp_fight_sync)
     if ($act === 'fight') [$code, $out, $logs] = fi_op($accounts, $c, $body, $user['sub']);
     else [$code, $out] = $act === 'roll' ? tl_add($accounts, $c, $user, $body['roll'] ?? null) : tl_session($accounts, $c, !empty($body['start']));
     if ($code === 200 && $act === 'roll' && empty($out['again'])) $fight = fi_roll($accounts, $c, $user, $body['roll']);
+    if ($code === 200 && ($act === 'fight' || $fight) && ($ml = mp_lock($accounts, $c['id']))) { mp_fight_sync($accounts, $c, $before, fi_read($accounts, $c['id'])); flock($ml, LOCK_UN); }
     flock($lock, LOCK_UN);
     if ($code === 200 && ($act === 'fight' || $fight)) live_publish($c['id'], ['type' => 'fight']);
     foreach ($logs as $e) live_publish($c['id'], ['type' => 'roll', 'entry' => ['mine' => false] + tl_view($c, $c['dm'], $e)]);
