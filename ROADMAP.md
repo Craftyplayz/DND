@@ -28,13 +28,20 @@ The same for every item below (from CLAUDE.md):
 0. Building or restyling a page: read the design guide at `/design` (`design/index.php`) first and follow it.
    When the owner overrides it, do what they asked, then ask whether to make it the guide's new default.
 1. Build it locally (`php -S 127.0.0.1:8110 -t .`). New code gets a new test in `_dev/scripts/` in the same
-   change. Run the whole suite, not just the part you changed: every `node _dev/scripts/*.test.js`, every
+   change. Run the whole suite (once per item, as below), not just the part you changed: every `node _dev/scripts/*.test.js`, every
    `php _dev/scripts/*.test.php`, and `node _dev/scripts/pages-ok.mjs` (every page in headless Chrome and
    Firefox; must end with `pages ok`). Everything must work in both browsers (`launch('chrome' | 'firefox')`
    in `_dev/scripts/browser.mjs`).
+   `node _dev/scripts/check-all.mjs` is the one command for the whole suite (every test and every browser check, in
+   both browsers, side by side; ends with `all checks ok`; `--only a,b` for some checks, `--data <old URL>` adds
+   the player-data check in both browsers). The whole suite runs once per item: when the work is split between an
+   agent that builds and a merge, the builder runs the checks for what it changed (its own new checks plus the
+   existing checks for the pages and files it touched, with `--only`), and the merge runs the whole suite plus the
+   player-data check (`check-all.mjs --data <old URL>`) before anything is pushed. Working alone, run the whole
+   suite once before pushing.
 2. If it touches a sheet: run `_dev/scripts/sheet-keeps-data.mjs` against the live code, once plain and once with
-   `--firefox`. Both must end with `sheet keeps data ok`. Player sheet changes also run
-   `node _dev/scripts/characters-page.mjs`. Test signed in and signed out: survives sign-in, a new browser, and
+   `--firefox` (`check-all.mjs --data <old URL>` runs both). Both must end with `sheet keeps data ok`. Player
+   sheet changes also run `node _dev/scripts/characters-page.mjs`. Test signed in and signed out: survives sign-in, a new browser, and
    an edit on another device.
 3. Use the change in both browsers the way a player would (click through, reload, sign in and out) and check the
    pages around it. If any check fails or can't run, don't deploy: fix it or tell the owner.

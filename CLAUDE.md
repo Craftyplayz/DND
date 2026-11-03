@@ -18,6 +18,14 @@ All Portainer actions go through `_dev/deploy.sh`; don't call the Portainer API 
    in both and must end with `pages ok`; drive either browser from your own checks with `launch('chrome' |
    'firefox')` in `_dev/scripts/browser.mjs`. If the change touches a sheet, also run the player-data check below,
    in both browsers (add `--firefox`); it must pass before anything is pushed.
+   - `node _dev/scripts/check-all.mjs` is the one command for the whole suite: every test and every browser check,
+     in both browsers, side by side. It ends with `all checks ok`. `--only a,b` runs just those checks;
+     `--data <old URL>` adds the player-data check in both browsers.
+   - The whole suite runs once per item. When the work is split between an agent that builds and a merge, the
+     builder runs the checks for what it changed (its own new checks plus the existing checks for the pages and
+     files it touched, with `--only`), and the merge runs the whole suite plus the player-data check
+     (`check-all.mjs --data <old URL>`) before anything is pushed. Working alone, run the whole suite once before
+     pushing.
 2. Commit (small commits), push to main, run `bash _dev/deploy.sh test`, then check https://dndtest.craftyplayz.com
    loads with no console errors in both Chrome and Firefox.
 3. Every change goes to dndtest.craftyplayz.com straight away (steps 1-2), without asking. Tell the user it's there.
@@ -26,10 +34,10 @@ All Portainer actions go through `_dev/deploy.sh`; don't call the Portainer API 
    https://dnd.craftyplayz.com.
 
 Test a lot before deploying anything, even a small change: friends use this site, and a broken page or lost
-character is worse than a slower release. Run the whole suite above, not just the tests for the part you changed,
-then use what you changed in both browsers the way a player would (click through it, reload, sign in and out),
-and check the pages around it still work. New code gets a new test in `_dev/scripts/` in the same change. If any
-check fails or can't run, don't deploy; fix it or tell the user.
+character is worse than a slower release. Run the whole suite above (once per item, as step 1 says), not just the
+tests for the part you changed, then use what you changed in both browsers the way a player would (click through it,
+reload, sign in and out), and check the pages around it still work. New code gets a new test in `_dev/scripts/` in
+the same change. If any check fails or can't run, don't deploy; fix it or tell the user.
 
 The live site only ever gets the image that is on test (`deploy.sh live` copies TEST_TAG to LIVE_TAG).
 `bash _dev/deploy.sh test` runs without asking; `bash _dev/deploy.sh live` only when the user has told you to; anything else on the server
@@ -72,6 +80,8 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
   node _dev/scripts/sheet-keeps-data.mjs http://localhost:8110 http://localhost:8112
   node _dev/scripts/sheet-keeps-data.mjs http://localhost:8110 http://localhost:8112 --firefox
   ```
+  (`node _dev/scripts/check-all.mjs --data http://localhost:8112` runs both, against its own server of your change,
+  alongside the rest of the suite.)
   It loads every saved character from the local `private/dnd/backups/` into both versions, opens each one and
   compares every value. It must end with `sheet keeps data ok`. Any FAIL is a data-loss bug: fix it, never
   weaken the check. Remove the worktree afterwards (`git worktree remove ../dnd-live`).
