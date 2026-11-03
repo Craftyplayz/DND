@@ -29,8 +29,8 @@ b.fi-init { width: 2.5em; font-size: 18px; }
 .fi-hp, .fi-tools { flex: none; }
 .fi-add { margin-top: 8px; }
 .fi-add .field:not(.fi-init) { flex: 1 1 140px; width: auto; }
-/* on phones the Monster Sheet's list is hidden, so the tracker has its own monster picker */
-@media (min-width: 761px) { .mon-fightpick { display: none; } }
+/* a player's "Your turn" / "You're up next" above the order */
+.fi-you { margin: 0 0 8px; }
 .mon-fight { margin: 0 0 16px; }
 .mon-fight h2, .cp-fight h2 { margin-top: 0; }
 .cp-fight { margin: 0 0 28px; }

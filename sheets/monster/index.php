@@ -18,7 +18,7 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
         <h1 class="hb-sr">Monster Sheet</h1>
 
         <div class="bar hb-bar" id="hb-bar"><span class="hb-barin" id="hb-barin"></span><?= auth_button() ?></div>
-        <?php // the initiative tracker (ROADMAP 1.4, assets/js/fight.js) for the campaign the sheet's rolls go to ?>
+        <?php // the fight (ROADMAP 1.4) in the campaign the sheet's rolls go to: a link to its battle map, where the DM runs it (1.6) ?>
         <section class="card mon-fight" id="mon-fight" aria-label="Fight" hidden></section>
         <div class="mon-wrap">
             <aside class="card mon-side" id="mon-side" aria-label="Encounter"></aside>

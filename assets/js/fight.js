@@ -2,9 +2,11 @@
 // sees (fi_view in includes/initiative.php, through campaigns/fight.php); this file only draws it and sends the DM's changes.
 //   Fight.strip(campaignId, characterId, roll)   the player sheet: until this character has rolled into the running fight,
 //                                                a "Roll initiative" prompt under the top bar (calls roll()); nothing else
-//   Fight.panel(el, campaignId, {controls, onHp, onChange})   the tracker: on the Monster Sheet with controls (the DM runs
-//                                                it there), on the campaign page without (players see the order; the DM
-//                                                also sees numbers and can change monster HP). onHp(monster id, op) changes
+//   Fight.panel(el, campaignId, {controls, brief, onHp, onChange})   the tracker: on the battle map page with controls (the DM
+//                                                runs it there, ROADMAP 1.6), on the campaign page and the players' map without
+//                                                (players see the order and "Your turn" / "You're up next"; the DM also sees
+//                                                numbers and can change monster HP), on the Monster Sheet brief (a link to the
+//                                                map; its list's "Add to fight" buttons still work). onHp(monster id, op) changes
 //                                                HP (default: sheets/monster/cloud.php?hp=); onChange(fight) after each load;
 //                                                extra() adds the page's own controls (the Monster Sheet's monster picker).
 //   Fight.state(campaignId) -> the fight as last loaded, or null
@@ -126,13 +128,24 @@ window.Fight = (() => {
         // keep what the DM is typing when a live update redraws the panel
         if (el.contains(document.activeElement) && document.activeElement.matches('input')) { p.skipped = true; return; }
         p.skipped = false;
+        // the Monster Sheet (brief): the fight is run from the battle map now (ROADMAP 1.6), so only a link there
+        if (p.opts.brief) {
+            el.hidden = false;
+            el.innerHTML = `<h2>Fight</h2><p>${f ? (f.phase === 'rolling' ? 'Rolling initiative.' : `Round ${f.round}.`) : 'No fight running.'} <a class="btn small primary" href="/campaigns/${esc(p.c)}/map">${f ? 'Run it on the map' : 'Start one on the map'}</a></p>`;
+            return;
+        }
         if (!f) {
             el.hidden = !ctl;
             el.innerHTML = ctl ? `<h2>Fight</h2>${note}<p class="muted">No fight running. Players get a notice to roll initiative when you start one.</p><p><button type="button" class="btn primary" data-fi="start"${dis}>Start fight</button></p>` : '';
             return;
         }
         el.hidden = false;
-        if (!f.party) { el.innerHTML = '<h2>Fight</h2>' + head(f) + row(f); return; } // a player: the order only
+        if (!f.party) { // a player: the order only, with a notice when their turn is now or next
+            const mine = (id) => f.entries.find((e) => e.id === id)?.mine;
+            const you = mine(f.turn) ? 'Your turn' : mine(f.next) ? "You're up next" : '';
+            el.innerHTML = '<h2>Fight</h2>' + (you ? `<p class="note fi-you" role="status">${you}</p>` : '') + head(f) + row(f);
+            return;
+        }
         // players' HP changes go to their sheets as DM edits (ROADMAP 1.5, sheets/player/dmedit.js)
         const hpForm = (e) => (e.kind === 'monster' && !e.missing ? `<form class="fi-hp" data-mon="${esc(e.mon)}"><input class="field" inputmode="decimal" aria-label="Amount for ${esc(e.name)}" placeholder="5"${dis}><button class="btn small" value="dmg"${dis}>Damage</button><button class="btn small" value="heal"${dis}>Heal</button></form>`
             : e.kind === 'pc' && e.hp && e.char && window.hbDm?.send ? `<form class="fi-hp" data-char="${esc(e.char)}"><input class="field" inputmode="decimal" aria-label="Amount for ${esc(e.name)}" placeholder="5"${dis}><button class="btn small" value="dmg"${dis}>Damage</button><button class="btn small" value="heal"${dis}>Heal</button><button class="btn small" value="temp"${dis}>Temp</button></form>` : '');

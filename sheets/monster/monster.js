@@ -1804,8 +1804,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         tableWatch(); drawTray(); drawLog();
     }
     function tableWatch() {
-        // the initiative tracker for the campaign picked here (assets/js/fight.js); it redraws the list's add buttons
-        window.Fight?.panel($('#mon-fight'), camp()?.id || '', { controls: true, onHp: fightHp, onChange: drawSide, extra: fightPick });
+        // the fight in the campaign picked here (assets/js/fight.js): the DM runs it on the battle map (ROADMAP 1.6), so the panel
+        // only links there; it redraws the list's "Add to fight" buttons
+        window.Fight?.panel($('#mon-fight'), camp()?.id || '', { brief: true, onChange: drawSide });
         const id = camp()?.id || '';
         if (id === watchId) return;
         watching?.close();
@@ -1943,12 +1944,6 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (!c) return '<p><button type="button" class="btn small" data-act="fightadd">Add whole encounter to fight</button></p>';
         return f.entries.some((e) => e.mon === c.id) ? '<span class="badge">In fight</span>' : `<button type="button" class="btn small" data-act="fightadd" data-id="${esc(c.id)}" aria-label="Add ${esc(c.name || 'Unnamed monster')} to the fight">Add to fight</button>`;
     }
-    // the same on phones, where the list is hidden: a picker in the tracker
-    function fightPick() {
-        const f = fightNow(), left = monsIn(shownEnc).filter((c) => !c.archived && !f?.entries.some((e) => e.mon === c.id));
-        return f && left.length ? `<div class="fi-add mon-fightpick"><select class="field" id="mon-fightsel" aria-label="Monster to add">${left.map((c) => `<option value="${esc(c.id)}">${esc(c.name || 'Unnamed monster')}</option>`).join('')}</select>
-            <button type="button" class="btn small" data-act="fightadd" data-sel>Add to fight</button><button type="button" class="btn small" data-act="fightadd">Add whole encounter to fight</button></div>` : '';
-    }
     // each with its own initiative roll (d20 + its initiative) and AC, worked out as the sheet shows them
     async function fightAdd(list, b) {
         const f = fightNow(), have = new Set((f?.entries || []).map((e) => e.mon));
@@ -1968,16 +1963,6 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         }
         store();
         await Fight.act(camp().id, 'add', { items });
-    }
-    // a change from the tracker to one of these monsters goes the same way as the damage form
-    function fightHp(id, op, cid) {
-        const c = db.chars[id];
-        // not one of these: another DM's or co-DM's monster in this campaign's fight
-        if (!c) return fetch('cloud.php?hp=' + encodeURIComponent(id) + '&c=' + encodeURIComponent(cid), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op }) });
-        hpApply(c, op);
-        hpOp(c, op);
-        store(); drawSide();
-        if (c === C) draw();
     }
     // a copy with full hit points; like every new monster it starts in Unsorted (ROADMAP 3.1)
     function dupMonster() {
@@ -2491,7 +2476,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'rollx') { clearTimeout(rollTimer); $('#hb-rolls').innerHTML = ''; return; }
         if (act === 'tray') { tray.open = !tray.open; return drawTray(); }
         if (act === 'rollto') { setRollTo(!rollTo()); return drawTray(); }
-        if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : 'sel' in b.dataset ? [db.chars[$('#mon-fightsel').value]] : monsIn(shownEnc).filter((c) => !c.archived), b);
+        if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : monsIn(shownEnc).filter((c) => !c.archived), b);
         if (act === 'logtab') { logTab = b.dataset.t; return drawLog(); }
         if (act === 'logclear') { if (confirm('Clear the roll log for this monster?')) { C.rolls = []; saveNow(); drawLog(); } return; }
         if (act === 'die') { tray.pool[b.dataset.n] = (tray.pool[b.dataset.n] || 0) + 1; return drawTray(); }

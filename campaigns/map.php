@@ -42,6 +42,7 @@ if (!$c) http_response_code(404);
     </main>
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player/dmedit.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/map.js')) ?>" defer></script>
     <script>
