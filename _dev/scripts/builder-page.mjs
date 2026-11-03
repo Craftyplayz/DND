@@ -3,6 +3,8 @@
 // reload half way that resumes, changing the class (only its picks reset), Finish opening the sheet, Level up and its Undo, a
 // draft in My Characters' Unfinished and Cancel archiving it; signed in, a character built for a campaign with the DM's
 // character rules (set on the campaign page) that joins it at Finish and makes one version only. No console errors anywhere.
+// Those run on the SRD alone (srd-build.json; the imported content files are blocked), so the picks and numbers are the same
+// whatever the content holds. Then, with the content: every class is listed, one opens, and the 2024 rules swap the lists.
 //   node _dev/scripts/builder-page.mjs
 // Starts its own server on port 8129 with stand-in account and session folders in the temp folder (never private/dnd/).
 import { mkdirSync, writeFileSync, rmSync, readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -35,7 +37,7 @@ try {
     for (const name of browsers) {
         setup();
         const b = await launch(name), ev = b.ev;
-        const errs = (where) => { const e = b.errors.filter((x) => !/backup\.php/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 800)}`); } };
+        const errs = (where) => { const e = b.errors.filter((x) => !/backup\.php|content\/20\d\d-/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 800)}`); } };
         const go = async (url) => { await b.go(url); await b.until(`document.readyState === 'complete' && document.querySelector('main')`); };
         const as = async (who) => { await go(BASE + '/privacy/'); await ev(who ? `document.cookie = 'dndsid=check${who}0000000000000000000000000; path=/'` : `document.cookie = 'dndsid=; path=/; max-age=0'`); };
         const click = (sel) => ev(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (!e) return 'missing'; e.click(); return 'ok'; })()`).then((r) => { if (r !== 'ok') { bad++; console.log(`FAIL ${name}: nothing to click at ${sel}`); } });
@@ -50,6 +52,7 @@ try {
         const nav = async (sel) => { await click(sel); await sleep(1000); };
         const step = async (k) => { trace('step ' + k); await click(`[data-act=go][data-k=${k}]`); await b.until(`document.querySelector('[data-act=go][data-k=${k}][aria-current=step]')`); };
         try {
+            await b.block(/content\/2014-|content\/2024-/);
             // ---- signed out: a level 3 fighter ----
             await as(null);
             await go(BASE + '/privacy/');
@@ -225,6 +228,34 @@ try {
             is(`${name} its spell`, (await db()).chars[vid].panels.find((p) => p.type === 'spells').rows.map((r) => r.name), ['Fire Bolt']);
             errs('signed in');
         } finally { b.close(); }
+
+        // ---- with the imported content: more classes, each rules version on its own ----
+        const idx = JSON.parse(readFileSync(join(ROOT, 'sheets/player/content/index.json'), 'utf8'));
+        if (idx.files?.length) {
+            const c2 = await launch(name);
+            try {
+                await c2.go(BASE + '/privacy/');
+                await c2.ev(`localStorage.clear(); document.cookie = 'dndsid=; path=/; max-age=0'; 0`);
+                await c2.go(BASE + '/characters/build#class');
+                await c2.until(`document.querySelectorAll('#bd-list-classes .bd-row').length`, 20000).catch(async (e) => { console.log('content page:', await c2.ev(`location.href + ' ' + document.querySelector('#bd-step')?.textContent.slice(0, 200)`), c2.errors.join(' | ')); throw e; });
+                const n14 = idx.counts?.['2014']?.classes;
+                is(`${name} content: every 2014 class listed`, await c2.ev(`document.querySelectorAll('#bd-list-classes .bd-row').length`), Object.keys(JSON.parse(readFileSync(join(ROOT, 'sheets/player/content/2014-classes.json'), 'utf8')).classes).length + Object.keys(JSON.parse(readFileSync(join(ROOT, 'sheets/player/srd-build.json'), 'utf8')).classes).filter((k) => !JSON.parse(readFileSync(join(ROOT, 'sheets/player/content/2014-classes.json'), 'utf8')).classes[k]).length);
+                await c2.ev(`document.querySelector('[data-act=cls][data-id=artificer]').click(), 1`);
+                await c2.until(`document.querySelector('.bd-hero h2')?.textContent === 'Artificer'`);
+                is(`${name} content: a class from the content, with its source`, await c2.ev(`/From /.test(document.querySelector('.bd-hero').textContent)`), true);
+                await c2.ev(`document.querySelector('[data-act=go][data-k=name]').click(), 1`);
+                await c2.until(`document.querySelector('[data-b=rules]')`);
+                await c2.ev(`(() => { const e = document.querySelector('[data-b=rules]'); e.value = '2024'; e.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+                await sleep(1500);
+                // the 2024 Artificer is kept (both rules have one), so its page opens; Change class shows the 2024 list
+                await c2.ev(`document.querySelector('[data-act=go][data-k=class]').click(), 1`);
+                await c2.ev(`document.querySelector('[data-act=clslist]')?.click(), 1`);
+                await c2.until(`document.querySelectorAll('#bd-list-classes .bd-row').length`, 20000);
+                is(`${name} content: 2024 rules list the 2024 classes only`, await c2.ev(`document.querySelectorAll('#bd-list-classes .bd-row').length`), n14 === undefined ? 0 : idx.counts['2024'].classes);
+                const e = c2.errors.filter((x) => !/backup\.php/.test(x));
+                if (e.length) { bad++; console.log(`FAIL ${name} with the content: ${e.join(' | ').slice(0, 800)}`); }
+            } finally { c2.close(); }
+        }
     }
 } finally { server.kill(); rmSync(TMP, { recursive: true, force: true }); }
 console.log(bad ? `${bad} check(s) failed` : 'builder page ok');

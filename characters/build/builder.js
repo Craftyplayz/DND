@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const classRows = () => B.listOf(D, 'classes', rules()).map((c) => ({ id: c.id, name: c.name, sub: [`Hit die d${c.hit_die}`, srcName(c)].filter(Boolean).join(' · ') }));
     STEP.class = () => {
         if (UP) return upClass();
-        if (view.cls === 'list' || !ch.classes[view.cls]) {
+        if (view.cls === 'list' || !D.classes[ch.classes[view.cls]?.id]) {
             const adding = view.clsAt >= ch.classes.length && ch.classes.length;
             return `<h2>${adding ? 'Add another class' : 'Choose a class'}</h2><p class="hint">Tap a class to read about it and make its choices.${adding ? ' Multiclassing: the ability score minimums show as a warning, not a block.' : ''}</p>
                 ${ch.classes.length ? `<div class="bd-chips">${ch.classes.map((e, i) => `<button type="button" class="btn small" data-act="clsopen" data-i="${i}">${esc(D.classes[e.id]?.name || e.id)} ${e.levels}</button>`).join('')}</div>` : ''}
@@ -438,7 +438,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const persOptions = (bg, k) => (bg?.[k]?.from?.options || []).map((o) => o.string || o.desc).filter(Boolean);
     STEP.background = () => {
         const bg = D.backgrounds[ch.bg];
-        if (view.bg === 'list' || !ch.bg) return `<h2>Choose a background</h2>${picker('backgrounds', [...B.listOf(D, 'backgrounds', rules()).map((b) => ({ id: b.id, name: b.name,
+        if (view.bg === 'list' || !ch.bg || (ch.bg !== 'custom' && !D.backgrounds[ch.bg])) return `<h2>Choose a background</h2>${picker('backgrounds', [...B.listOf(D, 'backgrounds', rules()).map((b) => ({ id: b.id, name: b.name,
             sub: (b.starting_proficiencies || []).map((p) => B.profKind(p, M)[1]).join(', ') })), { id: 'custom', name: 'Custom background', sub: 'Name it, then pick two skills and two languages' }], ch.bg, 'bg', 'backgrounds')}`;
         const det = ch.details, inp = (k, label, ph = '') => `<label>${esc(label)}<input class="field" data-b="details.${k}" value="${esc(det[k] || '')}" placeholder="${esc(ph)}" autocomplete="off"></label>`;
         const ta = (k, label, rows = 2) => `<label class="bd-wide">${esc(label)}<textarea class="field" data-b="details.${k}" rows="${rows}">${esc(det[k] || '')}</textarea></label>`;
@@ -614,8 +614,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (/\.asi\.\d+\.k$/.test(path)) { set(path.replace(/\.k$/, ''), { k: v, a: [], feat: '' }); }
         else if (path === 'rules') {
             ch.rules = v;
-            if (ch.classes.length || ch.race || ch.bg) toast('Changing the rules keeps your picks; ones the new rules don\'t have show as not picked.', 'note');
-            return void hbContent(v, BASE).then(async (d) => { if (d) { D = d; if (v === '2014') await hbSpellNames(D); } save(); render(); });
+            // the other rules version's classes, race and background aren't in these lists: they're cleared, with a note
+            return void hbContent(v, BASE).then(async (d) => {
+                if (d) { D = d; if (v === '2014') await hbSpellNames(D); }
+                const had = ch.classes.length + !!ch.race + !!ch.bg;
+                ch.classes = ch.classes.filter((e) => D.classes[e.id]?.rules === v);
+                if (D.races[ch.race]?.rules !== v) Object.assign(ch, { race: '', sub: '', raceOpts: {} });
+                if (ch.bg !== 'custom' && D.backgrounds[ch.bg]?.rules !== v) Object.assign(ch, { bg: '', bgOpts: {} });
+                fixLevels();
+                if (had > ch.classes.length + !!ch.race + !!ch.bg) toast(`Picks from the other rules were cleared: pick the class, race and background again from the ${v} lists.`, 'note');
+                save(); render();
+            });
         }
         else if (path === 'camp') ch.camp = v;
         else set(path, v);
