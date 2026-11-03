@@ -132,7 +132,7 @@ async function races14(log, out) {
         const body = content(h);
         // versions: one <h1> per book; a page with no <h1> is a single version
         const parts = body.split(/(?=<h1\b)/i).map((s) => ({ head: /^<h1/i.test(s) ? text(s.slice(0, s.indexOf('</h1>'))) : '', html: s }));
-        const versions = [];
+        const versions = [], every = [];   // every: all non-UA book sections, for their subraces
         for (const p of parts) {
             if (isUA(p.head)) { skip('races', `${name} (${p.head})`, 'Unearthed Arcana section'); continue; }
             let [top, ...subs] = p.html.split(/(?=<h2\b)/i);
@@ -140,6 +140,7 @@ async function races14(log, out) {
             // some pages put the base traits under a first <h2> ("Kender Traits") instead of at the top
             if (!hasBase(top) && subs.length && hasBase(subs[0])) { top += subs[0]; subs = subs.slice(1); }
             const bl = blocks(top).filter((b) => b.k !== 'h');
+            every.push({ subs: hasBase(top) ? subs : p.html.split(/(?=<h2\b)/i).slice(1), bl });
             if (hasBase(top)) versions.push({ p, E: entries(bl), subs, bl });
         }
         if (!versions.length) {
@@ -152,11 +153,14 @@ async function races14(log, out) {
         const src14 = sourceOf(v.bl);
         if (isUA(src14)) { skip('races', name, 'Unearthed Arcana (Source line)'); continue; }
         const race = raceFromEntries(slug(pageSlug), name, v.E, W14);
-        for (const s of v.subs) {
+        // subraces from every non-UA book version (owner's call): dragonmarks, Mordenkainen's bloodlines, ...; one per name
+        const subNames = new Set();
+        for (const s of every.filter((x) => !isUA(sourceOf(x.bl))).flatMap((x) => x.subs)) {
             const sb = blocks(s);
             const sname = sb[0]?.k === 'h' ? sb[0].text : '';
-            if (!sname) continue;
+            if (!sname || subNames.has(slug(sname))) continue;
             if (isUA(sname)) { skip('subraces', `${name}: ${sname}`, 'Unearthed Arcana'); continue; }
+            subNames.add(slug(sname));
             const E = entries(sb.slice(1));
             const asi = E.entries.find((e) => e.name === 'Ability Score Increase');
             const asiT = asi ? asi.desc.join(' ') : '';

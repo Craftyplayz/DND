@@ -317,6 +317,8 @@ export async function loadSite(key, log = () => {}) {
         const cls = parseClass(site, cs, html, subs);
         for (const s of subs) {
             if (/-ua$/.test(s)) { skip('subclass', `${site.src}:${cs}:${s}`, 'slug ends -ua'); continue; }
+            // owner's call: of a page and its "-reborn" rewrite (Juggernaut, Blood, Runechild) only the Reborn one is kept
+            if (subs.includes(s + '-reborn')) { skip('subclass', `${site.src}:${cs}:${s}`, 'older version of ' + s + '-reborn'); continue; }
             const sh = await get(`${site.base}/${cs}:${s}`);
             if (!sh) { log(`${site.src} ${cs}:${s}: page missing`); continue; }
             let sname = title(sh);
