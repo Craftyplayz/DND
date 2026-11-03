@@ -45,7 +45,8 @@ try {
         const db = async () => JSON.parse(await ev(`localStorage.getItem('hb-sheet') || '{"chars":{}}'`));
         const draft = async () => { const id = new URLSearchParams(await ev('location.search')).get('id'); return (await db()).chars[id]; };
         const h2 = () => ev(`document.querySelector('#bd-step h2')?.textContent`);
-        const step = async (k) => { await click(`[data-act=go][data-k=${k}]`); await b.until(`document.querySelector('[data-act=go][data-k=${k}][aria-current=step]')`); };
+        const trace = (m) => process.env.BUILDER_TRACE && console.log(`${name} ${((Date.now() - T0) / 1000).toFixed(1)} s: ${m}`), T0 = Date.now();
+        const step = async (k) => { trace('step ' + k); await click(`[data-act=go][data-k=${k}]`); await b.until(`document.querySelector('[data-act=go][data-k=${k}][aria-current=step]')`); };
         try {
             // ---- signed out: a level 3 fighter ----
             await as(null);
@@ -110,7 +111,7 @@ try {
             // ability scores: 4d6 drop lowest, six separate 3D throws
             await step('abilities');
             await click('[data-act=method][data-m=roll]');
-            for (let i = 1; i <= 6; i++) {
+            for (let i = 1; i <= 6; i++) { trace('set ' + i);
                 await b.until(`document.querySelector('[data-act=rollset]') && !document.querySelector('[data-act=rollset]').disabled`, 60000);
                 await click('[data-act=rollset]');
                 await b.until(`document.querySelectorAll('.bd-set:not(.dim)').length === ${i}`, 60000);

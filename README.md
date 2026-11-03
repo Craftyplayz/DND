@@ -4,6 +4,8 @@ Our D&D campaign tools, split out of craftyplayz.com:
 
 - `/characters/` My Characters: a card per character, each opening at `/characters/<id>` in the homebrew sheet
   (signed in, each character has a folder in `private/dnd/accounts/characters/<id>/`, see includes/characters.php)
+- `/characters/build` the character builder (ROADMAP 4.2): a new character step by step at any level, saved as a draft as
+  you go; `?up=<id>` is Level up (4.3). Rules in `sheets/player/build.js`, content through `sheets/player/content.js`
 - `/private/archive/characters/` the old D&D Beyond character viewer (cache still in `characters/cache/`)
 - `/sheets/player/` Homebrew character sheet with a character picker (saved in the browser under `hb-sheet`, backed up to `private/dnd/backups/`)
 - `/sheets/monster/` Monster sheet (backed up to `private/dnd/monster-backups/`)

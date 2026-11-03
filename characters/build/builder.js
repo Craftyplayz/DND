@@ -798,5 +798,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (step === 'class' && !UP) view.cls = ch.classes.length ? 0 : 'list';
     if (step === 'race') view.race = ch.race ? 'detail' : 'list';
     if (step === 'background') view.bg = ch.bg ? 'detail' : 'list';
+    if (matchMedia('(max-width: 760px)').matches) $('#bd-stepsdet').open = false; // on a phone the steps fold under one line
     render();
 });

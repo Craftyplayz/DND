@@ -139,7 +139,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 lists: { ...LISTS },
                 panels: [newPanel('profs'), newPanel('attacks'), newPanel('spells'), newPanel('items'), Object.assign(newPanel('list', 'Passive abilities'), { split: true, sub: 'race' }),
                     newPanel('trackers', 'Resources'), newPanel('homebrew'), newPanel('combat'),
-                    newPanel('details'), newPanel('notes')], // personality and backstory live in Character details (4.2)
+                    Object.assign(newPanel('notes'), { notes: ['Personality', 'Backstory'].map((title) => Object.assign(ROW.note(), { title, group: 'Character' })) }),
+                    // Character details (4.2) goes last, so every panel before it keeps its place
+                    newPanel('details')],
                 view: { tab: '', all: false, prep: false, table: '', rollTo: '' }, hbPanel: true, hb2: true, passSplit: true,
                 hoPanel: false, // handouts (3.4): true once the Handouts panel has been added (hoAdd), so a closed one stays closed
                 // ROADMAP 1.5: the sheet's worked-out max HP for the fight tracker (no version of its own), and the DM edits applied

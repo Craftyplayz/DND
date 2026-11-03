@@ -483,6 +483,9 @@
     function build(ch, data, M) {
         const c = M.blank();
         c.build = clone(ch);
+        // a built character keeps personality and backstory in Character details, so the blank sheet's empty notes for them go
+        const np = panel(c, 'notes');
+        if (np) np.notes = np.notes.filter((n) => String(n.body).trim());
         c.name = ch.name || '';
         c.art = ch.art || ''; c.artUrl = ch.artUrl || '';
         const det = ch.details || {};
