@@ -138,6 +138,11 @@ try {
     await maps({ op: 'move', k: key('Lock'), x: 0, y: 0, placed: true });
     await maps({ op: 'move', k: key('Ozzy'), x: 100, y: 100, placed: true });
     is('party tokens live, names showing below them', await until(tv, `(() => { const t = ${tok('Ozzy')}; if (!t) return ''; const n = t.querySelector('.mp-name'); return getComputedStyle(n).display + ':' + (n.getBoundingClientRect().top >= t.getBoundingClientRect().bottom - 2); })()`, (v) => v === 'block:true'), 'block:true');
+    // a player's ruler shows live, and goes when they let go
+    await post(SID.pat, '/campaigns/maps.php', { c: CAMP, m: MAP, op: 'ruler', pts: [[50, 50], [250, 50]] });
+    is("a player's ruler, live", await until(tv, text('.mp-ruler text'), Boolean), '10 ft · Pat');
+    await post(SID.pat, '/campaigns/maps.php', { c: CAMP, m: MAP, op: 'ruler', pts: null });
+    is('the ruler goes', await until(tv, `!document.querySelector('.mp-ruler polyline')`, Boolean), true);
 
     // the fight: two monsters (the Lurker hidden), Pat rolls in, Ozzy waits
     await fightOp('start');
