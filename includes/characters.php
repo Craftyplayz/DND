@@ -85,7 +85,9 @@ function ch_write($dir, $json, &$n = null)
     $ns = ch_versions_in($dir);
     $last = $ns ? end($ns) : 0;
     $prev = $last ? @file_get_contents("$dir/history/$last.json") : false;
-    if ($prev === false || ($prev !== $json && ch_plain(json_decode($prev, true)) !== ch_plain(json_decode($json, true)))) {
+    // a character the builder is still making (ROADMAP 4.2, "draft") makes no versions; its first one is made at Finish
+    $draft = !empty((json_decode($json, true) ?: [])['draft']);
+    if (!$draft && ($prev === false || ($prev !== $json && ch_plain(json_decode($prev, true)) !== ch_plain(json_decode($json, true))))) {
         if (@file_put_contents("$dir/history/" . ($last + 1) . '.json', $json) === false) return false;
         $n = $last + 1;
     }

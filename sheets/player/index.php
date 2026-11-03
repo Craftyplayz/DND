@@ -41,6 +41,9 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
         <input type="file" id="hb-artfile" accept="image/*" hidden>
     </main>
 
+    <script src="<?= h(asset('/sheets/player/model.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player/build.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player/content.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/ddb.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/rules.js')) ?>" defer></script>

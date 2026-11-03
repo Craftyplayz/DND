@@ -43,7 +43,9 @@ define('DM_FIELDS', [
     'panels.#.flex' => 'list', 'panels.#.flex.N' => 'v', 'panels.#.text' => 'v', 'panels.#.ok' => 'a', 'panels.#.bad' => 'a',
     'panels.#.notes' => 'rows', 'panels.#.notes.#.title' => 'v', 'panels.#.notes.#.group' => 'v', 'panels.#.notes.#.body' => 'v', 'panels.#.notes.#.pinned' => 'b', 'panels.#.notes.#.archived' => 'v',
     'panels.#.tabs' => 'tags',
-] + array_combine(array_map(fn($k) => "panels.#.rows.#.$k", array_keys(DM_ROW)), DM_ROW));
+    // the Character details panel (4.2): DETAILS in sheets/player/model.js
+] + array_fill_keys(array_map(fn($k) => "panels.#.f.$k", ['background', 'faith', 'lifestyle', 'gender', 'height', 'weight', 'size', 'skin', 'hair', 'eyes',
+    'appearance', 'traits', 'ideals', 'bonds', 'flaws', 'allies', 'enemies', 'orgs', 'backstory']), 'v') + array_combine(array_map(fn($k) => "panels.#.rows.#.$k", array_keys(DM_ROW)), DM_ROW));
 const DM_KEEP = 500; // applied edit ids a character remembers (dmedit.js KEEP)
 const DM_DONE = 200; // confirmed edits kept per queue, for older copies saved later
 

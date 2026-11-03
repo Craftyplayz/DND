@@ -28,7 +28,7 @@
     const KEEP = 500; // applied edit ids a character remembers
 
     // what the DM never changes: the roll log (except rolls), view settings, panel layout, portrait, archive, save stamps
-    const NO_TOP = new Set(['id', 'updated', 'archived', 'art', 'artUrl', 'rolls', 'view', 'calc', 'dmApplied', 'miscCat', 'hbPanel', 'hb2', 'passSplit', 'hoPanel']);
+    const NO_TOP = new Set(['id', 'updated', 'archived', 'art', 'artUrl', 'rolls', 'view', 'calc', 'dmApplied', 'miscCat', 'hbPanel', 'hb2', 'passSplit', 'hoPanel', 'draft', 'build']); // draft, build: the builder's own (4.2)
     const NO_PANEL = new Set(['id', 'type', 'title', 'on', 'sub', 'open', 'sort', 'split']);
     const NO_ANY = new Set(['id', 'updated', 'created', 'open', 'sub']);
     const AMOUNT = /^(hp\.(cur|temp)|exhaustion|classes\.N\.hdUsed|panels\.#\.(coins\.(cp|sp|ep|gp|pp)|ok|bad|sp\.(used|cur|extra)|slots\.N\.(used|extra)|rows\.#\.(qty|used|cur|extra)|rows\.#\.levels\.N\.(used|extra)))$/;
