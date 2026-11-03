@@ -2,8 +2,9 @@
 // files (sheets/player/content/index.json) and monsters.json, search (Fireball, Goblin, Bag of Holding, Grappled, a typo),
 // the tabs, the 2014 / 2024 / Both switch (kept over a reload), filters, endless scroll, deep links (old keys too), classes with
 // their level table and subclasses, races, backgrounds, feats, favourites and recent surviving a reload, "Add to sheet"
-// (one character, two characters, the duplicate question, the sheet taking the request once, a Deep Magic spell, a feat) and
-// "Add to encounter" reaching the Monster Sheet (an SRD goblin and a Tome of Beasts 2023 monster).
+// (one character, two characters, the duplicate question, the sheet taking the request once; a Deep Magic spell, a 2024 spell with
+// an SRD name, a non-SRD item, a magic item and a feat landing with their own details), old keys through the aliases, the rules switch on
+// monsters, and "Add to encounter" and the Monster Sheet's own search reaching the sheet (an SRD goblin, a Tome of Beasts 2023 monster, an SRD 5.2 monster).
 //   node _dev/scripts/compendium.mjs [base URL, default http://localhost:8110]
 // Needs the local server with the router (php -S 127.0.0.1:8110 -t . _dev/router.php) and internet (the SRD proxies).
 // Cloud saves and backups are blocked.
@@ -82,6 +83,15 @@ for (const name of browsers) {
         await b.until(`${rowCount} >= ${monsters}`, 15000).catch(() => { });
         is(`${name} a fast scroll to the end loads every monster`, [monsters > 50, await ev(rowCount)], [true, monsters]);
         await ev(`(document.querySelector('#cp-short').remove(), scrollTo(0, 0), 1)`);
+        // the rules switch filters monsters: SRD 5.2 is 2024, the rest 2014
+        const mon24 = (await (await fetch(BASE + '/sheets/monster/monsters.json')).json()).list.filter((r) => r[4] === 'srd-2024').length;
+        is(`${name} 331 SRD 5.2 monsters`, mon24, 331);
+        for (const [r, n] of [['2024', mon24], ['2014', monsters - mon24], ['both', monsters]]) {
+            await ev(`(() => { const i = document.querySelector('#cp-rules input[value="${r}"]'); i.checked = true; i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+            await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') === ${n}`, 'monsters with rules ' + r);
+        }
+        is(`${name} both copies of a monster, each marked`, await search('Aboleth').then(() => js(`[...document.querySelectorAll('#cp-list .cp-row')].filter((x) => x.querySelector('.cp-name').textContent === 'Aboleth').map((x) => x.querySelector('.badge.b').textContent)`)), ['2014', '2024']);
+        await search('');
         await tab('spell');
         // both rules versions: each row says which; one version hides the other, and the choice is kept
         ok(`${name} rules badges`, await ev(`['2014', '2024'].every((r) => [...document.querySelectorAll('#cp-list .badge')].some((x) => x.textContent === r))`));
@@ -164,6 +174,21 @@ for (const name of browsers) {
         await open('/compendium/?t=feat&i=2014:grappler');
         await until(`document.querySelector('#cp-dbody .cp-text')`, 'grappler');
         ok(`${name} feat prerequisite and add button`, await ev(`document.querySelector('#cp-dbody').textContent.includes('Strength 13+') && !!document.querySelector('[data-add=sheet]')`));
+        // an SRD 5.2 monster: its stat block through monsters.php, in the same shape
+        await open('/compendium/?t=monster&i=s24:aboleth');
+        await until(`document.querySelector('#cp-dbody .cp-abil')`, 'SRD 5.2 aboleth');
+        ok(`${name} SRD 5.2 monster`, await ev(`(() => { const d = document.querySelector('#cp-dbody'), x = d.textContent; return x.includes('Amphibious') && x.includes('Attack Roll') && x.includes('Legendary actions') && d.querySelector('.cp-credit').textContent.includes('SRD 5.2') && d.querySelector('.badge.b').textContent === '2024' && !/\\bunit\\b|feet/.test(d.querySelector('.kv').textContent); })()`), await ev(`document.querySelector('#cp-dbody').textContent.slice(0, 400)`));
+        // keys that changed: a link and a queued request still work
+        await open('/compendium/?t=spell&i=acid-arrow');
+        await until(`document.querySelector('#cp-dbody h2')`, 'old spell link');
+        is(`${name} old spell key opens its new entry`, await ev(`document.querySelector('#cp-dbody h2').textContent`), "Melf's Acid Arrow");
+        await open('/compendium/?t=monster&i=o5e:abominable-beauty');
+        await until(`document.querySelector('#cp-dbody .cp-abil')`, 'old monster link');
+        ok(`${name} old monster key opens the 2023 copy`, await ev(`document.querySelector('#cp-dbody h2').textContent === 'Abominable Beauty' && document.querySelector('#cp-dbody .cp-credit').textContent.includes('2023')`));
+        await open('/compendium/?t=magic&i=magic:dragon-scale-mail-red');
+        await until(`document.querySelector('#cp-dbody h2')`, 'old magic link');
+        is(`${name} old magic item key`, await ev(`document.querySelector('#cp-dbody h2').textContent`), 'Dragon Scale Mail');
+        is(`${name} monsters.php answers an old key`, (await (await fetch(BASE + '/sheets/monster/monsters.php?i=o5e:abominable-beauty')).json()).m.name, 'Abominable Beauty');
         // a monster from the Tome of Beasts 2023, which now wins over the 2016 copy
         await open('/compendium/?t=monster&i=o5e:abominablebeauty-tob1-2023');
         await until(`document.querySelector('#cp-dbody .cp-abil')`, 'tob 2023 monster');
@@ -204,11 +229,13 @@ for (const name of browsers) {
         await ev(`document.querySelector('[data-fav]').click()`);
         is(`${name} favourite saved`, await store('compendium-favs'), ['spell:2014:fireball']);
         // a favourite saved before the content files ("item:eq:longsword") still shows, as the 2014 entry
-        await ev(`localStorage.setItem('compendium-favs', JSON.stringify(['spell:2014:fireball', 'item:eq:longsword']))`);
+        const oldFavs = ['spell:2014:fireball', 'item:eq:longsword', 'spell:acid-arrow', 'monster:o5e:abominable-beauty', 'magic:magic:dragon-scale-mail-red'];
+        await ev(`localStorage.setItem('compendium-favs', ${JSON.stringify(JSON.stringify(oldFavs))})`);
         await open('/compendium/');
         await tab('fav');
-        await until(`document.querySelectorAll('#cp-list .cp-row').length === 2`, 'both favourites');
-        is(`${name} favourites tab after reload`, await names(), ['Fireball', 'Longsword']);
+        await until(`document.querySelectorAll('#cp-list .cp-row').length === 5`, 'every favourite');
+        is(`${name} favourites tab after reload, old keys too`, await names(), ['Fireball', 'Longsword', "Melf's Acid Arrow", 'Abominable Beauty', 'Dragon Scale Mail']);
+        is(`${name} stored favourites not rewritten`, await store('compendium-favs'), oldFavs);
         await tab('recent');
         is(`${name} recent tab after reload`, await names(), ['Fireball']);
         await open('/compendium/?t=spell&i=aid');
@@ -249,7 +276,7 @@ for (const name of browsers) {
         is(`${name} queue emptied`, await ev(`localStorage.getItem('hb-pending')`), null);
         await until(`JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.find((p) => p.type === 'spells').rows.every((r) => r.desc)`, 'filled from the SRD');
         const row = await js(`JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.find((p) => p.type === 'spells').rows[0]`);
-        is(`${name} spell row`, [row.name, row.lvl, row.prep, row.school, row.srd], ['Fireball', 3, false, 'Evocation', 'fireball']);
+        is(`${name} spell row`, [row.name, row.lvl, row.prep, row.school, row.srd, row.time, row.mode, row.save, row.dmg, row.mech], ['Fireball', 3, false, 'Evocation', '', 'Action', 'save', 'DEX', [{ dice: '8d6', type: 'Fire' }], 1]);
         // an arrival while the sheet is open is taken at once, and once
         await ev(`(() => { localStorage.setItem('hb-pending', JSON.stringify([{ id: 'x1', char: '${one}', kind: 'item', name: 'Longsword', cat: 'Weapons', fill: true }])); dispatchEvent(new StorageEvent('storage', { key: 'hb-pending' })); dispatchEvent(new StorageEvent('storage', { key: 'hb-pending' })); })()`);
         await until(`JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.some((p) => p.type === 'items' && p.rows.some((r) => r.name === 'Longsword'))`, 'longsword on sheet');
@@ -268,23 +295,42 @@ for (const name of browsers) {
         await until(`document.querySelector('#cp-dup').open`, 'duplicate question on the sheet');
         await ev(`document.querySelector('#cp-dup [data-close]').click()`);
 
-        // a spell from a newly imported book (Deep Magic) reaches the sheet with its name and level
-        await open('/compendium/?t=spell&i=2014:abhorrent-apparition');
-        await until(`document.querySelector('[data-add=sheet]')`, 'deep magic spell');
-        await ev(`document.querySelector('[data-add=sheet]').click()`);
-        await until(`document.querySelector('#cp-msg .ok')`, 'new-source spell added');
-        is(`${name} new-source spell request`, (await store('hb-pending')).map((x) => [x.kind, x.name, x.lvl]), [['spell', 'Abhorrent Apparition', 4]]);
+        // every entry arrives with its own details: a Deep Magic spell, a 2024 spell with an SRD name (its 2024 text, not the SRD's), a Black Flag
+        // weapon that isn't in the SRD list, a magic item that needs attunement, and a feat as a Passive abilities row
+        const addAll = [['spell', '2014:abhorrent-apparition'], ['spell', '2024:ray-of-frost'], ['spell', '2014:cure-wounds'], ['item', '2014:scythe'], ['item', '2024:longbow'], ['magic', '2014:cloak-of-protection'], ['feat', '2014:grappler']];
+        for (const [ty, i] of addAll) {
+            await open(`/compendium/?t=${ty}&i=${i}`);
+            await until(`document.querySelector('[data-add=sheet]')`, 'add button ' + i);
+            await ev(`document.querySelector('[data-add=sheet]').click()`);
+            await until(`document.querySelector('#cp-msg .ok')`, 'added ' + i);
+        }
+        is(`${name} everything queued`, (await store('hb-pending')).length, addAll.length);
+        const feat = (await store('hb-pending')).find((x) => x.kind === 'feat');
+        is(`${name} feat request`, [feat.char, feat.name, feat.src, feat.text.startsWith('Prerequisite: Strength 13+')], [one, 'Grappler', 'Feat', true]);
         await b.go(BASE + `/characters/${one}`);
-        await until(`JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.some((p) => p.type === 'spells' && p.rows.some((r) => r.name === 'Abhorrent Apparition' && r.lvl === 4))`, 'new-source spell on sheet');
-        is(`${name} new-source spell taken`, await ev(`localStorage.getItem('hb-pending')`), null);
-        // a feat: a Passive abilities row with its text (see takePending in sheet.js)
-        await open('/compendium/?t=feat&i=2014:grappler');
-        await until(`document.querySelector('[data-add=sheet]')`, 'feat add button');
-        await ev(`document.querySelector('[data-add=sheet]').click()`);
-        await until(`document.querySelector('#cp-msg .ok')`, 'feat added');
-        const feat = (await store('hb-pending'))[0];
-        is(`${name} feat request`, [feat.char, feat.kind, feat.name, feat.src, feat.text.startsWith('Prerequisite: Strength 13+'), feat.text.includes('grappling')], [one, 'feat', 'Grappler', 'Feat', true, true]);
-        await ev(`localStorage.removeItem('hb-pending')`);
+        await until(`localStorage.getItem('hb-pending') === null`, 'the sheet takes everything');
+        const db1 = (await store('hb-sheet')).chars[one], rowOf = (type, n) => db1.panels.filter((p) => p.type === type).flatMap((p) => p.rows).find((r) => r.name === n);
+        const content = async (f) => (await fetch(BASE + '/sheets/player/content/' + f)).json();
+        const [sp14, sp24, it14] = await Promise.all([content('2014-spells.json'), content('2024-spells.json'), content('2014-items.json')]);
+        const deep = rowOf('spells', 'Abhorrent Apparition');
+        is(`${name} new-book spell`, [deep.lvl, deep.school, deep.desc, deep.dur, deep.srd], [4, sp14.spells['abhorrent-apparition'].school, sp14.spells['abhorrent-apparition'].desc.join('\n\n'), sp14.spells['abhorrent-apparition'].duration, '']);
+        const ray = rowOf('spells', 'Ray of Frost');
+        ok(`${name} the two Ray of Frost texts differ, or this proves nothing`, sp24.spells['ray-of-frost'].desc.join() !== sp14.spells['ray-of-frost'].desc.join());
+        is(`${name} 2024 spell keeps its 2024 text`, [ray.desc, ray.time, ray.srd, ray.mode, ray.dmg, ray.mech], [sp24.spells['ray-of-frost'].desc.join('\n\n'), 'Action', '', 'atk', [{ dice: 'CANTRIPd8', type: 'Cold' }], 1]);
+        ok(`${name} healing read from the text`, rowOf('spells', 'Cure Wounds').fx.some((f) => f.k === 'heal' && /^\d+d\d+$/.test(f.dice)), rowOf('spells', 'Cure Wounds').fx);
+        const scy = rowOf('items', 'Scythe');
+        is(`${name} non-SRD item`, [scy.cat, scy.gp, scy.wt, ['Martial', 'Melee', 'Reach', 'Two-handed'].every((x) => scy.props.includes(x))], ['Weapons', it14.equipment.scythe.cost.quantity, it14.equipment.scythe.weight, true], scy.props);
+        const bow = rowOf('items', 'Longbow');
+        ok(`${name} 2024 weapon's attributes`, bow.cat === 'Weapons' && bow.wt === 2 && ['Martial', 'Ranged', 'Range (150/600)', 'Mastery (Slow)'].every((x) => bow.props.includes(x)), bow);
+        const cloak = rowOf('items', 'Cloak of Protection');
+        is(`${name} magic item`, [cloak.cat, cloak.att, cloak.props.includes('Uncommon'), cloak.notes.length > 20], ['Magic items', 'needs', true, true]);
+        const fr = rowOf('list', 'Grappler');
+        is(`${name} feat on the sheet`, [fr.src, fr.grp, fr.text.startsWith('Prerequisite: Strength 13+'), fr.text.includes('grappl')], ['Feat', 'other', true, true]);
+        ok(`${name} feat is in Passive abilities`, db1.panels.find((p) => p.title === 'Passive abilities').rows.includes(fr));
+        // and it is still there after a reload
+        await b.go(BASE + `/characters/${one}`);
+        await until(`document.querySelector('main') && JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.some((p) => p.rows && p.rows.some((r) => r.name === 'Grappler' && r.text))`, 'feat after reload');
+        errs('add to sheet');
 
         // two characters: a picker
         await b.go(BASE + '/characters/new'); await until(`Object.keys(JSON.parse(localStorage.getItem('hb-sheet') || '{"chars":{}}').chars).length === 2`, 'second character stored');
@@ -320,6 +366,22 @@ for (const name of browsers) {
         await until(`document.querySelector('#cp-msg .ok')`, 'tob 2023 encounter message');
         await b.go(BASE + '/sheets/monster/');
         await until(`(localStorage.getItem('mon-pending') || '[]') === '[]' && Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).some((c) => /^Abominable Beauty/.test(c.name) && c.hp.base === 187)`, 'tob 2023 monster on the sheet', 30000);
+        // the Monster Sheet's own search: both copies of a name, the 2024 one badged, and importing it
+        await ev(`document.querySelector('[data-act=find]').click()`);
+        await until(`document.querySelector('.mon-hit')`, 'monster search');
+        await ev(`(() => { const q = document.querySelector('#mon-q'); q.value = 'aboleth'; q.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+        await until(`[...document.querySelectorAll('.mon-hit')].length && [...document.querySelectorAll('.mon-hit')].every((h) => /aboleth/i.test(h.textContent))`, 'aboleth found');
+        is(`${name} both Aboleths in the search`, await js(`[...document.querySelectorAll('.mon-hit')].filter((h) => h.querySelector('b').firstChild.textContent.trim() === 'Aboleth').map((h) => !!h.querySelector('.badge'))`), [false, true]);
+        await ev(`document.querySelector('.mon-hit[data-mon="s24:aboleth"]').click()`);
+        const blk = (await (await fetch(BASE + '/sheets/monster/monsters.php?i=s24:aboleth')).json()).m;
+        await until(`Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).some((c) => /^Aboleth/.test(c.name))`, 'SRD 5.2 monster imported', 20000);
+        const abo = Object.values((await store('monster-sheet')).chars).find((c) => /^Aboleth/.test(c.name)), att = abo.panels.find((p) => p.type === 'attacks').rows;
+        is(`${name} SRD 5.2 monster's numbers`, [abo.hp.base, abo.cr, abo.abilities[0].score, abo.speeds.map((x) => x.type).sort()], [blk.hit_points, String(blk.cr), blk.strength, Object.keys(blk.speed).filter((k) => k !== 'hover').map((k) => k[0].toUpperCase() + k.slice(1)).sort()]);
+        const tent = att.find((r) => r.name === 'Tentacle');
+        is(`${name} 2024 attack read`, [tent.mode, tent.dmg.length > 0, tent.range], ['hit', true, '15 ft']);
+        ok(`${name} 2024 saving throw action read`, att.some((r) => r.mode === 'save' && +r.dc > 0), att.map((r) => [r.name, r.mode, r.dc]));
+        ok(`${name} legendary and traits read`, att.some((r) => r.time === 'Legendary') && abo.panels.find((p) => p.type === 'list').rows.some((r) => r.name === 'Amphibious'));
+        ok(`${name} SRD 5.2 source note`, abo.panels.find((p) => p.type === 'notes').notes.some((n) => n.body.includes('SRD 5.2')));
         errs('sheets');
 
         // credits

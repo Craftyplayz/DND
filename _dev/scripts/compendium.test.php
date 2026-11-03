@@ -21,10 +21,12 @@ $is('every monster points at a known book', count(array_filter($m['list'], fn($r
 
 // the newest book's copy wins, one copy per name
 $byName = [];
-foreach ($m['list'] as $r) $byName[$r[1]] = $r[4];
+foreach ($m['list'] as $r) if ($r[4] !== 'srd-2024') $byName[$r[1]] = $r[4];
 $is('Tome of Beasts 2023 wins over 2016', $byName['Abominable Beauty'] ?? '', 'tob-2023');
 $is('the SRD wins', $byName['Goblin'] ?? '', 'srd');
-$is('one monster per name', count($byName), count($m['list']));
+$s24 = array_filter($m['list'], fn($r) => $r[4] === 'srd-2024');
+$is('one 2014 monster per name, the 331 SRD 5.2 monsters beside them', [count($byName), count($s24)], [count($m['list']) - 331, 331]);
+$is('SRD 5.2 keys', count(array_filter($s24, fn($r) => strpos($r[0], 's24:') !== 0)), 0);
 // the rules switch follows the account: the same settings list in sync.js and prefs.php
 $keys = function ($file, $re) { preg_match($re, file_get_contents($file), $x); preg_match_all("/'([^']+)'/", $x[1], $y); return $y[1]; };
 $sync = $keys("$root/assets/js/sync.js", '/const KEYS = \[(.*?)\]/');
