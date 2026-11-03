@@ -1,0 +1,93 @@
+/* The battle map (campaigns/map.php, assets/js/map.js) and the campaign page's Map section. */
+.mp { display: flex; flex-direction: column; gap: 8px; height: 100dvh; padding: 8px 16px 16px; }
+.mp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mp .bar { position: static; margin: 0; padding: 4px 0; }
+.mp-barin { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.mp-barin .stabs { margin: 0; }
+.mp-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-tools { gap: 6px; border-bottom: 0; }
+.mp-tools .stabs { margin: 0; }
+.mp-gs { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.mp-gs .field { width: 6em; min-width: 0; }
+.mp-wrap { display: grid; flex: 1; grid-template-columns: 1fr min(380px, 34%); gap: 12px; min-height: 0; }
+.mp-side { display: grid; align-content: start; gap: 12px; min-width: 0; overflow-y: auto; }
+.mp-side .card { margin: 0; }
+.mp-side h2 { margin-top: 0; }
+@media (max-width: 760px) {
+    .mp { height: auto; }
+    .mp-wrap { grid-template-columns: 1fr; }
+    .mp .mp-view { height: 70vh; }
+}
+
+/* the map itself: one stage in the picture's own pixels, scaled to the screen */
+.mp-view { position: relative; min-height: 240px; overflow: hidden; background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius-lg); touch-action: none; user-select: none; }
+.mp-view.mp-off .mp-tok { cursor: default; }
+.cp-map { margin: 0 0 28px; }
+.cp-map h2 { margin-top: 0; }
+.cp-map .mp-view { height: min(60vh, 520px); }
+.cp-map .mp-barin { margin-bottom: 8px; }
+.mp-msg { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 16px; text-align: center; }
+.mp-msg[hidden], .mp-stage[hidden] { display: none; }
+.mp-stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.mp-img, .mp-black { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mp-black { background: rgb(0 0 0); }
+.mp-fog, .mp-marks, .mp-grid, .mp-box, .mp-ruler { position: absolute; pointer-events: none; }
+.mp-fog, .mp-marks { image-rendering: pixelated; }
+/* players: the fog's soft edge (the picture under it is black already) */
+.mp-fog.mp-soft { image-rendering: auto; }
+.mp-grid { background-image: linear-gradient(to right, rgb(255 255 255 / .2) calc(1px / var(--k, 1)), transparent 0), linear-gradient(to bottom, rgb(255 255 255 / .2) calc(1px / var(--k, 1)), transparent 0); }
+.mp-grid.mp-fit { background-image: linear-gradient(to right, rgb(255 255 255 / .7) calc(1px / var(--k, 1)), transparent 0), linear-gradient(to bottom, rgb(255 255 255 / .7) calc(1px / var(--k, 1)), transparent 0); }
+.mp-box { border: calc(2px / var(--k, 1)) dashed var(--accent); background: rgb(255 255 255 / .08); }
+.mp-ruler { top: 0; left: 0; overflow: visible; }
+.mp-ruler polyline { fill: none; stroke: var(--highlight); stroke-width: 3; vector-effect: non-scaling-stroke; }
+.mp-ruler circle { fill: var(--highlight); }
+.mp-ruler .mine polyline { stroke: var(--accent); }
+.mp-ruler .mine circle { fill: var(--accent); }
+.mp-ruler text { fill: var(--text-hi); font-weight: 700; paint-order: stroke; stroke: rgb(0 0 0); stroke-width: calc(3px / var(--k, 1)); }
+
+/* tokens: name on hover or tap, a ring on whoever's turn it is, a red edge for Bloodied, grey with a cross for Down */
+.mp-toks { position: absolute; inset: 0; }
+.mp-tok { position: absolute; padding: 0; background: none; border: 0; container-type: size; touch-action: none; }
+.mp-tok.can { cursor: grab; }
+.mp-tok.drag { z-index: 2; cursor: grabbing; }
+.mp-face { position: relative; display: grid; place-items: center; overflow: hidden; background: var(--card2); border: 2px solid var(--line-strong); border-radius: 50%; color: var(--text); font-weight: 700; }
+.mp-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.mp-tok .mp-face { position: absolute; inset: 4%; border-width: calc(2px / var(--k, 1)); box-shadow: 0 2px 8px rgb(0 0 0 / .6); font-size: 36cqw; }
+.mp-tok.mine .mp-face { border-color: var(--btn-line); }
+.mp-tok.bloodied .mp-face { border: calc(4px / var(--k, 1)) solid var(--danger-line); }
+.mp-tok.on .mp-face { box-shadow: 0 0 0 calc(4px / var(--k, 1)) var(--accent); }
+.mp-tok.hid { opacity: .5; }
+.mp-tok.hid .mp-face { border-style: dashed; }
+.mp-tok.picked .mp-face { outline: calc(2px / var(--k, 1)) dashed var(--accent); outline-offset: calc(3px / var(--k, 1)); }
+.mp-tok.down .mp-face { filter: grayscale(1); opacity: .6; }
+.mp-tok.down::before, .mp-tok.down::after { position: absolute; top: 50%; left: 10%; width: 80%; height: 8%; background: var(--danger-line); border-radius: 999px; content: ""; }
+.mp-tok.down::before { transform: translateY(-50%) rotate(45deg); }
+.mp-tok.down::after { transform: translateY(-50%) rotate(-45deg); }
+.mp-name { position: absolute; bottom: 100%; left: 50%; z-index: 3; display: none; padding: 2px 6px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); font-size: 13px; white-space: nowrap; transform: translateX(-50%) scale(calc(1 / var(--k, 1))); transform-origin: bottom center; pointer-events: none; }
+.mp-tok:hover .mp-name, .mp-tok:focus-visible .mp-name, .mp-tok.show .mp-name { display: block; }
+
+/* the tray, the picked token and the map list */
+.mp-trayl { display: flex; flex-wrap: wrap; gap: 8px; }
+.mp-trayt { display: grid; justify-items: center; gap: 2px; width: 72px; padding: 6px 4px; background: var(--card2); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); font: inherit; font-size: 12px; cursor: grab; touch-action: none; }
+.mp-trayt:disabled { cursor: default; opacity: .6; }
+.mp-trayt.hid { border-style: dashed; }
+.mp-trayt > span:last-child { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-trayt .mp-face, .mp-tokrow .mp-face { width: 40px; height: 40px; font-size: 14px; }
+.mp-ghost { position: fixed; z-index: 60; width: 48px; height: 48px; transform: translate(-50%, -50%); pointer-events: none; }
+.mp-ghost .mp-face { width: 100%; height: 100%; }
+.mp-tokrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.mp-tokrow label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.mp-tokrow .field { min-width: 0; }
+.mp-up { margin-bottom: 12px; }
+.mp-up label { display: grid; gap: 6px; font-size: 13px; }
+.mp-up .field { min-width: 0; }
+.mp-upstate { margin: 6px 0 0; font-size: 13px; }
+.mp-maplist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr)); gap: 10px; margin-bottom: 10px; }
+.mp-mapc { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px; background: var(--card2); border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
+.mp-mapc > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-mapc.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.mp-mapc .badge { align-self: start; }
+.mp-thumb { display: block; padding: 0; overflow: hidden; aspect-ratio: 16 / 10; background: var(--sunken); border: 2px solid transparent; border-radius: 4px; cursor: pointer; }
+.mp-mapc.open .mp-thumb { border-color: var(--line-strong); }
+.mp-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mp-mapa { display: flex; flex-wrap: wrap; gap: 4px; }

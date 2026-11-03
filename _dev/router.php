@@ -16,6 +16,13 @@ if (preg_match('#^/campaigns/([A-Za-z0-9_-]+)/?$#', $path, $m) && !file_exists(_
     require __DIR__ . '/../campaigns/index.php';
     return true;
 }
+if (preg_match('#^/campaigns/([A-Za-z0-9_-]+)/map/?$#', $path, $m)) {
+    $_GET['c'] = $m[1];
+    $_SERVER['SCRIPT_NAME'] = '/campaigns/map.php';
+    chdir(__DIR__ . '/../campaigns');
+    require __DIR__ . '/../campaigns/map.php';
+    return true;
+}
 if (preg_match('#^/campaigns/join/([a-f0-9]+)/?$#', $path, $m)) {
     $_GET['code'] = $m[1];
     $_SERVER['SCRIPT_NAME'] = '/campaigns/join/index.php';

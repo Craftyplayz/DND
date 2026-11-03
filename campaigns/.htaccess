@@ -1,5 +1,7 @@
-# /campaigns/<id> opens that campaign (campaigns/index.php); real files (api.php) and folders (join/) are served as they are
+# /campaigns/<id> opens that campaign (campaigns/index.php) and /campaigns/<id>/map its battle map (campaigns/map.php);
+# real files (api.php) and folders (join/) are served as they are
 RewriteEngine On
+RewriteRule ^([A-Za-z0-9_-]+)/map/?$ map.php?c=$1 [L,QSA]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^([A-Za-z0-9_-]+)/?$ index.php?c=$1 [L,QSA]

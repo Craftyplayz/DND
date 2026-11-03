@@ -62,7 +62,7 @@ if ($past) {
     $rolls = tl_tail($c, $user['sub'], $past, PHP_INT_MAX);
 }
 elseif ($c) {
-    $site_page = ['title' => $c['name'], 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/campaigns.css', '/assets/css/pages/fight.css', '/assets/css/pages/handouts.css']];
+    $site_page = ['title' => $c['name'], 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/campaigns.css', '/assets/css/pages/fight.css', '/assets/css/pages/handouts.css', '/assets/css/pages/map.css']];
     // handouts (ROADMAP 3.4) and, for the DM and co-DMs, notes and the players to send to: in the page, so no second fetch
     $ho = ['handouts' => ho_list($accounts, $c, $user['sub'])] + ($isDm ? ['notes' => no_all($accounts, $c['id']),
         'players' => array_values(array_map(fn($m) => ['sub' => $m['sub'], 'name' => $m['name']], array_filter($c['members'], fn($m) => !cp_is_dm($c, $m['sub']))))] : []);
@@ -134,6 +134,13 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
 
         <?php // the current fight (ROADMAP 1.4, assets/js/fight.js): players see the order, the DM numbers and monster HP ?>
         <section class="card cp-fight" id="cp-fight" aria-label="Fight" hidden></section>
+        <?php // the battle map on the table (ROADMAP 1.6, assets/js/map.js), live; the full-screen map page is a click away ?>
+        <section class="card cp-map" id="cp-map" data-me="<?= h(live_key($c['id'], $user['sub'])) ?>" aria-label="Map">
+            <h2>Map <a class="btn small" href="/campaigns/<?= h($c['id']) ?>/map">Open full screen</a></h2>
+            <div class="mp-barin" data-mp="bar"></div>
+            <div class="mp-view" data-mp="view"></div>
+            <div data-mp="tray" hidden></div>
+        </section>
 
         <div id="cp-sess">
             <h2 class="sec-h">Table log <span class="n"><?= isset($c['session']['n']) ? 'Session ' . (int)$c['session']['n'] . ' since ' . h(date('H:i', $c['session']['started'])) : 'No session running' ?></span></h2>
@@ -281,7 +288,9 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
 
     <?php site_footer(); ?>
     <?php if ($c && !$past): ?><script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script><script src="<?= h(asset('/sheets/player/dmedit.js')) ?>" defer></script><script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
-        <script src="<?= h(asset('/assets/js/handouts.js')) ?>" defer></script><?php if ($isDm): ?><script src="<?= h(asset('/campaigns/dm.js')) ?>" defer></script><?php endif; ?><?php endif; ?>
+        <script src="<?= h(asset('/assets/js/handouts.js')) ?>" defer></script><?php if ($isDm): ?><script src="<?= h(asset('/campaigns/dm.js')) ?>" defer></script><?php endif; ?>
+        <script src="<?= h(asset('/assets/js/map.js')) ?>" defer></script>
+        <script>addEventListener('DOMContentLoaded', () => { const s = document.getElementById('cp-map'), m = document.getElementById('main'); BattleMap.mount(s, m.dataset.id, { dm: m.dataset.role !== 'player', me: s.dataset.me }); });</script><?php endif; ?>
     <?php if (($c && !$past) || ($user && !isset($_GET['c']))): ?><script src="<?= h(asset('/campaigns/campaigns.js')) ?>" defer></script><?php endif; ?>
 </body>
 
