@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ALIAS[k]) return ALIAS[k];
         const i = k.indexOf(':'), t = k.slice(0, i);
         let id = k.slice(i + 1);
-        if (!['spell', 'item', 'magic'].includes(t) || /^\d{4}:/.test(id)) return k;
+        if (!['spell', 'item', 'magic'].includes(t) || /^(\d{4}|hb):/.test(id)) return k;
         id = id.replace(/^(wd|eq|magic):/, '');
         return `${t}:2014:${id}`;
     }
@@ -131,17 +131,20 @@ document.addEventListener('DOMContentLoaded', () => {
             s.onerror = () => no(new Error('rules'));
             document.head.appendChild(s);
         }),
+        // the browser's copy shows at once; the account's and the campaigns' come after
+        async homebrew() { showHomebrew(); await Homebrew.sync().catch(() => { }); showHomebrew(); },
     };
     for (const r of RULES) for (const f of Object.keys(content)) jobs[r + '-' + f] = async () => content[f](r, await getJson(`${CONTENT}${r}-${f}.json`));
     let sources = {};
     // the jobs a type needs, for the rules picked (or for one version)
     const jobsOf = (t, rules) => (FILE[t] ? (rules ? [rules] : rulesOn()).map((r) => r + '-' + FILE[t]) : [t]);
-    const jobsOfKey = (k) => { const [t, r] = k.split(':'); return jobsOf(t, FILE[t] && RULES.includes(r) ? r : null).filter((j) => jobs[j]); };
+    const jobsOfKey = (k) => { const [t, r] = k.split(':'); return r === 'hb' ? ['homebrew'] : jobsOf(t, FILE[t] && RULES.includes(r) ? r : null).filter((j) => jobs[j]); };
     function wanted() {
         const t = S.tab;
         const keys = t === 'fav' ? favs() : t === 'recent' ? recents() : null;
         const out = keys ? keys.flatMap(jobsOfKey) : (t === 'all' ? GROUPS : typesOf(t)).flatMap((x) => jobsOf(x));
         if (want) out.push(...jobsOfKey(want));
+        out.push('homebrew');
         return [...new Set(out)];
     }
     function load(j) {
@@ -290,6 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         $('#cp-fbtn').hidden = !fl.length;
         box.hidden = !fl.length;
+        drawHomebrewBar();
     }
     function persist() {
         store.set('compendium-view', { tab: S.tab, f: S.f });
@@ -502,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
         detail.classList.add('open'); document.body.classList.add('cp-lock');
         persist();
         const top = head(e);
-        const draw = (body) => { if (mine === token) { dbody.innerHTML = top + body + actions(e) + '<div id="cp-msg"></div>'; detail.scrollTop = 0; } };
+        const draw = (body) => { if (mine === token) { dbody.innerHTML = top + body + actions(e) + homebrewTools(e) + '<div id="cp-msg"></div>'; detail.scrollTop = 0; } };
         if (e.html !== undefined) return draw(e.html);
         if (hasText(e)) return draw(HTML[e.t](e));
         dbody.innerHTML = top + '<div class="cp-sk" aria-hidden="true"></div><div class="cp-sk" aria-hidden="true"></div><p class="muted">Loading ' + esc(e.name) + '...</p>';
@@ -541,7 +545,11 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (b.dataset.add === 'sheet') addToSheet(e);
         else if (b.dataset.add === 'enc') addToEncounter(e);
         else if (b.dataset.reopen !== undefined) openEntry(e);
+        else if (b.dataset.hbEdit !== undefined) openForm(e.raw.kind, e.raw);
+        else if (b.dataset.hbArchive !== undefined) archive(e.raw);
+        else if (b.dataset.hbRemove) removeFromCampaign(e, b.dataset.hbRemove, b.dataset.ref);
     });
+    detail.addEventListener('change', (ev) => { const i = ev.target.closest('[data-hb-share]'), e = byKey.get(S.sel); if (i && e) shareTo(e, i); });
 
     // ---- requests to the sheets (applied there, see sheet.js and monster.js) ----
     const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -675,8 +683,115 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // homebrew (5.2) hands its entries over with Compendium.add([{ t, id, name, sub, f: {...}, html }]); they show with a Homebrew badge
-    window.Compendium = { add(more) { for (const e of more) addEntry(Object.assign({ tags: [], f: {}, sub: '', hb: true }, e, { f: Object.assign({ src: 'Homebrew' }, e.f) })); entries.sort(byName); drawTabs(); refresh(); } };
+    // ---- homebrew (assets/js/homebrew.js): your own entries and your campaigns', keyed "<type>:hb:<id>", listed whatever rules version is picked ----
+    // each kind: what the New button says, the form's fields, and how an entry becomes a row in the list
+    const FORMS = {
+        rule: {
+            noun: 'rule',
+            fields: [{ k: 'name', label: 'Name', need: 'Give the rule a name.' },
+                { k: 'text', label: 'The rule', area: 8, need: 'Write the rule.', hint: 'A line starting with "- " becomes a list.' }],
+            entry: (x) => ({ t: 'rule', sub: 'House rule', hay: 'house rule', text: x.text }),
+        },
+    };
+    function hbEntry(x, shared) {
+        const made = FORMS[x.kind] && FORMS[x.kind].entry(x);
+        if (!made) return null;
+        return Object.assign({ id: 'hb:' + x.id, name: x.name, tags: [], f: {}, hb: true, raw: x, shared }, made, shared ? { sub: `${made.sub} · ${x.by}` } : {});
+    }
+    function showHomebrew() {
+        for (let i = entries.length - 1; i >= 0; i--) if (entries[i].hb) { byKey.delete(key(entries[i])); entries.splice(i, 1); }
+        for (const x of Homebrew.mine()) if (!x.archived) { const e = hbEntry(x, false); if (e) addEntry(e); }
+        for (const x of Homebrew.shared()) { const e = hbEntry(x, true); if (e) addEntry(e); }
+        entries.sort(byName); drawTabs(); refresh();
+    }
+    const archivedOf = (kinds) => Homebrew.mine().filter((x) => x.archived && kinds.includes(x.kind));
+    function drawHomebrewBar() {
+        const form = FORMS[S.tab], kinds = Object.keys(FORMS).filter((k) => k === S.tab), old = archivedOf(kinds).length;
+        $('#cp-new').hidden = !form;
+        if (form) $('#cp-new').textContent = 'New ' + form.noun;
+        $('#cp-arch').hidden = !old;
+        $('#cp-arch').textContent = `Archived (${old})`;
+    }
+    function homebrewTools(e) {
+        if (!e.hb) return '';
+        if (e.shared) {
+            const camps = e.raw.camps;
+            return `<div class="cp-hb"><p class="muted">Shared by ${esc(e.raw.by)} in ${esc(camps.map((c) => c.name).join(', '))}.</p>
+                ${camps.filter((c) => c.dm).map((c) => `<button type="button" class="btn small" data-hb-remove="${esc(c.id)}" data-ref="${esc(c.ref)}">Remove from ${esc(c.name)}</button>`).join(' ')}</div>`;
+        }
+        const on = Homebrew.sharedWith(e.raw.id), camps = Homebrew.camps();
+        const share = !Homebrew.signedIn() ? '<p class="muted">Sign in to save this to your account and share it with a campaign.</p>'
+            : camps.length ? `<fieldset class="cp-hbshare"><legend>Share with</legend>${camps.map((c) => `<label class="check"><input type="checkbox" data-hb-share="${esc(c.id)}"${on.includes(c.id) ? ' checked' : ''}> ${esc(c.name)}</label>`).join('')}</fieldset>` : '';
+        return `<div class="cp-hb"><div class="actions"><button type="button" class="btn" data-hb-edit>Edit</button><button type="button" class="btn" data-hb-archive>Archive</button></div>${share}</div>`;
+    }
+    const hbDlg = $('#cp-hb'), hbForm = $('#cp-hb-form');
+    let editing = null;
+    function openForm(kind, x) {
+        const form = FORMS[kind];
+        editing = { kind, x };
+        $('#cp-hb-t').textContent = (x ? 'Edit ' : 'New ') + form.noun;
+        $('#cp-hb-fields').innerHTML = form.fields.map((f) => `<label>${esc(f.label)}${f.area ? `<textarea class="field" name="${f.k}" rows="${f.area}"></textarea>` : `<input class="field" name="${f.k}" autocomplete="off">`}<small${f.hint ? '' : ' hidden'}>${esc(f.hint || '')}</small></label>`).join('')
+            + (Homebrew.signedIn() ? '' : '<p class="muted">Saved in this browser. Sign in to keep it on your account.</p>');
+        for (const f of form.fields) hbForm.elements[f.k].value = x ? x[f.k] ?? '' : '';
+        $('#cp-hb-err').hidden = true;
+        hbDlg.showModal();
+    }
+    hbForm.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const form = FORMS[editing.kind], out = Object.assign({}, editing.x || { id: Homebrew.id(), kind: editing.kind });
+        let bad = null;
+        for (const f of form.fields) {
+            const el = hbForm.elements[f.k], v = el.value.trim(), small = el.parentElement.querySelector('small'), miss = f.need && !v;
+            el.toggleAttribute('aria-invalid', miss);
+            small.textContent = miss ? f.need : f.hint || '';
+            small.hidden = !small.textContent;
+            if (miss && !bad) bad = el;
+            out[f.k] = v;
+        }
+        if (bad) return bad.focus();
+        try { await Homebrew.save(out); } catch (x) {
+            $('#cp-hb-err').className = 'err';
+            $('#cp-hb-err').textContent = "Couldn't save it: this browser's storage is full or blocked.";
+            $('#cp-hb-err').hidden = false;
+            return;
+        }
+        hbDlg.close();
+        showHomebrew();
+        openEntry(byKey.get(`${form.entry(out).t}:hb:${out.id}`));
+    });
+    $('#cp-new').addEventListener('click', () => openForm(S.tab));
+    async function archive(x) {
+        try { await Homebrew.setArchived(x.id, true); } catch (err) { return note("Couldn't archive it: this browser's storage is full or blocked.", 'err'); }
+        S.sel = null; closeDetail(); dbody.innerHTML = '<p class="note">Archived. Sheets that already have it keep their copy.</p>';
+        showHomebrew(); persist();
+    }
+    $('#cp-arch').addEventListener('click', () => {
+        const kinds = Object.keys(FORMS).filter((k) => k === S.tab);
+        $('#cp-hbarch-body').innerHTML = archivedOf(kinds).map((x) => `<div class="rowi"><span class="grow">${esc(x.name)}</span><button type="button" class="btn small" data-unarchive="${esc(x.id)}">Unarchive</button></div>`).join('');
+        dlg('cp-hbarch').showModal();
+    });
+    $('#cp-hbarch-body').addEventListener('click', async (ev) => {
+        const b = ev.target.closest('[data-unarchive]');
+        if (!b) return;
+        try { await Homebrew.setArchived(b.dataset.unarchive, false); } catch (err) { return UI.toast("Couldn't unarchive it: this browser's storage is full or blocked.", 'err'); }
+        b.closest('.rowi').remove();
+        if (!$('#cp-hbarch-body').children.length) dlg('cp-hbarch').close();
+        showHomebrew();
+    });
+    async function shareTo(e, box) {
+        box.disabled = true;
+        try { await Homebrew.share(e.raw.id, box.dataset.hbShare, box.checked); } catch (x) {
+            box.checked = !box.checked;
+            note("Couldn't change that. Check your connection and try again.", 'err');
+        }
+        box.disabled = false;
+    }
+    async function removeFromCampaign(e, c, ref) {
+        try { await Homebrew.removeFrom(c, ref); } catch (x) { return note("Couldn't remove it. Check your connection and try again.", 'err'); }
+        showHomebrew();
+        const still = byKey.get(key(e));
+        if (still) openEntry(still); else { S.sel = null; closeDetail(); dbody.innerHTML = '<p class="note">Removed from the campaign.</p>'; persist(); }
+    }
 
     drawTabs();
     refresh();

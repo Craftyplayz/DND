@@ -15,6 +15,8 @@
 .cp-gh .n { color: var(--muted); font-size: 14px; font-weight: 400; }
 .cp-showall { justify-self: start; }
 .cp-more { height: 1px; }
+.cp-hb { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.cp-hbshare { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; border: 0; }
 
 .cp :where(button.cp-row, button.cp-link) { font: inherit; color: var(--text); text-align: left; cursor: pointer; }
 .cp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; width: 100%; padding: 8px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: var(--radius); transition: border-color var(--fast), background var(--fast); }

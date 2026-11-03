@@ -33,6 +33,8 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
             <input class="field cp-q" type="search" id="cp-q" placeholder="Search by name (press / to jump here)" aria-label="Search the compendium" autocomplete="off">
             <button type="button" class="btn cp-filter-btn" id="cp-fbtn" aria-expanded="false" aria-controls="cp-filters">Filters</button>
             <span class="muted" id="cp-count"></span>
+            <button type="button" class="btn" id="cp-arch" hidden></button>
+            <button type="button" class="btn primary" id="cp-new" hidden></button>
         </div>
         <div class="cp-filters" id="cp-filters"></div>
 
@@ -76,10 +78,26 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
             <p id="cp-dup-text"></p>
             <div class="actions"><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn primary" id="cp-dup-yes">Add another</button></div>
         </dialog>
+
+        <dialog class="dlg" id="cp-hb" aria-labelledby="cp-hb-t">
+            <h2 id="cp-hb-t"></h2>
+            <form class="form" id="cp-hb-form" novalidate>
+                <div class="form" id="cp-hb-fields"></div>
+                <p id="cp-hb-err" hidden></p>
+                <div class="actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Save</button></div>
+            </form>
+        </dialog>
+
+        <dialog class="dlg" id="cp-hbarch" aria-labelledby="cp-hbarch-t">
+            <h2 id="cp-hbarch-t">Archived homebrew</h2>
+            <div id="cp-hbarch-body" class="rows"></div>
+            <div class="actions"><button type="button" class="btn" data-close>Close</button></div>
+        </dialog>
     </main>
 
     <?php site_footer(); ?>
     <script src="<?= h(asset('/assets/js/fuzzy.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/compendium.js')) ?>" defer></script>
 </body>
 
