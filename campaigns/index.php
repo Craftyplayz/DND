@@ -9,6 +9,7 @@
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 require_once SITE_ROOT . '/includes/tablelog.php';
 require_once SITE_ROOT . '/includes/live.php';
+require_once SITE_ROOT . '/includes/handouts.php';
 // DND_ACCOUNTS: a stand-in folder for _dev/scripts/campaigns-page.mjs, so the check never touches real accounts
 $accounts = getenv('DND_ACCOUNTS') ?: SITE_ROOT . '/private/dnd/accounts';
 $user = auth_user();
@@ -61,7 +62,10 @@ if ($past) {
     $rolls = tl_tail($c, $user['sub'], $past, PHP_INT_MAX);
 }
 elseif ($c) {
-    $site_page = ['title' => $c['name'], 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/campaigns.css', '/assets/css/pages/fight.css']];
+    $site_page = ['title' => $c['name'], 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/campaigns.css', '/assets/css/pages/fight.css', '/assets/css/pages/handouts.css']];
+    // handouts (ROADMAP 3.4) and, for the DM and co-DMs, notes and the players to send to: in the page, so no second fetch
+    $ho = ['handouts' => ho_list($accounts, $c, $user['sub'])] + ($isDm ? ['notes' => no_all($accounts, $c['id']),
+        'players' => array_values(array_map(fn($m) => ['sub' => $m['sub'], 'name' => $m['name']], array_filter($c['members'], fn($m) => !cp_is_dm($c, $m['sub']))))] : []);
     $sessions = tl_sessions($accounts, $c['id']);
     $unsorted = tl_read($accounts, $c['id'], 'unsorted');
     header('X-Robots-Tag: noindex');
@@ -140,6 +144,33 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
                 <?php if ($unsorted): ?><a href="/campaigns/?c=<?= h($c['id']) ?>&amp;s=unsorted">Outside sessions</a><?php endif; ?></p><?php endif; ?>
         </div>
         <ol class="cp-log" id="cp-log"><li class="muted cp-empty">Rolls made on a character in this campaign show up here.</li></ol>
+
+        <?php // handouts and DM notes (ROADMAP 3.4): campaigns/dm.js for the DM and co-DMs, assets/js/handouts.js for players ?>
+        <script type="application/json" id="cp-ho-data"><?= json_encode($ho) ?></script>
+        <?php if ($isDm): ?>
+            <section class="card" id="dm-ho" aria-labelledby="dm-ho-h">
+                <h2 id="dm-ho-h">Handouts</h2>
+                <div class="dm-split">
+                    <div><div class="dm-bar"><button type="button" class="btn small" data-dm="hnew">New handout</button></div><div class="dm-list" id="dm-hlist"></div></div>
+                    <div class="dm-edit" id="dm-hedit"></div>
+                </div>
+                <details class="dm-arch" id="dm-harch" hidden></details>
+            </section>
+            <section class="card" id="dm-notes" aria-labelledby="dm-notes-h">
+                <h2 id="dm-notes-h">Notes <span class="n">only you and co-DMs see these</span></h2>
+                <div class="dm-split">
+                    <div><div class="dm-bar"><button type="button" class="btn small" data-dm="nnew">New note</button><input class="field" type="search" id="dm-nsearch" placeholder="Search notes" aria-label="Search notes" autocomplete="off"></div><div class="dm-list" id="dm-nlist"></div></div>
+                    <div class="dm-edit" id="dm-nedit"></div>
+                </div>
+                <details class="dm-arch" id="dm-narch" hidden></details>
+                <datalist id="dm-ngroups"></datalist>
+            </section>
+        <?php else: ?>
+            <section class="card" id="cp-ho" aria-labelledby="cp-ho-h">
+                <h2 id="cp-ho-h">Handouts</h2>
+                <div id="cp-holist"><p class="muted">Loading handouts...</p></div>
+            </section>
+        <?php endif; ?>
 
         <div class="masonry cp-cards">
             <section class="card">
@@ -249,7 +280,8 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
     </main>
 
     <?php site_footer(); ?>
-    <?php if ($c && !$past): ?><script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script><script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script><?php endif; ?>
+    <?php if ($c && !$past): ?><script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script><script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
+        <script src="<?= h(asset('/assets/js/handouts.js')) ?>" defer></script><?php if ($isDm): ?><script src="<?= h(asset('/campaigns/dm.js')) ?>" defer></script><?php endif; ?><?php endif; ?>
     <?php if (($c && !$past) || ($user && !isset($_GET['c']))): ?><script src="<?= h(asset('/campaigns/campaigns.js')) ?>" defer></script><?php endif; ?>
 </body>
 

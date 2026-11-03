@@ -89,6 +89,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // changes the campaign. With the relay down the page says so and checks every 10 s until it's back.
     if (!id || !window.Live) return;
     window.Fight?.panel($('#cp-fight'), id); // the DM runs it from the Monster Sheet; here it's to see, and for monster HP
+    // handouts and DM notes (ROADMAP 3.4): the DM's side is dm.js, the players' list handouts.js. Both load again when the
+    // relay says one changed ("handout", "handout-gone", "notes", "campaign"), on reconnect and every 10 s while it's down.
+    const hoData = JSON.parse($('#cp-ho-data')?.textContent || '{}');
+    const dmTools = window.DmTools && $('#dm-ho') ? DmTools.start(id, hoData) : null;
+    const hoBox = $('#cp-holist');
+    const hoTrack = window.Handouts?.tracker((h) => Handouts.notify(h, () => Handouts.open(h.id)));
+    function hoDraw(list) {
+        if (!list || !hoBox || !hoTrack) return;
+        hoTrack(list);
+        const opened = [...hoBox.querySelectorAll('details[open]')].map((d) => d.id);
+        hoBox.innerHTML = Handouts.html(list, id);
+        for (const o of opened) { const d = document.getElementById(o); if (d) d.open = true; }
+    }
+    hoDraw(hoData.handouts);
+    const hoLoad = async () => (dmTools ? dmTools.refresh() : hoBox && hoDraw(await Handouts.load(id)));
     let online = [], rolls = [], paused = 0;
     const dots = () => document.querySelectorAll('#cp-players [data-key]').forEach((r) => { r.querySelector('.cp-on').hidden = !online.includes(r.dataset.key); });
     async function refresh() {
@@ -124,7 +139,9 @@ document.addEventListener('DOMContentLoaded', () => {
         onMessage(m) {
             if (m.type === 'presence') { online = m.online; dots(); }
             else if (m.type === 'campaign' || m.type === 'session' || m.type === 'removed') refresh();
+            if (['handout', 'handout-gone', 'notes', 'campaign'].includes(m.type)) hoLoad();
         },
+        onLoad: hoLoad,
         // live.js checks the log every 10 s while paused; the party and players are checked here
         onPaused(on) {
             $('#cp-paused').hidden = !on;

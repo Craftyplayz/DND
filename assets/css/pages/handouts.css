@@ -1,0 +1,39 @@
+/* Handouts (assets/js/handouts.js) on the campaign page and the sheet's Handouts panel, and the DM's notes and handout editor (campaigns/dm.js). */
+.ho-list { display: grid; gap: 8px; }
+.ho-item { background: var(--card2); border: 1px solid var(--line); border-radius: var(--radius); }
+.ho-item summary { display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer; list-style: none; }
+.ho-item summary::-webkit-details-marker { display: none; }
+.ho-thumb { flex: none; width: 48px; height: 48px; object-fit: cover; background: var(--card); border-radius: var(--radius); }
+.ho-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.ho-t b { overflow: hidden; text-overflow: ellipsis; }
+.ho-t small { width: 100%; color: var(--muted); font-size: 12px; }
+.ho-body { padding: 0 12px 12px; }
+.ho-text { margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ho-imgs { display: flex; flex-wrap: wrap; gap: 8px; }
+.ho-img { padding: 0; background: none; border: 1px solid var(--line); border-radius: var(--radius); cursor: zoom-in; }
+.ho-img img { display: block; width: 120px; height: 120px; object-fit: cover; border-radius: var(--radius); }
+.ho-dlg { max-width: min(96vw, 1400px); }
+.ho-dlg img { display: block; max-width: 100%; max-height: 80vh; margin: 0 auto; }
+.ho-toast { display: flex; align-items: center; gap: 10px; }
+.ho-toast span { flex: 1; min-width: 0; }
+.ho-camp { margin: 12px 0 6px; font-size: 14px; }
+/* the DM's side: a list beside the open note or handout */
+.dm-split { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr; gap: 12px; align-items: start; }
+@media (max-width: 720px) { .dm-split { grid-template-columns: 1fr; } }
+.dm-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.dm-bar .field { flex: 1 1 160px; }
+.dm-list { display: grid; gap: 4px; max-height: 420px; overflow-y: auto; }
+.dm-list button { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; width: 100%; padding: 7px 10px; background: var(--card2); border: 1px solid transparent; border-radius: var(--radius); color: var(--text); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.dm-list button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--btn-line); }
+.dm-list small { color: var(--muted); font-size: 12px; }
+.dm-list h3 { margin: 8px 0 2px; color: var(--muted); font-size: 12px; text-transform: uppercase; }
+.dm-edit { display: grid; gap: 10px; }
+.dm-edit textarea { min-height: 220px; resize: vertical; }
+.dm-pics { display: flex; flex-wrap: wrap; gap: 8px; }
+.dm-pic { display: grid; gap: 4px; justify-items: center; font-size: 12px; }
+.dm-pic img { width: 96px; height: 96px; object-fit: cover; border-radius: var(--radius); }
+.dm-to { display: grid; gap: 4px; }
+.dm-arch { margin-top: 12px; }
+.dm-arch .rows { display: grid; gap: 4px; margin-top: 6px; }
+.dm-state { font-size: 13px; }
+.dm-split [hidden] { display: none !important; }

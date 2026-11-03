@@ -8,7 +8,7 @@
 //   POST {"c", "act": "save" | "send" | "unshare" | "archive" | "restore" | "image" | "unimage" | "open", ...}  (ho_act)
 //   POST ?c=<id>&up=<upload id>&at=<bytes so far> with a piece of a picture (application/octet-stream, up to 4 MB)
 //                                        -> {"size"}; 409 {"size"} when the server has a different amount
-// After a change the relay tells the DM's pages and the players who see it ("handout" with only its id; "handout-gone" to
+// A saved note tells the DM's other pages ("notes"). After a handout change the relay tells the DM's pages and the players who see it ("handout" with only its id; "handout-gone" to
 // the ones who lost it); each page then loads its own copy from here.
 // The session cookie is SameSite=Lax and writes must be JSON or octet-stream, so other sites can't post here as the player.
 require __DIR__ . '/../includes/auth.php';
@@ -62,7 +62,12 @@ if ($body === null && stripos($type, 'application/octet-stream') !== 0) ho_out(4
 $lock = ho_lock($accounts, $c['id']);
 if (!$lock) ho_out(500, ['error' => "Couldn't lock the campaign folder."]);
 if ($body === null) ho_out(...ho_chunk($accounts, $c, $sub, $_GET['up'] ?? '', $_GET['at'] ?? '', (string)file_get_contents('php://input', false, null, 0, HO_CHUNK + 1)));
-if (($body['act'] ?? '') === 'note') ho_out(...no_save($accounts, $c, $sub, $body['note'] ?? null));
+if (($body['act'] ?? '') === 'note') {
+    [$code, $out] = no_save($accounts, $c, $sub, $body['note'] ?? null);
+    flock($lock, LOCK_UN);
+    if ($code === 200) live_publish($c['id'], ['type' => 'notes'], null, 'dm'); // the other DM pages load them again
+    ho_out($code, $out);
+}
 [$code, $out, $live] = ho_act($accounts, $c, $sub, $body) + [2 => []];
 flock($lock, LOCK_UN);
 foreach ($live as [$msg, $to]) live_publish($c['id'], $msg, null, $to);
