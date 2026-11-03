@@ -889,6 +889,14 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 - Touches: reuses `spells.php`, `monsters.php` and `rules.js`, plus a new equipment/magic-item proxy (same
   caching pattern). Add to `site_pages()`.
 - Size: 4 days. Done: search finds Fireball, Goblin, Bag of Holding and Grappled, and "Add to sheet" adds a spell to the open character.
+- Since then: the lists and text of spells, equipment and magic items come from `sheets/player/content/` (built by
+  `_dev/scripts/build-content.mjs`), loaded per tab and kept apart by rules version; `compendium/spells.json` and
+  `items.php` stay for anything else but the Compendium no longer lists from them. New tabs: Classes (level table, features,
+  subclasses that open), Races (traits, subraces), Backgrounds and Feats. A 2014 / 2024 / Both switch (default Both,
+  `compendium-rules`) follows the account. Sources aren't shown to players; monsters keep their book, since each stat block
+  carries its licence line. Monsters: every Open5e book was already in; duplicates by name now keep the SRD, then the newest
+  book (Tome of Beasts 2023 over 2016), still 2,282 names out of 3,541. SRD 5.2 monsters (Open5e v2 only) aren't in.
+  Classes, races and backgrounds link to `/characters/build`.
 
 **5.2 Homebrew creator (items, spells, monsters and more)**
 - What: create homebrew items (including magic items with attunement), spells, monsters and feats. Visible to

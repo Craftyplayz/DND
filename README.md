@@ -9,7 +9,7 @@ Our D&D campaign tools, split out of craftyplayz.com:
 - `/private/archive/characters/` the old D&D Beyond character viewer (cache still in `characters/cache/`)
 - `/sheets/player/` Homebrew character sheet with a character picker (saved in the browser under `hb-sheet`, backed up to `private/dnd/backups/`)
 - `/sheets/monster/` Monster sheet (backed up to `private/dnd/monster-backups/`)
-- `/compendium/` Compendium: spells, monsters, items, magic items and rules (spell list built by `_dev/scripts/build-compendium.js`, items through `compendium/items.php`)
+- `/compendium/` Compendium: spells, monsters, items, magic items, classes, races, backgrounds, feats and rules, 2014 and 2024 (from `sheets/player/content/`, built by `_dev/scripts/build-content.mjs`)
 - `/dice/` 3D dice sets, `/dice/rolls/` quick rolls, `/dice/test/` dice fairness test
 - `/transcripts/` session recordings and transcripts (data in `transcripts/data/`, server only)
 - `/private/` backup browsers and the session importer, behind HTTP basic auth
