@@ -82,10 +82,10 @@ function listen(sid, as) {
 }
 // what may never reach the Table view, found in text: [what it is, pattern]
 const SECRETS = [['the hidden monster', /Secret Lurker|"lurker"/], ['the monster in the fog', /Shadow Fiend|"shade"/], ["the hidden roll's title", /Mind Blast/], ["the hidden roll's result", /HIDDENTOTAL41/],
-    ['the whisper', /Steal the gem|WHISPER27/], ['HP of anyone', /"hp"|"cur"|"temp"|4444|4437/], ['initiative numbers', /"init"|"bonus"/], ['the draft fog', /"draft"|111111111111/],
+    ['the whisper', /Steal the gem|WHISPER27/], ['HP of anyone', /"hp"|"cur"|"temp"|(?<!\d)(4444|4437)(?!\d)/], ['initiative numbers', /"init"|"bonus"/], ['the draft fog', /"draft"|111111111111/],
     ['the working or original map', /img=work|img=original|img=thumb/], ['a DM note', /NOTE-SECRET|"notes"/], ['a draft or one-player handout', /Unsent draft|Only for Pat/], ['hidden flags', /"hidden":/],
     ['Google ids', /"(111|222|333)"/]];
-const leaks = (where, s) => { for (const [what, re] of SECRETS) if (re.test(s)) { bad++; console.log(`FAIL ${where} carried ${what}: ${s.match(re)[0]}`); } };
+const leaks = (where, s) => { for (const [what, re] of SECRETS) { const m = s.match(re); if (m) { bad++; console.log(`FAIL ${where} carried ${what}: ${m[0]} in ...${s.slice(Math.max(0, m.index - 60), m.index + 60)}...`); } } };
 
 const tv = await launch(FF ? 'firefox' : 'chrome'), pat = await launch(FF ? 'chrome' : 'firefox');
 
