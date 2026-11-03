@@ -95,12 +95,12 @@ try {
     // two rounds: Next until round 3; the order and turns belong on the VTT, so Lock's sheet shows none of it
     let sawStrip = false;
     for (let i = 0; i < 12 && !(await dm.ev(text('#mon-fight .fi-top'))).includes('Round 3'); i++) {
-        // each Next shows on the DM's tracker (the running clock left out); Lock's sheet gets the same news through the
-        // relay and must still show no strip
-        const still = (e) => `(${e}).replace(/\\d+:\\d\\d/g, '')`;
-        const top = await dm.ev(still(panel));
+        // each Next moves the turn mark (.on) on the DM's tracker (the running clock left out); Lock's sheet gets the same
+        // news through the relay and must still show no strip (the old fixed wait looked after 0.6 s)
+        const turnOf = (rows, e) => `[...document.querySelectorAll('${rows}')].findIndex((x) => x.classList.contains('on')) + '|' + (${e}).replace(/\\d+:\\d\\d/g, '')`;
+        const top = await dm.ev(turnOf('#mon-fight .fi-e', panel));
         await click(dm, '[data-fi=next]');
-        await until(dm, still(panel), (t) => t !== top, 3000);
+        await until(dm, turnOf('#mon-fight .fi-e', panel), (t) => t !== top, 3000);
         if (await until(pat, `!!document.querySelector('#hb-fight')`, Boolean, 600)) sawStrip = true;
     }
     is('advanced two rounds', (await dm.ev(text('#mon-fight .fi-top'))).includes('Round 3'), true);
@@ -145,7 +145,9 @@ try {
     await pat.ev(`(() => { document.querySelector('#hb-amt').value = '3'; const f = document.querySelector('form[data-act=hp]'); const b = f.querySelector('button[value=heal]') || f.querySelector('button[value=auto]'); f.requestSubmit(b); })()`);
     await dm.ev(`(() => { const f = document.querySelector('#cp-fight .fi-hp[data-mon=gob]'); f.querySelector('input').value = '2'; f.querySelector('button[value=dmg]').click(); })()`);
     await fetch(`${BASE}/sheets/monster/cloud.php?hp=gob`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.dm, 'Content-Type': 'application/json' }, body: JSON.stringify({ op: { k: 'dmg', n: 1 } }) });
-    for (const t = Date.now(); goblin().hp.cur !== 3 && Date.now() - t < 10000;) await sleep(50);
+    // (the file can be read half-written while the server saves it: that read counts as not yet)
+    const hpNow = () => { try { return goblin().hp.cur; } catch { return null; } };
+    for (const t = Date.now(); hpNow() !== 3 && Date.now() - t < 10000;) await sleep(50);
     is('every change counted on the server', goblin().hp.cur, 3);
     const twice = () => fetch(`${BASE}/sheets/monster/cloud.php?hp=gob`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.dm, 'Content-Type': 'application/json' }, body: JSON.stringify({ q: 'samechange0001', op: { k: 'heal', n: 1 } }) });
     await twice(); await twice();
