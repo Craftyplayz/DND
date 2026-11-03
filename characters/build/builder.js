@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!D) { stepBox.innerHTML = '<h2>Couldn\x27t load the rules</h2><p>The builder needs a connection once to load the classes, races and backgrounds. Check your connection and reload the page.</p>'; return; }
     let ICONS = {};
     const versions = await hbContent.versions();
-    const CREDITS = Object.fromEntries((await hbContent.credits()).map((x) => [x.src, x.name]));
     await Promise.all([rules() === '2014' ? hbSpellNames(D) : null, hbIcons().then((x) => { ICONS = x; })]);
     const has2024 = versions.includes('2024');
     // more of the rules version's content (spells, equipment), loaded once and drawn again when it's there; true when it's in
@@ -135,9 +134,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const arr = (path) => { const v = get(path); return Array.isArray(v) ? v : []; };
     const desc = (d) => (Array.isArray(d) ? d : [d]).filter(Boolean).map((p) => `<p>${esc(p)}</p>`).join('');
-    // where an entry comes from, by the name its credits give (none for the SRD)
-    const srcName = (e) => (e?.src && !/^(SRD 5.1|srd)$/.test(e.src) ? CREDITS[e.src] || e.src : '');
-    const src = (e) => (srcName(e) ? `<small class="muted">From ${esc(srcName(e))}</small>` : '');
     const sel = (path, opts, label, cur = get(path)) => `<select class="field" data-b="${path}" aria-label="${esc(label)}">${opts.map(([v, t]) => `<option value="${esc(v)}"${String(cur ?? '') === String(v) ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`;
     const back = (act, label) => `<div class="bd-crumb"><button type="button" class="btn small" data-act="${act}">‹ ${esc(label)}</button></div>`;
     // a group of checkboxes that keeps at most n picked (a pick past n is refused with a note)
@@ -190,7 +186,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lv = +e.levels;
         if (e.sub && lv < B.subLevel(e.id, D)) e.sub = '';
         for (const k of Object.keys(e.asi || {})) if (+k > lv) delete e.asi[k];
-        const keep = new Set(Array.from({ length: lv }, (_, i) => B.featuresAt(e.id, e.sub, i + 1, D).map((f) => f.index)).flat());
+        const keep = new Set(Array.from({ length: lv }, (_, i) => B.featuresAt(e.id, e.sub, i + 1, D).map((f) => B.fid(f, i + 1))).flat());
         for (const box of [e.opts, e.picks]) for (const k of Object.keys(box || {})) if (!keep.has(k)) delete box[k];
     }
     const newEntry = (cid) => ({ id: cid, levels: 1, sub: '', profs: {}, opts: {}, asi: {}, picks: {}, spells: [] });
@@ -242,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // ---- step: class (and level), with its skills, features, improvements, spells and hit points ----
-    const classRows = () => B.listOf(D, 'classes', rules()).map((c) => ({ id: c.id, name: c.name, sub: [`Hit die d${c.hit_die}`, srcName(c)].filter(Boolean).join(' · ') }));
+    const classRows = () => B.listOf(D, 'classes', rules()).map((c) => ({ id: c.id, name: c.name, sub: `Hit die d${c.hit_die}` }));
     STEP.class = () => {
         if (UP) return upClass();
         if (view.cls === 'list' || !D.classes[ch.classes[view.cls]?.id]) {
@@ -268,12 +264,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const subL = B.subLevel(e.id, D), subs = B.subsOf(e.id, D, rules());
         const feats = Array.from({ length: lv - from + 1 }, (_, i) => from + i).flatMap((l) => B.featuresAt(e.id, e.sub, l, D).map((f) => [l, f]));
         const asiL = B.asiLevels(cls).filter((l) => l >= from && l <= lv);
-        const unlock = [...feats.map(([l, f]) => [l, f.name, !!(f.choices?.options || B.PICKS[f.index])]),
+        const unlock = [...feats.map(([l, f]) => [l, f.name, !!(f.choices?.options || B.pickOf(f))]),
             ...(subL >= from && subL <= lv && !e.sub ? [[subL, 'Subclass', true]] : []), ...asiL.map((l) => [l, 'Ability Score Improvement or a feat', true])].sort((a, b) => a[0] - b[0]);
         const out = [];
         if (ci !== 'up') out.push(back('clslist', ch.classes.length > 1 ? 'Classes' : 'Change class'));
         out.push(`<div class="bd-hero">${iconFor('classes', e.id, cls.name)}<div><h2>${esc(cls.name)}</h2><div class="badges"><span class="badge">Level ${only ? `${only - 1} → ${only}` : lv}</span><span class="badge">Hit die d${cls.hit_die}</span>
-            ${(cls.saving_throws || []).length ? `<span class="badge">Saves: ${(cls.saving_throws || []).map((s) => String(s.index || s).toUpperCase()).join(', ')}</span>` : ''}</div>${src(cls)}</div></div>`);
+            ${(cls.saving_throws || []).length ? `<span class="badge">Saves: ${(cls.saving_throws || []).map((s) => String(s.index || s).toUpperCase()).join(', ')}</span>` : ''}</div></div></div>`);
         out.push(desc(cls.desc) || `<p>A ${esc(cls.name.toLowerCase())} has a d${cls.hit_die} hit die${cls.spellcasting ? ` and casts spells with ${esc(B.casterOf(e.id, D).ab)}` : ''}. Its features for each level are below; pick what it asks for.</p>`);
         if (multi) out.push(prereq(e.id));
         if (ci !== 'up' && ci > 0) out.push(`<label class="bd-inl">Levels in ${esc(cls.name)} ${sel(`${P}.levels`, Array.from({ length: Math.max(1, level() - 1) }, (_, i) => [i + 1, String(i + 1)]), 'Levels in this class')}</label>`);
@@ -282,7 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // subclass, picked at its level (level-1 subclasses right here, Q27)
         if (lv >= subL && subs.length && (subL >= from || !e.sub)) out.push(`<div class="bd-sect"><h3>Subclass <span class="muted">level ${subL}</span></h3><div class="bd-picks" role="radiogroup" aria-label="Subclass">${subs.map((s) =>
             `<label class="bd-pick"><input type="radio" name="${P}.sub" data-b="${P}.sub" data-redraw value="${esc(s.id)}"${e.sub === s.id ? ' checked' : ''}><span class="box">${iconFor('subclasses', `${e.id}--${s.id}`, s.name)}<b>${esc(s.name)}</b>${s.subclass_flavor ? `<small>${esc(s.subclass_flavor)}</small>` : ''}</span></label>`).join('')}</div>
-            ${e.sub && D.subclasses[e.sub] ? `<div class="bd-desc">${desc(D.subclasses[e.sub].desc)}${src(D.subclasses[e.sub])}</div>` : ''}</div>`);
+            ${e.sub && D.subclasses[e.sub] ? `<div class="bd-desc">${desc(D.subclasses[e.sub].desc)}</div>` : ''}</div>`);
         // skills and other proficiencies: the class's own at character level 1, its multiclass ones later
         if (from === 1) {
             const pcs = multi ? cls.multi_classing?.proficiency_choices || [] : cls.proficiency_choices || [];
@@ -291,14 +287,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 checks(`${P}.profs.${j}`, (pc.from?.options || []).map((o) => o.item?.index || o.item).filter(Boolean).map((x) => [x, B.profKind(x, M)[1] + '']), pc.choose, `Choose ${pc.choose}${pc.desc && !/^choose/i.test(pc.desc) ? ': ' + pc.desc : ''}`)).join('')}</div>`);
         }
         // feature picks (fighting style, metamagic, invocations, expertise, a Lore bard's skills)
-        const fp = feats.filter(([, f]) => f.choices?.options || B.PICKS[f.index]);
+        const fp = feats.filter(([, f]) => f.choices?.options || B.pickOf(f));
         if (fp.length) {
             const prof = UP ? C.skills.filter((s) => s.p >= 1).map((s) => s.name) : now().skills.filter((s) => s.p >= 1).map((s) => s.name);
             out.push(`<div class="bd-sect"><h3>Feature choices</h3>${fp.map(([l, f]) => {
-                const pk = B.PICKS[f.index];
-                if (pk) return checks(`${P}.picks.${f.index}`, (pk[0] === 'expert' ? prof : M.SKILLS.map(([s]) => s)).map((s) => [s, s]), pk[1], `Level ${l} ${f.name}: ${pk[0] === 'expert' ? `double proficiency in ${pk[1]} skills` : `${pk[1]} skills`}`);
+                const pk = B.pickOf(f);
+                if (pk) return checks(`${P}.picks.${B.fid(f, l)}`, (pk[0] === 'expert' ? prof : M.SKILLS.map(([s]) => s)).map((s) => [s, s]), pk[1], `Level ${l} ${f.name}: ${pk[0] === 'expert' ? `double proficiency in ${pk[1]} skills` : `${pk[1]} skills`}`);
                 const n = B.chooseN(f, cls, l, 0);
-                return n ? checks(`${P}.opts.${f.index}`, f.choices.options.map((o) => [o.index, o.name.replace(/^.*?: /, '')]), n, `Level ${l} ${f.name}`) : '';
+                return n ? checks(`${P}.opts.${B.fid(f, l)}`, f.choices.options.map((o) => [o.index, o.name.replace(/^.*?: /, '')]), n, `Level ${l} ${f.name}`) : '';
             }).join('')}</div>`);
         }
         // ability score improvements: +2 to one, +1 to two, or a feat where the rules grant one (Q78)
@@ -379,12 +375,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     STEP.race = () => {
         const r = D.races[ch.race], s = D.subraces[ch.sub];
         if (view.race === 'list' || !r) return `<h2>Choose a race</h2><p class="hint">Races with subraces open a second list.</p>${picker('races', B.listOf(D, 'races', rules()).map((x) => ({ id: x.id, name: x.name,
-            sub: [bonusText(x), `Speed ${x.speed} ft`, x.size, subsOfRace(x.id).length > 1 ? `${subsOfRace(x.id).length} subraces` : '', srcName(x)].filter(Boolean).join(' · ') })), ch.race, 'race', 'races')}`;
+            sub: [bonusText(x), x.speed ? `Speed ${x.speed} ft` : '', x.size, subsOfRace(x.id).length > 1 ? `${subsOfRace(x.id).length} subraces` : ''].filter(Boolean).join(' · ') })), ch.race, 'race', 'races')}`;
         if (view.race === 'subs') return back('racelist', 'All races') + `<div class="bd-hero">${iconFor('races', r.id || ch.race, r.name)}<div><h2>${esc(r.name)}</h2><span class="hint">Pick a subrace</span></div></div>`
             + picker('subraces', subsOfRace(ch.race).map((x) => ({ id: x.id, name: x.name, kind: 'races', sub: bonusText(r, x) })), ch.sub, 'sub', 'subraces');
         const subs = subsOfRace(ch.race);
         return back(subs.length > 1 ? 'racesubs' : 'racelist', subs.length > 1 ? 'Subraces' : 'All races')
-            + `<div class="bd-hero">${iconFor('races', ch.sub || ch.race, (s || r).name)}<div><h2>${esc((s || r).name)}</h2><div class="badges"><span class="badge b">${esc(bonusText(r, s))}</span><span class="badge">Speed ${r.speed} ft</span><span class="badge">${esc(r.size || '')}</span></div>${src(s || r)}</div></div>
+            + `<div class="bd-hero">${iconFor('races', ch.sub || ch.race, (s || r).name)}<div><h2>${esc((s || r).name)}</h2><div class="badges"><span class="badge b">${esc(bonusText(r, s))}</span>${r.speed ? `<span class="badge">Speed ${r.speed} ft</span>` : ''}<span class="badge">${esc(r.size || '')}</span></div></div></div>
             ${desc(r.desc)}${s ? desc(s.desc) : ''}<div class="bd-desc">${[r.age, r.size_description, r.language_desc].filter(Boolean).map((p) => `<p class="muted">${esc(p)}</p>`).join('')}</div>
             <div class="bd-sect"><h3>Traits</h3><dl class="bd-traits">${[...(r.traits || []), ...(s?.traits || [])].map((t) => `<div><dt>${esc(t.name)}</dt><dd>${esc((Array.isArray(t.desc) ? t.desc : [t.desc]).filter(Boolean).join(' '))}</dd></div>`).join('') || '<p class="muted">No traits listed.</p>'}</dl></div>
             ${raceChoicesHtml()}`;
@@ -445,7 +441,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const langs = B.LANGS.filter((l) => l !== 'Common').map((l) => [l.toLowerCase().replace(/ /g, '-'), l]);
         const nLang = bg ? +bg.language_options?.choose || 0 : 2;
         const out = [back('bglist', 'All backgrounds'), `<div class="bd-hero">${iconFor('backgrounds', ch.bg, bg?.name || 'Custom')}<div><h2>${esc(bg?.name || 'Custom background')}</h2>
-            ${bg ? `<div class="badges">${(bg.starting_proficiencies || []).map((p) => `<span class="badge g">${esc(B.profKind(p, M)[1])}</span>`).join('')}${nLang ? `<span class="badge">${nLang} language${nLang > 1 ? 's' : ''}</span>` : ''}</div>${src(bg)}` : ''}</div></div>`];
+            ${bg ? `<div class="badges">${(bg.starting_proficiencies || []).map((p) => `<span class="badge g">${esc(B.profKind(p, M)[1])}</span>`).join('')}${nLang ? `<span class="badge">${nLang} language${nLang > 1 ? 's' : ''}</span>` : ''}</div>` : ''}</div></div>`];
         if (bg) out.push(desc(bg.desc), bg.feature ? `<div class="bd-sect"><h3>${esc(bg.feature.name)}</h3>${desc(bg.feature.desc)}</div>` : '');
         else out.push(`<div class="form"><label>Background name<input class="field" data-b="bgOpts.name" value="${esc(ch.bgOpts.name || '')}" placeholder="Wandering scholar" autocomplete="off"></label></div>`,
             checks('bgOpts.skills', M.SKILLS.map(([s]) => [s.toLowerCase().replace(/ /g, '-'), s]), 2, 'Skills: choose 2'));

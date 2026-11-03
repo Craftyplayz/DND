@@ -10,7 +10,7 @@ let n = 0;
 const M = require('../../sheets/player/model.js')(() => 'u' + (n++).toString(36));
 const srd = require('../../sheets/player/srd-build.json');
 // a few spells by name and level, as the page gets them from spells.php (the content files give the rest)
-const data = B.mergeContent(srd, { spells: { bless: { name: 'Bless', level: 1 }, 'cure-wounds': { name: 'Cure Wounds', level: 1 }, 'fire-bolt': { name: 'Fire Bolt', level: 0 },
+const dataSrd = B.mergeContent(srd, { spells: { bless: { name: 'Bless', level: 1 }, 'cure-wounds': { name: 'Cure Wounds', level: 1 }, 'fire-bolt': { name: 'Fire Bolt', level: 0 },
     'magic-missile': { name: 'Magic Missile', level: 1 }, 'protection-from-evil-and-good': { name: 'Protection from Evil and Good', level: 1 }, sanctuary: { name: 'Sanctuary', level: 1 } } });
 
 // ---- the hand-worked sheets ----
@@ -140,12 +140,14 @@ const GEAR = { fighter: { c1: { o: 0, items: ['longsword'] } }, paladin: { c0: {
     druid: { c2: { items: ['wooden-staff'] } }, warlock: { c3: { items: ['quarterstaff'] } } };
 const SUB = { barbarian: 'berserker', bard: 'lore', cleric: 'life', druid: 'land', fighter: 'champion', monk: 'open-hand', paladin: 'devotion', ranger: 'hunter',
     rogue: 'thief', sorcerer: 'draconic', warlock: 'fiend', wizard: 'evocation' };
+// the SRD subclass, found by name in whichever data set (the imported content calls Life "life-domain")
+const subOf = (cls, data) => { const n = srd.subclasses[SUB[cls]].name.toLowerCase(); return B.subsOf(cls, data, '2014').find((x) => x.name.toLowerCase().includes(n) || n.includes(x.name.toLowerCase()))?.id || ''; };
 const ALPHA = M.SKILLS.map(([s]) => s);
 const skillOf = (i) => B.profKind(i, M)[1];
 
 // the builder's choices for one of the characters above
-function choices(cls, L) {
-    const C = srd.classes[cls], ch = B.blankChoices();
+function choices(cls, L, data = dataSrd) {
+    const C = data.classes[cls], ch = B.blankChoices();
     const order = ORDER[cls].split(' ').map((x) => [x.slice(0, 3), +x.slice(3)]);
     Object.assign(ch, { name: `Test ${cls}`, race: 'human', raceOpts: { lang: ['elvish'] }, bg: 'acolyte', bgOpts: { langs: ['dwarvish', 'giant'] }, method: 'std', std: Object.fromEntries(order) });
     const score = Object.fromEntries(order.map(([a, v]) => [a, v + 1]));
@@ -153,20 +155,20 @@ function choices(cls, L) {
     const profs = { 0: skills };
     C.proficiency_choices.slice(1).forEach((pc, i) => { profs[i + 1] = pc.from.options.slice(0, pc.choose).map((o) => o.item); });
     const has = new Set(['Insight', 'Religion', ...skills.map(skillOf)]), expert = new Set();
-    const e = { id: cls, levels: L, sub: L >= B.subLevel(cls, data) ? SUB[cls] : '', profs, opts: {}, asi: {}, picks: {}, spells: [] };
+    const e = { id: cls, levels: L, sub: L >= B.subLevel(cls, data) ? subOf(cls, data) : '', profs, opts: {}, asi: {}, picks: {}, spells: [] };
     const taken = new Set();
     for (let lv = 1; lv <= L; lv++) {
         for (const f of B.featuresAt(cls, e.sub, lv, data)) {
             if (f.choices?.options) {
-                const k = B.chooseN(f, C, lv, [...taken].filter((x) => f.choices.options.some((o) => o.index === x)).length);
+                const k = B.chooseN(f, C, lv, [...taken].filter((x) => f.choices.options.some((o) => o.index === x)).length), id = B.fid(f, lv);
                 // the same option can't be taken twice (an Additional Fighting Style is matched by its name)
                 const nameTaken = (o) => [...taken].some((t) => t === o.index || t.replace(/^.*fighting-style-/, '') === o.index.replace(/^.*fighting-style-/, ''));
-                e.opts[f.index] = f.choices.options.filter((o) => !nameTaken(o)).slice(0, k).map((o) => o.index);
-                e.opts[f.index].forEach((i) => taken.add(i));
+                e.opts[id] = f.choices.options.filter((o) => !nameTaken(o)).slice(0, k).map((o) => o.index);
+                e.opts[id].forEach((i) => taken.add(i));
             }
-            const pk = B.PICKS[f.index];
-            if (pk?.[0] === 'skill') { e.picks[f.index] = C.proficiency_choices[0].from.options.map((o) => skillOf(o.item)).filter((s) => !has.has(s)).slice(0, pk[1]); e.picks[f.index].forEach((s) => has.add(s)); }
-            if (pk?.[0] === 'expert') { e.picks[f.index] = ALPHA.filter((s) => has.has(s) && !expert.has(s)).slice(0, pk[1]); e.picks[f.index].forEach((s) => expert.add(s)); }
+            const pk = B.pickOf(f), pid = B.fid(f, lv);
+            if (pk?.[0] === 'skill') { e.picks[pid] = C.proficiency_choices[0].from.options.map((o) => skillOf(o.item)).filter((s) => !has.has(s)).slice(0, pk[1]); e.picks[pid].forEach((s) => has.add(s)); }
+            if (pk?.[0] === 'expert') { e.picks[pid] = ALPHA.filter((s) => has.has(s) && !expert.has(s)).slice(0, pk[1]); e.picks[pid].forEach((s) => expert.add(s)); }
         }
         if (B.asiLevels(C).includes(lv)) {
             const a = order.map(([x]) => x).find((x) => score[x] < 20);
@@ -180,7 +182,7 @@ function choices(cls, L) {
 }
 
 // the numbers the sheet would show, worked out from the built character the way sheet.js does
-function sheet(c) {
+function sheet(c, data = dataSrd) {
     const V = { level: c.classes.reduce((t, k) => t + k.level, 0) };
     for (const a of c.abilities) { V[a.key.toLowerCase()] = B.mod(a.score); V[a.key.toLowerCase() + '_score'] = a.score; }
     for (const k of c.classes) V[k.name.toLowerCase() + '_level'] = k.level;
@@ -202,11 +204,13 @@ function sheet(c) {
 const HEAD = ['class', 'level', 'scores', 'HP', 'AC', 'prof', 'save profs', 'saves', 'spell DC/atk', 'slots', 'pact', 'cantrips', 'skills', 'attacks'];
 let bad = 0;
 for (const want of SHEETS) {
-    const got = sheet(B.build(choices(want[0], want[1]), data, M));
+    const got = sheet(B.build(choices(want[0], want[1]), dataSrd, M));
     // the paladin and ranger have no spellcasting at level 1 (no DC either); the warlock has one with pact slots only
     const same = (i) => (HEAD[i] === 'attacks' ? (x) => x.toLowerCase().split('; ').sort().join('; ') : String)(String(got[i])) === (HEAD[i] === 'attacks' ? (x) => x.toLowerCase().split('; ').sort().join('; ') : String)(String(want[i]));
     for (const [i, h] of HEAD.entries()) if (!same(i)) { bad++; console.log(`FAIL ${want[0]} ${want[1]} ${h}: got ${got[i]}, want ${want[i]}`); }
 }
+
+const data = dataSrd;
 
 // ---- the rules on their own ----
 assert.strictEqual(B.pbCost({ STR: 15, DEX: 15, CON: 15, INT: 8, WIS: 8, CHA: 8 }), 27);
@@ -330,6 +334,13 @@ const bd = B.levelUp(B.build(choices('bard', 1), data, M), { cls: 'bard', entry:
 assert.strictEqual(bd.skills.find((s) => s.name === 'Stealth').p, 0.5);
 assert.strictEqual(bd.skills.find((s) => s.name === 'Insight').p, 1);
 
+// the wikis' wording for weapon proficiencies
+assert.deepStrictEqual(B.profKind('all-simple-weapons', M), ['weapons', ['Simple weapons']]);
+assert.deepStrictEqual(B.profKind('light-crossbows', M), ['weapons', ['Light crossbows']]);
+assert.deepStrictEqual(B.profKind('martial-weapons-that-have-the-finesse-or-light-property', M)[0], 'weapons');
+assert.strictEqual(B.fkey({ name: 'Action Surge (x1)' }), 'action-surge');
+assert.deepStrictEqual(B.pickOf({ name: 'Expertise' }), ['expert', 2]);
+
 // ---- the imported content (sheets/player/content/, when it's there; CONTENT_DIR to try another copy) ----
 // every class, race, subrace and background of each rules version builds at levels 1, 5 and 20 with each class's first
 // options, without throwing and with sane numbers; the content's text-only choices are skipped, as a player would type them
@@ -349,7 +360,7 @@ for (const rules of ['2014', '2024']) {
         const subs = B.subsOf(cls.id, D, rules);
         const e = { id: cls.id, levels: L, sub: L >= B.subLevel(cls.id, D) && subs[0] ? subs[0].id : '', profs: {}, opts: {}, asi: {}, picks: {}, spells: [] };
         (cls.proficiency_choices || []).forEach((pc, j) => { e.profs[j] = (pc.from?.options || []).slice(0, pc.choose).map((o) => o.item?.index || o.item); });
-        for (let lv = 1; lv <= L; lv++) for (const f of B.featuresAt(cls.id, e.sub, lv, D)) if (f.choices?.options) e.opts[f.index] = f.choices.options.slice(0, f.choices.choose || 1).map((o) => o.index);
+        for (let lv = 1; lv <= L; lv++) for (const f of B.featuresAt(cls.id, e.sub, lv, D)) if (f.choices?.options) e.opts[B.fid(f, lv)] = f.choices.options.slice(0, f.choices.choose || 1).map((o) => o.index);
         for (const lv of B.asiLevels(cls)) if (lv <= L) e.asi[lv] = { k: '+2', a: ['CON'] };
         ch.classes = [e];
         let c;
@@ -360,6 +371,20 @@ for (const rules of ['2014', '2024']) {
     }
 }
 if (built) console.log(`content: ${built} characters built from the imported classes`);
+
+// the same hand-worked sheets with the imported 2014 content (wiki text, the SRD's picks merged in): a player building a core
+// class gets the same numbers from the real data as from the SRD alone
+if ((idx.files || []).length) {
+    const D = B.mergeContent(srd);
+    (idx.files || []).filter((f) => f.rules === '2014' && !/items/.test(f.file)).forEach((f) => B.addContent(D, JSON.parse(fs.readFileSync(path.join(CDIR, f.file), 'utf8')), '2014'));
+    for (const want of SHEETS) {
+        const got = sheet(B.build(choices(want[0], want[1], D), D, M), D);
+        for (const [i, h] of HEAD.entries()) {
+            const norm = (x) => (h === 'attacks' ? String(x).toLowerCase().split('; ').sort().join('; ') : String(x));
+            if (norm(got[i]) !== norm(want[i])) { bad++; console.log(`FAIL content ${want[0]} ${want[1]} ${h}: got ${got[i]}, want ${want[i]}`); }
+        }
+    }
+}
 
 if (bad) { console.log(`${bad} value(s) differ from the hand-worked sheets`); process.exit(1); }
 console.log(`builder ok (${SHEETS.length} hand-worked sheets)`);

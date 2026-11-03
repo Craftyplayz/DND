@@ -3,7 +3,7 @@
 //                  srd-build.json, plus the content files (sheets/player/content/index.json lists them by rules version and the
 //                  kinds each holds) that have any of keys (e.g. ['classes', 'races'], ['spells'], ['equipment']), merged in through
 //                  HbBuild.addContent (build.js) as they're asked for. Each file loads once per page. null when srd-build.json can't load.
-//   hbContent.versions() -> ['2014'] or ['2014', '2024'] (the rules versions there is content for); hbContent.credits() -> its sources
+//   hbContent.versions() -> ['2014'] or ['2014', '2024'] (the rules versions there is content for)
 //   hbSpellNames(d) -> fills d.spells with the SRD spells' names and levels (spells.php) where the content has none
 //   hbIcons() -> icons.json: {classes|races|subclasses: {slug or "<class>--<subclass>": {svg, color, src}}}, or {}
 (function () {
@@ -23,7 +23,6 @@
         }));
         return D;
     };
-    window.hbContent.credits = async () => (await idx()).credits || []; // [{src, name, ...}], the sources the content credits
     window.hbContent.versions = async () => ['2014', ...((await idx()).files.some((f) => f?.rules === '2024') ? ['2024'] : [])];
     window.hbSpellNames = (d) => spells || (spells = get('/sheets/player/spells.php?list=2').then((list) => {
         for (const [i, name, level] of Array.isArray(list) ? list : []) if (!d.spells[i]) d.spells[i] = { name, level: +level || 0, rules: '2014' };

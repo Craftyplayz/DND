@@ -77,7 +77,7 @@ try {
             await b.until(`document.querySelector('.bd-hero h2')?.textContent === 'Fighter'`);
             await tick('[data-pick="classes.0.profs.0"][value=skill-athletics]');
             await tick('[data-pick="classes.0.profs.0"][value=skill-perception]');
-            await tick('[data-pick="classes.0.opts.fighter-fighting-style"][value=fighter-fighting-style-defense]');
+            await tick('[data-pick="classes.0.opts.fighter-fighting-style@1"][value=fighter-fighting-style-defense]');
             await click('[name="classes.0.sub"][value=champion]');
             await b.until(`(document.querySelector('[name="classes.0.sub"]:checked') || {}).value === 'champion'`);
             is(`${name} a third pick past the limit is refused`, await ev(`document.querySelector('[data-pick="classes.0.profs.0"][value=skill-history]').disabled`), true);
@@ -110,7 +110,7 @@ try {
             await b.until(`document.querySelector('.bd-hero h2')?.textContent === 'Fighter'`);
             await tick('[data-pick="classes.0.profs.0"][value=skill-athletics]');
             await tick('[data-pick="classes.0.profs.0"][value=skill-survival]');
-            await tick('[data-pick="classes.0.opts.fighter-fighting-style"][value=fighter-fighting-style-defense]');
+            await tick('[data-pick="classes.0.opts.fighter-fighting-style@1"][value=fighter-fighting-style-defense]');
             await click('[name="classes.0.sub"][value=champion]');
 
             // ability scores: 4d6 drop lowest, six separate 3D throws
@@ -240,9 +240,20 @@ try {
                 await c2.until(`document.querySelectorAll('#bd-list-classes .bd-row').length`, 20000).catch(async (e) => { console.log('content page:', await c2.ev(`location.href + ' ' + document.querySelector('#bd-step')?.textContent.slice(0, 200)`), c2.errors.join(' | ')); throw e; });
                 const n14 = idx.counts?.['2014']?.classes;
                 is(`${name} content: every 2014 class listed`, await c2.ev(`document.querySelectorAll('#bd-list-classes .bd-row').length`), Object.keys(JSON.parse(readFileSync(join(ROOT, 'sheets/player/content/2014-classes.json'), 'utf8')).classes).length + Object.keys(JSON.parse(readFileSync(join(ROOT, 'sheets/player/srd-build.json'), 'utf8')).classes).filter((k) => !JSON.parse(readFileSync(join(ROOT, 'sheets/player/content/2014-classes.json'), 'utf8')).classes[k]).length);
+                // the icon tiles (icons.json): the classes with a symbol show it
+                is(`${name} content: class icons show`, await c2.ev(`document.querySelectorAll('#bd-list-classes .bd-ic svg').length >= 12`), true);
+                // a core class from the wiki, with the SRD's picks merged in: fighting styles and equipment choices to click
+                await c2.ev(`document.querySelector('[data-act=cls][data-id=fighter]').click(), 1`);
+                await c2.until(`document.querySelector('.bd-hero h2')?.textContent === 'Fighter'`);
+                is(`${name} content: the fighter's fighting styles are picks`, await c2.ev(`document.querySelectorAll('[data-pick="classes.0.opts.' + (document.querySelector('[data-pick*=".opts."]')?.dataset.pick.split('.').pop() || 'x') + '"]').length >= 6`), true);
+                await c2.ev(`document.querySelector('[data-act=go][data-k=equipment]').click(), 1`);
+                await c2.until(`document.querySelector('.bd-eq')`, 20000);
+                is(`${name} content: the fighter's starting equipment is choices, not text`, await c2.ev(`[!!document.querySelector('.bd-eq input[type=radio]'), !document.querySelector('[data-b^="equip.picks."][data-b$=".text"]')].join()`), 'true,true');
+                await c2.ev(`document.querySelector('[data-act=go][data-k=class]').click(), 1`);
+                await c2.ev(`document.querySelector('[data-act=clslist]')?.click(), 1`);
                 await c2.ev(`document.querySelector('[data-act=cls][data-id=artificer]').click(), 1`);
                 await c2.until(`document.querySelector('.bd-hero h2')?.textContent === 'Artificer'`);
-                is(`${name} content: a class from the content, with its source`, await c2.ev(`/From /.test(document.querySelector('.bd-hero').textContent)`), true);
+                is(`${name} content: no source labels (the owner's rule; they're on /credits/)`, await c2.ev(`/wikidot|From /.test(document.querySelector('#bd-step').textContent.slice(0, 200))`), false);
                 await c2.ev(`document.querySelector('[data-act=go][data-k=name]').click(), 1`);
                 await c2.until(`document.querySelector('[data-b=rules]')`);
                 await c2.ev(`(() => { const e = document.querySelector('[data-b=rules]'); e.value = '2024'; e.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
