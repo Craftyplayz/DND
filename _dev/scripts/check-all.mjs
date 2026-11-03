@@ -151,6 +151,8 @@ async function main() {
             rows.push({ job: job.name, browser: job.browser, secs, status });
             const last = r.out.trim().split('\n').pop();
             if (r.ok) console.log(`${status === 'pass' ? 'ok  ' : 'ok (passed on retry)'} ${job.id} ${secs.toFixed(1)} s: ${last}`);
+            // the player-data check's counts ("<page>: N saved characters checked in <browser>"), so a run shows what it covered
+            if (r.ok) for (const l of r.out.match(/^.* checked in .*$/gm) || []) console.log('    ' + l.trim());
             else console.log(`FAIL ${job.id} ${secs.toFixed(1)} s\n${r.out.trim().split('\n').map((l) => '    ' + l).join('\n')}`);
         }
     };
