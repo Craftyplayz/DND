@@ -39,6 +39,7 @@ export const BROWSER_CHECKS = {
     'live-page': { ports: [8118, 8098], both: true, tmp: 'dnd-live-check', secs: 45 },
     'table-log': { ports: [8120, 8099], both: true, tmp: 'dnd-table-check', secs: 70 },
     'handouts-page': { ports: [8124, 8093], split: true, tmp: 'dnd-handouts-check', secs: 60 },
+    'dm-edits': { ports: [8126, 8092], split: 'flag', tmp: 'dnd-dmedit-check', secs: 150 },
 };
 // unit tests that open ports of their own (before the shift)
 const TEST_PORTS = { 'live-relay.test.js': [8095, 8096], 'monster-encounters.test.php': [8124] };

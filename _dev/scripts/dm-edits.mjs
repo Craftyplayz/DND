@@ -9,10 +9,10 @@
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { launch, serving } from './browser.mjs';
 
-const SHIFT = +process.env.CHECK_PORT_SHIFT || 0, ROOT = join(import.meta.dirname, '../..'), WEB = 8124 + SHIFT, RELAY = 8093 + SHIFT, BASE = `http://localhost:${WEB}`;
+const SHIFT = +process.env.CHECK_PORT_SHIFT || 0, ROOT = join(import.meta.dirname, '../..'), WEB = 8126 + SHIFT, RELAY = 8092 + SHIFT, BASE = `http://localhost:${WEB}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
 const TMP = join(tmpdir(), 'dnd-dmedit-check' + (process.env.CHECK_PORT_SHIFT || '')), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -81,6 +81,31 @@ try {
     await go(dm, BASE + '/characters/lock');
     is('DM mode: the bar says whose it is', await until(dm, text('#hb-dmbar'), (t) => t.includes('Changes go to Pat')), "Editing Pat's character as DM. Changes go to Pat.");
     is('DM mode: everything can be edited, but not the player\'s own tools', await dm.ev(`[[...document.querySelectorAll('#hb-sheet input')].every((i) => !i.disabled), !document.querySelector('[data-act=manage]')].join()`), 'true,true');
+    // the server's list of what a DM may change mirrors the sheet's blank() and ROW makers (less what the DM never changes)
+    const sheetFields = JSON.parse(await dm.ev(`JSON.stringify((() => {
+        const out = {}, D = hbDm;
+        const walk = (o, path) => {
+            const key = D.pat(path);
+            if (key === 'panels') { for (const p of o) for (const k in p) walk(p[k], ['panels', '#x', k]); return; } // the panels themselves are the layout
+            if (path.length && !D.allowed(path)) return;
+            if (Array.isArray(o)) {
+                if (D.TAGS.test(key)) { out[key] = 'tags'; return; }
+                const objs = o.length && o.every((x) => x && typeof x === 'object');
+                out[key] = D.FIXED.test(key) || !objs ? 'list' : 'rows';
+                const k = path[path.length - 1], seg = objs && o[0].id ? '#x' : k === 'skills' || k === 'abilities' ? '@x' : '0';
+                for (const el of o) walk(el, [...path, seg]);
+                return;
+            }
+            if (o && typeof o === 'object') { for (const k in o) walk(o[k], [...path, k]); return; }
+            out[key] = typeof o === 'boolean' ? 'b' : D.AMOUNT.test(key) ? 'a' : 'v';
+        };
+        walk(hbShapes(), []);
+        return out;
+    })())`));
+    const phpFields = JSON.parse(execFileSync(PHP, ['-r', `require '${ROOT.replace(/\\/g, '/')}/includes/dmedits.php'; echo json_encode(DM_FIELDS);`], { encoding: 'utf8' }));
+    // "extra" boxes aren't in blank(): the sheet adds them (Flexible Casting, extra uses)
+    const sortObj = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !/(^|\.)extra$/.test(k)).sort(([a], [b]) => a.localeCompare(b)));
+    is("the server's editable fields match the sheet's blank()", sortObj(phpFields), sortObj(sheetFields));
     await until(dm, `document.querySelector('#hb-amt') ? 1 : 0`);
     await hpBox(dm, 7, 'dmg');
     const stealthI = await dm.ev(`[...document.querySelectorAll('[data-act=prof]')].findIndex((b) => b.closest('tr, li, div')?.textContent.includes('Stealth'))`);

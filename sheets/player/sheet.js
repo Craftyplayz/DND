@@ -348,6 +348,22 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         return out;
     }
 
+    // a character with every panel type and one of every kind of row, for dm-edits.mjs to compare with includes/dmedits.php's
+    // list of what a DM may change (ROADMAP 1.5)
+    window.hbShapes = () => {
+        const c = normalise(blank());
+        c.panels = Object.keys(TYPES).map((t) => newPanel(t));
+        for (const p of c.panels) {
+            if (p.rows) p.rows = [PANEL_ROW[p.type]()];
+            for (const r of p.rows || []) { if (r.dmg) r.dmg = [ROW.dmg()]; if (r.fx) r.fx = [ROW.fx()]; if (r.levels) r.levels = [ROW.level()]; if (r.props) r.props = ['x']; }
+            if (p.notes) p.notes = [ROW.note()];
+            if (p.meta) p.meta = [ROW.meta()];
+            if (p.tabs) p.tabs = ['x'];
+        }
+        c.profs.tools = [ROW.tool()]; c.conditions = ['x'];
+        return normalise(c);
+    };
+
     // ---- storage ----
     let db;
     try { db = JSON.parse(localStorage.getItem(KEY)); } catch (e) { db = null; }

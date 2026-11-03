@@ -1,6 +1,6 @@
 // Checks Campaigns (/campaigns/, a campaign page, /campaigns/join/<code>) in headless Chrome and Firefox, signed in as three
 // stand-in players: the DM makes a campaign and adds a character, a player joins by link and adds theirs, a stranger sees
-// nothing, the DM opens the player's sheet read-only, a new link stops the old one, the DM removes the player.
+// nothing, the DM opens the player's sheet in DM mode (ROADMAP 1.5), a new link stops the old one, the DM removes the player.
 //   node _dev/scripts/campaigns-page.mjs
 // Starts its own server on port 8114 with stand-in account and session folders in the temp folder, so it never touches
 // private/dnd/accounts or private/sessions. Needs sign-in set up locally (includes/config.php).
@@ -100,13 +100,13 @@ try {
             await go(BASE + '/characters/lock');
             is(`${name} stranger can't open the sheet`, await text('#hb-sheet h2'), 'Character not found');
 
-            // the DM opens the player's sheet read-only; a new link stops the old one; the DM removes the player
+            // the DM opens the player's sheet in DM mode; a new link stops the old one; the DM removes the player
             await as('dm');
             await go(BASE + '/characters/lock');
-            is(`${name} DM sees the sheet`, await text('.hb-roname'), 'Lock');
-            is(`${name} DM's view is read-only`, await ev(`[...document.querySelectorAll('#hb-sheet input')].every((i) => i.disabled)`), true);
+            is(`${name} DM sees the sheet`, await ev(`document.querySelector('[data-k=name]')?.value`), 'Lock');
+            is(`${name} DM's view is DM mode`, [await text('#hb-dmbar b'), await ev(`[...document.querySelectorAll('#hb-sheet input')].every((i) => !i.disabled)`)], ["Editing Pat's character as DM.", true]);
             is(`${name} DM's browser keeps no copy`, await ev(`!!JSON.parse(localStorage.getItem('hb-sheet') || '{"chars":{}}').chars.lock`), false);
-            errs('DM read-only sheet');
+            errs('DM mode sheet');
             await go(BASE + '/campaigns/' + id);
             is(`${name} campaign opens at /campaigns/<id>`, await ev(`location.pathname`), '/campaigns/' + id);
             // old ?c=<id> links redirect (301) to it; the list and the join page still work
@@ -126,7 +126,7 @@ try {
             is(`${name} co-DM opens every party sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card a.btn')].map((a) => a.getAttribute('href')))`), '["/characters/dmpc","/characters/lock"]');
             is(`${name} co-DM: invite link and sessions, no DM-only tools`, await ev(`JSON.stringify([!!document.querySelector('#cp-link'), !!document.querySelector('[data-act=session]'), !!document.querySelector('[data-act=code], #cp-rename, [data-act=delete], [data-act=remove], [data-act=codm]'), !!document.querySelector('[data-act=leave]')])`), '[true,true,false,true]');
             await go(BASE + '/characters/dmpc');
-            is(`${name} co-DM sees the DM's sheet read-only`, [await text('.hb-roname'), await ev(`[...document.querySelectorAll('#hb-sheet input')].every((i) => i.disabled)`)], ['Brannoc', true]);
+            is(`${name} co-DM edits the DM's sheet as DM`, [await ev(`document.querySelector('[data-k=name]')?.value`), await text('#hb-dmbar b')], ['Brannoc', "Editing Dee's character as DM."]);
             await go(BASE + '/campaigns/');
             is(`${name} listed under co-DM`, await ev(`[...document.querySelectorAll('.sec-h')].map((h) => h.firstChild.textContent.trim()).join(',')`), "You're a co-DM");
             errs('co-DM');

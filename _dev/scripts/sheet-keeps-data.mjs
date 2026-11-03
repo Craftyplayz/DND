@@ -75,8 +75,15 @@ try {
             const miss = !before[c.id] ? [] : after[c.id] ? lost(before[c.id], after[c.id]) : ['the whole character'];
             // the fields the new code may add: a monster's "enc" (ROADMAP 3.1, every old monster starts in Unsorted) and a
             // character's "hoPanel" (ROADMAP 3.4, false until the character is in a campaign while signed in, never here)
-            const added = key === 'monster-sheet' ? 'enc' : 'hoPanel';
-            if (OLD && before[c.id] && after[c.id]) for (const k of Object.keys(after[c.id])) if (!(k in before[c.id]) && k !== added) miss.push(`${k}: added`);
+            // and (ROADMAP 1.5) "dmApplied", the DM edits applied (none here), and "calc", the sheet's worked-out max HP
+            const added = key === 'monster-sheet' ? ['enc'] : ['hoPanel', 'dmApplied', 'calc'];
+            if (OLD && before[c.id] && after[c.id]) for (const k of Object.keys(after[c.id])) if (!(k in before[c.id]) && !added.includes(k)) miss.push(`${k}: added`);
+            if (key !== 'monster-sheet' && after[c.id]) {
+                const a = after[c.id], nm = (x) => parseFloat(x) || 0, con = a.abilities.find((x) => String(x.key).toLowerCase() === 'con');
+                const max = nm(a.hp.base) + (con ? Math.floor((nm(con.score) - 10) / 2) * a.classes.reduce((t, k) => t + nm(k.level), 0) : 0) + nm(a.hp.mod);
+                if (!('dmApplied' in c) && JSON.stringify(a.dmApplied) !== '[]') miss.push(`dmApplied: ${JSON.stringify(a.dmApplied)}, not []`);
+                if (!('calc' in c) && JSON.stringify(a.calc) !== JSON.stringify({ hpMax: max }) && JSON.stringify(a.calc) !== '{"hpMax":0}') miss.push(`calc: ${JSON.stringify(a.calc)}, not {"hpMax":${max}}`);
+            }
             if (key === 'monster-sheet' && after[c.id] && !('enc' in c) && after[c.id].enc !== '') miss.push(`enc: ${JSON.stringify(after[c.id].enc)}, not Unsorted`);
             if (key !== 'monster-sheet' && after[c.id] && !('hoPanel' in c) && after[c.id].hoPanel !== false) miss.push(`hoPanel: ${JSON.stringify(after[c.id].hoPanel)}, not false`);
             if (miss.length) { failed++; console.log(`FAIL ${path} ${from}: ${miss.length} value(s) changed or gone\n  ` + miss.slice(0, 8).join('\n  ')); }
