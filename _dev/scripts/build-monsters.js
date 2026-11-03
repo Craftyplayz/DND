@@ -1,12 +1,16 @@
 // Builds sheets/monster/monsters.json, the Monster Sheet's search list: SRD 5.1 monsters from dnd5eapi.co
 // plus every open-licence book on Open5e (OGL, CC-BY, ORC), with duplicates removed: the SRD copy wins, then the newest book
-// (Tome of Beasts 2023 over Tome of Beasts 2016).
+// (Tome of Beasts 2023 over Tome of Beasts 2016). The SRD 5.2 monsters (book "srd-2024", keys "s24:<slug>", Open5e v2) are the 2024 rules:
+// they aren't duplicates of their 2014 namesakes, and every other monster counts as 2014.
+// Keys that a rebuild drops go into sheets/monster/aliases.json (old key -> the entry now holding that name), so favourites keep working.
+// --old <monsters.json>: compare against that list instead of the file being replaced.
 // The page fetches each full stat block through monsters.php when it's picked.   usage: node _dev/scripts/build-monsters.js
 const fs = require('fs');
 const path = require('path');
 
 const OUT = path.join(__dirname, '../../sheets/monster/monsters.json');
 const OGL = path.join(__dirname, '../../sheets/monster/ogl.txt');
+const ALIASES = path.join(__dirname, '../../sheets/monster/aliases.json');
 const OPEN = /open gaming|creative commons|orc licen/i;
 // Open5e v1 book slugs whose v2 key differs
 const V2 = { 'wotc-srd': 'srd-2014', cc: 'ccdx', menagerie: 'a5e-mm', blackflag: 'bfrd', taldorei: 'tdcs' };
@@ -18,6 +22,16 @@ const nameKey = (n) => String(n).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(
 function dedupe(entries) {
     const seen = new Set();
     return entries.filter((e) => { const k = nameKey(e.name); return !seen.has(k) && seen.add(k); });
+}
+
+// old key -> new key for rows [key, name] gone from the new list; earlier aliases stay, following a target that has moved since
+function aliases(oldRows, newRows, prior = {}) {
+    const keys = new Set(newRows.map((r) => r[0])), byName = new Map();
+    for (const r of newRows) if (!r[0].startsWith('s24:') && !byName.has(nameKey(r[1]))) byName.set(nameKey(r[1]), r[0]);
+    const nameOf = new Map(oldRows.map((r) => [r[0], r[1]])), out = {};
+    for (const [k, v] of Object.entries(prior)) { if (keys.has(k)) continue; const to = keys.has(v) ? v : byName.get(nameKey(nameOf.get(v) || '')); out[k] = to || v; }
+    for (const [k, n] of oldRows) if (!keys.has(k) && byName.has(nameKey(n))) out[k] = byName.get(nameKey(n));
+    return out;
 }
 
 async function getJSON(url) {
@@ -61,11 +75,21 @@ async function build() {
             type: String(m.type || '').toLowerCase(), cr: +m.cr, size: String(m.size || '').replace(/^./, (c) => c.toUpperCase()) })),
     ].sort((a, b) => a.rank - b.rank);
     if (SIZES_ONLY) return addSizes(entries);
-    const list = dedupe(entries).sort((a, b) => a.name.localeCompare(b.name));
+    const s24 = [];
+    for (let url = 'https://api.open5e.com/v2/creatures/?document__key=srd-2024&limit=500&depth=0'; url;) { const j = await getJSON(url); s24.push(...j.results); url = j.next; }
+    const list = [...dedupe(entries), ...s24.map((c) => ({ key: 's24:' + c.key.replace(/^srd-2024_/, ''), name: c.name, src: 'srd-2024', type: String(c.type?.name || '').toLowerCase(), cr: +c.challenge_rating, size: c.size?.name || '' }))]
+        .sort((a, b) => a.name.localeCompare(b.name));
     const used = new Set(list.map((e) => e.src));
     const sources = { srd: { title: 'SRD 5.1', licence: 'CC BY 4.0', url: 'https://www.dndbeyond.com/srd',
         copyright: 'This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd, licensed under the Creative Commons Attribution 4.0 International License.' } };
+    sources['srd-2024'] = { title: 'SRD 5.2', licence: 'CC BY 4.0', url: 'https://www.dndbeyond.com/srd',
+        copyright: 'This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd, licensed under the Creative Commons Attribution 4.0 International License.' };
     for (const d of open) if (used.has(d.slug)) sources[d.slug] = { title: d.title, licence: d.license, url: d.url, copyright: d.copyright || '' };
+    const oldAt = process.argv.indexOf('--old');
+    const oldRows = JSON.parse(fs.readFileSync(oldAt > 0 ? process.argv[oldAt + 1] : OUT, 'utf8')).list;
+    const prior = fs.existsSync(ALIASES) ? JSON.parse(fs.readFileSync(ALIASES, 'utf8')) : {};
+    const rows = list.map((e) => [e.key, e.name, e.cr, e.type, e.src, e.size || '']);
+    fs.writeFileSync(ALIASES, JSON.stringify(aliases(oldRows, rows, prior), null, 1) + '\n');
     fs.writeFileSync(OUT, JSON.stringify({ built: new Date().toISOString().slice(0, 10), sources, list: list.map((e) => [e.key, e.name, e.cr, e.type, e.src, e.size || '']) }));
     // the OGL has to travel with OGL content, followed by each book's section 15 notice
     const ogl = (await getJSON('https://api.open5e.com/v2/licenses/ogl-10a/')).desc;
@@ -75,4 +99,4 @@ async function build() {
 }
 
 if (require.main === module) build().catch((e) => { console.error(e); process.exit(1); });
-module.exports = { dedupe, nameKey };
+module.exports = { dedupe, nameKey, aliases };

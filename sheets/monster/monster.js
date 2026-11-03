@@ -2108,7 +2108,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         st.className = hits.length ? 'muted' : 'note';
         st.textContent = !hits.length ? 'No monsters match that name.' : hits.length > 100 ? `${hits.length.toLocaleString()} monsters. Type to narrow them down.` : `${hits.length} monster${hits.length === 1 ? '' : 's'}`;
         $('#mon-results').innerHTML = hits.slice(0, 100).map(([key, name, cr, type, src]) => `<button type="button" class="mon-hit" data-mon="${esc(key)}">
-            <b>${esc(name)}</b><small>CR ${esc(crText(cr))} ${esc(type)} · ${esc(monIndex.sources[src]?.title || src)}</small></button>`).join('');
+            <b>${esc(name)}${src === 'srd-2024' ? ' <span class="badge b">2024</span>' : ''}</b><small>CR ${esc(crText(cr))} ${esc(type)} · ${esc(monIndex.sources[src]?.title || src)}</small></button>`).join('');
     }
     async function takeMonster(b) {
         b.disabled = true; b.querySelector('small').textContent = 'Adding...';
@@ -2138,7 +2138,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const usage = (u) => (!u ? '' : u.type === 'recharge on roll' ? ` (Recharge ${u.min_value}${u.min_value < 6 ? '–6' : ''})` : u.type === 'per day' ? ` (${u.times}/Day)`
         : u.type === 'recharge after rest' ? ` (Recharges after a ${(u.rest_types || []).join(' or ')} rest)` : '');
     function fromAction(a, time) {
-        const d = String(a.desc || ''), hit = /([+-−]\s?\d+)\s+to hit/i.exec(d), dc = /DC (\d+) (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)/i.exec(d);
+        // "+4 to hit" and "DC 13 Dexterity", or the 2024 wording: "Attack Roll: +4" and "Dexterity Saving Throw: DC 13"
+        const d = String(a.desc || ''), hit = /([+-−]\s?\d+)\s+to hit/i.exec(d) || /Attack Roll:\s*([+-−]\s?\d+)/i.exec(d), m24 = /(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) Saving Throw:\s*DC (\d+)/i.exec(d);
+        const dc = /DC (\d+) (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)/i.exec(d) || (m24 && [m24[0], m24[2], m24[1]]);
         const reach = /\b(?:reach|range) ([\d/]+ ft)/i.exec(d);
         return Object.assign(ROW.attack(), { name: (a.name || '') + usage(a.usage), time, desc: d, range: reach ? reach[1] : '',
             mode: hit ? 'hit' : dc ? 'save' : 'none', hit: hit ? String(nm(hit[1].replace(/[\s]/g, '').replace('−', '-'))) : 'STR + PROF',
