@@ -58,6 +58,9 @@ $is('archived character refused', cp_act($A, $pl, ['act' => 'characters', 'id' =
 ch_save($A, '222', json_encode(['id' => 'arc', 'updated' => 6, 'name' => 'arc', 'abilities' => [], 'archived' => 0]));
 $is('unarchived can join again', cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['lock', 'arc']])[0], 200);
 cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['lock']]);
+ch_save($A, '222', json_encode(['id' => 'arc', 'updated' => 7, 'name' => 'arc', 'abilities' => [], 'archived' => 7]));
+$is('an archived character is not cloned into a campaign', [cp_act($A, $pl, ['act' => 'clone', 'id' => $id, 'char' => 'arc'])[0], array_column(cp_get($A, $id)['members'][1]['characters'], 'id')], [400, ['lock']]);
+
 // one campaign per character: a second campaign refuses it and offers a clone
 file_put_contents("$A/characters/lock/art.png", "\x89PNG\r\n\x1a\nfake");
 $ch = json_decode(file_get_contents("$A/characters/lock/character.json"), true);

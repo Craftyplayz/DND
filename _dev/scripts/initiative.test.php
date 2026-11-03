@@ -130,10 +130,15 @@ fi_roll($A, $c, $dm, ['title' => 'Initiative', 'fight' => 1, 'mon' => 'gob2', 't
 $is('a Monster Sheet roll adds the monster', in_array('gob2', $order(), true), true);
 $is("players can't add monsters by rolling", fi_roll($A, $c, $pat, ['title' => 'Initiative', 'fight' => 1, 'mon' => 'ogre', 'total' => 11]), false);
 // archived and gone monsters stay, marked
-$mon('gob2', 'Goblin 2', 7, 7, ['archived' => true]);
+// the Monster Sheet's own archive (ROADMAP 0.5): an 'archived' time, 0 when it isn't
+$mon('gob2', 'Goblin 2', 7, 7, ['archived' => 1762300000000]);
+$mon('gob1', 'Goblin 1', 7, 7, ['archived' => 0]);
 @unlink("$A/monsters/111/ogre.json");
 $dv = fi_view($A, $c, '111');
 $is('archived and gone monsters stay, marked', array_map(fn($e) => [$e['name'], $e['archived'], $e['missing']], array_values(array_filter($dv['entries'], fn($e) => $e['kind'] === 'monster' && $e['mon'] !== 'gob1'))), [['Ogre', false, true], ['Goblin 2', true, false]]);
+$is('archived 0 is not archived', array_values(array_filter($dv['entries'], fn($e) => ($e['mon'] ?? '') === 'gob1'))[0]['archived'], false);
+$arc = array_values(array_filter(fi_read($A, $c['id'])['entries'], fn($e) => ($e['mon'] ?? '') === 'gob2'))[0]['id'];
+$is('the DM removes an archived monster', [$op(['op' => 'remove', 'e' => $arc])[0], in_array('gob2', array_column(fi_read($A, $c['id'])['entries'], 'mon'), true)], [200, false]);
 
 // ending moves the fight to fights/<n>.json
 $is('end', $op(['op' => 'end'])[0], 200);

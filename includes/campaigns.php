@@ -224,6 +224,7 @@ function cp_act($accounts, $user, $body)
     if ($act === 'clone') {
         $cid = (string)($body['char'] ?? '');
         if ((ch_meta($accounts, $cid)['owner'] ?? null) !== $sub) return [404, ['error' => 'No such character.']];
+        if (ch_archived(ch_meta($accounts, $cid))) return [400, ['error' => "Archived characters can't join a campaign. Unarchive one in My Characters first."]];
         $new = cp_clone_char($accounts, $sub, $cid);
         if (!$new) return [500, ['error' => "Couldn't copy the character."]];
         $c['members'][$me]['characters'] = array_values(array_filter($c['members'][$me]['characters'] ?? [], fn($l) => ($l['id'] ?? null) !== $cid));
