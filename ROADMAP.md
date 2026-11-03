@@ -922,6 +922,10 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 - Data safety: `characters/cache/` and its volume are left in place (never deleted).
 - Size: half a day, plus time with each player. Done: all 6 characters exist as homebrew sheets on their owners' accounts.
 
+**5.4 Compendium popup on every page**
+- What: on any page whatsoever, the Compendium opens in a popup sidebar window for super fast referencing.
+- Size: not sized yet. Done: from any page, the Compendium opens in the popup sidebar and an entry can be looked up.
+
 ### Phase 6: Polish
 
 **6.1 Installable and offline (PWA)**
@@ -991,5 +995,5 @@ up, because of CLAUDE.md rather than an open design question:
 | 2 Phone and look | 3 | ~7 days |
 | 3 DM tools | 4 | ~8 days |
 | 4 Character building | 6 | ~18.5 days |
-| 5 Content | 3 | ~8.5 days |
+| 5 Content | 4 | ~8.5 days + 5.4 (not sized yet) |
 | 6 Polish | 3 | ~6 days |
