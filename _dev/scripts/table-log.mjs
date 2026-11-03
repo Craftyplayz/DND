@@ -73,6 +73,9 @@ try {
     is('DM toggle says Hidden', await dm.ev(`(document.querySelector('.hb-tray') || document.querySelector('[data-act=tray]').click(), document.querySelector('[data-act=rollto]').textContent)`), 'Hidden');
     await dm.ev(`(() => { const s = document.querySelector('[data-act=tablepick]'); return 1; })()`);
     await trayRoll(dm);
+    // the DM's Monster Sheet throws 3D dice, and the roll goes out once they land (slower on a busy machine): wait for it
+    // to reach the log, then for Pat's card
+    for (const t = Date.now(); !(await logFor(SID.dm)).some((e) => e.vis === 'hidden') && Date.now() - t < 20000;) await sleep(100);
     const hiddenCard = await until(pat, lastCard, (t) => t.includes('rolled'));
     is("player sees the DM's hidden roll only as rolled", [hiddenCard.includes('rolled'), hiddenCard.includes('?'), /\d+ \?|\d$/.test(hiddenCard.replace('?', ''))], [true, true, false]);
 

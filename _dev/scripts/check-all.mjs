@@ -3,7 +3,8 @@
 //   node _dev/scripts/check-all.mjs [--only pages-ok,art-sync] [--data <old URL>] [--jobs N] [--ports 8300-8399]
 //   --only    just these checks (script names without .mjs/.test.js/.test.php)
 //   --data    also run sheet-keeps-data.mjs against that old URL (the live code), in both browsers
-//   --jobs    how many checks at once (default: the CPU count)
+//   --jobs    how many checks at once (default: half the logical CPUs; each browser check is a browser, a PHP server and
+//             often a relay, and at the full count the relays' timings got flaky)
 //   --ports   the range the servers and relays use (default 8300-8399); ports already in use are skipped
 // Every job gets its own CHECK_PORT_SHIFT (so its servers, relays and temp folders are its own) and, when the script takes a
 // base URL, its own PHP server with its own backups, accounts and sessions folders, so nothing a check writes reaches
@@ -121,7 +122,7 @@ function runOnce(job) {
 async function main() {
     const argv = process.argv.slice(2), opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null; };
     const only = opt('--only')?.split(',').map((s) => s.trim().replace(/\.(mjs|test\.js|test\.php)$/, ''));
-    const data = opt('--data'), width = +opt('--jobs') || availableParallelism();
+    const data = opt('--data'), width = +opt('--jobs') || Math.max(2, Math.floor(availableParallelism() / 2));
     const [lo, hi] = (opt('--ports') || '8300-8399').split('-').map(Number);
 
     if (!existsSync(join(ROOT, 'live/node_modules'))) { console.log('installing the live relay packages (npm install in live/)'); execSync('npm install --no-audit --no-fund', { cwd: join(ROOT, 'live'), stdio: 'inherit', shell: true }); }
