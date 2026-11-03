@@ -23,7 +23,8 @@ window.Fight = (() => {
         const w = W[c] = { f: null, skew: 0, offline: false, views: new Set() };
         w.load = async () => {
             try {
-                const r = await fetch('/campaigns/fight.php?c=' + encodeURIComponent(c), { cache: 'no-store' });
+                // the Table view (1.7) asks as the table, so it gets what players get
+                const r = await fetch('/campaigns/fight.php?c=' + encodeURIComponent(c) + (window.Live?.as ? '&as=' + window.Live.as : ''), { cache: 'no-store' });
                 if (!r.ok) throw new Error(r.status);
                 w.f = (await r.json()).fight;
                 if (w.f) w.skew = w.f.now - Date.now();
@@ -34,7 +35,8 @@ window.Fight = (() => {
         w.watch = window.Live?.watch(c, {
             load: w.load,
             // char: a player's sheet changed (DMs only), so their HP may have
-            onMessage(m) { if (m.type === 'fight' || m.type === 'campaign' || (m.type === 'char' && w.f?.party)) w.load(); else if (m.type === 'removed') { w.f = null; draw(w); } },
+            // status: a party character went down, got up, or its death saves or conditions changed (1.7)
+            onMessage(m) { if (m.type === 'fight' || m.type === 'campaign' || m.type === 'status' || (m.type === 'char' && w.f?.party)) w.load(); else if (m.type === 'removed') { w.f = null; draw(w); } },
         });
         if (!w.watch) w.load();
         return w;
@@ -65,10 +67,13 @@ window.Fight = (() => {
 
     // ---- drawing ----
     const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
-    const face = (e) => `<span class="fi-face">${e.art ? `<img src="${esc(e.art)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<span aria-hidden="true">${esc(initials(e.name))}</span></span>`;
+    // a hidden monster's turn (kind "dm") is only a DM's turn card, never the monster
+    const face = (e) => e.kind === 'dm' ? '<span class="fi-face fi-dm" aria-hidden="true">DM</span>' : `<span class="fi-face">${e.art ? `<img src="${esc(e.art)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<span aria-hidden="true">${esc(initials(e.name))}</span></span>`;
     const STATUS = { healthy: ['Healthy', 'g'], bloodied: ['Bloodied', 'r'], down: ['Down', ''] };
-    const status = (e) => (e.kind === 'monster' ? `<span class="badge ${STATUS[e.status][1]}">${STATUS[e.status][0]}</span>` : '');
-    const isDown = (e) => e.kind === 'monster' && e.status === 'down';
+    // party characters (1.7): Down with death-save ticks, and conditions as icons (assets/js/conds.js), for everyone; never HP
+    const status = (e) => (e.kind === 'monster' ? `<span class="badge ${STATUS[e.status][1]}">${STATUS[e.status][0]}</span>`
+        : e.kind === 'pc' ? (e.down ? '<span class="badge r">Down</span>' + (window.Conds?.saves(e.saves) || '') : '') + (window.Conds?.row(e.conds) || '') : '');
+    const isDown = (e) => (e.kind === 'monster' && e.status === 'down') || (e.kind === 'pc' && !!e.down);
     // time since round 1 (m:ss or h:mm:ss), on the server's clock
     function clock(at, skew) {
         const s = Math.max(0, Math.floor((Date.now() + skew - at) / 1000));

@@ -36,3 +36,14 @@ b.fi-init { width: 2.5em; font-size: 18px; }
 .cp-fight { margin: 0 0 28px; }
 /* the Monster Sheet's list with an add button beside each monster while a fight runs */
 .mon-list.fi-on { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; }
+/* a hidden monster's turn shows only as the DM's turn (1.7) */
+.fi-face.fi-dm { background: var(--purple-bg); color: var(--text-hi); }
+/* party characters' conditions as round icons (assets/js/conds.js) and death-save ticks while down (1.7) */
+.cond-row { display: inline-flex; flex-wrap: wrap; gap: 2px; vertical-align: middle; }
+.cond-ic { display: block; flex: none; width: 18px; height: 18px; color: var(--highlight); }
+.cond-saves { display: inline-flex; gap: 2px; vertical-align: middle; }
+.cond-saves i { display: block; width: 8px; height: 8px; border: 2px solid var(--ok-line); border-radius: 50%; }
+.cond-saves i.cs-bad { border-color: var(--danger-line); }
+.cond-saves i.cs-ok.on { background: var(--ok-line); }
+.cond-saves i.cs-bad.on { background: var(--danger-line); }
+.fi-p .cond-row, .fi-p .cond-saves { justify-content: center; }
