@@ -1,5 +1,6 @@
 // Checks the initiative tracker (ROADMAP 1.4) and one campaign per character end to end, with the real relay in front of
-// a local PHP server. The DM (Dee) runs the fight on the Monster Sheet; Pat plays Lock on their sheet; Sam and Kit roll
+// a local PHP server. The DM (Dee) runs the fight on the battle map page (/campaigns/<id>/map, ROADMAP 1.6) and adds monsters
+// from the Monster Sheet's list; Pat plays Lock on their sheet; Sam and Kit roll
 // through the site's API. Then the same goblin is damaged from two Monster Sheets and the campaign page at once.
 // Browser A is Chrome (Firefox with --firefox), browser B the other one, so both browsers play both parts.
 //   node _dev/scripts/initiative-page.mjs [--firefox]   (needs: cd live && npm install, and includes/config.php for sign-in)
@@ -59,7 +60,8 @@ const go = async (b, url) => { await b.go(url); for (let i = 0; i < 80 && !(awai
 const signIn = async (b, sid) => { await go(b, BASE + '/privacy/'); await b.ev(`localStorage.clear(); localStorage.setItem('hb-sheet-merged', '1'); document.cookie = 'dndsid=${sid}; path=/'`); };
 const text = (sel) => `document.querySelector('${sel}')?.textContent.replace(/\\s+/g, ' ').trim() || ''`;
 const click = (b, sel) => b.ev(`(() => { const e = document.querySelector(\`${sel}\`); if (!e) return false; e.click(); return true; })()`);
-const panel = text('#mon-fight');
+const panel = text('[data-mp=fight]'); // the DM's controls on the map page
+const MAP = `${BASE}/campaigns/${CAMP}/map`;
 const strip = text('#hb-fight');
 
 const pat = await launch(FF ? 'firefox' : 'chrome'), dm = await launch(FF ? 'chrome' : 'firefox');
@@ -70,7 +72,11 @@ try {
     await go(pat, BASE + '/characters/lock');
     await go(dm, BASE + '/sheets/monster/');
     is('no fight: no strip on the sheet', await pat.ev(`!document.querySelector('#hb-fight')`), true);
-    is('Monster Sheet: the tracker offers a fight', (await until(dm, panel, (t) => t.includes('Start fight'))).includes('Start fight'), true);
+    // the controls moved to the map page: the Monster Sheet only links there
+    is('Monster Sheet: a link to start the fight on the map', (await until(dm, text('#mon-fight'), (t) => t.includes('Start one on the map'))).includes('Start one on the map'), true);
+    is('Monster Sheet: no fight controls', await dm.ev(`!document.querySelector('#mon-fight [data-fi]')`), true);
+    await go(dm, MAP);
+    is('map page: the tracker offers a fight', (await until(dm, panel, (t) => t.includes('Start fight'))).includes('Start fight'), true);
 
     // the DM starts a fight; Pat gets a notice and rolls from it
     await click(dm, '[data-fi=start]');
@@ -83,35 +89,39 @@ try {
         (await api(SID.kit, { act: 'roll', id: CAMP, roll: { id: 'kitroll000001', char: 'kitt', title: 'Initiative', expr: '1d20 + 1', shown: '2 + 1', total: '3', vis: 'dm', fight: n } })).status], [200, 200]);
     is('three players in the order', JSON.parse(await fight(SID.dm)).fight.entries.length, 3);
 
-    // the DM adds both monsters from the sidebar, hides the ogre, starts round 1
-    is('sidebar: add buttons while a fight runs', await until(dm, `document.querySelectorAll('[data-act=fightadd][data-id]').length`, (v) => v === 2), 2);
-    await click(dm, '#mon-side [data-act=fightadd]:not([data-id])');
-    is('both monsters added', await until(dm, `document.querySelectorAll('#mon-fight .fi-e').length`, (v) => v === 5), 5);
+    // the DM adds both monsters from the Monster Sheet's list (it still can), then hides the ogre and starts round 1 on the map
+    await go(dm, BASE + '/sheets/monster/');
+    is('Monster Sheet: a link to run the fight on the map', (await until(dm, text('#mon-fight'), (t) => t.includes('Run it on the map'))).includes('Run it on the map'), true);
+    is('sidebar: add buttons while a fight runs', await until(dm, `!!document.querySelector('[data-act=fightadd][data-id=gob]') && !!document.querySelector('[data-act=fightadd][data-id=ogre]')`, Boolean), true);
+    await click(dm, '#mon-side [data-act=fightadd][data-id=gob]'); await until(dm, `!document.querySelector('[data-act=fightadd][data-id=gob]')`, Boolean); await click(dm, '#mon-side [data-act=fightadd][data-id=ogre]');
+    is('both monsters added', await until(dm, `document.querySelectorAll('#mon-side .badge').length`, (v) => v >= 2).then(async () => JSON.parse(await fight(SID.dm)).fight.entries.length), 5);
+    await go(dm, MAP);
+    is('map page: all five in the order', await until(dm, `document.querySelectorAll('[data-mp=fight] .fi-e').length`, (v) => v === 5), 5);
     const dv = JSON.parse(await fight(SID.dm)).fight;
     const ogre = dv.entries.find((e) => e.mon === 'ogre');
     is('monster numbers for the DM: HP and AC', [ogre.hp, ogre.ac, dv.entries.find((e) => e.mon === 'gob').ac], [{ cur: 59, max: 59, temp: 0 }, 11, 15]);
     await click(dm, `[data-fi=hide][data-fe="${ogre.id}"]`);
-    await until(dm, `!!document.querySelector('#mon-fight .fi-e.hid')`, Boolean);
+    await until(dm, `!!document.querySelector('[data-mp=fight] .fi-e.hid')`, Boolean);
     await click(dm, '[data-fi=round1]');
     is('round 1', (await until(dm, panel, (t) => t.includes('Round 1'))).includes('Round 1'), true);
 
     // two rounds: Next until round 3; the order and turns belong on the VTT, so Lock's sheet shows none of it
     let sawStrip = false;
-    for (let i = 0; i < 12 && !(await dm.ev(text('#mon-fight .fi-top'))).includes('Round 3'); i++) {
+    for (let i = 0; i < 12 && !(await dm.ev(text('[data-mp=fight] .fi-top'))).includes('Round 3'); i++) {
         // each Next moves the turn mark (.on) on the DM's tracker (the running clock left out); Lock's sheet gets the same
         // news through the relay and must still show no strip (the old fixed wait looked after 0.6 s)
         const turnOf = (rows, e) => `[...document.querySelectorAll('${rows}')].findIndex((x) => x.classList.contains('on')) + '|' + (${e}).replace(/\\d+:\\d\\d/g, '')`;
-        const top = await dm.ev(turnOf('#mon-fight .fi-e', panel));
+        const top = await dm.ev(turnOf('[data-mp=fight] .fi-e', panel));
         await click(dm, '[data-fi=next]');
-        await until(dm, turnOf('#mon-fight .fi-e', panel), (t) => t !== top, 3000);
+        await until(dm, turnOf('[data-mp=fight] .fi-e', panel), (t) => t !== top, 3000);
         if (await until(pat, `!!document.querySelector('#hb-fight')`, Boolean, 600)) sawStrip = true;
     }
-    is('advanced two rounds', (await dm.ev(text('#mon-fight .fi-top'))).includes('Round 3'), true);
+    is('advanced two rounds', (await dm.ev(text('[data-mp=fight] .fi-top'))).includes('Round 3'), true);
     is("Lock's sheet showed no order, turn or round", sawStrip, false);
 
     // the DM damages the goblin from the tracker: players see Bloodied, never numbers
-    await dm.ev(`(() => { const f = document.querySelector('#mon-fight .fi-hp[data-mon=gob]'); f.querySelector('input').value = '4'; f.querySelector('button[value=dmg]').click(); })()`);
-    is('goblin HP saved through the account', await until(dm, `JSON.parse(localStorage.getItem('monster-sheet')).chars.gob.hp.cur`, (v) => v === 3), 3);
+    await dm.ev(`(() => { const f = document.querySelector('[data-mp=fight] .fi-hp[data-mon=gob]'); f.querySelector('input').value = '4'; f.querySelector('button[value=dmg]').click(); })()`);
+    is('goblin HP saved through the account', await until(dm, '1', () => goblin().hp.cur === 3), 1);
     is('server goblin HP', goblin().hp.cur, 3);
     for (const [who, sid] of [['Pat', SID.pat], ['Sam', SID.sam]]) {
         const j = await fight(sid);
@@ -123,7 +133,7 @@ try {
     await go(pat, BASE + '/characters/lock');
     // watched for as long as the old sleep gave the sheet to load the fight: no strip may show up in that time
     is('player reload: still no strip on the sheet', await until(pat, `!!document.querySelector('#hb-fight')`, Boolean, 1500), false);
-    await go(dm, BASE + '/sheets/monster/');
+    await go(dm, MAP);
     is('DM reload: same fight', (await until(dm, panel, (t) => t.includes('Round 3'))).includes('Round 3'), true);
     const after = JSON.parse(await fight(SID.dm)).fight;
     is('state unchanged by reloads', [after.round, after.turn, after.entries.length], [before.round, before.turn, before.entries.length]);
@@ -200,13 +210,15 @@ try {
 
     // ending: a yes/no first, then kept in fights/1.json
     await go(dm, BASE + '/sheets/monster/');
-    await until(dm, `!!document.querySelector('[data-fi=end]')`, Boolean);
+    await until(dm, `!!document.querySelector('[data-act=side][data-id=gob]')`, Boolean);
     // archiving a monster that's in the fight (ROADMAP 0.5): it stays, marked Archived, until the DM removes it
-    const gobRow = `[...document.querySelectorAll('#mon-fight .fi-e')].find((li) => li.textContent.includes('Goblin'))`;
+    const gobRow = `[...document.querySelectorAll('[data-mp=fight] .fi-e')].find((li) => li.textContent.includes('Goblin'))`;
     while (Date.now() <= goblin().updated) await sleep(100); // the stale save above is stamped a second ahead
     await click(dm, '[data-act=side][data-id=gob]');
     await until(dm, `!!document.querySelector('[data-act=manage]')`, Boolean);
     await click(dm, '[data-act=manage]'); await click(dm, '[data-act=archive]');
+    await until(dm, '1', () => { try { return !!goblin().archived; } catch { return false; } });
+    await go(dm, MAP);
     is('archived goblin stays in the fight, marked', await until(dm, `${gobRow}?.textContent.includes('Archived') || false`, Boolean), true);
     is('server: goblin archived, HP kept', [!!goblin().archived, goblin().hp.cur], [true, 3]);
     await dm.ev(`${gobRow}.querySelector('[data-fi=remove]').click()`);

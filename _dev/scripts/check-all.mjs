@@ -36,13 +36,14 @@ export const BROWSER_CHECKS = {
     'versions-archive': { ports: [8121], split: true, tmp: 'dnd-versions-check', secs: 120 },
     'initiative-page': { ports: [8122, 8097], split: 'flag', tmp: 'dnd-fight-check', secs: 90 },
     'monster-encounters': { ports: [8123], split: true, tmp: 'dnd-encounters-check', secs: 60 },
+    'maps-page': { ports: [8127, 8101], split: 'flag', tmp: 'dnd-maps-check', secs: 90 },
     'live-page': { ports: [8118, 8098], both: true, tmp: 'dnd-live-check', secs: 45 },
     'table-log': { ports: [8120, 8099], both: true, tmp: 'dnd-table-check', secs: 70 },
     'handouts-page': { ports: [8124, 8093], split: true, tmp: 'dnd-handouts-check', secs: 60 },
     'dm-edits': { ports: [8126, 8092], split: 'flag', tmp: 'dnd-dmedit-check', secs: 150 },
 };
 // unit tests that open ports of their own (before the shift)
-const TEST_PORTS = { 'live-relay.test.js': [8095, 8096], 'monster-encounters.test.php': [8124] };
+const TEST_PORTS = { 'live-relay.test.js': [8095, 8096], 'monster-encounters.test.php': [8124], 'maps.test.php': [8125] };
 // in _dev/scripts but not checks: helpers, builders, and theme-diff (it compares two versions' screenshots, for CSS changes)
 const NOT_CHECKS = new Set(['browser.mjs', 'site-targets.mjs', 'check-all.mjs', 'theme-diff.mjs', 'sheet-keeps-data.mjs', 'build-srd.mjs']);
 // start-up failures that aren't the page's fault; such a job is run once more
