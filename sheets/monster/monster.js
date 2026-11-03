@@ -2065,7 +2065,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <div class="actions">${close}</div>`;
         }
         const live = encsLive(), gone = db.encs.filter((e) => e.archived);
-        const row = (e, i) => `<div class="mon-encrow"><input class="field" data-enc-name="${esc(e.id)}" value="${esc(e.name)}" maxlength="120" aria-label="Encounter name">
+        const row = (e, i) => `<div class="mon-encrow"><input class="field" data-enc-name="${esc(e.id)}" value="${esc(e.name)}" aria-label="Encounter name">
             <button type="button" class="btn small" data-enc="up" data-id="${esc(e.id)}" aria-label="Move ${esc(encName(e.id))} up" title="Move up"${i ? '' : ' disabled'}>&uarr;</button>
             <button type="button" class="btn small" data-enc="down" data-id="${esc(e.id)}" aria-label="Move ${esc(encName(e.id))} down" title="Move down"${i < live.length - 1 ? '' : ' disabled'}>&darr;</button>
             <button type="button" class="btn small" data-enc="arc" data-id="${esc(e.id)}">Archive</button></div>`;

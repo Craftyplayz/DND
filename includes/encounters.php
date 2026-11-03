@@ -3,7 +3,6 @@
 //   private/dnd/accounts/monster-encounters/<google sub>.json  ->  {"encs": [{"id", "name", "order", "archived", "updated"}, ...]}
 // kept apart from accounts/monsters/<sub>/ so it can never be taken for a monster. A monster names its encounter in its own "enc".
 // Lists merge per encounter: the newer "updated" wins (name, order, archived), and an encounter either side has is never dropped.
-const ENC_MAX = 1000;
 
 // monster ids (sheets/monster/cloud.php): never starting with "_", the prefix kept for the sheet's own files
 function mon_id_ok($id)
@@ -18,8 +17,7 @@ function enc_clean($list)
     foreach (is_array($list) ? $list : [] as $e) {
         if (!is_array($e) || !is_string($e['id'] ?? null) || !preg_match('/^[A-Za-z0-9_-]{1,64}$/', $e['id'])) continue;
         $num = fn($k) => is_numeric($e[$k] ?? null) ? (float)$e[$k] : 0.0;
-        $out[] = ['id' => $e['id'], 'name' => mb_substr(is_string($e['name'] ?? null) ? $e['name'] : '', 0, 120), 'order' => $num('order'), 'archived' => $num('archived'), 'updated' => $num('updated')];
-        if (count($out) >= ENC_MAX) break;
+        $out[] = ['id' => $e['id'], 'name' => (is_string($e['name'] ?? null) ? $e['name'] : ''), 'order' => $num('order'), 'archived' => $num('archived'), 'updated' => $num('updated')];
     }
     return $out;
 }

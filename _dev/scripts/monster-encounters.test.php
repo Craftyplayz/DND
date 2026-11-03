@@ -18,7 +18,7 @@ $is('archived and order follow the newer copy', enc_merge([$e('a', 1)], [$e('a',
 // cleaning: bad entries and fields are left out, types are fixed
 $c = enc_clean([['id' => '../x', 'updated' => 9], 'nope', ['id' => 'ok', 'name' => ['x'], 'order' => '2', 'updated' => 'soon', 'extra' => 1], ['id' => 'long', 'name' => str_repeat('é', 200)]]);
 $is('only good ids kept, in the saved shape', $c[0], ['id' => 'ok', 'name' => '', 'order' => 2.0, 'archived' => 0.0, 'updated' => 0.0]);
-$is('names cut to 120 characters', mb_strlen($c[1]['name']), 120);
+$is('names kept whole (no limits)', mb_strlen($c[1]['name']), 200);
 $is('not a list', enc_clean('x'), []);
 
 // the "_" guard: monster ids never start with "_"
