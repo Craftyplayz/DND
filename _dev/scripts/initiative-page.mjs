@@ -163,6 +163,16 @@ try {
     // ending: a yes/no first, then kept in fights/1.json
     await go(dm, BASE + '/sheets/monster/');
     await until(dm, `!!document.querySelector('[data-fi=end]')`, Boolean);
+    // archiving a monster that's in the fight (ROADMAP 0.5): it stays, marked Archived, until the DM removes it
+    const gobRow = `[...document.querySelectorAll('#mon-fight .fi-e')].find((li) => li.textContent.includes('Goblin'))`;
+    await click(dm, '[data-act=side][data-id=gob]');
+    await until(dm, `!!document.querySelector('[data-act=manage]')`, Boolean);
+    await click(dm, '[data-act=manage]'); await click(dm, '[data-act=archive]');
+    is('archived goblin stays in the fight, marked', await until(dm, `${gobRow}?.textContent.includes('Archived') || false`, Boolean), true);
+    is('server: goblin archived, HP kept', [!!goblin().archived, goblin().hp.cur], [true, 3]);
+    await dm.ev(`${gobRow}.querySelector('[data-fi=remove]').click()`);
+    is('the DM removes the archived goblin', await until(dm, `!${gobRow}`, Boolean), true);
+    is('removed from the fight', JSON.parse(await fight(SID.dm)).fight.entries.some((e) => e.mon === 'gob'), false);
     // the DM's connection drops: the controls pause
     await dm.ev(`(() => { const f = window.fetch; window.fetch = (u, o) => (window.cut && String(u).includes('fight.php') ? Promise.reject(new TypeError('offline')) : f(u, o)); window.cut = true; return Fight.load('${CAMP}').then(() => 1); })()`);
     is('offline: controls paused', [(await dm.ev(panel)).includes('Offline, changes paused'), await dm.ev(`document.querySelector('[data-fi=next]').disabled`)], [true, true]);

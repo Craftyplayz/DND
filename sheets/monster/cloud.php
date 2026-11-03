@@ -29,6 +29,17 @@ function cl_out($code, $data)
     exit;
 }
 
+// tell every fight this DM runs with monster $id to reload (its HP or archived mark changed)
+function cl_fights($accounts, $sub, $id)
+{
+    foreach (cp_mine($accounts, $sub)['dm'] as $camp) {
+        foreach (fi_read($accounts, $camp['id'])['entries'] ?? [] as $e) if (($e['mon'] ?? null) === $id) {
+            live_publish($camp['id'], ['type' => 'fight'], null, $e['hidden'] ? 'dm' : null);
+            break;
+        }
+    }
+}
+
 
 $user = auth_user();
 if (!$user) cl_out(401, ['error' => 'Sign in to save monsters to your account.']);
@@ -67,6 +78,8 @@ if ($method === 'DELETE') {
         $c['archived'] = $now;
         $c['updated'] = max($now, (float)($c['updated'] ?? 0) + 1);
         if (@file_put_contents($file, json_encode($c)) === false) cl_out(500, ['error' => "Couldn't archive the monster."]);
+        flock($lock, LOCK_UN);
+        cl_fights($accounts, $user['sub'], $_GET['id']);
     }
     cl_out(200, ['archived' => true]);
 }
@@ -92,12 +105,7 @@ if (isset($_GET['hp'])) {
     $out = ['id' => $id, 'hp' => $c['hp'], 'hpAt' => $c['hpAt']];
     // the DM's open Monster Sheets, then every fight this monster is in (players load what they may see)
     live_publish('me-' . live_key('me', $user['sub']), ['type' => 'mhp'] + $out);
-    foreach (cp_mine($accounts, $user['sub'])['dm'] as $camp) {
-        foreach (fi_read($accounts, $camp['id'])['entries'] ?? [] as $e) if (($e['mon'] ?? null) === $id) {
-            live_publish($camp['id'], ['type' => 'fight'], null, $e['hidden'] ? 'dm' : null);
-            break;
-        }
-    }
+    cl_fights($accounts, $user['sub'], $id);
     cl_out(200, $out);
 }
 
@@ -115,4 +123,8 @@ if ($stamp($have, 'hpAt') > 0) {
     $c['hpAt'] = $have['hpAt'];
     $body = json_encode($c, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 }
-@file_put_contents($file, $body) !== false ? cl_out(200, ['updated' => (float)$c['updated'], 'hp' => $c['hp'] ?? null, 'hpAt' => $c['hpAt'] ?? 0]) : cl_out(500, ['error' => "Couldn't save the character."]);
+if (@file_put_contents($file, $body) === false) cl_out(500, ['error' => "Couldn't save the character."]);
+flock($lock, LOCK_UN);
+// archived or unarchived (ROADMAP 0.5): fights with it show the mark straight away
+if (empty($c['archived']) !== empty($have['archived'])) cl_fights($accounts, $user['sub'], $c['id']);
+cl_out(200, ['updated' => (float)$c['updated'], 'hp' => $c['hp'] ?? null, 'hpAt' => $c['hpAt'] ?? 0]);
