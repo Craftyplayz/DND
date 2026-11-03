@@ -104,13 +104,15 @@ for (const name of browsers) {
         await ev(`localStorage.setItem('compendium-view', JSON.stringify({ tab: 'item', f: { cat: 'Adventuring Gear' } }))`);
         await open('/compendium/');
         await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') === ${sum('equipment')}`, 'old item category ignored');
-        // classes come before subclasses, and subclasses are still found by search; the page fits a phone
+        // classes come before subclasses, and subclasses are still found by search
         await tab('class');
-        ok(`${name} classes first`, (await js(`[...document.querySelectorAll('#cp-list .cp-sub')].slice(0, 32).every((x) => x.textContent.startsWith('Hit die'))`)));
+        await until(`+document.querySelector('#cp-count').textContent.replace(/\\D/g, '') === ${sum('classes', 'subclasses')}`, 'classes loaded');
+        is(`${name} classes first`, (await js(`[...document.querySelectorAll('#cp-list .cp-sub')].slice(0, ${sum('classes') + 1}).map((x) => x.textContent.startsWith('Hit die'))`)).filter(Boolean).length, sum('classes'));
         ok(`${name} subclass found by search`, (await search('School of Evocation')).includes('School of Evocation'));
         await search('');
         await tab('spell');
-        // class filter
+        // class filter (its options arrive with the spells)
+        await until(`[...document.querySelectorAll('[data-f=cls] option')].some((o) => o.value === 'Paladin')`, 'class filter options');
         await redraw(`(() => { const s = document.querySelector('[data-f=cls]'); s.value = 'Paladin'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
         ok(`${name} class filter`, (await search('bless')).includes('Bless') && !(await search('fireball')).includes('Fireball'), await names());
         await search('');
