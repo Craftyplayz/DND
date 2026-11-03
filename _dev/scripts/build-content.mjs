@@ -17,6 +17,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { slug } from './content/fetch.mjs';
+import { writeAliases } from './content/aliases.mjs';
 import * as wikiClasses from './content/wikidot-classes.mjs';
 import * as wikiOther from './content/wikidot-other.mjs';
 import * as srd from './content/srd.mjs';
@@ -220,6 +221,7 @@ if (import.meta.main) {
     const credits = [...STATIC_CREDITS, ...o5].filter((c) => present.has(c.src)).map(({ used, key, ...c }) => c);
     const sum = (why) => dropped.filter((d) => d.why === why).length;
     writeFileSync(join(OUT, 'index.json'), JSON.stringify({ built, note: 'Indexes are unique within one rules version and category. Load the files for the character\'s rules.', files, counts, dropped: { ua, duplicates: sum('duplicate'), unresolved: sum('unresolved'), skipped_by_sources: skipped.length }, credits }, null, 1) + '\n');
+    writeAliases();
     writeFileSync(join(import.meta.dirname, '../cache/content/build-report.json'), JSON.stringify({ notes, skipped, dropped }, null, 1));
     console.table(counts);
     console.table(files.map((f) => ({ file: f.file, kB: Math.round(f.bytes / 1024), gzip_kB: Math.round(f.gzip / 1024) })));
