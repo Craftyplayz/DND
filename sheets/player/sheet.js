@@ -1883,6 +1883,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         hoLoad(); dmPull();
         // the fight in its campaign (ROADMAP 1.4, assets/js/fight.js): a strip under the top bar while one runs
         window.Fight?.strip(camp()?.id || '', C.id, () => rollShow('Initiative', [[20, 1]], d20Mod($('[data-k="fs:init"]') || { dataset: { k: 'fs:init' } })));
+        // its battle map (ROADMAP 1.6): a Map button in the top bar, opening the map full screen in its own tab
+        $('#hb-map')?.remove();
+        if (camp()) $('#hb-barin').insertAdjacentHTML('afterend', `<a class="btn small" id="hb-map" href="/campaigns/${encodeURIComponent(camp().id)}/map" target="_blank" rel="noopener">Map</a>`);
     }
     // a character still in several campaigns: the owner keeps it in one, or clones it for another
     function campNote() {
