@@ -1772,6 +1772,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // each > 1 splits the dice into that many separate results, e.g. one per target ("4 × (1d12 + 10)"); mod covers them all
     // adv 'adv' or 'dis' (a lone d20 only): two d20s are thrown and only the higher or lower one counts
     function rollShow(title, groups, mod = 0, each = 1, adv = '') {
+        const logIt = !C.archived; // decided now: an archived roll stays unlogged even if Unarchive comes before its dice land
         const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails'), thrown = adv ? [[20, 2]] : groups;
         if (adv) title += adv === 'adv' ? ' with advantage' : ' with disadvantage';
         const card = (rolls) => {
@@ -1798,7 +1799,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const el = $('#hb-rolls').firstElementChild;
             setTimeout(() => el.remove(), 12000);
             // the roll log keeps the last 100 rolls with the character
-            if (!C.archived) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
+            if (logIt) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)

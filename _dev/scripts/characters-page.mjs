@@ -25,7 +25,8 @@ let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 for (const name of ['chrome', 'firefox']) {
     const b = await launch(name), ev = b.ev;
-    const errs = (where) => { const e = b.errors.filter((x) => !/backup\.php|cloud\.php/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 600)}`); } };
+    // Google's own sign-in frame sometimes logs a report-only CSP notice about itself; it isn't this site's error
+    const errs = (where) => { const e = b.errors.filter((x) => !/backup\.php|cloud\.php|Framing 'https:\/\/accounts\.google\.com\/' violates .*report-only/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 600)}`); } };
     const store = async () => JSON.parse(await ev(`localStorage.getItem('hb-sheet')`));
     const cards = () => ev(`JSON.stringify([...document.querySelectorAll('.ch-card b')].map((b) => b.textContent))`).then(JSON.parse);
     try {
@@ -62,9 +63,12 @@ for (const name of ['chrome', 'firefox']) {
         await b.go(BASE + '/characters/bbb'); await sleep(2000);
         is(`${name} archived opens read-only`, await ev(`[!!document.querySelector('.hb-arcnote'), [...document.querySelectorAll('#hb-sheet input')].every((i) => i.disabled), !document.querySelector('[data-act=custom]')].join()`), 'true,true,true');
         const before = (await store()).chars.bbb;
-        await ev(`document.querySelector('[data-act=roll]')?.click()`); await sleep(1500);
+        const landed = async () => { for (let i = 0; i < 100 && !(await ev(`!!document.querySelector('.hb-rollcard')`)); i++) await sleep(100); };
+        await ev(`document.querySelector('[data-act=roll]')?.click()`); await landed();
         is(`${name} archived roll not saved`, (await store()).chars.bbb, before);
-        await ev(`document.querySelector('[data-act=unarchive]').click()`); await sleep(300);
+        await ev(`document.querySelectorAll('.hb-rollcard').forEach((c) => c.remove())`);
+        // a roll made while archived is never logged, even when Unarchive comes before its dice land
+        await ev(`document.querySelector('[data-act=roll]')?.click(); document.querySelector('[data-act=unarchive]').click()`); await landed();
         const un = (await store()).chars.bbb;
         is(`${name} unarchived on the sheet`, [un.archived, un.name, (un.rolls || []).length, await ev(`[...document.querySelectorAll('#hb-sheet input')].some((i) => !i.disabled)`)], [0, before.name, (before.rolls || []).length, true]);
         errs('/characters/bbb');

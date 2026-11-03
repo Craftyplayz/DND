@@ -1609,6 +1609,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // groups [['coin', 1]] flips a coin: the card shows Heads or Tails instead of a total
     // each > 1 splits the dice into that many separate results, e.g. one per target ("4 × (1d12 + 10)"); mod covers them all
     function rollShow(title, groups, mod = 0, each = 1) {
+        const logIt = !C.archived; // decided now: an archived roll stays unlogged even if Unarchive comes before its dice land
         const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails');
         const card = (rolls) => {
             const c = camp(), to = c && rollTo() ? (c.dm ? ' · hidden' : ' · to DM') : '';
@@ -1630,7 +1631,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <span class="hb-rolldice">${strike(shown)}</span><span class="hb-rolltot">${total}</span></button>`;
             clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, 12000);
             // the roll log keeps the last 100 rolls with the character
-            if (!C.archived) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
+            if (logIt) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
