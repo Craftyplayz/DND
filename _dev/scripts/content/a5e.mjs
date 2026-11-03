@@ -1,6 +1,6 @@
 // Level Up Advanced 5th Edition (A5E) SRD content (CC-BY 4.0, EN Publishing), read from a5e.tools and turned into
-// plain 5e shapes: heritage -> race (gifts and paragon gifts as choice traits), heritage-tied culture -> subrace,
-// other cultures -> `cultures` (left for the owner to place), class -> class, archetype -> subclass, plus the
+// plain 5e shapes: heritage -> race (gifts and paragon gifts as choice traits), cultures left out (owner's call),
+// class -> class, archetype -> subclass, plus the
 // Adventurer's Guide feats that Open5e's A5E document lacks. a5e.tools also carries other EN Publishing books
 // (Gate Pass Gazette, Voidrunner's Codex, ...); only items whose source is the Adventurer's Guide are kept.
 // Drupal serves every page as JSON with ?_format=json, so pages are read from that; the listings are HTML views.
@@ -16,7 +16,6 @@ const SKILLS = ['Acrobatics', 'Animal Handling', 'Arcana', 'Athletics', 'Culture
     'Intimidation', 'Investigation', 'Medicine', 'Nature', 'Perception', 'Performance', 'Persuasion', 'Religion', 'Sleight of Hand',
     'Stealth', 'Survival'];
 const NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, any: 1 };
-const TIED = ['dwarf', 'elf', 'gnome', 'halfling', 'orc', 'human', 'dragonborn', 'planetouched'];   // heritage words a culture name can carry
 const MARKER = /additionally available/i;   // a5e.tools appends other books' gifts/cultures after this line
 
 const page = (path) => getJson(SITE + path.replace(/^https?:\/\/a5e\.tools/, '') + '?_format=json');
@@ -129,24 +128,6 @@ async function heritage(path, name, log) {
     }
     if (!race.speed) log(`a5e: heritage ${name} has no speed`);
     return { race, suggested };
-}
-
-function languagesOf(traits) {
-    const t = traits.find((x) => /^languages?$/i.test(x.name));
-    if (!t) return { languages: [], language_desc: '' };
-    const d = t.desc.join(' ');
-    const list = (/.*\b(?:speak|read|write|sign)\b(?:\s+in)?\s+([^.]*)/i.exec(d) || [])[1] || '';
-    return { languages: listSplit(list).filter((x) => /^[A-Z][a-z]+$/.test(x)).map(slug), language_desc: d };
-}
-
-async function culture(path, name, log) {
-    const j = await page(path);
-    if (!j) { log(`a5e: culture ${name} not found at ${path}`); return null; }
-    const h = body(j);
-    if (/<h[1-6]\b/i.test(h)) log(`a5e: culture ${name} has headings; only bold-led traits were read`);
-    const { intro, traits } = boldTraits(h);
-    return { index: slug(name), name, ...base, desc: intro.filter((p) => !/^Characters raised in/i.test(p)).join('\n'),
-        traits: traits.map((t) => ({ index: `${slug(name)}-${slug(t.name)}`, name: t.name, desc: t.desc })), ...languagesOf(traits) };
 }
 
 // ---------- classes and archetypes ----------
@@ -483,26 +464,15 @@ async function feats(log) {
 }
 
 export default async function load(log = () => {}) {
-    const races = {}, subraces = {}, cultures = {}, classes = {}, subclasses = {};
+    const races = {}, subraces = {}, classes = {}, subclasses = {};
 
-    const suggestedBy = {};   // culture index -> heritages whose page suggests it
     for (const { name, href } of await agRows('/rules/heritages', 'races', log)) {
         const r = await heritage(href, name, log);
         if (!r) continue;
         races[r.race.index] = r.race;
-        for (const c of r.suggested) (suggestedBy[c] ||= []).push(r.race.index);
     }
 
-    // a culture whose name carries a heritage's name (Hill Dwarf, Stoic Orc, ...) becomes that race's subrace
-    for (const { name, href } of await agRows('/rules/cultures-0', 'cultures', log)) {
-        const c = await culture(href, name, log);
-        if (!c) continue;
-        const race = TIED.find((w) => races[w] && new RegExp(`\\b${w}\\b`, 'i').test(name));
-        if (race) {
-            subraces[c.index] = { index: c.index, name: c.name, ...base, race, desc: c.desc, ability_bonuses: [], traits: c.traits };
-            races[race].subraces.push(c.index);
-        } else cultures[c.index] = { ...c, races: suggestedBy[c.index] || [] };
-    }
+    // cultures are left out (owner's call, 2026-11-03): neither subraces nor a separate pick
 
     const mc = await multiclassTables(log);
     for (const { name, href } of await agClasses()) {
@@ -517,5 +487,5 @@ export default async function load(log = () => {}) {
         }
     }
 
-    return { races, subraces, cultures, classes, subclasses, feats: await feats(log) };
+    return { races, subraces, classes, subclasses, feats: await feats(log) };
 }

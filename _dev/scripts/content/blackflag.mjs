@@ -1,6 +1,6 @@
 // Black Flag Reference Document (Kobold Press; ORC licence + CC-BY 4.0) from bfrd.net, converted to plain 5e shapes.
 // bfrd.net is WordPress: its REST API gives every page/post's HTML in a dozen requests instead of a crawl.
-// Conversion (owner's choice): lineage -> race, talent -> feat, heritage -> `cultures` (where they go is still open).
+// Conversion (owner's choice): lineage -> race, talent -> feat, heritages left out (owner's call).
 import { getJson, slug, text, paras, decode } from './fetch.mjs';
 
 export const SKIPPED = [];
@@ -286,7 +286,9 @@ function parseEquipment(pages, log) {
         const shield = /^Shield/.test(group);
         add({ name, index: slug(shield ? name : name + ' armor'), equipment_category: ref('Armor'), armor_category: shield ? 'Shield' : group.replace(/ Armor$/, ''),
             armor_class: am ? { base: +am[1], dex_bonus: /DEX/.test(ac), max_bonus: am[2] ? +am[2] : null } : null,
-            str_minimum: str ? +str[1] : 0, cost: cost(name, c), weight: pounds(wt),
+            // "Noisy" = disadvantage to avoid notice: the SRD field the sheet reads (spells.php) for "Stealth disadvantage";
+            // the site prints hide's cost as "10 go", read as 10 gp (owner's call)
+            str_minimum: str ? +str[1] : 0, stealth_disadvantage: /\bNoisy\b/i.test(props), cost: cost(name, c.replace(/^(\d+) go$/, '$1 gp')), weight: pounds(wt),
             properties: props.split(/,\s*/).filter((p) => p && !/^[–—-]$/.test(p)).map((p) => ref(p.replace(/ \(.*\)/, ''))) });
     }
     // gear and tools: rows with no cost are group headings (Containers, Gaming set); where a group ends isn't marked, so no sub-category
@@ -312,7 +314,7 @@ export default async function load(log = () => {}) {
     const top = (id) => { let c = C[id]; while (c?.parent) c = C[c.parent]; return c?.slug; };
     const inCat = (s) => posts.filter((p) => p.categories.some((id) => top(id) === s));
     const sub = (p, parentSlug) => p.categories.map((id) => C[id]).find((c) => c && C[c.parent]?.slug === parentSlug);
-    const out = { classes: {}, subclasses: {}, races: {}, cultures: {}, feats: {}, backgrounds: {}, spells: {}, equipment: {}, magic_items: {} };
+    const out = { classes: {}, subclasses: {}, races: {}, feats: {}, backgrounds: {}, spells: {}, equipment: {}, magic_items: {} };
     const skip = (cat, p, why) => { SKIPPED.push({ cat, name: decode(p.title.rendered), why }); log(`bf: skipped ${cat} ${decode(p.title.rendered)}: ${why}`); };
     const blog = (p) => NOT_BFRD.includes(p.slug) || /koboldpress\.com[^"]*"[^>]*>Source</.test(p.content.rendered);
     const ua = (p) => isUA(decode(p.title.rendered)) || /-ua$/.test(p.slug);
@@ -359,15 +361,7 @@ export default async function load(log = () => {}) {
             subraces: [], desc: intro.filter((x) => !/hereditary traits/.test(x)) };
     }
 
-    // heritages -> cultures (mix-and-match with any lineage; where they go in the sheet is still the owner's call)
-    for (const p of inCat('heritages')) {
-        if (blog(p)) { skip('cultures', p, 'Kobold Press blog preview mirrored on bfrd.net, not part of the BFRD'); continue; }
-        const name = decode(p.title.rendered).replace(/ Heritage$/, ''), { intro, list } = traits(p.content.rendered);
-        const lang = list.find((x) => x.name === 'Languages')?.desc.join(' ') || '';
-        const known = (lang.match(/(?:know|speak, read, and write) ((?:[A-Z]\w+(?:,\s*|\s+and\s+)?)+)/)?.[1] || '').split(/,\s*|\s+and\s+/).filter(Boolean).map(slug);
-        out.cultures[slug(name)] = { ...base(slug(name), name), desc: intro, traits: list.filter((x) => x.name !== 'Languages').map((x) => ({ index: slug(x.name), name: x.name, desc: x.desc })),
-            languages: known, language_desc: lang, races: [] };
-    }
+    // heritages are left out (owner's call, 2026-11-03)
 
     // talents -> feats
     for (const p of inCat('talents')) {
