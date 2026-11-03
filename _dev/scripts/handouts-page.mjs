@@ -134,7 +134,8 @@ try {
             await go(pat, `${BASE}/characters/lock`);
             is(`${name} opened elsewhere: not New on the sheet`, await until(pat, items, (v) => v === JSON.stringify(['Secret map'])), JSON.stringify(['Secret map']));
 
-            // an edit shows Updated live; unshare takes it away live
+            // an edit shows Updated live; unshare takes it away live (after the freshly loaded sheet's relay socket is open)
+            await sleep(1500);
             await type(dm, '#dm-hedit [data-hf=text]', 'Line one\nLine two\nLine three');
             is(`${name} edit shows Updated live`, await until(pat, items, (v) => v.includes('Updated')), JSON.stringify(['Secret map [Updated]']));
             await sleep(500);

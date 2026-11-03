@@ -73,9 +73,12 @@ try {
         const after = await load(NEW, path, key, chars);
         for (const { from, c } of chars) {
             const miss = !before[c.id] ? [] : after[c.id] ? lost(before[c.id], after[c.id]) : ['the whole character'];
-            // the one field the new code may add: a monster's "enc" (ROADMAP 3.1), and every old monster starts in Unsorted
-            if (OLD && before[c.id] && after[c.id]) for (const k of Object.keys(after[c.id])) if (!(k in before[c.id]) && !(key === 'monster-sheet' && k === 'enc')) miss.push(`${k}: added`);
+            // the fields the new code may add: a monster's "enc" (ROADMAP 3.1, every old monster starts in Unsorted) and a
+            // character's "hoPanel" (ROADMAP 3.4, false until the character is in a campaign while signed in, never here)
+            const added = key === 'monster-sheet' ? 'enc' : 'hoPanel';
+            if (OLD && before[c.id] && after[c.id]) for (const k of Object.keys(after[c.id])) if (!(k in before[c.id]) && k !== added) miss.push(`${k}: added`);
             if (key === 'monster-sheet' && after[c.id] && !('enc' in c) && after[c.id].enc !== '') miss.push(`enc: ${JSON.stringify(after[c.id].enc)}, not Unsorted`);
+            if (key !== 'monster-sheet' && after[c.id] && !('hoPanel' in c) && after[c.id].hoPanel !== false) miss.push(`hoPanel: ${JSON.stringify(after[c.id].hoPanel)}, not false`);
             if (miss.length) { failed++; console.log(`FAIL ${path} ${from}: ${miss.length} value(s) changed or gone\n  ` + miss.slice(0, 8).join('\n  ')); }
         }
         if (key === 'monster-sheet' && listed !== `,${chars.length}`) { failed++; console.log(`FAIL ${path}: the list should show Unsorted with all ${chars.length} monsters, shows "${listed}" (encounter, count)`); }
