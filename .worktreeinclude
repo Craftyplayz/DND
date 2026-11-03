@@ -1,0 +1,6 @@
+# Gitignored files Claude Code copies into each new worktree it makes (.gitignore syntax; only ignored files are copied).
+# They stay gitignored, so the copies can never be committed. live/node_modules is left out: check-all.mjs installs it.
+includes/config.php
+private/dnd/backups/
+private/dnd/monster-backups/
+.env
