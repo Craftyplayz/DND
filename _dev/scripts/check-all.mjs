@@ -46,7 +46,7 @@ export const BROWSER_CHECKS = {
 // unit tests that open ports of their own (before the shift)
 const TEST_PORTS = { 'live-relay.test.js': [8095, 8096], 'monster-encounters.test.php': [8124], 'maps.test.php': [8125] };
 // in _dev/scripts but not checks: helpers, builders, and theme-diff (it compares two versions' screenshots, for CSS changes)
-const NOT_CHECKS = new Set(['browser.mjs', 'site-targets.mjs', 'check-all.mjs', 'theme-diff.mjs', 'sheet-keeps-data.mjs', 'build-srd.mjs']);
+const NOT_CHECKS = new Set(['browser.mjs', 'site-targets.mjs', 'check-all.mjs', 'theme-diff.mjs', 'sheet-keeps-data.mjs', 'build-srd.mjs', 'build-content.mjs']);
 // start-up failures that aren't the page's fault; such a job is run once more
 export const FLAKE = /BrowsingContext does no longer exist|context null|ECONNREFUSED|connection refused|did not start|socket hang up|fetch failed/i;
 
