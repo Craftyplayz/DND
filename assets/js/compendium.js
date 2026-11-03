@@ -5,6 +5,7 @@
 // Entries from the content files are keyed by rules version ("spell:2014:fireball"): 2014 and 2024 share indexes, so they never merge.
 // "Add to sheet" and "Add to encounter" leave a request in localStorage (hb-pending / mon-pending) that the sheet applies when it opens,
 // or at once if it is already open (see sheet.js, monster.js).
+// Monsters are the 2014 rules except the SRD 5.2 book, so the rules switch filters them too.
 // Settings follow the account through assets/js/sync.js: compendium-view (tab and filters), compendium-rules (2014 / 2024 / both),
 // compendium-favs, compendium-recent.
 document.addEventListener('DOMContentLoaded', () => {
@@ -47,7 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const nice = (s) => String(s || '').replace(/^(skill|saving-throw)-/, '').replace(/[-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
     const name = (x) => (x && typeof x === 'object' ? x.name || nice(x.index) : nice(x));
     // Compendium keys from before the content files ("spell:fireball", "spell:wd:x", "item:eq:x", "magic:magic:x") are the 2014 entries now
+    // or, where the entry moved or was renamed, whatever the build scripts' aliases say (content/aliases.json, monster/aliases.json).
+    // Only reads go through this: stored favourites and recents keep the key they were saved under.
+    let ALIAS = {};
     function canon(k) {
+        if (ALIAS[k]) return ALIAS[k];
         const i = k.indexOf(':'), t = k.slice(0, i);
         let id = k.slice(i + 1);
         if (!['spell', 'item', 'magic'].includes(t) || /^\d{4}:/.test(id)) return k;
@@ -111,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sources = j.sources;
             for (const [id, name, cr, type, src, size] of j.list) {
                 const book = src === 'srd' ? SRD : (j.sources[src] || {}).title || src;
-                addEntry({ t: 'monster', id, name, sub: `CR ${crText(cr)} · ${[size, type].filter(Boolean).join(' ')}`, hay: type, tags: [[book, src === 'srd' ? 'g' : '']], f: { cr, size, mtype: type, src: book }, src });
+                addEntry({ t: 'monster', id, r: src === 'srd-2024' ? '2024' : '2014', name, sub: `CR ${crText(cr)} · ${[size, type].filter(Boolean).join(' ')}`, hay: type, tags: [[book, /^srd/.test(src) ? 'g' : '']], f: { cr, size, mtype: type, src: book }, src });
             }
         },
         rule: () => new Promise((ok, no) => {
@@ -155,7 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const S = { tab: 'all', q: '', f: {}, sel: null, rules: 'both' };
     S.tab = TABS.some(([k]) => k === (params.get('tab') || saved.tab)) ? params.get('tab') || saved.tab : 'all';
     S.q = params.get('q') || '';
-    let want = params.get('t') && params.get('i') ? canon(params.get('t') + ':' + params.get('i')) : '';
+    // resolved once the aliases are in
+    let want = params.get('t') && params.get('i') ? params.get('t') + ':' + params.get('i') : '';
     const wantTab = want && TABS.find(([k]) => typesOf(k).includes(want.split(':')[0]));
     if (wantTab && !params.get('tab')) S.tab = wantTab[0];
     S.f = S.tab === saved.tab ? Object.assign({}, saved.f || {}) : {};
@@ -460,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // only monsters, and content entries without their text, are fetched
     const hasText = (e) => e.t !== 'monster' && !(e.d && (e.t === 'spell' || e.t === 'magic') && !(e.d.desc || []).join('').trim());
     const fallback = (e) => (e.t === 'spell' ? `/sheets/player/spells.php?i=${encodeURIComponent(e.d.src === 'srd' ? e.d.index : 'wd:' + e.d.index)}` : `/compendium/items.php?i=magic:${encodeURIComponent(e.d.index)}`);
-    const sourceLink = (e) => (e.t === 'monster' ? (e.src === 'srd' ? `https://www.dnd5eapi.co/api/2014/monsters/${e.id.slice(4)}` : `https://open5e.com/monsters/${e.id.slice(4)}`) : fallback(e));
+    const sourceLink = (e) => (e.t === 'monster' ? (e.src === 'srd' ? `https://www.dnd5eapi.co/api/2014/monsters/${e.id.slice(4)}` : `https://open5e.com/monsters/${e.src === 'srd-2024' ? 'srd-2024_' : ''}${e.id.slice(4)}`) : fallback(e));
     async function fetchText(e) {
         if (texts.has(key(e))) return texts.get(key(e));
         const r = await fetch(e.t === 'monster' ? `/sheets/monster/monsters.php?i=${encodeURIComponent(e.id)}` : fallback(e));
@@ -576,13 +582,50 @@ document.addEventListener('DOMContentLoaded', () => {
         try { q = JSON.parse(localStorage.getItem('hb-pending')) || []; } catch (x) { }
         return onSheet || (Array.isArray(q) && q.some((x) => x && x.char === c.id && String(x.name).toLowerCase() === n));
     }
+    // a content spell in the shape the sheet's fromSrd() reads. Save, spell attack, damage and healing come from the text, as spells.php does for
+    // spells without them; a summoned creature's stat block at the end isn't the spell's.
+    function spellDetails(s) {
+        const stop = (s.desc || []).findIndex((p) => /^armor class/i.test(p)), t = (stop < 0 ? s.desc || [] : s.desc.slice(0, stop)).join(' ');
+        const [, ct, trigger] = /^((?:1 )?(?:action|bonus action|reaction))(?:, (.*))?$/i.exec(s.casting_time || '') || [];
+        const save = /(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) saving throw/i.exec(t), atk = /(melee|ranged) spell attack/i.exec(t), damage = [], seen = new Set();
+        for (const [, dice, type] of t.matchAll(/(\d+d\d+(?:\s*\+\s*\d+)?)\s+(acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder)\s+damage/gi)) {
+            const ty = type[0].toUpperCase() + type.slice(1).toLowerCase(), die = /^1d(\d+)$/.exec(dice);
+            if (seen.has(ty)) continue;
+            seen.add(ty);
+            // cantrips take the usual 1dX..4dX steps, so the sheet scales them with character level
+            damage.push(s.level || !die ? { type: ty, slot: { [s.level]: dice } } : { type: ty, char: { 1: dice, 5: `2d${die[1]}`, 11: `3d${die[1]}`, 17: `4d${die[1]}` } });
+        }
+        const heal = /regains? (?:a number of )?hit points equal to (\d+d\d+)/i.exec(t);
+        return { name: s.name, level: s.level, school: s.school, range: s.range, duration: s.duration, casting_time: ct ? (/^1 /.test(ct) ? ct : '1 ' + ct).toLowerCase() : s.casting_time, trigger: trigger || '',
+            components: s.components, material: s.material, concentration: s.concentration, ritual: s.ritual, desc: s.desc, higher_level: s.higher_level,
+            save: save ? save[1].slice(0, 3).toUpperCase() : '', attack_type: atk ? atk[1].toLowerCase() : '', damage, heal_at_slot_level: heal ? { [s.level]: heal[1] } : null };
+    }
+    // an item's cost in gp, weight and attributes, in the order spells.php gives the sheet's own SRD items
+    function itemDetails(e) {
+        const x = e.d;
+        if (e.t === 'magic') return { wt: 0, gp: '', att: x.attunement ? 'needs' : '', props: [x.type, x.rarity].filter(Boolean) };
+        const cats = x.equipment_categories || [], has = (re) => cats.some((c) => re.test(c)), p = [];
+        const label = (q) => (q && typeof q === 'object' ? q.name : String(q || '').replace(/(^|-)([a-z])/g, (m, a, b) => a + b.toUpperCase()));
+        for (const v of [x.weapon_category || (has(/^martial/) ? 'Martial' : has(/^simple/) ? 'Simple' : ''), x.weapon_range || (has(/melee/) ? 'Melee' : has(/ranged/) ? 'Ranged' : ''), x.tool_category, x.vehicle_category, x.gear_category && nice(x.gear_category)]) if (v) p.push(v);
+        for (const q of x.properties || []) p.push(label(q));
+        const r = x.throw_range || (p.includes('Ranged') ? x.range : null);
+        if (r && r.long) p.push(`Range (${r.normal}/${r.long})`);
+        const arm = x.armor_category || (has(/^shields?$/) ? 'Shield' : (cats.find((c) => /^(light|medium|heavy)-armor$/.test(c)) || '').replace(/-armor$/, '').replace(/^./, (c) => c.toUpperCase()));
+        if (arm) p.push(arm === 'Shield' ? 'Shield' : arm + ' armour');
+        if (x.armor_class && x.armor_class.base != null) p.push(`AC ${arm === 'Shield' ? '+' : ''}${x.armor_class.base}${x.armor_class.dex_bonus ? ' + DEX' + (x.armor_class.max_bonus ? ` (max ${x.armor_class.max_bonus})` : '') : ''}`);
+        if (x.str_minimum) p.push('Str ' + x.str_minimum);
+        if (x.stealth_disadvantage) p.push('Stealth disadvantage');
+        if (x.mastery) p.push(`Mastery (${nice(x.mastery)})`);
+        const rate = { cp: 0.01, sp: 0.1, ep: 0.5, gp: 1, pp: 10 }[(x.cost || {}).unit] ?? 1;
+        return { wt: x.weight || 0, gp: x.cost && x.cost.quantity != null ? Math.round(x.cost.quantity * rate * 100) / 100 : '', att: '', props: p };
+    }
     function sheetRequest(c, e) {
         const base = { id: uid(), char: c.id, name: e.name };
-        if (e.t === 'spell') return { ...base, kind: 'spell', lvl: e.f.level };
+        if (e.t === 'spell') return { ...base, kind: 'spell', lvl: e.f.level, spell: spellDetails(e.d) };
         // a feat is a Passive abilities row (the sheet's ROW.list) with the feat's text
         if (e.t === 'feat') return { ...base, kind: 'feat', src: 'Feat', text: [prereq(e.d.prerequisites) && 'Prerequisite: ' + prereq(e.d.prerequisites), ...(e.d.desc || [])].filter(Boolean).join('\n\n') };
         const cat = e.t === 'magic' ? 'Magic items' : e.f.cat === 'Weapon' ? 'Weapons' : e.f.cat === 'Armor' ? 'Armour' : 'Gear';
-        return { ...base, kind: 'item', cat, fill: e.t === 'item', notes: e.t === 'magic' ? (e.d.desc || []).join('\n\n') : '' };
+        return { ...base, kind: 'item', cat, item: itemDetails(e), notes: [...(e.d.desc || []), ...(e.d.description || []), ...(e.d.special || [])].join('\n\n') };
     }
     const dlg = (id) => document.getElementById(id);
     document.addEventListener('click', (ev) => { if (ev.target.closest('[data-close]')) ev.target.closest('dialog').close(); });
@@ -637,5 +680,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     drawTabs();
     refresh();
-    ensure();
+    Promise.all([getJson(CONTENT + 'aliases.json').catch(() => ({})), getJson('/sheets/monster/aliases.json').catch(() => ({}))]).then(([a, m]) => {
+        ALIAS = a;
+        for (const [k, v] of Object.entries(m)) ALIAS['monster:' + k] = 'monster:' + v;
+        if (want) want = canon(want);
+        ensure();
+    });
 });
