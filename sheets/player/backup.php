@@ -29,6 +29,23 @@ function hb_name($s, $fallback)
     return $s === '' ? $fallback : $s;
 }
 
+// the Monster Sheet's encounter list (ROADMAP 3.1, HB_ENCS set by its backup.php): ?encs keeps it beside that browser's monster
+// folders as <ip>/encounters-<version>.json, a new version only when it changed
+if (defined('HB_ENCS') && isset($_GET['encs'])) {
+    $in = json_decode((string)file_get_contents('php://input', false, null, 0, 1024 * 1024), true);
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !is_array($in['encs'] ?? null)) hb_out(400, ['error' => "That isn't an encounter list."]);
+    $dir = HB_BACKUPS . '/' . hb_name($_SERVER['REMOTE_ADDR'] ?? 'unknown', 'unknown');
+    if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) hb_out(500, ['error' => "Couldn't make the backup folder."]);
+    $lock = fopen($dir . '/.lock', 'c');
+    if (!$lock || !flock($lock, LOCK_EX)) hb_out(500, ['error' => "Couldn't lock the backup folder."]);
+    $last = 0;
+    foreach (glob($dir . '/encounters-*.json') ?: [] as $file) if (preg_match('/-(\d+)\.json$/', $file, $m)) $last = max($last, (int)$m[1]);
+    $json = json_encode(['encs' => $in['encs']], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+    if ($last && @file_get_contents("$dir/encounters-$last.json") === $json) hb_out(200, ['version' => $last, 'unchanged' => true]);
+    if (@file_put_contents("$dir/encounters-" . ($last + 1) . '.json', $json) === false) hb_out(500, ['error' => "Couldn't write the backup."]);
+    hb_out(200, ['version' => $last + 1]);
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') hb_out(405, ['error' => 'Send the character with POST.']);
 $body = file_get_contents('php://input', false, null, 0, HB_MAX + 1);
 if ($body === false || $body === '') hb_out(400, ['error' => 'No character was sent.']);

@@ -35,11 +35,12 @@ export const BROWSER_CHECKS = {
     'art-sync': { ports: [8119], split: true, tmp: 'dnd-art-check', secs: 40 },
     'versions-archive': { ports: [8121], split: true, tmp: 'dnd-versions-check', secs: 120 },
     'initiative-page': { ports: [8122, 8097], split: 'flag', tmp: 'dnd-fight-check', secs: 90 },
+    'monster-encounters': { ports: [8123], split: true, tmp: 'dnd-encounters-check', secs: 60 },
     'live-page': { ports: [8118, 8098], both: true, tmp: 'dnd-live-check', secs: 45 },
     'table-log': { ports: [8120, 8099], both: true, tmp: 'dnd-table-check', secs: 70 },
 };
 // unit tests that open ports of their own (before the shift)
-const TEST_PORTS = { 'live-relay.test.js': [8095, 8096] };
+const TEST_PORTS = { 'live-relay.test.js': [8095, 8096], 'monster-encounters.test.php': [8124] };
 // in _dev/scripts but not checks: helpers, builders, and theme-diff (it compares two versions' screenshots, for CSS changes)
 const NOT_CHECKS = new Set(['browser.mjs', 'site-targets.mjs', 'check-all.mjs', 'theme-diff.mjs', 'sheet-keeps-data.mjs', 'build-srd.mjs']);
 // start-up failures that aren't the page's fault; such a job is run once more
@@ -50,7 +51,7 @@ export function jobs(files, { data } = {}) {
     const list = [], unknown = [];
     for (const f of files) {
         if (f.endsWith('.test.js')) list.push({ name: f.slice(0, -8), browser: '-', cmd: [process.execPath, f], ports: TEST_PORTS[f] || [], secs: 5 });
-        else if (f.endsWith('.test.php')) list.push({ name: f.slice(0, -9), browser: '-', cmd: [PHP, f], ports: [], secs: 5 });
+        else if (f.endsWith('.test.php')) list.push({ name: f.slice(0, -9), browser: '-', cmd: [PHP, f], ports: TEST_PORTS[f] || [], secs: 5 });
         else if (f.endsWith('.mjs') && !NOT_CHECKS.has(f)) {
             const c = BROWSER_CHECKS[f.slice(0, -4)];
             if (!c) { unknown.push(f); continue; }

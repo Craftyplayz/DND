@@ -6,6 +6,7 @@
 //   POST a character -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"})
 //   POST ?hp=<id> {"op": {...}} -> {"hp", "hpAt"}: one hit point change (see below); with &c=<campaign id>, also a
 //                    monster another DM or co-DM of that campaign put in its fight
+// Monster ids never start with "_". The encounter list (ROADMAP 3.1) has its own endpoint and folder: encounters.php.
 //   DELETE ?id=<id>  -> archives it (players can't delete monsters, ROADMAP 0.5): the monster gets "archived", nothing is removed
 // Hit points (ROADMAP 1.4) change from more than one place at once (two Monster Sheets, the campaign page, the
 // initiative tracker), so once a monster's HP has been changed through ?hp= its "hp" is only ever changed that way:
@@ -16,6 +17,7 @@
 require __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/initiative.php';
 require_once __DIR__ . '/../../includes/live.php';
+require_once __DIR__ . '/../../includes/encounters.php';
 // DND_ACCOUNTS: a stand-in folder for the local checks in _dev/scripts/, so they never touch real accounts
 $accounts = getenv('DND_ACCOUNTS') ?: __DIR__ . '/../../private/dnd/accounts';
 define('CL_ACCOUNTS', "$accounts/monsters");
@@ -51,7 +53,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_GET['hp'], $_GET['c
     $owner = $e['by'] ?? $camp['dm'];
 }
 $dir = CL_ACCOUNTS . '/' . $owner;
-$okId = function ($id) { return is_string($id) && preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id); };
+$okId = 'mon_id_ok'; // never "_...": names starting with _ stay free for files that aren't monsters
 $read = function ($file) { $c = is_file($file) ? json_decode((string)file_get_contents($file), true) : null; return is_array($c) ? $c : null; };
 $stamp = fn($c, $k) => isset($c[$k]) && is_numeric($c[$k]) ? (float)$c[$k] : 0;
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
