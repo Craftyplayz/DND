@@ -6,17 +6,17 @@
 //     leaves its campaign, shows "Archived" to a public viewer; the old DELETE archives instead
 //   - notes archive instead of delete, with Archived (N), search and Restore; the Monster Sheet archives monsters and notes
 //   node _dev/scripts/versions-archive.mjs        (needs includes/config.php for sign-in)
-// Starts its own server (port CHECK_PORT, default 8121) with stand-in account and session folders in the temp folder, so it
+// Starts its own server (port CHECK_PORT, default 8121 + CHECK_PORT_SHIFT) with stand-in account and session folders in the temp folder, so it
 // never touches private/dnd/accounts or private/sessions. Backups, settings sync and the Monster Sheet's cloud saves are blocked.
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
-import { launch } from './browser.mjs';
+import { launch, browsers, serving } from './browser.mjs';
 
-const ROOT = join(import.meta.dirname, '../..'), PORT = +process.env.CHECK_PORT || 8121, BASE = `http://localhost:${PORT}`;
+const ROOT = join(import.meta.dirname, '../..'), PORT = +process.env.CHECK_PORT || 8121 + (+process.env.CHECK_PORT_SHIFT || 0), BASE = `http://localhost:${PORT}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
-const TMP = join(tmpdir(), 'dnd-versions-check'), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
+const TMP = join(tmpdir(), 'dnd-versions-check' + (process.env.CHECK_PORT_SHIFT || '')), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ser = (o) => `a:${Object.keys(o).length}:{` + Object.entries(o).map(([k, v]) => `s:${Buffer.byteLength(k)}:"${k}";s:${Buffer.byteLength(v)}:"${v}";`).join('') + '}';
 const SID = { me: 'vercheckme00000000000000000000000000', other: 'vercheckother000000000000000000000000' };
@@ -25,7 +25,7 @@ let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 const until = async (fn, ok, ms = 8000) => { const t = Date.now(); let v; while (Date.now() - t < ms) { v = await fn(); if (ok(v)) return v; await sleep(200); } return v; };
 const web = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { stdio: 'ignore', env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS } });
-await sleep(800);
+await serving(BASE + '/privacy/');
 
 const file = (...p) => { try { return JSON.parse(readFileSync(join(ACCOUNTS, 'characters', ...p), 'utf8')); } catch { return null; } };
 const versions = (id) => (existsSync(join(ACCOUNTS, 'characters', id, 'history')) ? readdirSync(join(ACCOUNTS, 'characters', id, 'history')).filter((f) => /^\d+\.json$/.test(f)).length : 0);
@@ -37,8 +37,12 @@ const flush = (b) => b.ev(`dispatchEvent(new Event('pagehide'))`);
 const click = (b, sel) => b.ev(`(() => { const e = document.querySelector(${JSON.stringify(sel)}); if (e) e.click(); return !!e; })()`);
 const rows = (b) => b.ev(`JSON.stringify([...document.querySelectorAll('#hb-ver .hb-vrow')].map((r) => r.querySelector('.hb-vsum').textContent.replace(/\\s+/g, ' ').trim()))`).then(JSON.parse);
 const openVersions = async (b) => { await click(b, '[data-act=manage]'); await click(b, '[data-act=versions]'); return until(() => rows(b), (r) => r.length > 0); };
-const errs = (b, name, where) => { const e = b.errors.filter((x) => !/backup\.php|prefs\.php|accounts\.google|gsi|Content.Security.Policy/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 600)}`); } };
-const open = async (name) => { await sleep(name === 'firefox' ? 2000 : 300); return launch(name); };
+// (Google's sign-in frame's report-only CSP notice is left out by browser.mjs)
+const errs = (b, name, where) => { const e = b.errors.filter((x) => !/backup\.php|prefs\.php/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 600)}`); } };
+// each browser checks it is its own when it starts (browser.mjs), so one can start as soon as the last one closed
+const open = (name) => launch(name);
+// the sheet has drawn (a character, or "Character not found")
+const SHEET = `document.querySelector('#hb-sheet')?.childElementCount`;
 const start = async (b, sid, db) => {
     await b.block(/backup\.php|prefs\.php|monster\/cloud\.php/);
     await b.go(BASE + '/privacy/');
@@ -64,7 +68,7 @@ const groupCheck = async (b, name, where, getNotes) => {
 };
 
 try {
-    for (const name of ['chrome', 'firefox']) {
+    for (const name of browsers) {
         rmSync(TMP, { recursive: true, force: true });
         mkdirSync(SESSIONS, { recursive: true });
         writeFileSync(join(SESSIONS, 'sess_' + SID.me), 'user|' + ser({ sub: '111', email: 'me@example.com', name: 'Me' }));
@@ -79,11 +83,12 @@ try {
             await start(b, SID.me, { cur: id, chars: { [id]: ch } });
             await b.go(`${BASE}/characters/${id}`);
             await until(() => versions(id), (n) => n === 1);
-            await type(b, 'race', 'Wood Elf'); await sleep(400); await flush(b);
+            // the edit is saved (and marked for the account) once it is in localStorage; then pagehide sends it
+            await type(b, 'race', 'Wood Elf'); await until(() => local(b, id), (c) => c?.race === 'Wood Elf'); await flush(b);
             await until(() => versions(id), (n) => n === 2);
-            await type(b, 'name', 'Vera II'); await sleep(400); await flush(b);
+            await type(b, 'name', 'Vera II'); await until(() => local(b, id), (c) => c?.name === 'Vera II'); await flush(b);
             await until(() => versions(id), (n) => n === 3);
-            await click(b, '[data-act=roll]'); await sleep(1500); await flush(b);
+            await click(b, '[data-act=roll]'); await until(() => local(b, id), (c) => (c?.rolls || []).length === 1, 10000); await flush(b);
             await until(() => (file(id, 'character.json')?.rolls || []).length, (n) => n === 1, 20000);
             is(`${name} a roll syncs but makes no version`, [(file(id, 'character.json').rolls || []).length, versions(id)], [1, 3]);
 
@@ -114,7 +119,8 @@ try {
             is(`${name} restored row`, (await until(() => rows(b), (r) => r.length >= 4))[0].includes('Restored from'), true);
             await click(b, '#hb-ver [data-act=vclose]');
             is(`${name} 15-second Undo shows`, await b.ev(`[...document.querySelectorAll('.hb-undo')].some((u) => !u.hidden && /Restored the version/.test(u.textContent))`), true);
-            await click(b, '[data-act=roll]'); await sleep(1500);
+            const rolled = ((await local(b, id)).rolls || []).length;
+            await click(b, '[data-act=roll]'); await until(() => local(b, id), (c) => (c?.rolls || []).length > rolled, 10000);
             is(`${name} a roll keeps the Undo`, await b.ev(`[...document.querySelectorAll('.hb-undo')].some((u) => /Restored the version/.test(u.textContent))`), true);
             await b.ev(`[...document.querySelectorAll('.hb-undo')].find((u) => /Restored the version/.test(u.textContent)).querySelector('button').click()`);
             const undone = await until(() => local(b, id), (c) => c.name === 'Vera II');
@@ -159,16 +165,16 @@ try {
             await click(b, '[data-act=versions]');
             is(`${name} archived: versions readable, no Restore or Name`, await until(() => b.ev(`[document.querySelectorAll('#hb-ver .hb-vrow').length > 0, !document.querySelector('#hb-ver [data-act=vrestore], #hb-ver [data-act=vname]')].join()`), (v) => v === 'true,true'), 'true,true');
             await click(b, '#hb-ver [data-act=vclose]');
-            await b.ev(`fetch('/sheets/player/cloud.php?id=${id}&visibility=public', { method: 'POST', headers: { 'Content-Type': 'application/json' } })`);
-            await sleep(500);
+            await b.ev(`fetch('/sheets/player/cloud.php?id=${id}&visibility=public', { method: 'POST', headers: { 'Content-Type': 'application/json' } }).then(() => 1)`);
+            await until(() => file(id, 'meta.json'), (m) => m && m.visibility === 'public');
             errs(b, name, 'archive');
         } finally { b.close(); }
 
-        // a public archived character shows "Archived" to someone else (one browser at a time: they share a debug port)
+        // a public archived character shows "Archived" to someone else
         b = await open(name);
         try {
             await start(b, SID.other);
-            await b.go(`${BASE}/characters/${id}`); await sleep(1500);
+            await b.go(`${BASE}/characters/${id}`); await b.until(SHEET);
             is(`${name} public archived shows Archived to others`, await b.ev(`[document.querySelector('.hb-roname')?.textContent, document.querySelector('#hb-barin .badge')?.textContent].join()`), 'Vera II,Archived');
         } finally { b.close(); }
 
@@ -179,8 +185,8 @@ try {
             await b.go(`${BASE}/characters/`);
             await until(() => b.ev(`document.querySelectorAll('#ch-arc-grid .ch-card').length`), (n) => n === 1);
             is(`${name} second browser: under Archived`, await b.ev(`[document.querySelector('#ch-arc').hidden, document.querySelectorAll('#ch-grid .ch-card').length].join()`), 'false,0');
-            await b.go(`${BASE}/characters/${id}`); await sleep(1000);
-            const pulled = await local(b, id);
+            await b.go(`${BASE}/characters/${id}`); await b.until(SHEET);
+            const pulled = await until(() => local(b, id), Boolean);
             await click(b, '[data-act=unarchive]');
             const un = await local(b, id);
             is(`${name} unarchive: back as it was`, core(un), core({ ...pulled, archived: 0 }));
@@ -206,25 +212,26 @@ try {
             const sid = 'signedout' + name;
             await start(b, 'none', { cur: sid, chars: { [sid]: { ...ch, id: sid } } });
             await b.ev(`document.cookie = 'dndsid=; path=/; max-age=0'`);
-            await b.go(`${BASE}/characters/${sid}`); await sleep(1000);
+            await b.go(`${BASE}/characters/${sid}`); await b.until(SHEET);
             await click(b, '[data-act=manage]'); await click(b, '[data-act=versions]');
             is(`${name} signed out: Versions asks to sign in`, await b.ev(`document.querySelector('#hb-ver').open && document.querySelector('#hb-ver p').textContent`), 'Sign in to keep every version of your characters.');
             await click(b, '#hb-ver [data-act=vclose]');
             await click(b, '[data-act=manage]'); await click(b, '[data-act=archive]');
             const before = await local(b, sid);
             is(`${name} signed out: archived in the browser`, before.archived > 0, true);
-            await b.go(`${BASE}/characters/`); await sleep(500);
+            await b.go(`${BASE}/characters/`); await b.until(`document.querySelectorAll('.ch-card').length`).catch(() => { });
             is(`${name} signed out: under Archived`, await b.ev(`[document.querySelector('#ch-arc').hidden, document.querySelectorAll('#ch-arc-grid .ch-card').length, document.querySelectorAll('#ch-grid .ch-card').length].join()`), 'false,1,0');
             await click(b, '[data-act=unarc]');
             is(`${name} signed out: unarchived, unchanged`, core(await local(b, sid)), core({ ...before, archived: 0 }));
             errs(b, name, 'signed out');
 
             // ---- the Monster Sheet: archive a monster and a note ----
-            await b.go(`${BASE}/sheets/monster/`); await sleep(1200);
-            await type(b, 'name', 'Goblin'); await sleep(400);
-            await click(b, '[data-act=manage]'); await click(b, '[data-act=new]'); await sleep(300);
-            await type(b, 'name', 'Orc'); await sleep(400);
-            const mons = () => b.ev(`JSON.stringify(Object.values(JSON.parse(localStorage.getItem('monster-sheet')).chars).map((c) => [c.name, !!c.archived]))`).then(JSON.parse);
+            const mons = () => b.ev(`JSON.stringify(Object.values(JSON.parse(localStorage.getItem('monster-sheet') || '{"chars":{}}').chars).map((c) => [c.name, !!c.archived]))`).then(JSON.parse);
+            const named = (n) => until(mons, (l) => l.some(([m]) => m === n));
+            await b.go(`${BASE}/sheets/monster/`); await b.until(`document.querySelector('[data-k=name]')`);
+            await type(b, 'name', 'Goblin'); await named('Goblin');
+            await click(b, '[data-act=manage]'); await click(b, '[data-act=new]'); await b.until(`document.querySelector('[data-k=name]')?.value === ''`).catch(() => { });
+            await type(b, 'name', 'Orc'); await named('Orc');
             is(`${name} monster sheet says Archive`, await b.ev(`[!!document.querySelector('[data-act=archive]'), !document.querySelector('[data-act=delete]')].join()`), 'true,true');
             await click(b, '[data-act=manage]'); await click(b, '[data-act=archive]');
             is(`${name} monster archived, kept`, (await mons()).sort(), [['Goblin', false], ['Orc', true]]);

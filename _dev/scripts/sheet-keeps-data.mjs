@@ -43,6 +43,8 @@ try {
     await b.block(/backup\.php|cloud\.php/);
 
     // the saves as one sheet's code leaves them after loading and opening each character
+    // The fixed waits below are kept on purpose: they give the sheet's own delayed saves and upgrades time to run, so one
+    // that drops data late is caught too. No page state says "every delayed change has run".
     async function load(base, path, key, chars) {
         // fill localStorage from a page that isn't a sheet: an open sheet saves itself over it when it unloads
         await b.go(base + '/privacy/'); await sleep(1000);

@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
-import { launch } from './browser.mjs';
+import { launch, serving } from './browser.mjs';
 
 const SHIFT = +process.env.CHECK_PORT_SHIFT || 0, ROOT = join(import.meta.dirname, '../..'), WEB = 8122 + SHIFT, RELAY = 8097 + SHIFT, BASE = `http://localhost:${WEB}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
@@ -44,7 +44,7 @@ camp(CAMP2, 'Other Table', '444', [{ sub: '444', name: 'Kit', joined: 1, charact
 const web = spawn(PHP, ['-S', `127.0.0.1:${WEB}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { stdio: 'ignore',
     env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS, LIVE_RELAY: `127.0.0.1:${RELAY}`, LIVE_WS: `ws://localhost:${RELAY}/` } });
 const relay = spawn(process.execPath, [join(ROOT, 'live/relay.js')], { stdio: 'ignore', env: { ...process.env, PORT: RELAY, AUTH_URL: `http://127.0.0.1:${WEB}/live/auth.php`, ORIGIN: BASE } });
-await sleep(1000);
+await serving(BASE + '/privacy/'); await serving(`http://127.0.0.1:${RELAY}/health`);
 
 let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } else console.log(`ok   ${name}`); };
@@ -95,9 +95,13 @@ try {
     // two rounds: Next until round 3; the order and turns belong on the VTT, so Lock's sheet shows none of it
     let sawStrip = false;
     for (let i = 0; i < 12 && !(await dm.ev(text('#mon-fight .fi-top'))).includes('Round 3'); i++) {
+        // each Next shows on the DM's tracker (the running clock left out); Lock's sheet gets the same news through the
+        // relay and must still show no strip
+        const still = (e) => `(${e}).replace(/\\d+:\\d\\d/g, '')`;
+        const top = await dm.ev(still(panel));
         await click(dm, '[data-fi=next]');
-        await sleep(600);
-        if (await pat.ev(`!!document.querySelector('#hb-fight')`)) sawStrip = true;
+        await until(dm, still(panel), (t) => t !== top, 3000);
+        if (await until(pat, `!!document.querySelector('#hb-fight')`, Boolean, 600)) sawStrip = true;
     }
     is('advanced two rounds', (await dm.ev(text('#mon-fight .fi-top'))).includes('Round 3'), true);
     is("Lock's sheet showed no order, turn or round", sawStrip, false);
@@ -114,8 +118,8 @@ try {
     // a reload on any device shows the same state
     const before = JSON.parse(await fight(SID.dm)).fight;
     await go(pat, BASE + '/characters/lock');
-    await sleep(1500);
-    is('player reload: still no strip on the sheet', await pat.ev(`!document.querySelector('#hb-fight')`), true);
+    // watched for as long as the old sleep gave the sheet to load the fight: no strip may show up in that time
+    is('player reload: still no strip on the sheet', await until(pat, `!!document.querySelector('#hb-fight')`, Boolean, 1500), false);
     await go(dm, BASE + '/sheets/monster/');
     is('DM reload: same fight', (await until(dm, panel, (t) => t.includes('Round 3'))).includes('Round 3'), true);
     const after = JSON.parse(await fight(SID.dm)).fight;
@@ -141,7 +145,7 @@ try {
     await pat.ev(`(() => { document.querySelector('#hb-amt').value = '3'; const f = document.querySelector('form[data-act=hp]'); const b = f.querySelector('button[value=heal]') || f.querySelector('button[value=auto]'); f.requestSubmit(b); })()`);
     await dm.ev(`(() => { const f = document.querySelector('#cp-fight .fi-hp[data-mon=gob]'); f.querySelector('input').value = '2'; f.querySelector('button[value=dmg]').click(); })()`);
     await fetch(`${BASE}/sheets/monster/cloud.php?hp=gob`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.dm, 'Content-Type': 'application/json' }, body: JSON.stringify({ op: { k: 'dmg', n: 1 } }) });
-    await sleep(2500);
+    for (const t = Date.now(); goblin().hp.cur !== 3 && Date.now() - t < 10000;) await sleep(50);
     is('every change counted on the server', goblin().hp.cur, 3);
     const twice = () => fetch(`${BASE}/sheets/monster/cloud.php?hp=gob`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.dm, 'Content-Type': 'application/json' }, body: JSON.stringify({ q: 'samechange0001', op: { k: 'heal', n: 1 } }) });
     await twice(); await twice();

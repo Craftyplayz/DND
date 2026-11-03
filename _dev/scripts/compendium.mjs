@@ -5,7 +5,7 @@
 //   node _dev/scripts/compendium.mjs [base URL, default http://localhost:8110]
 // Needs the local server with the router (php -S 127.0.0.1:8110 -t . _dev/router.php) and internet (the SRD proxies).
 // Cloud saves and backups are blocked.
-import { launch } from './browser.mjs';
+import { launch, browsers } from './browser.mjs';
 
 const BASE = process.argv[2] || 'http://localhost:8110';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -13,15 +13,21 @@ let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 const ok = (name, cond, got = '') => { if (!cond) { bad++; console.log(`FAIL ${name} ${JSON.stringify(got)}`); } };
 
-for (const name of ['chrome', 'firefox']) {
+for (const name of browsers) {
     const b = await launch(name), ev = b.ev;
     const js = async (expr) => JSON.parse(await ev(`JSON.stringify(${expr})`));
-    const until = async (expr, what, ms = 15000) => { for (let t = 0; t < ms; t += 200) { if (await ev(`!!(${expr})`)) return true; await sleep(200); } bad++; console.log(`FAIL ${name} timed out: ${what}`); return false; };
+    const until = async (expr, what, ms = 15000) => { for (const t = Date.now(); Date.now() - t < ms;) { if (await ev(`!!(${expr})`)) return true; await sleep(200); } bad++; console.log(`FAIL ${name} timed out: ${what}`); return false; };
     const errs = (where) => { const e = b.errors.filter((x) => !/backup\.php|cloud\.php/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 600)}`); } };
     const open = async (path) => { await b.go(BASE + path); await until(`document.querySelectorAll('.cp-row').length || document.querySelector('.err')`, path); };
     const names = () => js(`[...document.querySelectorAll('#cp-list .cp-row .cp-name')].map((x) => x.textContent)`);
-    const search = async (q) => { await ev(`(() => { const i = document.querySelector('#cp-q'); i.value = ${JSON.stringify(q)}; i.dispatchEvent(new Event('input')); })()`); await sleep(400); return names(); };
-    const tab = async (t) => { await ev(`document.querySelector('#cp-tabs [data-tab=${t}]').click()`); await sleep(300); };
+    // runs something that redraws the list and waits for the redraw (it replaces the whole list, marker included)
+    const redraw = async (js) => {
+        await ev(`document.querySelector('#cp-list').append(document.createComment('old'))`); await ev(js);
+        await until(`![...document.querySelector('#cp-list').childNodes].some((n) => n.nodeType === 8)`, 'list redrawn after ' + js.slice(0, 80));
+    };
+    const search = async (q) => { await redraw(`(() => { const i = document.querySelector('#cp-q'); i.value = ${JSON.stringify(q)}; i.dispatchEvent(new Event('input')); })()`); return names(); };
+    const tab = (t) => redraw(`document.querySelector('#cp-tabs [data-tab=${t}]').click()`);
+    const rowCount = `document.querySelectorAll('#cp-list .cp-row').length`;
     const store = (k) => js(`JSON.parse(localStorage.getItem(${JSON.stringify(k)}) || 'null')`);
     try {
         await b.block(/backup\.php|cloud\.php/);
@@ -51,21 +57,21 @@ for (const name of ['chrome', 'firefox']) {
         await tab('spell');
         is(`${name} spell rows start at 50`, await ev(`document.querySelectorAll('#cp-list .cp-row').length`), 50);
         const total = +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`));
-        for (let i = 0; i < 30 && (await ev(`document.querySelectorAll('#cp-list .cp-row').length`)) < total; i++) { await ev(`document.querySelector('#cp-more').scrollIntoView()`); await sleep(300); }
+        for (let i = 0, n; i < 30 && (n = await ev(rowCount)) < total; i++) { await ev(`document.querySelector('#cp-more').scrollIntoView()`); await b.until(`${rowCount} > ${n}`).catch(() => { }); }
         is(`${name} endless scroll reaches every spell`, await ev(`document.querySelectorAll('#cp-list .cp-row').length`), total);
         ok(`${name} extra badge`, await ev(`[...document.querySelectorAll('#cp-list .badge')].some((x) => x.textContent === 'Extra')`));
-        await ev(`(() => { const s = document.querySelector('[data-f=level]'); s.value = '3'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await sleep(300);
+        await redraw(`(() => { const s = document.querySelector('[data-f=level]'); s.value = '3'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
         ok(`${name} level filter`, (await js(`[...document.querySelectorAll('#cp-list .cp-sub')].map((x) => x.textContent)`)).every((t) => t.startsWith('Level 3')));
         ok(`${name} filter in URL`, (await ev(`location.search`)).includes('f.level=3'));
-        await ev(`(() => { const s = document.querySelector('[data-f=conc]'); s.value = 'yes'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await sleep(300);
+        await redraw(`(() => { const s = document.querySelector('[data-f=conc]'); s.value = 'yes'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
         ok(`${name} concentration filter`, (await names()).includes('Fly') && !(await names()).includes('Fireball'), await names());
-        await ev(`document.querySelector('#cp-filters [data-clear]').click()`); await sleep(300);
+        await redraw(`document.querySelector('#cp-filters [data-clear]').click()`);
         ok(`${name} cleared`, (await names()).includes('Acid Arrow'));
         await tab('monster');
         ok(`${name} CR filter has 1/8`, await ev(`[...document.querySelectorAll('[data-f=crmin] option')].some((o) => o.textContent === '1/8')`));
-        await ev(`(() => { const s = document.querySelector('[data-f=size]'); s.value = 'Tiny'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`); await sleep(300);
+        await redraw(`(() => { const s = document.querySelector('[data-f=size]'); s.value = 'Tiny'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
         ok(`${name} size filter and preview`, await ev(`document.querySelectorAll('#cp-list .cp-row').length > 0 && [...document.querySelectorAll('#cp-list .cp-row')].every((r) => r.textContent.includes('Tiny'))`));
-        await ev(`document.querySelector('#cp-filters [data-clear]').click()`); await sleep(300);
+        await redraw(`document.querySelector('#cp-filters [data-clear]').click()`);
         await tab('magic');
         ok(`${name} rarity filter`, await ev(`[...document.querySelectorAll('[data-f=rarity] option')].some((o) => o.textContent === 'Legendary')`));
 
@@ -129,7 +135,7 @@ for (const name of ['chrome', 'firefox']) {
         await ev(`document.querySelector('#cp-pick [data-close]').click()`);
 
         // one character: added straight away
-        await b.go(BASE + '/characters/new'); await sleep(1500);
+        await b.go(BASE + '/characters/new'); await until(`Object.keys(JSON.parse(localStorage.getItem('hb-sheet') || '{"chars":{}}').chars).length === 1`, 'new character stored');
         const one = Object.keys((await store('hb-sheet')).chars)[0];
         await open('/compendium/?t=spell&i=fireball');
         await until(`document.querySelector('[data-add=sheet]')`, 'add button');
@@ -144,7 +150,7 @@ for (const name of ['chrome', 'firefox']) {
         is(`${name} cancel adds nothing`, (await store('hb-pending')).length, 1);
         await ev(`document.querySelector('[data-add=sheet]').click()`);
         await until(`document.querySelector('#cp-dup').open`, 'duplicate question 2');
-        await ev(`document.querySelector('#cp-dup-yes').click()`); await sleep(500);
+        await ev(`document.querySelector('#cp-dup-yes').click()`); await until(`JSON.parse(localStorage.getItem('hb-pending') || '[]').length === 2`, 'second request queued');
         is(`${name} add another queues a second`, (await store('hb-pending')).length, 2);
 
         // the sheet takes both once, and fills them from the SRD
@@ -157,12 +163,12 @@ for (const name of ['chrome', 'firefox']) {
         // an arrival while the sheet is open is taken at once, and once
         await ev(`(() => { localStorage.setItem('hb-pending', JSON.stringify([{ id: 'x1', char: '${one}', kind: 'item', name: 'Longsword', cat: 'Weapons', fill: true }])); dispatchEvent(new StorageEvent('storage', { key: 'hb-pending' })); dispatchEvent(new StorageEvent('storage', { key: 'hb-pending' })); })()`);
         await until(`JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.some((p) => p.type === 'items' && p.rows.some((r) => r.name === 'Longsword'))`, 'longsword on sheet');
-        await sleep(1500);
+        await sleep(1500); // kept: proves the second storage event adds nothing more; no state shows "nothing else will happen"
         is(`${name} taken once`, await ev(`JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.find((p) => p.type === 'items').rows.filter((r) => r.name === 'Longsword').length`), 1);
         ok(`${name} item filled from the SRD`, await ev(`JSON.parse(localStorage.getItem('hb-sheet')).chars['${one}'].panels.find((p) => p.type === 'items').rows.find((r) => r.name === 'Longsword').props.length > 0`));
         // a request for another character stays queued
         await ev(`(() => { localStorage.setItem('hb-pending', JSON.stringify([{ id: 'x2', char: 'someone-else', kind: 'spell', name: 'Aid', lvl: 2 }])); dispatchEvent(new StorageEvent('storage', { key: 'hb-pending' })); })()`);
-        await sleep(500);
+        await sleep(500); // kept: proves the sheet leaves another character's request alone; nothing to wait for
         is(`${name} other character's request stays`, (await store('hb-pending')).length, 1);
         await ev(`localStorage.removeItem('hb-pending')`);
         // now the sheet has it: asking again is the question again
@@ -173,7 +179,7 @@ for (const name of ['chrome', 'firefox']) {
         await ev(`document.querySelector('#cp-dup [data-close]').click()`);
 
         // two characters: a picker
-        await b.go(BASE + '/characters/new'); await sleep(1500);
+        await b.go(BASE + '/characters/new'); await until(`Object.keys(JSON.parse(localStorage.getItem('hb-sheet') || '{"chars":{}}').chars).length === 2`, 'second character stored');
         const two = Object.keys((await store('hb-sheet')).chars).find((id) => id !== one);
         await ev(`(() => { const d = JSON.parse(localStorage.getItem('hb-sheet')); d.chars['${two}'].name = 'Second'; localStorage.setItem('hb-sheet', JSON.stringify(d)); })()`);
         await open('/compendium/?t=spell&i=aid');

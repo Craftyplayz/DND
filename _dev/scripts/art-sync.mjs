@@ -9,7 +9,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
-import { launch } from './browser.mjs';
+import { launch, browsers, serving } from './browser.mjs';
 
 const ROOT = join(import.meta.dirname, '../..'), PORT = 8119 + (+process.env.CHECK_PORT_SHIFT || 0), BASE = `http://localhost:${PORT}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
@@ -21,7 +21,7 @@ const SID = { me: 'artcheckme000000000000000000000000', other: 'artcheckother000
 let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 const web = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { stdio: 'ignore', env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS } });
-await sleep(800);
+await serving(BASE + '/privacy/');
 
 // a character with a small inline JPEG drawn in the page, as the sheet's crop would make it
 const MAKE = (id) => `(() => { const c = document.createElement('canvas'); c.width = c.height = 48; const g = c.getContext('2d');
@@ -35,7 +35,7 @@ const until = async (fn, ok, ms) => { const t = Date.now(); let v; while (Date.n
 const shown = (b, sel) => until(() => b.ev(`(() => { const i = document.querySelector('${sel}'); return i && i.complete ? i.naturalWidth : 0; })()`), (w) => w > 0, 5000);
 
 try {
-    for (const name of ['chrome', 'firefox']) {
+    for (const name of browsers) {
         rmSync(TMP, { recursive: true, force: true });
         mkdirSync(SESSIONS, { recursive: true });
         writeFileSync(join(SESSIONS, 'sess_' + SID.me), 'user|' + ser({ sub: '111', email: 'me@example.com', name: 'Me' }));
@@ -54,7 +54,8 @@ try {
             is(`${name} inline art swapped for its address`, [after.art, /^\/sheets\/player\/art\.php\?id=\w+&v=[a-f0-9]{12}$/.test(after.artUrl)], ['', true]);
             const file = join(ACCOUNTS, 'characters', id, 'art.jpg');
             is(`${name} the server has exactly that picture`, existsSync(file) && readFileSync(file).equals(Buffer.from(data.split(',')[1], 'base64')), true);
-            await sleep(1500); // the swapped character reaches the account too
+            // the swapped character reaches the account too
+            await until(() => { try { return JSON.parse(readFileSync(join(ACCOUNTS, 'characters', id, 'character.json'), 'utf8')).artUrl; } catch { return ''; } }, (u) => u === after.artUrl, 10000);
             is(`${name} the account's character has the address`, JSON.parse(readFileSync(join(ACCOUNTS, 'characters', id, 'character.json'), 'utf8')).artUrl, after.artUrl);
             await b.go(`${BASE}/characters/${id}`);
             is(`${name} portrait shows on the sheet`, await shown(b, '.hb-art img') > 0, true);
@@ -85,10 +86,10 @@ try {
             await b.block(/backup\.php|prefs\.php|art\.php/);
             await b.go(BASE + '/privacy/');
             await b.ev(MAKE(id + 'out'));
-            await b.go(`${BASE}/characters/${id}out`); await sleep(3000);
+            await b.go(`${BASE}/characters/${id}out`); await sleep(3000); // kept: nothing must move while signed out, so there is nothing to wait for
             is(`${name} signed out: art stays inline`, await stored(b, id + 'out'), { art: 'data:image/jpeg', artUrl: '' });
             await b.ev(`document.cookie = 'dndsid=${SID.me}; path=/'`);
-            await b.go(`${BASE}/characters/${id}out`); await sleep(4000);
+            await b.go(`${BASE}/characters/${id}out`); await sleep(4000); // kept: the blocked upload must leave the art alone; nothing marks its end
             is(`${name} upload fails: art stays inline`, await stored(b, id + 'out'), { art: 'data:image/jpeg', artUrl: '' });
             is(`${name} still shows`, await shown(b, '.hb-art img') > 0, true);
         } finally { b.close(); }

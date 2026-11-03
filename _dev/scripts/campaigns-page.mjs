@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
-import { launch } from './browser.mjs';
+import { launch, browsers, serving } from './browser.mjs';
 
 const ROOT = join(import.meta.dirname, '../..'), PORT = 8114 + (+process.env.CHECK_PORT_SHIFT || 0), BASE = `http://localhost:${PORT}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
@@ -30,12 +30,12 @@ function setup() {
 }
 
 const server = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS }, stdio: 'ignore' });
-await sleep(800);
+await serving(BASE + '/privacy/');
 
 let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 try {
-    for (const name of ['chrome', 'firefox']) {
+    for (const name of browsers) {
         setup();
         const b = await launch(name), ev = b.ev;
         // a page counts as loaded once its <main> is there; a fixed sleep sometimes read the page before a redirect landed
@@ -47,8 +47,12 @@ try {
         const as = async (who) => { await go(BASE + '/privacy/'); await ev(who ? `document.cookie = 'dndsid=check${who}0000000000000000000000000; path=/'` : `document.cookie = 'dndsid=; path=/; max-age=0'`); };
         const text = (sel) => ev(`document.querySelector(${JSON.stringify(sel)})?.textContent.trim()`);
         const cards = () => ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card b')].map((b) => b.textContent))`).then(JSON.parse);
-        const click = async (sel, wait = 1200) => { await ev(`document.querySelector(${JSON.stringify(sel)}).click()`); await sleep(wait); await go2(); };
-        const go2 = async () => { for (let i = 0; i < 100 && !(await ev(`document.readyState === 'complete' && !!document.querySelector('main')`).catch(() => false)); i++) await sleep(100); };
+        // every action here loads a new page (a reload or the next page); 'ask' ones open the yes/no dialog instead
+        const click = async (sel, wait = 'page') => {
+            await ev(`window.__old = true; document.querySelector(${JSON.stringify(sel)}).click()`);
+            if (wait === 'ask') await b.until(`document.querySelector('#cp-ask').open`).catch(() => { });
+            else await b.until(`!window.__old && document.readyState === 'complete' && !!document.querySelector('main')`, 15000);
+        };
         try {
             await as(null);
             await go(BASE + '/campaigns/');
@@ -60,11 +64,11 @@ try {
             await go(BASE + '/campaigns/');
             is(`${name} no campaigns yet`, (await text('main .muted:last-of-type'))?.startsWith("You're not in any"), true);
             await ev(`document.querySelector('#cp-create [name=name]').value = 'Curse of the Crown'`);
-            await click('#cp-create .btn.primary', 1500);
+            await click('#cp-create .btn.primary');
             is(`${name} create opens the campaign`, await text('h1'), 'Curse of the Crown');
             const id = await ev(`new URLSearchParams(location.search).get('c')`);
             await ev(`document.querySelector('#cp-chars [value=dmpc]').checked = true`);
-            await click('#cp-chars .btn.primary', 1500);
+            await click('#cp-chars .btn.primary');
             is(`${name} DM's character in the party`, await cards(), ['Brannoc']);
             is(`${name} only own characters offered`, await ev(`JSON.stringify([...document.querySelectorAll('#cp-chars [name=ch]')].map((i) => i.value))`), '["dmpc"]');
             const link = await ev(`document.querySelector('#cp-link').value`);
@@ -75,10 +79,10 @@ try {
             await as('pl');
             await go(link);
             is(`${name} join page names the campaign`, await text('h1'), 'Curse of the Crown');
-            await click('[data-act=join]', 1500);
+            await click('[data-act=join]');
             is(`${name} joined`, await ev(`new URLSearchParams(location.search).get('c')`), id);
             await ev(`document.querySelector('#cp-chars [value=lock]').checked = true`);
-            await click('#cp-chars .btn.primary', 1500);
+            await click('#cp-chars .btn.primary');
             is(`${name} party of two`, await cards(), ['Brannoc', 'Lock']);
             is(`${name} player opens only their own sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card a.btn')].map((a) => a.getAttribute('href')))`), '["/characters/lock"]');
             is(`${name} player has no DM tools`, await ev(`!document.querySelector('#cp-link, #cp-rename, [data-act=remove]')`), true);
@@ -104,20 +108,20 @@ try {
             is(`${name} DM's browser keeps no copy`, await ev(`!!JSON.parse(localStorage.getItem('hb-sheet') || '{"chars":{}}').chars.lock`), false);
             errs('DM read-only sheet');
             await go(BASE + '/campaigns/?c=' + id);
-            await click('[data-act=code]', 1500);
+            await click('[data-act=code]');
             is(`${name} new link`, (await ev(`document.querySelector('#cp-link').value`)) !== link, true);
             await go(link);
             is(`${name} old link stops working`, await text('h1'), "This link doesn't work");
             await go(BASE + '/campaigns/?c=' + id);
-            await click('[data-act=remove]', 300);
+            await click('[data-act=remove]', 'ask');
             is(`${name} remove asks first`, await ev(`document.querySelector('#cp-ask').open`), true);
-            await click('#cp-ask-yes', 1500);
+            await click('#cp-ask-yes');
             is(`${name} player removed with their character`, await cards(), ['Brannoc']);
             await ev(`(() => { const f = document.querySelector('#cp-rename [name=name]'); f.value = 'The Crown'; })()`);
-            await click('#cp-rename [type=submit]', 1500);
+            await click('#cp-rename [type=submit]');
             is(`${name} renamed`, await text('h1'), 'The Crown');
-            await click('[data-act=delete]', 300);
-            await click('#cp-ask-yes', 1500);
+            await click('[data-act=delete]', 'ask');
+            await click('#cp-ask-yes');
             is(`${name} deleted, back to the list`, await ev(`location.pathname + location.search`), '/campaigns/');
             errs('DM tools');
         } finally { b.close(); }

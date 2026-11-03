@@ -9,7 +9,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
-import { launch } from './browser.mjs';
+import { launch, serving } from './browser.mjs';
 
 const ROOT = join(import.meta.dirname, '../..'), SHIFT = +process.env.CHECK_PORT_SHIFT || 0, WEB = 8120 + SHIFT, RELAY = 8099 + SHIFT, BASE = `http://localhost:${WEB}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
@@ -36,10 +36,12 @@ writeFileSync(join(ACCOUNTS, 'campaigns', CAMP, 'campaign.json'), JSON.stringify
 const web = spawn(PHP, ['-S', `127.0.0.1:${WEB}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { stdio: 'ignore',
     env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS, LIVE_RELAY: `127.0.0.1:${RELAY}`, LIVE_WS: `ws://localhost:${RELAY}/` } });
 const relay = spawn(process.execPath, [join(ROOT, 'live/relay.js')], { stdio: 'ignore', env: { ...process.env, PORT: RELAY, AUTH_URL: `http://127.0.0.1:${WEB}/live/auth.php`, ORIGIN: BASE } });
-await sleep(1000);
+await serving(BASE + '/privacy/'); await serving(`http://127.0.0.1:${RELAY}/health`);
 
 let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } else console.log(`ok   ${name}`); };
+// polls every 150 ms: at 50 ms the DM's hidden roll right after Pat's card pops up goes missing (a timing issue in the
+// Monster Sheet itself, left for the owner to look at), so this keeps the old pace
 async function until(b, expr, ok, ms = 4000) { const t = Date.now(); let v; while (Date.now() - t < ms) { v = await b.ev(expr); if (ok(v)) return v; await sleep(150); } return v; }
 const logFor = (sid) => fetch(`${BASE}/campaigns/log.php?c=${CAMP}`, { headers: { Cookie: 'dndsid=' + sid } }).then((r) => r.json()).then((o) => o.entries);
 const go = async (b, url) => { await b.go(url); for (let i = 0; i < 80 && !(await b.ev(`document.readyState === 'complete' && !!document.querySelector('main')`)); i++) await sleep(100); };
@@ -77,15 +79,15 @@ try {
     // 3. Pat whispers a roll to the DM
     await pat.ev(`(document.querySelector('.hb-tray') || document.querySelector('[data-act=tray]').click(), document.querySelector('[data-act=rollto]').click())`);
     is('player toggle says To DM', await pat.ev(`(document.querySelector('.hb-tray') || document.querySelector('[data-act=tray]').click(), document.querySelector('[data-act=rollto]').textContent)`), 'To DM');
-    await sleep(300);
     await trayRoll(pat);
-    await sleep(1500);
+    // the roll to the DM has reached the table log
+    for (const t = Date.now(); !(await logFor(SID.pat)).some((e) => e.vis === 'dm') && Date.now() - t < 10000;) await sleep(50);
 
     // 4. an offline roll: Pat's connection drops, the roll waits, then goes with its time and mark
     await pat.ev(`(document.querySelector('.hb-tray') || document.querySelector('[data-act=tray]').click(), document.querySelector('[data-act=rollto]').click())`); // back to Everyone
     await pat.ev(`(() => { const f = window.fetch; window.fetch = (u, o) => (window.cut && String(u).includes('/campaigns/api.php') ? Promise.reject(new TypeError('offline')) : f(u, o)); window.cut = true; })()`);
     await trayRoll(pat);
-    await sleep(800);
+    await until(pat, `JSON.parse(localStorage.getItem('live-outbox') || '[]').length`, (n) => n > 0);
     is('offline roll waits in the browser, marked', await pat.ev(`JSON.stringify(JSON.parse(localStorage.getItem('live-outbox')).map((x) => x.roll.offline))`), '[true]');
     await pat.ev('window.cut = false; Live.flush()');
     is('offline roll sent once back', await until(pat, `JSON.parse(localStorage.getItem('live-outbox')).length`, (n) => n === 0), 0);
@@ -119,7 +121,7 @@ try {
     await until(pat, `!!document.querySelector('[data-act=logtab]')`, Boolean);
     const tabs = await pat.ev(`!!document.querySelector('[data-act=logtab][data-t=table]')`);
     is('roll log has a Table tab (wide screens)', tabs || (await pat.ev(`innerWidth < 1200`)), true);
-    for (const [who, b] of [['player', pat], ['DM', dm]]) is(`no console errors (${who})`, b.errors.filter((e) => !/backup\.php|prefs\.php|WebSocket|8099|offline/.test(e)), []);
+    for (const [who, b] of [['player', pat], ['DM', dm]]) is(`no console errors (${who})`, b.errors.filter((e) => !/backup\.php|prefs\.php|WebSocket|offline/.test(e) && !e.includes(RELAY)), []);
 } finally { pat.close(); dm.close(); relay.kill(); web.kill(); rmSync(TMP, { recursive: true, force: true }); }
 console.log(bad ? `${bad} check(s) failed` : 'table log ok');
 process.exit(bad ? 1 : 0);

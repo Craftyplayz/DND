@@ -5,7 +5,7 @@
 // Not checked (not theme colours): images and canvases, shadow colours (pure black), the dice sets' own colours.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { launch } from './browser.mjs';
+import { launch, browsers } from './browser.mjs';
 import { targets, db } from './site-targets.mjs';
 
 const BASE = process.argv[2] || 'http://localhost:8110';
@@ -37,17 +37,18 @@ const probe = `(() => {
 })()`;
 
 let bad = 0;
-for (const name of ['chrome', 'firefox']) {
+for (const name of browsers) {
     const b = await launch(name);
     try {
         await b.block(/backup\.php|cloud\.php/);
         for (const [label, path, setup] of targets) {
             await b.go(BASE + '/privacy/');
             await b.ev(`localStorage.clear(); localStorage.setItem('hb-sheet-merged', '1'); ${setup === 'seed' ? `localStorage.setItem('hb-sheet', ${JSON.stringify(db)})` : ''}`);
+            // kept: time for what pages draw after load (lists from fetches, fonts); no one state says every page is drawn
             await b.go(BASE + path); await sleep(1200);
             if (setup && setup !== 'seed') await b.ev(setup);
             await b.ev(`(() => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(css + '*,*::before,*::after{transition:none!important;animation:none!important}')}; document.head.append(s); })()`);
-            await sleep(200);
+            await b.ev('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))'); // the loud colours drawn
             for (const o of JSON.parse(await b.ev(probe))) { bad++; console.log(`FAIL ${name} ${label}: ${o}`); }
         }
         console.log(`${name}: ${targets.length} pages recoloured`);

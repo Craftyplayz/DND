@@ -2,7 +2,7 @@
 // which throw two d20s and keep the higher or lower. A plain click still rolls one d20. Headless Chrome and Firefox.
 // Ends with "sheet advantage ok".
 //   node _dev/scripts/sheet-advantage.mjs [base URL, default http://localhost:8110]
-import { launch } from './browser.mjs';
+import { launch, browsers } from './browser.mjs';
 
 const BASE = process.argv[2] || 'http://localhost:8110';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -13,16 +13,17 @@ const at = (sel) => `const b = document.querySelector('${sel}'), r = b.getBoundi
 
 let bad = 0;
 const fail = (name, m) => { bad++; console.log(`FAIL ${name}: ${m}`); };
-for (const name of ['chrome', 'firefox']) {
+for (const name of browsers) {
     const b = await launch(name);
     try {
         await b.block(/backup\.php|cloud\.php|prefs\.php/);
-        await b.go(BASE + '/characters/new'); await sleep(1500);
+        await b.go(BASE + '/characters/new'); await b.until(`document.querySelector('[data-act="custom"]')`);
         // results straight away: headless Chrome stalls on the thrown 3D dice (the live sheet too)
-        await b.ev(`document.querySelector('[data-act="custom"]').click()`); await sleep(300);
+        await b.ev(`document.querySelector('[data-act="custom"]').click()`); await b.until(`document.querySelector('[data-k="view.noAnim"]')`);
         await b.ev(`document.querySelector('[data-k="view.noAnim"]').click()`);
-        await b.ev(`document.querySelector('dialog [data-act="close"]').click()`); await sleep(1000);
-        const card = async () => { for (let i = 0; i < 60; i++) { const c = await b.ev(CARD); if (c) return JSON.parse(c); await sleep(250); } return null; };
+        await b.until(`JSON.parse(localStorage.getItem('hb-sheet')).chars[JSON.parse(localStorage.getItem('hb-sheet')).cur].view.noAnim`);
+        await b.ev(`document.querySelector('dialog [data-act="close"]').click()`); await b.until(`!document.querySelector('dialog[open]')`);
+        const card = () => b.until(CARD, 15000).then(JSON.parse, () => null);
         const clear = () => b.ev(`document.querySelector('#hb-rolls').innerHTML = ''`);
         const menuOpen = () => b.ev(`!document.querySelector('#hb-adv').hidden`);
 
@@ -53,9 +54,9 @@ for (const name of ['chrome', 'firefox']) {
         await clear();
         await b.ev(`(() => { ${at('.hb-d20')} b.dispatchEvent(new PointerEvent('pointerdown', { ...o, pointerType: 'touch' })); })()`);
         // the menu opens after 0.5 s; headless Chrome sometimes runs that timer late, so wait for it rather than a fixed time
-        for (let i = 0; i < 20 && !await menuOpen(); i++) await sleep(100);
+        await b.until(`!document.querySelector('#hb-adv').hidden`, 2000).catch(() => { });
         await b.ev(`(() => { ${at('.hb-d20')} b.dispatchEvent(new PointerEvent('pointerup', { ...o, pointerType: 'touch' })); b.click(); })()`);
-        await sleep(500);
+        await sleep(500); // kept: proves the click after a hold doesn't roll; nothing to wait for
         if (!await menuOpen()) fail(name, 'press and hold did not open the menu');
         if (await b.ev(CARD)) fail(name, 'press and hold also rolled');
         // Escape closes it

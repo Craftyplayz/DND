@@ -7,7 +7,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
-import { launch } from './browser.mjs';
+import { launch, serving } from './browser.mjs';
 
 const ROOT = join(import.meta.dirname, '../..'), SHIFT = +process.env.CHECK_PORT_SHIFT || 0, WEB = 8118 + SHIFT, RELAY = 8098 + SHIFT, BASE = `http://localhost:${WEB}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
@@ -36,7 +36,7 @@ let relay = null;
 const startRelay = () => { relay = spawn(process.execPath, [join(ROOT, 'live/relay.js')], { stdio: 'ignore',
     env: { ...process.env, PORT: RELAY, AUTH_URL: `http://127.0.0.1:${WEB}/live/auth.php`, ORIGIN: BASE } }); };
 startRelay();
-await sleep(1000);
+await serving(BASE + '/privacy/'); await serving(`http://127.0.0.1:${RELAY}/health`);
 
 let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
