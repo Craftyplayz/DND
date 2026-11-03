@@ -191,7 +191,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     function blank() {
         return {
-            id: uid(), updated: 0, archived: 0, name: '', classes: [ROW.cls()], race: '', cr: '0', alignment: '', age: '', art: '',
+            // enc: the id of its encounter (ROADMAP 3.1); '' (or an id that isn't in the list) is Unsorted
+            id: uid(), updated: 0, archived: 0, enc: '', name: '', classes: [ROW.cls()], race: '', cr: '0', alignment: '', age: '', art: '',
             abilities: ABIL.map(([key, name]) => ({ key, name, score: 10, save: false, sb: '' })),
             skills: SKILLS.map(([name, ab]) => ({ name, ab, p: 0, b: '' })),
             prof: 'max(2, ceil(CR / 4) + 1)', ac: '10 + DEX', init: 'DEX',
@@ -347,6 +348,25 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     if (!db.chars[db.cur]) db.cur = Object.keys(db.chars)[0] || '';
     if (!db.cur) { const c = blank(); db.chars[c.id] = c; db.cur = c.id; }
     let C = db.chars[db.cur];
+    // ---- named encounters (ROADMAP 3.1) ----
+    // db.encs: [{id, name, order, archived, updated}], also kept in the account (encounters.php) and backed up (backup.php?encs).
+    // A monster's "enc" names its encounter; empty, or naming one that isn't in the list, it's in Unsorted (its value is kept).
+    // Lists merge per encounter: the newer "updated" wins, and an encounter either copy has is never dropped.
+    const encNorm = (list) => (Array.isArray(list) ? list : []).filter((e) => isObj(e) && typeof e.id === 'string' && e.id)
+        .map((e) => ({ id: e.id, name: typeof e.name === 'string' ? e.name : '', order: nm(e.order), archived: nm(e.archived), updated: nm(e.updated) }));
+    function encMerge(a, b) {
+        const m = new Map(a.map((e) => [e.id, e]));
+        for (const e of b) if (!m.has(e.id) || e.updated > m.get(e.id).updated) m.set(e.id, e);
+        return [...m.values()];
+    }
+    db.encs = encMerge([], encNorm(db.encs));
+    const encOf = (id) => db.encs.find((e) => e.id === id);
+    const bucket = (c) => (c.enc && encOf(c.enc) ? c.enc : '');
+    const encName = (id) => (id ? encOf(id)?.name.trim() || 'Unnamed encounter' : 'Unsorted');
+    const encsLive = () => db.encs.filter((e) => !e.archived).sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : 1));
+    const monsIn = (id) => Object.values(db.chars).filter((c) => bucket(c) === id);
+    // the encounter the list shows: the open monster's (db.cur is this browser's last-opened monster, never synced)
+    let shownEnc = bucket(C);
     let warned = false;
     function store() {
         try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
@@ -387,8 +407,33 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (!C.updated && Object.keys(db.chars).length > 1) delete db.chars[C.id];
         C = db.chars[db.cur] || Object.values(db.chars)[0];
         db.cur = C.id;
+        if (!shownEnc || !encOf(shownEnc)) shownEnc = bucket(C); // an encounter picked while they loaded stays
         store(); draw();
     })().catch(() => {});
+
+    // the encounter list goes to the account (merged there, the merged list comes back) and to the server backups,
+    // a moment after each change; signed in, every load sends this browser's list and takes the account's
+    let encEdit = 0, encSent = 0; // edits made here, and the last one the account has
+    const encPost = (url, keepalive = false) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ encs: db.encs }), keepalive });
+    async function encSync() {
+        if (!cloud) return;
+        const n = encEdit;
+        try {
+            const r = await encPost('encounters.php');
+            if (r.status === 401) return cloudOff();
+            if (!r.ok) return;
+            const got = encNorm((await r.json()).encs), was = JSON.stringify(db.encs);
+            db.encs = encMerge(db.encs, got);
+            encSent = n;
+            if (JSON.stringify(db.encs) === was) return;
+            if (!shownEnc || !encOf(shownEnc)) shownEnc = bucket(C);
+            store(); draw();
+        } catch (e) { }
+    }
+    const encSyncLater = debounce(encSync, 600), encBackupLater = debounce(() => encPost('backup.php?encs').catch(() => { }), 1500);
+    function encSaved() { encEdit++; store(); encSyncLater(); encBackupLater(); }
+    addEventListener('pagehide', () => { if (encEdit !== encSent) { encPost('backup.php?encs', true).catch(() => { }); if (cloud) encPost('encounters.php', true).catch(() => { }); } });
+    if (cloud) encSync();
 
     // every edit is also backed up on the server as a new version (backup.php -> private/dnd/monster-backups/), a few seconds after typing stops
     const dirty = new Set();
@@ -1201,17 +1246,18 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     // ---- toolbar ----
     const clsText = (c) => (String(c.cr || '').trim() ? 'CR ' + c.cr : '');
-    const pickOpts = () => Object.values(db.chars).filter((c) => !c.archived || c === C).map((c) =>
+    // the phone picker lists the shown encounter's monsters (and the open one, wherever it is)
+    const pickOpts = () => Object.values(db.chars).filter((c) => c === C || !c.archived && bucket(c) === shownEnc).map((c) =>
         `<option value="${esc(c.id)}"${c.id === C.id ? ' selected' : ''}>${esc(c.name || 'Unnamed monster')}${clsText(c) ? ' — ' + esc(clsText(c)) : ''}</option>`).join('');
     // the top line: which character, who they are, and (behind Edit) the buttons to make, import, export or delete one
     function bar() {
         // an archived monster: read-only until it's unarchived (ROADMAP 0.5)
-        if (C.archived) return `<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
+        if (C.archived) return `${encPicker('mon-encbar')}<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
             <b class="hb-roname">${esc(C.name || 'Unnamed monster')}</b><span class="badge">Archived</span>
             <span class="hb-arcnote">This monster is archived.</span>
             <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>
             <button type="button" class="btn small" data-act="new">New</button>`;
-        return `<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
+        return `${encPicker('mon-encbar')}<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
             <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
             <button type="button" class="btn small" data-act="dup">Duplicate</button>
             <span class="hb-manage" id="hb-manage"${open.manage ? '' : ' hidden'}>
@@ -1219,6 +1265,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <button type="button" class="btn small" data-act="find">Import monster</button>
                 <button type="button" class="btn small" data-act="import">Import file</button>
                 <button type="button" class="btn small" data-act="export">Export</button>
+                <button type="button" class="btn small" data-act="encto">Move to encounter</button>
+                <button type="button" class="btn small" data-act="encto" data-copy>Copy to encounter</button>
                 <button type="button" class="btn small" data-act="archive">Archive</button>
             </span>
             <label class="hb-name">Name ${f('name', 'Name')}</label>
@@ -1855,9 +1903,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     dlg.addEventListener('close', () => { dlgMode = null; draw(); });
 
     // ---- monsters only: the encounter list on the left, Duplicate, and importing from the monster list ----
-    // "Goblin" twice becomes "Goblin 1" and "Goblin 2"
-    function numbered(name) {
-        const all = Object.values(db.chars), base = name.replace(/\s+\d+$/, '');
+    // "Goblin" twice in one encounter becomes "Goblin 1" and "Goblin 2"
+    function numbered(name, enc = '') {
+        const all = monsIn(enc), base = name.replace(/\s+\d+$/, '');
         if (!all.some((x) => x.name.replace(/\s+\d+$/, '') === base)) return name;
         all.forEach((x) => { if (x.name === base) x.name = base + ' 1'; });
         let n = 2;
@@ -1867,16 +1915,24 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function drawSide() {
         const box = $('#mon-side');
         if (!box) return;
-        const all = Object.values(db.chars), list = all.filter((c) => !c.archived), arch = all.filter((c) => c.archived);
+        const all = monsIn(shownEnc), list = all.filter((c) => !c.archived), arch = all.filter((c) => c.archived), shown = encOf(shownEnc);
+        const gone = db.encs.filter((e) => e.archived).sort((a, b) => a.order - b.order);
         const item = (c) => {
             const max = nm(c.hp.base) + nm(c.hp.mod), on = c === C;
             return `<button type="button" class="mon-item${on ? ' on' : ''}${nm(c.hp.cur) <= 0 ? ' down' : ''}" data-act="side" data-id="${esc(c.id)}"${on ? ' aria-current="true"' : ''}>
                 <b>${esc(c.name || 'Unnamed monster')}</b><small>HP ${nm(c.hp.cur)}/${max}${String(c.cr).trim() ? ' · CR ' + esc(c.cr) : ''}</small></button>`;
         };
         // archived monsters (ROADMAP 0.5) wait at the bottom, folded away, each with Unarchive
-        box.innerHTML = `<h2>Encounter <span class="n">${list.length}</span></h2><div class="mon-list">${list.map((c) => item(c) + fightBtn(c)).join('')}</div>${fightBtn()}`
+        // archived encounters (ROADMAP 3.1) wait folded at the very bottom; their monsters keep their own archived marks
+        box.innerHTML = encPicker('mon-encside') + `<h2>Monsters <span class="n">${list.length}</span></h2>`
+            + (shown?.archived ? `<p class="note mon-encnote">This encounter is archived. <button type="button" class="btn small" data-act="encunarc" data-id="${esc(shown.id)}">Unarchive</button></p>` : '')
+            + (list.length ? '' : '<p class="muted mon-encnote">No monsters here yet. Open one and pick Move to encounter (under Edit) to put it here.</p>')
+            + `<div class="mon-list">${list.map((c) => item(c) + fightBtn(c)).join('')}</div>${fightBtn()}`
             + (arch.length ? `<details class="mon-arch"${arch.includes(C) ? ' open' : ''}><summary>Archived (${arch.length})</summary><div class="mon-list">${arch.map((c) => `<div class="mon-arcrow">${item(c)}
-                <button type="button" class="btn small" data-act="monunarc" data-id="${esc(c.id)}">Unarchive</button></div>`).join('')}</div></details>` : '');
+                <button type="button" class="btn small" data-act="monunarc" data-id="${esc(c.id)}">Unarchive</button></div>`).join('')}</div></details>` : '')
+            + (gone.length ? `<details class="mon-arch mon-encarch"${shown?.archived ? ' open' : ''}><summary>Archived encounters (${gone.length})</summary><div class="mon-list">${gone.map((e) => `<div class="mon-arcrow">
+                <button type="button" class="mon-item${e === shown ? ' on' : ''}" data-act="encshow" data-id="${esc(e.id)}"><b>${esc(encName(e.id))}</b><small>${monsIn(e.id).length} monster${monsIn(e.id).length === 1 ? '' : 's'}</small></button>
+                <button type="button" class="btn small" data-act="encunarc" data-id="${esc(e.id)}">Unarchive</button></div>`).join('')}</div></details>` : '');
         $('#mon-side .mon-list').classList.toggle('fi-on', !!fightNow());
     }
     // ---- the fight (ROADMAP 1.4): "Add to fight" beside each monster while one runs in the picked campaign ----
@@ -1884,14 +1940,14 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function fightBtn(c) {
         const f = fightNow();
         if (!f) return '';
-        if (!c) return '<p><button type="button" class="btn small" data-act="fightadd">Add all in the list</button></p>';
+        if (!c) return '<p><button type="button" class="btn small" data-act="fightadd">Add whole encounter to fight</button></p>';
         return f.entries.some((e) => e.mon === c.id) ? '<span class="badge">In fight</span>' : `<button type="button" class="btn small" data-act="fightadd" data-id="${esc(c.id)}" aria-label="Add ${esc(c.name || 'Unnamed monster')} to the fight">Add to fight</button>`;
     }
     // the same on phones, where the list is hidden: a picker in the tracker
     function fightPick() {
-        const f = fightNow(), left = Object.values(db.chars).filter((c) => !c.archived && !f?.entries.some((e) => e.mon === c.id));
+        const f = fightNow(), left = monsIn(shownEnc).filter((c) => !c.archived && !f?.entries.some((e) => e.mon === c.id));
         return f && left.length ? `<div class="fi-add mon-fightpick"><select class="field" id="mon-fightsel" aria-label="Monster to add">${left.map((c) => `<option value="${esc(c.id)}">${esc(c.name || 'Unnamed monster')}</option>`).join('')}</select>
-            <button type="button" class="btn small" data-act="fightadd" data-sel>Add to fight</button><button type="button" class="btn small" data-act="fightadd">Add all in the list</button></div>` : '';
+            <button type="button" class="btn small" data-act="fightadd" data-sel>Add to fight</button><button type="button" class="btn small" data-act="fightadd">Add whole encounter to fight</button></div>` : '';
     }
     // each with its own initiative roll (d20 + its initiative) and AC, worked out as the sheet shows them
     async function fightAdd(list, b) {
@@ -1923,10 +1979,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         store(); drawSide();
         if (c === C) draw();
     }
-    // a copy with full hit points, straight after the original in the encounter
+    // a copy with full hit points; like every new monster it starts in Unsorted (ROADMAP 3.1)
     function dupMonster() {
         const c = normalise(JSON.parse(JSON.stringify(C)));
-        c.id = uid(); c.name = numbered(C.name || 'Unnamed monster'); c.updated = Date.now();
+        c.id = uid(); c.enc = ''; c.name = numbered(C.name || 'Unnamed monster'); c.updated = Date.now();
         Object.assign(c.hp, { cur: hpMax(), temp: 0 });
         c.conditions = [];
         const ent = Object.entries(db.chars);
@@ -1934,6 +1990,116 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         db.chars = Object.fromEntries(ent);
         switchTo(c);
     }
+
+    // ---- named encounters (ROADMAP 3.1): the picker, New / Manage encounters, and Move / Copy to encounter ----
+    // the same picker sits at the top of the sidebar and, on phones, in the bar above the monster picker
+    function encPicker(cls) {
+        const shown = encOf(shownEnc);
+        const opts = [['', 'Unsorted'], ...encsLive().map((e) => [e.id, encName(e.id)]), ...(shown?.archived ? [[shown.id, encName(shown.id) + ' (archived)']] : [])];
+        return `<select class="field mon-encpick ${cls}" data-act="encpick" aria-label="Encounter">${opts.map(([v, t]) => `<option value="${esc(v)}"${v === shownEnc ? ' selected' : ''}>${esc(t)}</option>`).join('')}
+            <optgroup label="Encounters"><option value="+new">New encounter</option><option value="+manage">Manage encounters</option></optgroup></select>`;
+    }
+    // show an encounter: its first monster opens unless the open one is already in it (an empty one keeps the open monster)
+    function encShow(id) {
+        shownEnc = id;
+        const first = monsIn(id).find((c) => !c.archived);
+        if (bucket(C) !== id && first) return switchTo(first);
+        draw();
+    }
+    function encNew() {
+        const names = new Set(db.encs.map((e) => e.name.trim()));
+        let n = db.encs.length + 2; // Unsorted counts as the first
+        while (names.has(`Encounter ${n}`)) n++;
+        const e = { id: uid(), name: `Encounter ${n}`, order: Math.max(0, ...db.encs.map((x) => x.order + 1)), archived: 0, updated: Date.now() };
+        db.encs.push(e);
+        encSaved();
+        shownEnc = e.id; draw();
+        encOpen({ kind: 'manage' }, e.id);
+    }
+    // up or down among the encounters that aren't archived; every one whose place changed is stamped
+    function encMove(id, d) {
+        const list = encsLive(), i = list.findIndex((e) => e.id === id), j = i + d, now = Date.now();
+        if (i < 0 || j < 0 || j >= list.length) return;
+        [list[i], list[j]] = [list[j], list[i]];
+        list.forEach((e, k) => { if (e.order !== k) Object.assign(e, { order: k, updated: now }); });
+        encSaved();
+    }
+    // archived, an encounter and its monsters fold away; the monsters themselves aren't touched, so Unarchive brings them back as they were
+    function encArchive(e, on) {
+        if (!e) return;
+        Object.assign(e, { archived: on ? Date.now() : 0, updated: Date.now() });
+        encSaved();
+        encShow(on ? (shownEnc === e.id ? '' : shownEnc) : e.id);
+    }
+    // a move is an edit of the monster (newest wins, its fight entry stays); its name changes only if the target has one the same
+    function encTo(target, copy) {
+        if (copy) {
+            const c = normalise(JSON.parse(JSON.stringify(C)));
+            Object.assign(c, { id: uid(), enc: target, name: numbered(C.name || 'Unnamed monster', target), updated: Date.now(), rolls: [], hpAt: 0, conditions: [] });
+            Object.assign(c.hp, { cur: hpMax(), temp: 0 });
+            db.chars[c.id] = c;
+            dirty.add(c.id); saveNow(false); draw();
+            return toast(`Copied to ${encName(target)} as ${c.name}.`, 'ok');
+        }
+        const taken = (n) => monsIn(target).some((x) => x !== C && x.name === n);
+        if (taken(C.name)) {
+            const base = C.name.replace(/\s+\d+$/, '') || 'Unnamed monster';
+            let n = 2;
+            while (taken(`${base} ${n}`)) n++;
+            C.name = `${base} ${n}`;
+        }
+        C.enc = target; shownEnc = target;
+        saveNow(); draw();
+        toast(`Moved ${C.name || 'the monster'} to ${encName(target)}.`, 'ok');
+    }
+    const encDlg = $('#mon-encdlg');
+    let encMode = null; // {kind: 'manage'} or {kind: 'to', copy}
+    function encDlgHTML() {
+        const close = '<button type="button" class="btn" data-enc="close">Close</button>';
+        if (encMode.kind === 'to') {
+            const to = [['', 'Unsorted'], ...encsLive().map((e) => [e.id, encName(e.id)])].filter(([id]) => encMode.copy || id !== bucket(C));
+            const n = (id) => monsIn(id).filter((c) => !c.archived).length;
+            return `<h2>${encMode.copy ? 'Copy' : 'Move'} ${esc(C.name || 'Unnamed monster')} to</h2>
+                ${to.length ? `<div class="mon-results">${to.map(([id, t]) => `<button type="button" class="mon-hit" data-enc="to" data-id="${esc(id)}"><b>${esc(t)}</b><small>${n(id)} monster${n(id) === 1 ? '' : 's'}</small></button>`).join('')}</div>`
+                    : '<p class="note">There are no other encounters yet. Pick New encounter in the encounter list first.</p>'}
+                <div class="actions">${close}</div>`;
+        }
+        const live = encsLive(), gone = db.encs.filter((e) => e.archived);
+        const row = (e, i) => `<div class="mon-encrow"><input class="field" data-enc-name="${esc(e.id)}" value="${esc(e.name)}" maxlength="120" aria-label="Encounter name">
+            <button type="button" class="btn small" data-enc="up" data-id="${esc(e.id)}" aria-label="Move ${esc(encName(e.id))} up" title="Move up"${i ? '' : ' disabled'}>&uarr;</button>
+            <button type="button" class="btn small" data-enc="down" data-id="${esc(e.id)}" aria-label="Move ${esc(encName(e.id))} down" title="Move down"${i < live.length - 1 ? '' : ' disabled'}>&darr;</button>
+            <button type="button" class="btn small" data-enc="arc" data-id="${esc(e.id)}">Archive</button></div>`;
+        return `<h2>Manage encounters</h2><p class="muted">New monsters always start in Unsorted.</p>
+            <div class="mon-encrows">${live.map(row).join('') || '<p class="note">No encounters yet.</p>'}</div>
+            ${gone.length ? `<h3>Archived encounters</h3><div class="mon-encrows">${gone.map((e) => `<div class="mon-encrow"><span>${esc(encName(e.id))}</span>
+                <button type="button" class="btn small" data-enc="unarc" data-id="${esc(e.id)}">Unarchive</button></div>`).join('')}</div>` : ''}
+            <div class="actions"><button type="button" class="btn" data-enc="new">New encounter</button>${close}</div>`;
+    }
+    function encOpen(mode, focus) {
+        encMode = mode;
+        $('#mon-encbody').innerHTML = encDlgHTML();
+        if (!encDlg.open) encDlg.showModal();
+        const f = focus && encDlg.querySelector(`[data-enc-name="${focus}"]`);
+        if (f) { f.focus(); f.select(); }
+    }
+    encDlg.addEventListener('close', () => { encMode = null; draw(); });
+    encDlg.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-enc]'), k = b?.dataset.enc, id = b?.dataset.id;
+        if (!b) return;
+        if (k === 'close') return encDlg.close();
+        if (k === 'new') return encNew();
+        if (k === 'to') { const copy = encMode.copy; encDlg.close(); return encTo(id, copy); }
+        if (k === 'up' || k === 'down') encMove(id, k === 'up' ? -1 : 1);
+        if (k === 'arc' || k === 'unarc') encArchive(encOf(id), k === 'arc');
+        encOpen(encMode);
+        encDlg.querySelector(`[data-enc="${k}"][data-id="${id}"]:not(:disabled)`)?.focus();
+    });
+    encDlg.addEventListener('input', (e) => {
+        const en = e.target.dataset.encName && encOf(e.target.dataset.encName);
+        if (!en) return;
+        en.name = e.target.value; en.updated = Date.now();
+        encSaved();
+    });
 
     let monIndex = null;
     async function openFind() {
@@ -2041,7 +2207,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
 
     // switching isn't an edit, so it doesn't touch either monster's updated time
-    function switchTo(c) { saveNow(false); C = c; db.chars[c.id] = c; db.cur = c.id; openRows.clear(); saveNow(false); draw(); }
+    function switchTo(c) { saveNow(false); C = c; db.chars[c.id] = c; db.cur = c.id; shownEnc = bucket(c); openRows.clear(); saveNow(false); draw(); }
 
     function download(name, text) {
         const a = document.createElement('a');
@@ -2138,14 +2304,14 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     undoBox.addEventListener('click', (e) => {
         if (!e.target.closest('button') || !undoSnap) return;
         const s = undoSnap;
-        dropUndo(); db = JSON.parse(s.db);
+        dropUndo(); db = Object.assign(JSON.parse(s.db), { encs: db.encs }); // the encounter list isn't part of a delete's Undo
         switchTo(db.chars[s.cur] || Object.values(db.chars)[0] || blank());
         toast('Restored.', 'ok');
     });
 
     // what an archived monster still does: look, roll, open things, and come back
     const VIEW_ACTS = new Set(['skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
-        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions', 'fightadd']); // fightadd: other monsters into the fight
+        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions', 'fightadd', 'encshow', 'encunarc']); // fightadd: other monsters into the fight
 
     // ---- events ----
     const main = $('.hb');
@@ -2191,6 +2357,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const el = e.target, k = el.dataset.k || '';
         if (el.dataset.act === 'tablepick') { setTable(el.value); tableWatch(); drawLog(); return drawTray(); }
         if (el.dataset.act === 'pick') return switchTo(db.chars[el.value]);
+        if (el.dataset.act === 'encpick') {
+            const v = el.value;
+            el.value = shownEnc;
+            return v === '+new' ? encNew() : v === '+manage' ? encOpen({ kind: 'manage' }) : encShow(v);
+        }
         if (C.archived) return;
         if (el.classList.contains('hb-tagin')) return addTag(el);
         if (el.classList.contains('hb-gname')) {
@@ -2320,7 +2491,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'rollx') { clearTimeout(rollTimer); $('#hb-rolls').innerHTML = ''; return; }
         if (act === 'tray') { tray.open = !tray.open; return drawTray(); }
         if (act === 'rollto') { setRollTo(!rollTo()); return drawTray(); }
-        if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : 'sel' in b.dataset ? [db.chars[$('#mon-fightsel').value]] : Object.values(db.chars).filter((c) => !c.archived), b);
+        if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : 'sel' in b.dataset ? [db.chars[$('#mon-fightsel').value]] : monsIn(shownEnc).filter((c) => !c.archived), b);
         if (act === 'logtab') { logTab = b.dataset.t; return drawLog(); }
         if (act === 'logclear') { if (confirm('Clear the roll log for this monster?')) { C.rolls = []; saveNow(); drawLog(); } return; }
         if (act === 'die') { tray.pool[b.dataset.n] = (tray.pool[b.dataset.n] || 0) + 1; return drawTray(); }
@@ -2452,6 +2623,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (act === 'new') return switchTo(Object.assign(blank(), { name: numbered('New monster'), updated: Date.now() }));
         else if (act === 'side') return switchTo(db.chars[b.dataset.id]);
         else if (act === 'dup') return dupMonster();
+        else if (act === 'encto') { open.manage = false; return encOpen({ kind: 'to', copy: 'copy' in b.dataset }); }
+        else if (act === 'encshow') return encShow(b.dataset.id);
+        else if (act === 'encunarc') return encArchive(encOf(b.dataset.id), false);
         else if (act === 'find') return openFind();
         else if (act === 'import') return $('#hb-file').click();
         else if (act === 'export') return download((C.name || 'monster').replace(/[^\w -]+/g, '').trim() + '.json', JSON.stringify(C, null, 1));
@@ -2468,7 +2642,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (!file) return;
         try {
             const c = normalise(JSON.parse(await file.text()));
-            c.id = uid(); c.updated = Date.now();
+            c.id = uid(); c.enc = ''; c.updated = Date.now();
             switchTo(c);
             toast(`Imported ${c.name || 'the monster'}.`, 'ok');
         } catch (err) { toast("Couldn't import that file. Choose a .json file exported from this sheet.", 'err'); }

@@ -44,6 +44,8 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
             <div class="mon-results" id="mon-results"></div>
             <div class="actions"><button type="button" class="btn" data-mon-close>Close</button></div>
         </dialog>
+        <?php // named encounters (ROADMAP 3.1): Manage encounters, and the target list for Move / Copy to encounter ?>
+        <dialog class="dlg mon-dlg" id="mon-encdlg" aria-label="Encounters"><div id="mon-encbody"></div></dialog>
         <aside class="drawer hb-drawer" id="hb-drawer" aria-label="Details" aria-hidden="true" tabindex="-1">
             <button type="button" class="close" data-act="dclose" aria-label="Close">&times;</button>
             <div id="hb-drawer-body"></div>
