@@ -2759,7 +2759,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // The Compendium's "Add to sheet" leaves {id, char, kind, name, ...} in localStorage "hb-pending"; this character's requests are taken here,
     // when the sheet opens and when one arrives while it is open. A request is removed from the queue and added in the same step, under a
-    // lock, so two open tabs can't both add it. One with nowhere to go (no Spells or Items panel) stays queued.
+    // lock, so two open tabs can't both add it. One with nowhere to go (no Spells, Items or list panel) stays queued.
+    // A request carries the entry's own details (spell, item, or a feat's text), so a 2024 spell with an SRD name keeps its 2024 text; one queued
+    // before that has only a name and is filled from the SRD. srd stays empty on these rows: their text isn't the SRD's, and nothing should refill them.
     function takePending() {
         const c = C;
         if (RO || DMM || !c) return;
@@ -2768,16 +2770,26 @@ document.addEventListener('DOMContentLoaded', () => {
             try { q = JSON.parse(localStorage.getItem('hb-pending')); } catch (e) { }
             if (!Array.isArray(q)) return;
             const panel = (type) => c.panels.find((p) => p.type === type);
-            const mine = q.filter((x) => x && x.char === c.id && ((x.kind === 'spell' && panel('spells')) || (x.kind === 'item' && panel('items'))));
+            const feats = () => c.panels.find((p) => p.type === 'list' && p.title === 'Passive abilities') || panel('list');
+            const mine = q.filter((x) => x && x.char === c.id && ((x.kind === 'spell' && panel('spells')) || (x.kind === 'item' && panel('items')) || (x.kind === 'feat' && feats())));
             if (!mine.length) return;
             const rest = q.filter((x) => !mine.includes(x));
             if (rest.length) localStorage.setItem('hb-pending', JSON.stringify(rest)); else localStorage.removeItem('hb-pending');
             const fills = [];
             for (const x of mine) {
+                if (x.kind === 'feat') { feats().rows.push(Object.assign(ROW.list(), { name: String(x.name || ''), src: String(x.src || 'Feat'), text: String(x.text || ''), grp: 'other' })); continue; }
                 const isSpell = x.kind === 'spell', p = panel(isSpell ? 'spells' : 'items'), row = isSpell ? ROW.spell() : ROW.item();
                 row.name = String(x.name || '');
                 if (isSpell) row.lvl = nm(x.lvl);
-                else Object.assign(row, { cat: String(x.cat || 'Gear'), notes: String(x.notes || '') });
+                else {
+                    Object.assign(row, { cat: String(x.cat || 'Gear'), notes: String(x.notes || '') });
+                    if (x.item && typeof x.item === 'object') Object.assign(row, { wt: nm(x.item.wt), gp: x.item.gp === '' || x.item.gp == null ? '' : nm(x.item.gp), att: x.item.att === 'needs' ? 'needs' : '', props: (Array.isArray(x.item.props) ? x.item.props : []).map(String) });
+                }
+                if (isSpell && x.spell && typeof x.spell === 'object') {
+                    try { fromSrd(x.spell, row); row.srd = ''; row.mech = 1; } catch (e) { row.name = String(x.name || ''); }
+                    p.rows.push(row);
+                    continue;
+                }
                 p.rows.push(row);
                 if (isSpell) fills.push(() => srdFill(`panels.${c.panels.indexOf(p)}.rows.${p.rows.indexOf(row)}`));
                 else if (x.fill) fills.push(() => eqFill(`panels.${c.panels.indexOf(p)}.rows.${p.rows.indexOf(row)}`));
