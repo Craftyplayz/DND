@@ -10,7 +10,7 @@
 // Indexes are unique within one rules version and category (the 2014 and 2024 Wizard are both "wizard").
 //
 // Output, per rules version R (2014, 2024), each file {meta, <categories>} keyed by index:
-//   R-classes.json  classes, subclasses        R-origins.json  races, subraces, cultures, backgrounds, feats, languages
+//   R-classes.json  classes, subclasses        R-origins.json  races, subraces, backgrounds, feats, languages
 //   R-spells.json   spells                     R-items.json    equipment, magic_items
 // and index.json: the files with their sizes, counts, what was dropped, and the credits for /credits/.
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -26,7 +26,7 @@ import * as bf from './content/blackflag.mjs';
 
 const OUT = join(import.meta.dirname, '../../sheets/player/content');
 const RULES = ['2014', '2024'];
-const FILES = { classes: ['classes', 'subclasses'], origins: ['races', 'subraces', 'cultures', 'backgrounds', 'feats', 'languages'], spells: ['spells'], items: ['equipment', 'magic_items'] };
+const FILES = { classes: ['classes', 'subclasses'], origins: ['races', 'subraces', 'backgrounds', 'feats', 'languages'], spells: ['spells'], items: ['equipment', 'magic_items'] };
 const CATS = Object.values(FILES).flat();
 const RANK = (src) => /^wikidot/.test(src) ? 0 : /^srd/.test(src) ? 1 : src === 'a5e' ? 3 : src === 'bf' ? 4 : 2;
 export const isUA = (e) => /\bUA\b|unearthed arcana|playtest/i.test(e.name) || /-ua$/.test(e.index);
@@ -34,7 +34,11 @@ export const isUA = (e) => /\bUA\b|unearthed arcana|playtest/i.test(e.name) || /
 // names that mean the same thing: "School of Evocation" = "Evocation", "Melf's Acid Arrow" = "Acid Arrow"
 const SPELL_ALIAS = { "bigby's hand": 'arcane hand', "nystul's magic aura": "arcanist's magic aura", "mordenkainen's sword": 'arcane sword' };
 export function nameKey(cat, name, parent = '') {
+    // tags like "(HB)" or "(Amonkhet)" don't make a different thing: Tal'Dorei's Path of the Juggernaut is the older
+    // version of wikidot's "Path of the Juggernaut (HB)" (the Reborn rewrite), which wins as wikidot
+    // (items keep them: "Armor of Resistance (Acid)" and "(Cold)" are different items)
     let n = String(name).toLowerCase().replace(/’/g, "'");
+    if (!['equipment', 'magic_items'].includes(cat)) n = n.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
     if (cat === 'spells') n = SPELL_ALIAS[n] || (n.startsWith("jim's") ? n : n.replace(/^[a-z]+'s /, ''));
     let s = slug(n);
     if (cat === 'subclasses') s = s.replace(/^(path|college|circle|oath|way|school|order|warrior)-of-(the-)?/, '').replace(/^the-/, '').replace(/-(domain|bloodline|sorcery|patron|tradition|archetype|conclave)$/, '');
@@ -104,12 +108,11 @@ export function merge(parts) {
         const o = keep('subraces', x, race + '|' + nameKey('subraces', x.e.name, out[x.e.rules].races[race].name), race);
         if (o) o.race = race;
     }
-    for (const cat of ['spells', 'cultures', 'backgrounds', 'feats', 'languages', 'equipment', 'magic_items'])
+    for (const cat of ['spells', 'backgrounds', 'feats', 'languages', 'equipment', 'magic_items'])
         for (const x of all(cat)) {
             const o = keep(cat, x, nameKey(cat, x.e.name));
             if (!o) continue;
             if (cat === 'spells') o.classes = [...new Set((x.e.classes || []).map((c) => resolve(o.rules, 'classes', c, x.id) ?? (unresolved('spells', o, 'class', c), null)).filter(Boolean))];
-            if (cat === 'cultures') o.races = [...new Set((x.e.races || []).map((c) => resolve(o.rules, 'races', c, x.id)).filter(Boolean))];
         }
     // lists that point back: rebuilt from what was kept
     for (const r of RULES) {

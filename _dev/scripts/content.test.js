@@ -49,7 +49,6 @@ const DIR = path.join(__dirname, '../../sheets/player/content');
         }
         for (const [i, x] of Object.entries(d.races)) for (const s of x.subraces) assert.strictEqual(d.subraces[s]?.race, i, `${r} race ${i} subrace ${s}`);
         for (const [i, s] of Object.entries(d.subraces)) assert.ok(d.races[s.race]?.subraces.includes(i), `${r} subrace ${i} -> race ${s.race}`);
-        for (const [i, c] of Object.entries(d.cultures)) for (const x of c.races || []) assert.ok(d.races[x], `${r} culture ${i} race ${x}`);
         for (const [i, s] of Object.entries(d.spells)) {
             assert.ok(Number.isInteger(s.level) && s.level >= 0 && s.level <= 9, `${r} spell ${i} level`);
             for (const c of s.classes) assert.ok(d.classes[c], `${r} spell ${i} class ${c}`);

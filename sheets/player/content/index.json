@@ -9,8 +9,8 @@
     "classes",
     "subclasses"
    ],
-   "bytes": 1936961,
-   "gzip": 450607
+   "bytes": 1908864,
+   "gzip": 443871
   },
   {
    "file": "2014-origins.json",
@@ -18,13 +18,12 @@
    "keys": [
     "races",
     "subraces",
-    "cultures",
     "backgrounds",
     "feats",
     "languages"
    ],
-   "bytes": 1009776,
-   "gzip": 263667
+   "bytes": 980238,
+   "gzip": 249191
   },
   {
    "file": "2014-spells.json",
@@ -32,8 +31,8 @@
    "keys": [
     "spells"
    ],
-   "bytes": 1713650,
-   "gzip": 398874
+   "bytes": 1712536,
+   "gzip": 398786
   },
   {
    "file": "2014-items.json",
@@ -42,8 +41,8 @@
     "equipment",
     "magic_items"
    ],
-   "bytes": 1442147,
-   "gzip": 299619
+   "bytes": 1442341,
+   "gzip": 299623
   },
   {
    "file": "2024-classes.json",
@@ -61,13 +60,12 @@
    "keys": [
     "races",
     "subraces",
-    "cultures",
     "backgrounds",
     "feats",
     "languages"
    ],
-   "bytes": 314621,
-   "gzip": 60757
+   "bytes": 314604,
+   "gzip": 60748
   },
   {
    "file": "2024-spells.json",
@@ -92,14 +90,13 @@
  "counts": {
   "2014": {
    "classes": 19,
-   "subclasses": 299,
+   "subclasses": 293,
    "races": 84,
-   "subraces": 49,
-   "cultures": 29,
+   "subraces": 88,
    "backgrounds": 124,
    "feats": 190,
    "languages": 19,
-   "spells": 1507,
+   "spells": 1506,
    "equipment": 274,
    "magic_items": 1594
   },
@@ -108,7 +105,6 @@
    "subclasses": 78,
    "races": 25,
    "subraces": 24,
-   "cultures": 0,
    "backgrounds": 75,
    "feats": 208,
    "languages": 19,
@@ -119,9 +115,9 @@
  },
  "dropped": {
   "ua": 254,
-  "duplicates": 1743,
+  "duplicates": 1740,
   "unresolved": 10,
-  "skipped_by_sources": 468
+  "skipped_by_sources": 400
  },
  "credits": [
   {
