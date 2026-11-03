@@ -100,6 +100,13 @@ function cp_dm_sees($accounts, $sub, $charId)
     return false;
 }
 
+// is this character attached to campaign $c (by any member)?
+function cp_has_char($c, $charId)
+{
+    foreach ($c['members'] ?? [] as $m) if (in_array($charId, array_column($m['characters'] ?? [], 'id'), true)) return true;
+    return false;
+}
+
 // is $sub in a campaign this character is attached to? (its card and portrait show to the whole party)
 function cp_member_sees($accounts, $sub, $charId)
 {
