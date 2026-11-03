@@ -1807,6 +1807,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails'), thrown = adv ? [[20, 2]] : groups;
         if (adv) title += adv === 'adv' ? ' with advantage' : ' with disadvantage';
         const card = (rolls) => {
+            // every die as it landed, for the Table view's 3D dice (ROADMAP 1.7); a coin flip has none
+            const dice = rolls.every(([n]) => [4, 6, 8, 10, 12, 20, 100].includes(n)) ? rolls.map(([n, r]) => [n, r.slice()]) : undefined;
             const c = camp(), to = c && rollTo() ? (c.dm ? ' · hidden' : ' · to DM') : '';
             const pair = adv && rolls[0][1];
             if (pair) rolls = [[20, [Math[adv === 'adv' ? 'max' : 'min'](...pair)]]];
@@ -1835,7 +1837,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             if (DMM && logIt) dmSend([{ op: 'roll', roll: C.rolls[0], t: title }], false); // the DM rolls as the character, into its log (1.5)
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
-            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', ...window.Fight?.tag(c.id, title) }));
+            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', dice, ...window.Fight?.tag(c.id, title) }));
         };
         const quick =() => card(thrown.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
         if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return quick();
