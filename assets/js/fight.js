@@ -31,7 +31,8 @@ window.Fight = (() => {
         };
         w.watch = window.Live?.watch(c, {
             load: w.load,
-            onMessage(m) { if (m.type === 'fight' || m.type === 'campaign') w.load(); else if (m.type === 'removed') { w.f = null; draw(w); } },
+            // char: a player's sheet changed (DMs only), so their HP may have
+            onMessage(m) { if (m.type === 'fight' || m.type === 'campaign' || (m.type === 'char' && w.f?.party)) w.load(); else if (m.type === 'removed') { w.f = null; draw(w); } },
         });
         if (!w.watch) w.load();
         return w;
@@ -132,9 +133,11 @@ window.Fight = (() => {
         }
         el.hidden = false;
         if (!f.party) { el.innerHTML = '<h2>Fight</h2>' + head(f) + row(f); return; } // a player: the order only
-        const hpForm = (e) => (e.kind === 'monster' && !e.missing ? `<form class="fi-hp" data-mon="${esc(e.mon)}"><input class="field" inputmode="decimal" aria-label="Amount for ${esc(e.name)}" placeholder="5"${dis}><button class="btn small" value="dmg"${dis}>Damage</button><button class="btn small" value="heal"${dis}>Heal</button></form>` : '');
+        // players' HP changes go to their sheets as DM edits (ROADMAP 1.5, sheets/player/dmedit.js)
+        const hpForm = (e) => (e.kind === 'monster' && !e.missing ? `<form class="fi-hp" data-mon="${esc(e.mon)}"><input class="field" inputmode="decimal" aria-label="Amount for ${esc(e.name)}" placeholder="5"${dis}><button class="btn small" value="dmg"${dis}>Damage</button><button class="btn small" value="heal"${dis}>Heal</button></form>`
+            : e.kind === 'pc' && e.hp && e.char && window.hbDm?.send ? `<form class="fi-hp" data-char="${esc(e.char)}"><input class="field" inputmode="decimal" aria-label="Amount for ${esc(e.name)}" placeholder="5"${dis}><button class="btn small" value="dmg"${dis}>Damage</button><button class="btn small" value="heal"${dis}>Heal</button><button class="btn small" value="temp"${dis}>Temp</button></form>` : '');
         const info = (e) => (e.kind === 'monster' ? (e.hp ? `HP ${e.hp.cur}/${e.hp.max}${e.hp.temp ? ` +${e.hp.temp} temp` : ''}` : '') + (e.ac != null ? ` · AC ${e.ac}` : '')
-            : e.kind === 'pc' && e.hp ? `HP ${e.hp.cur}${e.hp.temp ? ` +${e.hp.temp} temp` : ''}` : '');
+            : e.kind === 'pc' && e.hp ? `HP ${e.hp.cur}${e.hp.max ? '/' + e.hp.max : ''}${e.hp.temp ? ` +${e.hp.temp} temp` : ''}` : '');
         const badges = (e) => status(e) + (e.hidden ? '<span class="badge p">Hidden</span>' : '') + (e.archived ? '<span class="badge">Archived</span>' : '') + (e.missing ? '<span class="badge">Monster gone</span>' : '')
             + (e.kind === 'pc' && e.secret ? '<span class="badge p">to DM</span>' : '');
         const num = (e) => (ctl ? `<input class="field fi-init" type="number" value="${e.init ?? ''}" data-fe="${esc(e.id)}" aria-label="Initiative for ${esc(e.name)}" placeholder="?"${dis}>` : `<b class="fi-init">${e.init ?? '?'}</b>`);
@@ -175,10 +178,14 @@ window.Fight = (() => {
             if (form.matches('.fi-hp')) {
                 const n = Math.abs(+form.querySelector('input').value || 0);
                 if (!n) return form.querySelector('input').focus();
-                const op = { k: ev.submitter?.value === 'heal' ? 'heal' : 'dmg', n };
+                const k = ['heal', 'temp'].includes(ev.submitter?.value) ? ev.submitter.value : 'dmg';
                 form.querySelector('input').value = '';
                 document.activeElement?.blur();
-                return (p().opts.onHp || hpPost)(form.dataset.mon, op, c);
+                if (form.dataset.char) { // a player: a DM edit, applied by their sheet with its HP rules
+                    await window.hbDm.send(c, form.dataset.char, [{ op: 'hp', how: k, amt: n, t: k === 'dmg' ? `−${n} HP` : k === 'heal' ? `+${n} HP` : `${n} temp HP` }]);
+                    return p()?.w.load();
+                }
+                return (p().opts.onHp || hpPost)(form.dataset.mon, { k: k === 'heal' ? 'heal' : 'dmg', n }, c);
             }
             const kind = form.dataset.fiAdd;
             const item = kind === 'pc' ? { kind, char: form.querySelector('select').value } : { kind, name: form.name.value, init: form.init.value === '' ? null : +form.init.value };

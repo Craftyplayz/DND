@@ -359,7 +359,7 @@ function dm_merge($accounts, $body, $who = 'The player')
 // a note for the DMs when an edit couldn't be applied as sent
 function dm_note($e, $who, $r)
 {
-    $text = $r['conflict'] ?? false ? " kept their own value for {$e->t} ({$r['why']})" : "'s sheet couldn't apply {$e->t}: {$r['why']}";
+    $text = $r['conflict'] ?? false ? "kept their own value for {$e->t} ({$r['why']})" : "'s sheet couldn't apply {$e->t}: {$r['why']}";
     return (object)['id' => bin2hex(random_bytes(6)), 'at' => dm_now(), 'edit' => $e->id, 'who' => $who, 'text' => $text];
 }
 

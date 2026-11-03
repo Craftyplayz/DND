@@ -12,6 +12,7 @@
 // Monster HP is never kept here: it's read from the monster save of whoever added it, "by" (the DM or a co-DM;
 // <accounts>/monsters/<by>/<id>.json; entries from before co-DMs have no "by" and use the DM's).
 require_once __DIR__ . '/tablelog.php';
+require_once __DIR__ . '/dmedits.php';
 
 function fi_file($accounts, $id)
 {
@@ -266,7 +267,8 @@ function fi_roll($accounts, $c, $user, $roll)
     $dm = cp_is_dm($c, $user['sub']);
     $char = (string)($roll['char'] ?? '');
     if ($char !== '') {
-        if ((fi_party($c)[$char] ?? null) !== $user['sub'] || in_array($char, $f['out'], true)) return false;
+        $owner = fi_party($c)[$char] ?? null; // the DM and co-DMs roll for a party character on its sheet (ROADMAP 1.5)
+        if ($owner === null || ($owner !== $user['sub'] && !$dm) || in_array($char, $f['out'], true)) return false;
         $match = fn($x) => ($x['char'] ?? null) === $char;
         $new = ['kind' => 'pc', 'char' => $char, 'hidden' => false];
     } elseif ($dm && ($m = fi_monster($accounts, $c, (string)($roll['mon'] ?? ''), $user['sub']))) {
@@ -298,10 +300,11 @@ function fi_view($accounts, $c, $sub, $f = null)
         $o = ['id' => $e['id'], 'kind' => $e['kind']];
         if ($e['kind'] === 'pc') {
             $card = cp_card($accounts, $e['char']);
-            $ch = $dm ? ch_json("$accounts/characters/{$e['char']}/character.json") : null;
+            // the DM sees player HP with the DM edits still on their way to the player's sheet, and its worked-out max (1.5)
+            $ch = $dm ? dm_char($accounts, $e['char']) : null;
             $o += ['name' => $card['name'] ?? 'Gone character', 'art' => fi_art($card['art'] ?? ''), 'mine' => ($party[$e['char']] ?? null) === $sub];
             if ($o['mine'] || $dm) $o['char'] = $e['char'];
-            if ($dm && $ch) $o['hp'] = ['cur' => fi_num($ch['hp']['cur'] ?? 0), 'temp' => fi_num($ch['hp']['temp'] ?? 0)];
+            if ($dm && $ch) $o['hp'] = ['cur' => fi_num($ch->hp->cur ?? 0), 'temp' => fi_num($ch->hp->temp ?? 0), 'max' => fi_num($ch->calc->hpMax ?? 0) ?: null];
         } elseif ($e['kind'] === 'monster') {
             $m = fi_monster($accounts, $c, $e['mon'], $e['by'] ?? null);
             $o += ['name' => trim((string)($m['name'] ?? '')) !== '' ? mb_substr($m['name'], 0, 80) : ($e['name'] ?: 'Monster'),

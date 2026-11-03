@@ -96,7 +96,7 @@ $is('player: Lock rolled, may not roll again... yet can (rolling in)', $pv['canR
 $is('Sam: both characters rolled', fi_view($A, $c, '333')['canRoll'], []);
 $dv = fi_view($A, $c, '111');
 $is('DM: the hidden monster with HP and AC', array_map(fn($e) => [$e['hidden'], $e['hp'], $e['ac']], array_values(array_filter($dv['entries'], fn($e) => ($e['mon'] ?? '') === 'ogre'))), [[true, ['cur' => 59, 'max' => 59, 'temp' => 0], 11]]);
-$is('DM: player HP to read, the roll to the DM marked', array_map(fn($e) => [$e['hp'], $e['secret']], array_values(array_filter($dv['entries'], fn($e) => ($e['char'] ?? '') === 'rex'))), [[['cur' => 17, 'temp' => 2], true]]);
+$is('DM: player HP to read, the roll to the DM marked', array_map(fn($e) => [$e['hp'], $e['secret']], array_values(array_filter($dv['entries'], fn($e) => ($e['char'] ?? '') === 'rex'))), [[['cur' => 17, 'temp' => 2, 'max' => null], true]]);
 $is("DM: the party character that isn't in yet", array_column($dv['party'], 'char'), ['dmpc']);
 
 // round 1, turns, down monsters skipped, rounds

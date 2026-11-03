@@ -5,7 +5,8 @@
 //   GET ?id=<id>&versions=1[&before=<n>] -> its saved versions, newest first, 20 at a time (ROADMAP 0.5)
 //   GET ?id=<id>&version=<n>    -> one saved version
 //   POST a character            -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"});
-//                                  an id another player owns gets 409 {"taken": true}
+//                                  an id another player owns gets 409 {"taken": true}. DM edits it lacks are put in first
+//                                  (includes/dmedits.php) and listed in the answer's "dm"
 //   POST ?id=<id>&restore=<n>   -> the character, restored from version n (a new version; "before" is the one Undo goes back to)
 //   POST ?id=<id>&version=<n>   -> {"name": "..."}: names a version ("" clears it)
 //   POST ?id=<id>&visibility=   -> private or public
@@ -14,7 +15,8 @@
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
 require __DIR__ . '/../../includes/auth.php';
 require __DIR__ . '/../../includes/characters.php';
-require __DIR__ . '/../../includes/campaigns.php';
+require __DIR__ . '/../../includes/dmedits.php';
+require_once __DIR__ . '/../../includes/live.php';
 // DND_ACCOUNTS: a stand-in folder for the local checks in _dev/scripts/, so they never touch real accounts
 if (!defined('CL_ACCOUNTS')) define('CL_ACCOUNTS', getenv('DND_ACCOUNTS') ?: __DIR__ . '/../../private/dnd/accounts');
 const CL_MAX = 8 * 1024 * 1024; // only stops a broken client: the proxy turns away requests near 8 MB anyway
@@ -66,5 +68,23 @@ if ($body === false || $body === '') cl_out(400, ['error' => 'No character was s
 if (strlen($body) > CL_MAX) cl_out(413, ['error' => 'That character is too big to save.']);
 if (isset($_GET['version'])) cl_out(...ch_name_version(CL_ACCOUNTS, $sub, $id, $_GET['version'], (json_decode($body, true) ?: [])['name'] ?? ''));
 if (isset($_GET['restore'])) cl_done(ch_restore(CL_ACCOUNTS, $sub, $id, $_GET['restore'], $body), $id);
-$r = ch_save(CL_ACCOUNTS, $sub, $body);
-cl_done($r, (json_decode($body, true) ?: [])['id'] ?? '');
+// DM edits (ROADMAP 1.5) the save doesn't have yet go into it, so no copy of the character can drop one; "dm" in the answer
+// lists them for the sheet. A version that brings in DM edits is marked in history/dm.json.
+$id = (string)((json_decode($body, true) ?: [])['id'] ?? '');
+$had = ch_ok_id($id) ? (array)(ch_json(CL_ACCOUNTS . "/characters/$id/character.json")['dmApplied'] ?? []) : [];
+$cpl = cp_lock(CL_ACCOUNTS);
+if (!$cpl) cl_out(500, ['error' => "Couldn't lock the campaigns folder."]);
+[$save, $in, $notes, $applied] = dm_merge(CL_ACCOUNTS, $body, cp_who($user));
+$r = ch_save(CL_ACCOUNTS, $sub, $save, $n);
+if ($r[0] === 200) {
+    dm_confirm($in, $notes);
+    if ($n && array_diff((array)(json_decode($save, true)['dmApplied'] ?? []), $had)) {
+        $dir = CL_ACCOUNTS . "/characters/$id";
+        ch_side_put($dir, 'dm', ch_side($dir, 'dm') + [$n => true]);
+    }
+    if ($applied) $r[1]['dm'] = $applied;
+}
+flock($cpl, LOCK_UN);
+// the DMs' open copies of this sheet load it again
+if ($r[0] === 200) foreach (cp_char_in(CL_ACCOUNTS, $id) as $c) live_publish($c['id'], ['type' => 'char', 'char' => $id], null, 'dm');
+cl_done($r, $id);

@@ -79,12 +79,13 @@ function tl_add($accounts, $c, $user, $roll)
     $dm = cp_is_dm($c, $sub);
     $vis = $roll['vis'] ?? 'public';
     if (!in_array($vis, $dm ? ['public', 'hidden'] : ['public', 'dm'], true)) return [400, ['error' => "That isn't a way to share a roll."]];
-    // a character must be one of this player's in the campaign; its name comes from its save, not from the roll
+    // a character must be one of this player's in the campaign (or, for the DM and co-DMs, any in it: they roll as the character
+    // on its sheet, ROADMAP 1.5); its name comes from its save, not from the roll
     $char = (string)($roll['char'] ?? '');
     $name = null;
     if ($char !== '') {
         $mine = $c['members'][cp_member($c, $sub)]['characters'] ?? [];
-        if (!in_array($char, array_column($mine, 'id'), true)) return [403, ['error' => "That character isn't yours in this campaign."]];
+        if (!in_array($char, array_column($mine, 'id'), true) && !($dm && cp_has_char($c, $char))) return [403, ['error' => "That character isn't yours in this campaign."]];
         $name = (string)(ch_json("$accounts/characters/$char/character.json")['name'] ?? '');
     }
     elseif (!$dm) return [400, ['error' => 'Say which character rolled.']];

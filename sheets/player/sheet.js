@@ -208,6 +208,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 Object.assign(newPanel('notes'), { notes: ['Personality', 'Backstory'].map((title) => Object.assign(ROW.note(), { title, group: 'Character' })) })],
             view: { tab: '', all: false, prep: false, table: '', rollTo: '' }, hbPanel: true, hb2: true, passSplit: true,
             hoPanel: false, // handouts (3.4): true once the Handouts panel has been added (hoAdd), so a closed one stays closed
+            // ROADMAP 1.5: the sheet's worked-out max HP for the fight tracker (no version of its own), and the DM edits applied
+            calc: { hpMax: 0 }, dmApplied: [],
         };
     }
 
@@ -329,6 +331,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         delete out.hp.max;
         out.hp = Object.assign(d.hp, out.hp);
         out.view = Object.assign(d.view, out.view);
+        out.calc = Object.assign(d.calc, out.calc);
+        out.dmApplied = strs(out.dmApplied);
         out.lists = Object.assign(d.lists, out.lists);
         // Misc joined the item categories later; older sheets get it once (removing it in Customise sticks)
         if (!out.miscCat && !/^misc$/im.test(out.lists.cats)) out.lists.cats = String(out.lists.cats).trim() + '\nMisc';
@@ -371,7 +375,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const CHAR = $('#main').dataset.char || '', RO = 'readonly' in $('#main').dataset && !db.chars[CHAR];
     const inline = (() => { try { return JSON.parse($('#hb-char')?.textContent || 'null'); } catch (e) { return null; } })();
     const charUrl = (id) => history.replaceState(null, '', '/characters/' + encodeURIComponent(id));
-    if (RO) db = { cur: CHAR, chars: { [CHAR]: normalise(inline) } };
+    // DM mode (ROADMAP 1.5): a player's character opened by the DM or a co-DM of its campaign (data-dm). Like a read-only
+    // one, it's kept nowhere in this browser; every change is sent as a DM edit (see "DM edits" below).
+    const DMM = $('#main').dataset.dm || '';
+    if (RO || DMM) db = { cur: CHAR, chars: { [CHAR]: normalise(inline) } };
     else if (inline && (!db.chars[CHAR] || db.chars[CHAR].updated < inline.updated)) db.chars[CHAR] = normalise(inline);
     // a created character is a real one straight away (shown on the list, kept on reload), unlike the sheet's placeholder blank
     if (CHAR === 'new') {
@@ -388,13 +395,13 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     let C = db.chars[db.cur];
     let warned = false;
     function store() {
-        if (RO) return; // someone else's public character: nothing is saved anywhere
+        if (RO || DMM) return; // someone else's character: nothing is saved here (a DM's changes go as DM edits)
         try { localStorage.setItem(KEY, JSON.stringify(db)); warned = false; }
         catch (e) { if (!warned) toast("Couldn't save: this browser's storage is full or blocked. Export the character so you don't lose it.", 'err'); warned = true; }
     }
     // signed in (data-cloud on <main>): characters are also kept in the account (cloud.php), with this browser's copy for offline use;
     // whichever copy has the newer "updated" wins. Untouched blanks (updated 0) stay in this browser.
-    let cloud = 'cloud' in $('#main').dataset && !RO;
+    let cloud = 'cloud' in $('#main').dataset && !RO && !DMM;
     const API = '/sheets/player/'; // absolute, so /characters/<id> saves through the same files
     function cloudOff() {
         if (!cloud) return;
@@ -407,6 +414,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 if (r.status === 401) cloudOff();
                 else if (r.status === 409 && (await r.json()).taken) reId(id);
                 else if (!r.ok && r.status !== 409) dirty.add(id);
+                else if (r.ok) { const j = await r.json().catch(() => ({})); if (j.dm) dmGot(id, j.dm); } // DM edits the account put in (1.5)
             }).catch(() => dirty.add(id));
     }
     // another player's account already has this id (an import that kept it): this copy becomes a new character
@@ -421,7 +429,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         cloudSave(c.id, JSON.stringify(c));
     }
     // on load: take the account's newer characters and send up the ones this browser has newer (on first sign-in, all of them)
-    if (cloud) (async () => {
+    const cloudLoad = !cloud ? Promise.resolve() : (async () => {
         const r = await fetch(API + 'cloud.php');
         if (r.status === 401) return cloudOff();
         if (!r.ok) return;
@@ -450,7 +458,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     let backupTimer = 0;
     function flushBackups() {
         clearTimeout(backupTimer);
-        if (RO) return;
+        if (RO || DMM) return;
         for (const id of [...dirty]) {
             const c = db.chars[id];
             dirty.delete(id);
@@ -490,20 +498,22 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     let undoSnap = null, undoTimer = 0; // undo for deletes, see snap()
     // what makes a version (as ch_plain in includes/characters.php): everything but save stamps, the roll log, view settings
     // and which note or tab is open
-    const plain = (c) => JSON.stringify(c, (k, v) => (['updated', 'open', 'sub', 'rolls', 'view'].includes(k) ? undefined : v));
+    const plain = (c) => JSON.stringify(c, (k, v) => (['updated', 'open', 'sub', 'rolls', 'view', 'calc', 'dmApplied'].includes(k) ? undefined : v));
     let restoreUndo = null; // { plain, drop }: a restore's Undo, dropped by the next real edit (not a roll or a tab switch)
     function saveNow(edited = true) {
         if (C && C.archived) return; // read-only until it's unarchived
+        if (DMM) return dmFlushSoon(); // the DM's copy: the change goes to the player as DM edits
         if (undoSnap && Date.now() - undoSnap.at > 1000) dropUndo();
         if (restoreUndo && C && plain(C) !== restoreUndo.plain) restoreUndo.drop();
         if (edited && C) C.updated = Date.now();
+        if (C) C.calc = { hpMax: hpMax() }; // for the DM's fight tracker (ROADMAP 1.5)
         store();
         if (C) { dirty.add(C.id); clearTimeout(backupTimer); backupTimer = setTimeout(flushBackups, 4000); }
     }
     // the edit is stamped straight away, so switching character before the save runs still stamps the right one
     const saveLater = debounce(() => saveNow(false), 250);
     const save = () => { if (C && !C.archived) C.updated = Date.now(); saveLater(); };
-    addEventListener('pagehide', () => { store(); flushBackups(); });
+    addEventListener('pagehide', () => { if (DMM) dmFlush(); store(); flushBackups(); });
 
     const get = (path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), C);
     function set(path, val) {
@@ -527,7 +537,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const a = c.abilities.find((x) => String(x.key).replace(/W/g, '').toLowerCase() === 'con');
         return a ? Math.floor((nm(a.score) - 10) / 2) * c.classes.reduce((t, k) => t + nm(k.level), 0) : 0;
     }
-    const hpMax = () => nm(C.hp.base) + conHp(C) + nm(C.hp.mod);
+    const hpMaxOf = (c) => nm(c.hp.base) + conHp(c) + nm(c.hp.mod);
+    const hpMax = () => hpMaxOf(C);
     function profT(ab, p, extra, V) {
         const m = ab ? V[kk(ab)] : 0; // '' = N/A, proficiency only
         if (m === undefined) return { v: NaN, err: 'No ability called ' + ab };
@@ -1237,8 +1248,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <span class="hb-arcnote">This character is archived.</span>
             <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>
             <button type="button" class="btn small" data-act="versions">Versions</button>`;
-        return `${CHAR ? '<a class="btn small" href="/characters/">My Characters</a>' : `<select class="field hb-pick" data-act="pick" aria-label="Character">${pickOpts()}</select>`}
-            <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
+        // the DM (1.5): back to the campaign, and none of the player's own tools (new, import, versions, archive)
+        return `${DMM ? `<a class="btn small" href="/campaigns/${esc(encodeURIComponent(DMM))}">${esc($('#main').dataset.dmCamp || 'Campaign')}</a>`
+            : CHAR ? '<a class="btn small" href="/characters/">My Characters</a>' : `<select class="field hb-pick" data-act="pick" aria-label="Character">${pickOpts()}</select>`}
+            ${DMM ? '' : `<button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>`}
             <span class="hb-manage" id="hb-manage"${open.manage ? '' : ' hidden'}>
                 <button type="button" class="btn small" data-act="new">New</button>
                 <button type="button" class="btn small" data-act="import">Import</button>
@@ -1803,6 +1816,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             // the roll log keeps the last 100 rolls with the character
             if (logIt) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
+            if (DMM && logIt) dmSend([{ op: 'roll', roll: C.rolls[0], t: title }], false); // the DM rolls as the character, into its log (1.5)
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
             if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', ...window.Fight?.tag(c.id, title) }));
@@ -1842,14 +1856,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     async function loadCamps() {
         const hoWas = hoOn();
         camps = [];
-        if (cloud && window.Live && tableReady()) {
+        if (DMM) camps = [{ id: DMM, name: $('#main').dataset.dmCamp || '', dm: true }]; // the DM's rolls here go to that campaign
+        else if (cloud && window.Live && tableReady()) {
             try { const r = await fetch('/campaigns/log.php?' + CAMPS_Q()); if (r.ok) camps = (await r.json()).campaigns; } catch (e) { }
         }
         // handouts (3.4): the panel added once, or shown or hidden as the character joins or leaves a campaign (before campNote,
         // which a draw would wipe)
         if (!hoAdd() && hoWas !== hoOn() && C.panels.some((p) => p.type === 'handouts')) draw();
         tableWatch(); drawTray(); drawLog(); campNote();
-        hoLoad();
+        hoLoad(); dmPull();
         // the fight in its campaign (ROADMAP 1.4, assets/js/fight.js): a strip under the top bar while one runs
         window.Fight?.strip(camp()?.id || '', C.id, () => rollShow('Initiative', [[20, 1]], d20Mod($('[data-k="fs:init"]') || { dataset: { k: 'fs:init' } })));
     }
@@ -1889,6 +1904,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                         const had = new Set(tlog.map((x) => x.id)), from = tlog[0]?.at ?? 0;
                         for (const e of list.filter((x) => !had.has(x.id) && !sent.has(x.id) && x.at >= from).slice(-5)) tableCard(e);
                     }
+                    if (tloaded) dmPull(); // back after a break: DM edits sent meanwhile (1.5)
                     tlog = list; tloaded = true;
                 }
                 else for (const e of list) {
@@ -1899,7 +1915,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 if (tlog.length > 200) tlog = tlog.slice(-200);
                 drawLog(); if (tray.open) drawTray();
             },
-            onMessage(m) { if (m.type === 'removed') loadCamps(); else if (m.type === 'handout' || m.type === 'handout-gone') hoLoad(id); },
+            onMessage(m) { if (m.type === 'removed') loadCamps(); else if (m.type === 'handout' || m.type === 'handout-gone') hoLoad(id); else dmMessage(m); },
             onLoad: () => hoLoad(id), // handouts (3.4) on reconnect and every 10 s while the relay is down
         });
     }
@@ -1918,7 +1934,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         <span class="hb-logd">${hiddenRoll(e) ? 'A hidden roll' : esc(e.expr) + ' · ' + strike(e.shown)}${esc(tableNote(e))}</span><span class="hb-logt">${hiddenRoll(e) ? '?' : esc(String(e.total))}</span></li>`).join('')}</ol>`;
     // no picker any more: the character's one campaign gets its rolls (camp())
     const tablePick = () => (camp() ? `<div class="hb-trayrow hb-trayto"><span class="muted">Rolls go to ${esc(camp().name)}</span>
-        <button type="button" class="btn small" data-act="rollto" aria-pressed="${rollTo()}" title="${camp().dm ? 'Hidden rolls show to players only as rolled' : 'Only you and the DM see rolls sent to the DM'}">${camp().dm ? (rollTo() ? 'Hidden' : 'Public') : (rollTo() ? 'To DM' : 'Everyone')}</button></div>` : '');
+        <button type="button" class="btn small" data-act="rollto" aria-pressed="${rollTo()}" title="${camp().dm ? 'Hidden rolls show to players only as rolled' : 'Only you, the DM and co-DMs see rolls sent to the DM'}">${camp().dm ? (rollTo() ? 'Hidden' : 'Public') : (rollTo() ? 'To DM' : 'Everyone')}</button></div>` : '');
 
     // ---- handouts (ROADMAP 3.4): the Handouts panel, for a signed-in character in a campaign (assets/js/handouts.js) ----
     // The panel is added once (hoPanel), the first time the character is in a campaign; the player can move or close it like
@@ -1982,7 +1998,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const logTime = (ms) => { const d = new Date(ms); return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : dateText(ms); };
     const logRows = (n) => `<ol class="hb-logl">${(C.rolls || []).slice(0, n).map((r) => `<li class="hb-logi${r.nat ? ' ' + r.nat : ''}">
         <span class="hb-logh"><b>${esc(r.title)}</b><small title="${esc(new Date(r.at).toLocaleString())}">${esc(logTime(r.at))}</small></span>
-        <span class="hb-logd">${esc(r.expr)} · ${strike(r.shown)}</span><span class="hb-logt${String(r.total).includes(',') ? ' hb-each' : ''}">${esc(String(r.total))}</span></li>`).join('')}</ol>`;
+        <span class="hb-logd">${r.dm ? '<span class="badge p">DM</span>' : `${esc(r.expr)} · ${strike(r.shown)}`}</span><span class="hb-logt${String(r.total).includes(',') ? ' hb-each' : ''}">${esc(String(r.total))}</span></li>`).join('')}</ol>`;
     function drawLog() {
         const box = $('#hb-log'), left = root.getBoundingClientRect().left;
         box.hidden = !!C.view.noRoll || left < 240;
@@ -2008,6 +2024,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         // read-only: everything can be looked at and rolled, nothing typed in
         if (RO || C.archived) for (const el of root.querySelectorAll('input, select, textarea')) el.disabled = true;
         refresh();
+        dmBar();
     }
     function showDlg(mode) { dlgMode = mode; dlg.classList.toggle('hb-custdlg', mode === 'custom'); dlgBody.innerHTML = dlgHTML(); dlg.showModal(); refresh(); }
     dlg.addEventListener('close', () => { dlgMode = null; draw(); });
@@ -2170,7 +2187,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const line = (x) => (x.old !== undefined ? `<li><details><summary>${esc(x.t)}</summary><div class="hb-vtext"><b>Before</b><pre>${esc(x.old) || '<span class="muted">blank</span>'}</pre><b>After</b><pre>${esc(x.new) || '<span class="muted">blank</span>'}</pre></div></details></li>` : `<li>${esc(x.t)}</li>`);
         const row = ({ v, changes }) => {
             const name = V.names[v.n] || '', from = V.restored[v.n], isOpen = V.open.has(v.n);
-            const what = [from ? (from.at > 1e11 ? `Restored from ${UI.when(from.at)}` : 'Restored from an older version') : '',
+            const what = [from ? (from.at > 1e11 ? `Restored from ${UI.when(from.at)}` : 'Restored from an older version') : '', V.dm?.[v.n] ? 'DM edit' : '',
                 changes ? `${changes.length} change${changes.length === 1 ? '' : 's'}` : 'First saved version'].filter(Boolean).join(' · ');
             return `<li class="hb-vrow">
                 <div class="hb-vline">
@@ -2204,7 +2221,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             if (!r.ok) throw r;
             const j = await r.json();
             if (id !== C.id) return;
-            V.list.push(...j.versions); V.more = j.more; V.names = j.names; V.restored = j.restored;
+            V.list.push(...j.versions); V.more = j.more; V.names = j.names; V.restored = j.restored; V.dm = j.dm || {};
         } catch (e) { V.error = true; }
         finally { V.busy = false; }
         vSeen.disconnect();
@@ -2230,7 +2247,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             if (!g.ok) throw g;
             const v = normalise(await g.json()), at = v.updated;
             // a restore never changes the roll log, view settings or whether it's archived
-            Object.assign(v, { id, rolls: C.rolls, view: C.view, archived: C.archived, updated: Date.now() });
+            // nor which DM edits it has had (1.5), so the account doesn't put them back into the restored version
+            Object.assign(v, { id, rolls: C.rolls, view: C.view, archived: C.archived, dmApplied: C.dmApplied, calc: C.calc, updated: Date.now() });
             const r = await fetch(`${API}cloud.php?id=${encodeURIComponent(id)}&restore=${n}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(v) });
             if (!r.ok) throw r;
             const { before } = await r.json();
@@ -2269,6 +2287,193 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     });
     verDlg.addEventListener('submit', (e) => { e.preventDefault(); nameVersion(+e.target.dataset.n, e.target.elements.name.value); });
     for (const ev of ['online', 'offline']) addEventListener(ev, () => verDlg.open && verDraw());
+
+    // ---- DM edits (ROADMAP 1.5; sheets/player/dmedit.js, sheets/player/dm.php) ----
+    // DM mode: the DM or a co-DM edits a player's character here. Every change becomes small edits (hbDm.diff against dmBase,
+    // the copy as last loaded or sent), sent when a field is left, each batch with a 15 s Undo that sends the reverse. The
+    // player's open sheets get them live (the campaign room); otherwise the sheet takes them when it opens, and the account
+    // puts any a save lacks into it. Each is applied once (dmApplied), with a "DM: ..." line in the roll log and a 15 s Undo;
+    // the DMs are told when one didn't apply (a conflict, a removed row) or was undone.
+    const DM_NO = new Set(['new', 'import', 'ddb', 'versions', 'archive', 'unarchive', 'art', 'artdel', 'cropsave', 'addpanel', 'mv', 'logclear', 'diceown', 'campkeep', 'campclone']);
+    const dmPlayer = $('#main').dataset.dmPlayer || 'the player';
+    const jclone = (x) => JSON.parse(JSON.stringify(x));
+    // a new row from the sheet's own maker, for the list at path (a DM's added row is cut to its shape)
+    function rowMake(c, path) {
+        const k = path[path.length - 1];
+        if (k === 'rows') { const P = c.panels.find((q) => '#' + q.id === String(path[1]).split(':')[0]); return P && PANEL_ROW[P.type] ? PANEL_ROW[P.type]() : null; }
+        const m = { notes: ROW.note, meta: ROW.meta, levels: ROW.level, dmg: ROW.dmg, fx: ROW.fx, classes: ROW.cls, abilities: ROW.ability, skills: ROW.skill, speeds: ROW.speed, passives: ROW.passive, tools: ROW.tool }[k];
+        return m ? m() : null;
+    }
+    const ctxOf = (c) => ({ hpMax: hpMaxOf(c), make: rowMake });
+
+    // -- the DM's side --
+    let dmBase = null, dmNotes = [], dmSeen = false, dmTimer = 0, dmLoading = null;
+    function dmFlushSoon() {
+        const a = document.activeElement;
+        if (a && $('#main').contains(a) && a.matches('input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea')) return; // sent when the field is left
+        clearTimeout(dmTimer); dmTimer = setTimeout(dmFlush, 0);
+    }
+    function dmFlush() {
+        clearTimeout(dmTimer);
+        if (!DMM || !dmBase) return;
+        const ops = hbDm.diff(dmBase, C);
+        if (ops.length) dmSend(ops, true, dmBase);
+        dmBase = jclone(C);
+    }
+    // send edits made from the copy `from` (their words and the Undo are worked out on it)
+    function dmSend(ops, undo = true, from = C) {
+        const work = jclone(from), inv = [];
+        for (const op of ops) {
+            const before = jclone(work), r = hbDm.apply(work, op, ctxOf(work));
+            op.t = hbDm.words(op, before, work, hbChanges);
+            if (r.ok) inv.unshift(...r.inv);
+        }
+        hbDm.send(DMM, C.id, ops);
+        if (undo && inv.length) offerUndo(`Sent to ${dmPlayer}: ${ops.map((o) => o.t).join(', ')}`, () => dmDo(inv));
+        dmBar();
+    }
+    // edits made on purpose (the HP box, an Undo): applied to this copy as the player's sheet will apply them, then sent
+    function dmDo(ops) {
+        dmFlush();
+        const from = jclone(C);
+        for (const op of ops) hbDm.apply(C, op, ctxOf(C));
+        dmSend(ops, true, from);
+        dmBase = jclone(C);
+        drawKeep();
+    }
+    // the player's character as saved, with the edits still on their way (the queue and this browser's outbox) applied
+    function dmRefresh() {
+        if (!DMM) return;
+        if (dmLoading) { dmLoading.again = true; return; }
+        dmLoading = { again: false };
+        (async () => {
+            try {
+                const r = await fetch(`${API}dm.php?char=${encodeURIComponent(C.id)}&c=${encodeURIComponent(DMM)}`, { cache: 'no-store' });
+                if (r.status === 403 || r.status === 404) return toast(`You can't change ${C.name || 'this character'} as DM any more. Reload the page.`, 'err');
+                if (!r.ok) return;
+                const j = await r.json();
+                dmFlush();
+                const c = normalise(j.char);
+                for (const e of [...(j.edits || []), ...hbDm.waiting(C.id)]) hbDm.run(c, e, ctxOf(c));
+                // what the DM has open stays open
+                c.view = C.view;
+                for (const p of c.panels) { const q = C.panels.find((x) => x.id === p.id); if (q) { p.sub = q.sub; if ('open' in q) p.open = q.open; } }
+                C = db.chars[c.id] = c;
+                const had = new Set(dmNotes.map((n) => n.id));
+                dmNotes = Array.isArray(j.notes) ? j.notes : [];
+                if (dmSeen) for (const n of dmNotes) if (!had.has(n.id)) toast(noteText(n), 'note');
+                dmSeen = true;
+                drawKeep();
+                dmBase = jclone(C);
+            } catch (e) { }
+            finally { const again = dmLoading.again; dmLoading = null; if (again) dmRefresh(); }
+        })();
+    }
+    // "Pat undid: −7 HP", "Pat's sheet couldn't apply ...", or the server's own "Not sent: ..."
+    const noteText = (n) => (n.who ? n.who + (String(n.text).startsWith("'") ? '' : ' ') : '') + n.text;
+    function dmBar() {
+        if (!DMM) return;
+        let el = $('#hb-dmbar');
+        if (!el) {
+            $('#hb-bar').insertAdjacentHTML('afterend', '<div class="note hb-dmbar" id="hb-dmbar" role="status"></div>');
+            el = $('#hb-dmbar');
+            el.addEventListener('click', (ev) => {
+                const b = ev.target.closest('[data-note]');
+                if (!b) return;
+                dmNotes = dmNotes.filter((n) => n.id !== b.dataset.note); dmBar();
+                fetch(API + 'dm.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ act: 'dismiss', c: DMM, char: C.id, note: b.dataset.note }) }).catch(() => { });
+            });
+        }
+        el.innerHTML = `<p><b>Editing ${esc(dmPlayer)}'s character as DM.</b> Changes go to ${esc(dmPlayer)}.${hbDm.paused?.() ? ' <span class="badge r">Offline, changes paused</span>' : ''}</p>`
+            + (dmNotes.length ? `<ul class="hb-dmnotes">${dmNotes.map((n) => `<li><span>${esc(noteText(n))}</span> <button type="button" class="btn small" data-note="${esc(n.id)}">Dismiss</button></li>`).join('')}</ul>` : '');
+    }
+    if (DMM && window.hbDm?.onChange) hbDm.onChange((m) => {
+        if (m.error) toast(m.error, 'err');
+        if (m.refused || m.error) dmRefresh(); // the refusal comes back as a note, with its toast
+        dmBar();
+    });
+
+    // -- the player's side --
+    // edits for one of this browser's characters: live, pulled when the sheet opens, or put in by the account on a save
+    function dmGot(id, edits) {
+        const c = db.chars[id];
+        if (!c || RO || DMM || !cloud || !Array.isArray(edits)) return;
+        const done = [];
+        for (const e of [...edits].sort((a, b) => (+a.at || 0) - (+b.at || 0))) {
+            const k = c === C && Array.isArray(e.path) ? hbDm.where(c, e.path) : null; // the field it changes, before the change
+            const r = hbDm.run(c, e, ctxOf(c));
+            if (!r.skip && !r.wait) done.push([e, r, k]);
+        }
+        if (!done.length) return;
+        store(); dirty.add(id); clearTimeout(backupTimer); backupTimer = setTimeout(flushBackups, 1000);
+        for (const [e, r] of done) {
+            if (e.done) continue; // an older copy catching up: it happened already
+            if (!r.ok) dmTell(id, e, r.conflict ? `kept their own value for ${e.t} (${r.why})` : `'s sheet couldn't apply ${e.t}: ${r.why}`);
+            else if (e.op !== 'roll') offerUndo(`DM: ${e.t}`, () => dmUndo(id, e, r.inv));
+        }
+        if (c === C) drawKeep(done.filter(([, r]) => r.ok).map(([e, , k]) => [k, e]));
+    }
+    async function dmPull() {
+        if (DMM) return dmRefresh();
+        if (!cloud || RO) return;
+        await cloudLoad;
+        const c = C;
+        if (!c || !c.updated || c.archived) return;
+        try {
+            const r = await fetch(`${API}dm.php?char=${encodeURIComponent(c.id)}`, { cache: 'no-store' });
+            if (r.ok) dmGot(c.id, (await r.json()).edits);
+        } catch (e) { }
+    }
+    function dmMessage(m) {
+        if (m.type === 'dmedit' && !DMM) dmGot(m.char, m.edits);
+        else if (DMM && (m.type === 'char' || m.type === 'dmnote') && m.char === C.id) dmRefresh();
+    }
+    // the player's Undo: the reverse edit, as their own change; the log keeps both lines and the DMs are told
+    function dmUndo(id, e, inv) {
+        const c = db.chars[id];
+        if (!c || c.archived) return;
+        for (const op of inv) hbDm.apply(c, op, ctxOf(c));
+        c.rolls.unshift({ at: Date.now(), title: 'Undid DM: ' + e.t, expr: '', shown: '', total: '', dm: 1 });
+        c.rolls.length = Math.min(c.rolls.length, 100);
+        c.updated = Date.now();
+        store(); dirty.add(id); flushBackups();
+        if (c === C) drawKeep();
+        dmTell(id, e, `undid: ${e.t}`);
+    }
+    function dmTell(char, e, text) {
+        fetch(API + 'dm.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ act: 'note', char, edit: e.id, text }), keepalive: true }).catch(() => { });
+    }
+
+    // -- both: redraw for news that arrived (a DM edit, the player's change) without taking the field someone is typing in.
+    // A field a DM edit changed keeps what's typed until it's left: untouched, it then shows the DM's value; typed in, the
+    // player's value stays and the DMs are told.
+    let dmHeld = null; // {el, k, e, typed}
+    function drawKeep(changed = []) {
+        const a = document.activeElement, k = a?.dataset?.k || '';
+        const keep = a && (k || a.id) && $('#main').contains(a) && !a.closest('dialog') ? { k, id: a.id, v: a.value, s: a.selectionStart, e: a.selectionEnd, box: a.type === 'checkbox' } : null;
+        const x = scrollX, y = scrollY;
+        draw();
+        scrollTo(x, y);
+        if (!keep) return;
+        const el = keep.k ? $(`#main [data-k="${CSS.escape(keep.k)}"]`) : document.getElementById(keep.id);
+        if (!el) return;
+        if (!keep.box && el.value !== keep.v) {
+            el.value = keep.v;
+            dmHeld = { el, k: keep.k, e: (changed.find(([ck]) => ck === keep.k) || [])[1] || null, typed: false };
+        }
+        el.focus();
+        try { el.setSelectionRange(keep.s, keep.e); } catch (x) { }
+    }
+    $('#main').addEventListener('input', (e) => { if (dmHeld && e.target === dmHeld.el) dmHeld.typed = true; }, true);
+    $('#main').addEventListener('focusout', (e) => {
+        if (dmHeld && e.target === dmHeld.el) {
+            const h = dmHeld;
+            dmHeld = null;
+            if (!h.typed) h.el.value = get(h.k) ?? '';
+            else if (h.e && !DMM && String(get(h.k)) !== String(h.e.value)) dmTell(C.id, h.e, `kept their own value for ${h.e.t} (typed ${get(h.k)})`);
+        }
+        if (DMM) setTimeout(dmFlush);
+    });
 
     // what an archived character still does: look, roll, open things, and come back
     const VIEW_ACTS = new Set(['skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
@@ -2319,6 +2524,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (el.dataset.act === 'tablepick') { setTable(el.value); tableWatch(); drawLog(); return drawTray(); }
         if (el.dataset.act === 'pick') return switchTo(db.chars[el.value]);
         if (C.archived) return;
+        if (DMM && el.dataset.act === 'vis') return;
         if (el.dataset.act === 'vis') {
             return fetch(`${API}cloud.php?id=${encodeURIComponent(C.id)}&visibility=${el.value}`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
                 .then((r) => { if (!r.ok) throw r; $('#main').dataset.vis = el.value; toast(el.value === 'public' ? 'Anyone with the link can see this character now.' : 'Only you can see this character now.', 'ok'); })
@@ -2362,6 +2568,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         let how = e.submitter && e.submitter.value;
         if (how === 'auto') how = v > 0 ? 'heal' : 'dmg';
         if (!amt && how !== 'temp') return $('#hb-amt').focus();
+        if (DMM) return dmDo([{ op: 'hp', how: how === 'dmg' ? 'dmg' : how === 'temp' ? 'temp' : 'heal', amt }]); // the player's sheet applies the HP rules (1.5)
         if (how === 'dmg') {
             const soak = Math.min(nm(C.hp.temp), amt);
             C.hp.temp = nm(C.hp.temp) - soak;
@@ -2420,6 +2627,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const act = b.dataset.act, p = b.dataset.p, i = +b.dataset.i;
         // archived (ROADMAP 0.5): it can be looked at and rolled, nothing else, until it's unarchived
         if (C.archived && !VIEW_ACTS.has(act)) return;
+        if (DMM && (DM_NO.has(act) || (act === 'del' && p === 'panels'))) return toast(`Only ${$('#main').dataset.dmPlayer || 'the player'} can do that.`, 'note');
         // the click that ends a press and hold opened the menu instead of rolling
         if (held && isD20(b)) { held = false; return; }
         if (act === 'formula') return showDlg({ kind: 'formula', p, t: b.dataset.t, s: !!b.dataset.s, parts: parseParts(get(p)) });
@@ -2651,7 +2859,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // lock, so two open tabs can't both add it. One with nowhere to go (no Spells or Items panel) stays queued.
     function takePending() {
         const c = C;
-        if (RO || !c) return;
+        if (RO || DMM || !c) return;
         const run = () => {
             let q = null;
             try { q = JSON.parse(localStorage.getItem('hb-pending')); } catch (e) { }
@@ -2680,6 +2888,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     addEventListener('storage', (e) => { if (e.key === 'hb-pending') takePending(); });
 
     draw();
+    if (DMM) dmBase = jclone(C);
+    // the worked-out max HP (calc, ROADMAP 1.5) of a character saved before it was kept, or changed by an upgrade
+    else if (!RO && C.updated && !C.archived && C.calc.hpMax !== hpMax()) saveNow(false);
     takePending();
     loadCamps();
 });

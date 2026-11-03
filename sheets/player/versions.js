@@ -1,11 +1,12 @@
 // What changed between two saved versions of a character, in words, for the sheet's Versions dialog (ROADMAP 0.5).
 //   hbChanges(before, after) -> [{ t: 'HP 23 → 18' }, { t: "edited note 'Backstory'", old: '...', new: '...' }, ...]
 // One entry per line the player sees, so "7 changes" always matches the list. Both versions should be normalised by the
-// sheet first, so its one-time upgrades never show as changes. Not counted: save stamps, the roll log, view settings,
+// sheet first, so its one-time upgrades never show as changes. Not counted: save stamps, the roll log, view settings, worked-out
+// numbers (calc) and applied DM edit ids (dmApplied),
 // which note or tab is open, and a portrait moving into the account (inline art swapped for its address).
 (() => {
     'use strict';
-    const SKIP = new Set(['id', 'updated', 'created', 'open', 'sub', 'rolls', 'view', 'miscCat', 'hbPanel', 'hb2', 'passSplit']);
+    const SKIP = new Set(['id', 'updated', 'created', 'open', 'sub', 'rolls', 'view', 'calc', 'dmApplied', 'miscCat', 'hbPanel', 'hb2', 'passSplit']);
     const TOP = {
         name: 'Name', race: 'Race', alignment: 'Alignment', age: 'Age', cr: 'CR', prof: 'Proficiency bonus', ac: 'AC', init: 'Initiative',
         insp: 'Inspiration', exhaustion: 'Exhaustion', res: 'Resistances', imm: 'Immunities', vul: 'Vulnerabilities', senses: 'Senses',

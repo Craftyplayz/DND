@@ -5,6 +5,7 @@
 //   history/<n>.json every saved version; a save that changes only the roll log or view settings makes no new one
 //   history/names.json    {"<n>": "Before session 12"}, the names players give versions (ROADMAP 0.5); version files never change
 //   history/restored.json {"<n>": {"from": <the version it was restored from>, "at": <that version's "updated">}}
+//   history/dm.json       {"<n>": true}: versions that brought in DM edits (ROADMAP 1.5)
 // Players archive characters (an "archived" time on the character, copied into meta.json); nothing is deleted. Folders that
 // an older version of the site deleted sit in <accounts>/characters/.deleted/<id>-<time>/, for the admin only.
 // Characters saved before the folders (<accounts>/<sub>/<id>.json) are copied in once per account and left in place.
@@ -55,12 +56,13 @@ function ch_list($accounts, $sub)
     return $out;
 }
 
-// what makes a version: everything but the save stamps, the roll log, view settings and which note or tab is open
+// what makes a version: everything but the save stamps, the roll log, view settings, worked-out numbers, applied DM edit ids and
+// which note or tab is open
 function ch_plain($c, $top = true)
 {
     if (!is_array($c)) return $c;
     foreach (['updated', 'open', 'sub'] as $k) unset($c[$k]);
-    if ($top) unset($c['rolls'], $c['view']);
+    if ($top) unset($c['rolls'], $c['view'], $c['calc'], $c['dmApplied']); // calc: the sheet's worked-out numbers; dmApplied: DM edit ids (1.5)
     foreach ($c as $k => $v) if (is_array($v)) $c[$k] = ch_plain($v, false);
     return $c;
 }
@@ -253,7 +255,7 @@ function ch_versions($accounts, $sub, $id, $before, $limit)
         if (is_string($c['art'] ?? null) && str_starts_with($c['art'], 'data:')) $c['art'] = 'sha:' . substr(sha1($c['art']), 0, 12);
         $out[] = ['n' => $n, 'c' => $c];
     }
-    return [200, ['versions' => $out, 'more' => count($ns) > $limit + 1, 'names' => (object)ch_side($dir, 'names'), 'restored' => (object)ch_side($dir, 'restored')]];
+    return [200, ['versions' => $out, 'more' => count($ns) > $limit + 1, 'names' => (object)ch_side($dir, 'names'), 'restored' => (object)ch_side($dir, 'restored'), 'dm' => (object)ch_side($dir, 'dm')]];
 }
 
 // one version, exactly as it was saved

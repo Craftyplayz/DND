@@ -473,3 +473,9 @@ dialog.hb-ver { width: min(640px, calc(100vw - 32px)); }
 .hb-vchanges summary { cursor: pointer; }
 .hb-vtext pre { margin: 4px 0 8px; padding: 8px; max-height: 240px; overflow: auto; background: var(--sunken); border-radius: var(--radius); font: inherit; white-space: pre-wrap; }
 .hb-vmore { margin: 8px 0 0; }
+
+/* DM mode (ROADMAP 1.5): the bar under the top line, with what the DM was told until it's dismissed */
+.hb-dmbar { margin: 0 0 12px; }
+.hb-dmbar p { margin: 0; }
+.hb-dmnotes { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.hb-dmnotes li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
