@@ -138,7 +138,7 @@ try {
 
     // a co-DM: the DM makes Sam one while Sam has the campaign page open; it reconnects with the DM's view, live
     await signIn(pat, SID.sam);
-    await go(pat, `${BASE}/campaigns/?c=${CAMP}`);
+    await go(pat, `${BASE}/campaigns/${CAMP}`);
     await until(pat, text('#cp-fight'), (t) => t.includes('Round 3'));
     is('Sam (player) refused DM changes', (await api(SID.sam, { act: 'fight', id: CAMP, op: 'next', v: JSON.parse(await fight(SID.dm)).fight.v })).status, 403);
     await until(pat, `document.querySelector('#cp-players .cp-on:not([hidden])') ? 1 : 0`, Boolean); // connected
