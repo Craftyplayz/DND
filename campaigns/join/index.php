@@ -8,7 +8,7 @@ $user = auth_user();
 $code = (string)($_GET['code'] ?? '');
 if ($code === '') { header('Location: /campaigns/', true, 303); exit; }
 $c = cp_by_code($accounts, $code);
-if ($c && $user && cp_member($c, $user['sub']) >= 0) { header('Location: /campaigns/?c=' . $c['id'], true, 303); exit; }
+if ($c && $user && cp_member($c, $user['sub']) >= 0) { header('Location: /campaigns/' . $c['id'], true, 303); exit; }
 if (!$c) http_response_code(404);
 header('X-Robots-Tag: noindex');
 $site_page = ['title' => $c ? 'Join ' . $c['name'] : 'Link not working', 'components' => true, 'ui' => true];

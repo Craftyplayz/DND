@@ -1,4 +1,4 @@
-// Campaigns (/campaigns/, /campaigns/?c=<id>, /campaigns/join/<code>): every button and form posts one change to
+// Campaigns (/campaigns/, /campaigns/<id>, /campaigns/join/<code>): every button and form posts one change to
 // campaigns/api.php, then the page reloads (or opens the campaign), so what you see is always what's saved.
 document.addEventListener('DOMContentLoaded', () => {
     'use strict';
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn) btn.disabled = false;
         return null;
     }
-    const open = (cid) => { location.href = '/campaigns/?c=' + encodeURIComponent(cid); };
+    const open = (cid) => { location.href = '/campaigns/' + encodeURIComponent(cid); };
 
     // the yes/no dialog for the changes that can't be undone from the page
     const dlg = $('#cp-ask');

@@ -96,7 +96,7 @@ try {
     is('offline roll sent once back', await until(pat, `JSON.parse(localStorage.getItem('live-outbox')).length`, (n) => n === 0), 0);
 
     // what each person's log holds now
-    await go(dm, `${BASE}/campaigns/?c=${CAMP}`);
+    await go(dm, `${BASE}/campaigns/${CAMP}`);
     const dmLog = JSON.parse(await until(dm, campLog, (v) => JSON.parse(v).length >= 4));
     is('DM sees all four: public, hidden, to DM, offline', [dmLog.length, dmLog.some((t) => t.includes('to DM')), dmLog.some((t) => t.includes('hidden')), dmLog.some((t) => t.includes('offline roll'))], [4, true, true, true]);
     const sam = await logFor(SID.sam);

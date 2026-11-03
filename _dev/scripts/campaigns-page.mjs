@@ -66,7 +66,7 @@ try {
             await ev(`document.querySelector('#cp-create [name=name]').value = 'Curse of the Crown'`);
             await click('#cp-create .btn.primary');
             is(`${name} create opens the campaign`, await text('h1'), 'Curse of the Crown');
-            const id = await ev(`new URLSearchParams(location.search).get('c')`);
+            const id = await ev(`location.pathname.split('/')[2] || null`);
             await ev(`document.querySelector('#cp-chars [value=dmpc]').checked = true`);
             await click('#cp-chars .btn.primary');
             is(`${name} DM's character in the party`, await cards(), ['Brannoc']);
@@ -80,21 +80,21 @@ try {
             await go(link);
             is(`${name} join page names the campaign`, await text('h1'), 'Curse of the Crown');
             await click('[data-act=join]');
-            is(`${name} joined`, await ev(`new URLSearchParams(location.search).get('c')`), id);
+            is(`${name} joined`, await ev(`location.pathname.split('/')[2] || null`), id);
             await ev(`document.querySelector('#cp-chars [value=lock]').checked = true`);
             await click('#cp-chars .btn.primary');
             is(`${name} party of two`, await cards(), ['Brannoc', 'Lock']);
             is(`${name} player opens only their own sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card a.btn')].map((a) => a.getAttribute('href')))`), '["/characters/lock"]');
             is(`${name} player has no DM tools`, await ev(`!document.querySelector('#cp-link, #cp-rename, [data-act=remove]')`), true);
             await go(link);
-            is(`${name} join link again goes straight in`, await ev(`new URLSearchParams(location.search).get('c')`), id);
+            is(`${name} join link again goes straight in`, await ev(`location.pathname.split('/')[2] || null`), id);
             await go(BASE + '/campaigns/');
             is(`${name} listed for the player`, await text('.hub-card b'), 'Curse of the Crown');
             errs('player');
 
             // a stranger sees nothing of it
             await as('st');
-            await go(BASE + '/campaigns/?c=' + id);
+            await go(BASE + '/campaigns/' + id);
             is(`${name} stranger gets not found`, await text('h1'), 'Campaign not found');
             is(`${name} nothing leaks to a stranger`, await ev(`document.documentElement.outerHTML.includes('Lock') || document.documentElement.outerHTML.includes('Curse')`), false);
             await go(BASE + '/characters/lock');
@@ -107,12 +107,22 @@ try {
             is(`${name} DM's view is read-only`, await ev(`[...document.querySelectorAll('#hb-sheet input')].every((i) => i.disabled)`), true);
             is(`${name} DM's browser keeps no copy`, await ev(`!!JSON.parse(localStorage.getItem('hb-sheet') || '{"chars":{}}').chars.lock`), false);
             errs('DM read-only sheet');
+            await go(BASE + '/campaigns/' + id);
+            is(`${name} campaign opens at /campaigns/<id>`, await ev(`location.pathname`), '/campaigns/' + id);
+            // old ?c=<id> links redirect (301) to it; the list and the join page still work
+            const old = await fetch(BASE + '/campaigns/?c=' + id, { redirect: 'manual' });
+            is(`${name} old ?c= link is a 301`, [old.status, old.headers.get('location')], [301, '/campaigns/' + id]);
             await go(BASE + '/campaigns/?c=' + id);
+            is(`${name} old ?c= link lands on the new URL`, await ev(`location.pathname + location.search`), '/campaigns/' + id);
+            is(`${name} no link on the page uses ?c=<id>`, await ev(`[...document.querySelectorAll('a[href]')].some((a) => /campaigns\\/\\?c=[^&]*$/.test(a.getAttribute('href')))`), false);
+            await go(BASE + '/campaigns/');
+            is(`${name} list links use /campaigns/<id>`, await ev(`document.querySelector('.hub-card')?.getAttribute('href')`), '/campaigns/' + id);
+            await go(BASE + '/campaigns/' + id);
             await click('[data-act=code]');
             is(`${name} new link`, (await ev(`document.querySelector('#cp-link').value`)) !== link, true);
             await go(link);
             is(`${name} old link stops working`, await text('h1'), "This link doesn't work");
-            await go(BASE + '/campaigns/?c=' + id);
+            await go(BASE + '/campaigns/' + id);
             await click('[data-act=remove]', 'ask');
             is(`${name} remove asks first`, await ev(`document.querySelector('#cp-ask').open`), true);
             await click('#cp-ask-yes');

@@ -1,5 +1,5 @@
 <?php
-// Campaigns. /campaigns/ lists the campaigns you DM and play in and makes new ones; /campaigns/?c=<id> is one campaign:
+// Campaigns. /campaigns/ lists the campaigns you DM and play in and makes new ones; /campaigns/<id> is one campaign:
 // the party's characters, the players, your characters in it, and for the DM the join link, rename, remove and delete.
 // Changes go through campaigns/api.php (campaigns.js). With the live relay (includes/live.php) the party, the players and
 // who's online update by themselves; #cp-head, #cp-sess and #cp-players are what campaigns.js swaps in from a fresh copy of
@@ -11,6 +11,11 @@ require_once SITE_ROOT . '/includes/live.php';
 // DND_ACCOUNTS: a stand-in folder for _dev/scripts/campaigns-page.mjs, so the check never touches real accounts
 $accounts = getenv('DND_ACCOUNTS') ?: SITE_ROOT . '/private/dnd/accounts';
 $user = auth_user();
+// old links: /campaigns/?c=<id> -> /campaigns/<id> (a past session's ?c=<id>&s=<n> stays as it is)
+if (isset($_GET['c']) && !isset($_GET['s']) && preg_match('/^[A-Za-z0-9_-]+$/', (string)$_GET['c']) && preg_match('#^/campaigns/(index\.php)?$#', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH))) {
+    header('Location: /campaigns/' . $_GET['c'], true, 301);
+    exit;
+}
 $c = $user && isset($_GET['c']) ? cp_get($accounts, $_GET['c']) : null;
 if ($c && cp_member($c, $user['sub']) < 0) $c = null;
 $isDm = $c && $c['dm'] === $user['sub'];
@@ -77,7 +82,7 @@ else {
     $site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/campaigns.css']];
     $lists = $user ? cp_mine($accounts, $user['sub']) : null;
 }
-$tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '"><b>' . h($k['name']) . '</b><span>'
+$tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>' . h($k['name']) . '</b><span>'
     . h(($k['members'][0]['name'] ?? 'DM') . ' is the DM · ' . (count($k['members']) - 1 === 1 ? '1 player' : (count($k['members']) - 1) . ' players')) . '</span></a>';
 ?>
 <!DOCTYPE html>
@@ -94,7 +99,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/?c=' . h($k['id']) . '">
         <?= site_breadcrumbs(site_current_path()) ?>
 <?php if ($past): ?>
         <h1 class="page-title"><?= $_GET['s'] === 'unsorted' ? 'Rolls outside sessions' : 'Session ' . (int)$_GET['s'] ?></h1>
-        <p class="page-lede"><a href="/campaigns/?c=<?= h($c['id']) ?>"><?= h($c['name']) ?></a><?php if (!empty($past['started'])): ?> · <?= h(date('j M Y, H:i', $past['started'])) ?><?= !empty($past['ended']) ? ' to ' . h(date('H:i', $past['ended'])) : ' · running now' ?><?php endif; ?> · <?= count($rolls) === 1 ? '1 roll' : count($rolls) . ' rolls' ?></p>
+        <p class="page-lede"><a href="/campaigns/<?= h($c['id']) ?>"><?= h($c['name']) ?></a><?php if (!empty($past['started'])): ?> · <?= h(date('j M Y, H:i', $past['started'])) ?><?= !empty($past['ended']) ? ' to ' . h(date('H:i', $past['ended'])) : ' · running now' ?><?php endif; ?> · <?= count($rolls) === 1 ? '1 roll' : count($rolls) . ' rolls' ?></p>
         <?php if ($rolls): ?><ol class="cp-log"><?= implode('', array_map('cp_roll_html', array_reverse($rolls))) ?></ol>
         <?php else: ?><p class="muted">No rolls in this one.</p><?php endif; ?>
 <?php elseif ($c): ?>

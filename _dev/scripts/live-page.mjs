@@ -57,7 +57,7 @@ try {
     for (const [b, sid] of [[dm, SID.dm], [pl, SID.pl]]) {
         await b.go(BASE + '/privacy/');
         await b.ev(`document.cookie = 'dndsid=${sid}; path=/'`);
-        await b.go(`${BASE}/campaigns/?c=${CAMP}`);
+        await b.go(`${BASE}/campaigns/${CAMP}`);
     }
     within('DM sees the player online', await until(dm, dot('Pat'), true, 3000), 1000);
     within('player sees the DM online', await until(pl, dot('Dee'), true, 3000), 1000);
@@ -70,7 +70,7 @@ try {
 
     await pl.go(BASE + '/privacy/');
     within('player gone offline', await until(dm, dot('Pat'), false, 3000), 1000);
-    await pl.go(`${BASE}/campaigns/?c=${CAMP}`);
+    await pl.go(`${BASE}/campaigns/${CAMP}`);
     within('player back online', await until(dm, dot('Pat'), true, 3000), 1000);
 
     // the relay stops: the page says so, and changes still arrive from PHP

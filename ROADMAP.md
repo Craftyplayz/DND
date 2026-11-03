@@ -304,7 +304,7 @@ browser only; see CLAUDE.md and "Not planned")
 - Campaign settings (DM, later): house rules. HP on level-up: roll or average. Ability scores: point buy / standard
   array / 4d6 drop lowest / manual allowed. Spell points variant on or off. Which homebrew is shared. When a
   character isn't in any campaign, the player picks these themselves.
-- Pages: `/campaigns/` (my campaigns: DM of / player in), `/campaigns/?c=<id>` (campaign page: members,
+- Pages: `/campaigns/` (my campaigns: DM of / player in), `/campaigns/<id>` (campaign page: members,
   characters, sessions). Add it to `site_pages()`.
 - Storage: `accounts/campaigns/<id>/campaign.json` (name, DM sub, join code, settings, members
   `{sub, name, characters:[{sheet, id}]}`). A campaign stores *links* to characters, never copies, so the

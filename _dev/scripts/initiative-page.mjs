@@ -125,7 +125,7 @@ try {
     const after = JSON.parse(await fight(SID.dm)).fight;
     is('state unchanged by reloads', [after.round, after.turn, after.entries.length], [before.round, before.turn, before.entries.length]);
     // the campaign page: the player sees the order, the DM numbers
-    await go(pat, `${BASE}/campaigns/?c=${CAMP}`);
+    await go(pat, `${BASE}/campaigns/${CAMP}`);
     const pc = await until(pat, text('#cp-fight'), (t) => t.includes('Round 3'));
     is('campaign page (player): order, round, no numbers', [pc.includes('Goblin'), /HP|AC/.test(pc), pc.includes('Ogre')], [true, false, false]);
     is('campaign page (player): goblin Bloodied, the timer runs', [pc.includes('Bloodied'), /\d+:\d\d/.test(pc)], [true, true]);
@@ -138,7 +138,7 @@ try {
     await go(pat, BASE + '/sheets/monster/');
     await until(pat, `JSON.parse(localStorage.getItem('monster-sheet') || '{}').chars?.gob?.hp.cur`, (v) => v === 3);
     await click(pat, '[data-act=side][data-id=gob]');
-    await go(dm, `${BASE}/campaigns/?c=${CAMP}`);
+    await go(dm, `${BASE}/campaigns/${CAMP}`);
     await until(dm, `!!document.querySelector('#cp-fight .fi-hp[data-mon=gob]')`, Boolean);
     await until(pat, `document.querySelector('#hb-amt') ? 1 : 0`, Boolean);
     // heal 3 on sheet 2, damage 2 from the campaign page, damage 1 by a third client: 3 + 3 - 2 - 1 = 3 (no change lost)
@@ -193,7 +193,7 @@ try {
     await click(pat, '[data-act=campkeep][data-c="' + CAMP + '"]');
     is('keep in one: it leaves the other', await until(pat, `!document.querySelector('#hb-camps')`, Boolean).then(() => JSON.parse(readFileSync(join(ACCOUNTS, 'campaigns', CAMP2, 'campaign.json'), 'utf8')).members[1].characters), []);
     // attaching it to the other campaign again is refused, with a clone offered
-    await go(pat, `${BASE}/campaigns/?c=${CAMP2}`);
+    await go(pat, `${BASE}/campaigns/${CAMP2}`);
     await pat.ev(`(() => { document.querySelector('#cp-chars [name=ch][value=ozzy]').checked = true; document.querySelector('#cp-chars button[type=submit]').click(); })()`);
     is('campaign page: refused with a Clone button', (await until(pat, text('#cp-ask'), (t) => t.includes('Clone character'))).includes('already in Fight Test'), true);
     await click(pat, '#cp-ask-yes');
