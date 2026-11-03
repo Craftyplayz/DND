@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Character builder (mockup)</title>
+<link rel="stylesheet" href="../../../assets/css/global.css">
+<link rel="stylesheet" href="../../../assets/css/components.css">
+<style>
+* { box-sizing: border-box; }
+body { color: var(--text); font: 15px/1.45 var(--font); }
+h1, h2, h3 { margin: 0 0 8px; }
+.cap { position: sticky; top: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 16px; background: var(--sunken); border-bottom: 1px solid var(--line); font-size: 13px; }
+.cap b { color: var(--highlight); margin-right: 4px; }
+.cap button { padding: 3px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font: inherit; cursor: pointer; }
+.cap button.on { background: var(--accent-soft); border-color: var(--btn-line); }
+.shell { max-width: 1180px; margin: 0 auto; padding: 16px; }
+.top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.top h1 { font-size: 22px; flex: 1; }
+.layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+.steps { position: sticky; top: 56px; }
+.steps ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.steps button { display: flex; width: 100%; gap: 8px; align-items: center; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.steps button .n { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--btn2); font-size: 12px; }
+.steps button[aria-current=step] { background: var(--accent-soft); border-color: var(--btn-line); }
+.steps button.done .n { background: var(--ok-bg); border: 1px solid var(--ok-line); }
+.steps summary { display: none; }
+.stepcard { display: grid; gap: 14px; }
+.stepcard > h2 { font-size: 20px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.grid { align-content: start; }
+.pick { position: relative; display: block; cursor: pointer; }
+.pick input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.pick .box { display: block; height: 100%; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); transition: border-color var(--fast), background var(--fast); }
+.pick:hover .box { border-color: var(--accent); }
+.pick input:checked + .box { background: var(--accent-soft); border-color: var(--btn-line); box-shadow: inset 0 0 0 1px var(--btn-line); }
+.pick input:focus-visible + .box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pick b { display: block; font-size: 16px; }
+.pick small { display: block; color: var(--muted); font-size: 12.5px; }
+.pick .sub { display: block; margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line-strong); font-size: 13px; }
+.two { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px; }
+.two > * { min-width: 0; }
+.detail { background: var(--card2); }
+.detail h3 { font-size: 16px; }
+.detail dl { margin: 0; display: grid; gap: 8px; font-size: 14px; }
+.detail dt { font-weight: 700; } .detail dd { margin: 0; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+label.f { display: grid; gap: 4px; color: var(--muted); font-size: 13px; }
+.lvl { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.lvl label { position: relative; }
+.lvl input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.lvl span { display: block; padding: 6px 0; text-align: center; background: var(--card2); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.lvl input:checked + span { background: var(--accent-soft); border-color: var(--btn-line); font-weight: 700; }
+.lvl input:focus-visible + span { outline: 2px solid var(--accent); }
+.unlock { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.unlock li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 10px; background: var(--card); border-radius: var(--radius); font-size: 14px; }
+.unlock .lv { flex: none; min-width: 48px; font-weight: 700; color: var(--accent); }
+.unlock li.todo { border-left: 3px solid var(--highlight); }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+.seg label { position: relative; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span { display: block; padding: 7px 14px; background: var(--btn2); cursor: pointer; font-size: 14px; }
+.seg input:checked + span { background: var(--btn); color: var(--on-btn); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+.die { display: inline-grid; place-items: center; width: 30px; height: 30px; background: var(--card2); border: 1px solid var(--line-strong); border-radius: 6px; font-weight: 700; }
+.die.low { opacity: .5; text-decoration: line-through; }
+.hpgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+.hpgrid div { padding: 6px 8px; background: var(--card); border-radius: var(--radius); font-size: 12px; }
+.hpgrid b { display: block; font-size: 17px; }
+.abil { display: grid; gap: 8px; }
+.ab { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.ab .nm { font-weight: 700; }
+.ab .calc { font-variant-numeric: tabular-nums; }
+.ab .calc b { font-size: 18px; } .ab .calc .mod { color: var(--muted); margin-left: 6px; }
+.ab .pm { display: inline-flex; align-items: center; gap: 6px; }
+.ab .ctl { justify-self: end; }
+.big { font-size: 20px; font-weight: 700; }
+.sets { display: grid; gap: 6px; }
+.sets .set { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: var(--card2); border-radius: var(--radius); }
+.sets .set span.t { color: var(--muted); font-size: 13px; margin-right: 4px; }
+.pack { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+.review { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.review .card h3 { font-size: 15px; color: var(--sheet-accent); }
+.review ul { margin: 0; padding-left: 18px; font-size: 14px; }
+.nav { display: flex; gap: 8px; justify-content: space-between; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .6); z-index: 200; display: none; place-items: center; padding: 16px; }
+.scrim.open { display: grid; }
+.modal { width: min(560px, 100%); max-height: 100%; overflow: auto; padding: 20px; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: var(--lift); }
+.modal .grid { grid-template-columns: 1fr 1fr; margin: 14px 0; }
+.modal .pick .box { padding: 18px 14px; }
+.stub { padding: 28px 12px; text-align: center; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); margin: 0; }
+.list { display: grid; gap: 8px; }
+.lrow { display: flex; align-items: center; gap: 14px; width: 100%; padding: 8px 14px 8px 8px; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--fast), background var(--fast); }
+.lrow:hover { border-color: var(--accent); background: var(--card2); }
+.lrow[aria-current=true] { border-color: var(--btn-line); background: var(--accent-soft); }
+.lrow .ic { flex: none; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 10px; }
+.lrow .ic svg { width: 30px; height: 30px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lrow .nm { flex: 1; min-width: 0; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 15px; }
+.lrow .nm small { display: block; margin-top: 2px; color: var(--muted); font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 12.5px; }
+.lrow .chev { flex: none; color: var(--muted); font-size: 32px; line-height: 1; }
+.lrow .tag { flex: none; padding: 1px 8px; border-radius: 999px; background: var(--ok-bg); border: 1px solid var(--ok-line); font-size: 11px; letter-spacing: 0; text-transform: none; font-weight: 400; }
+.crumb { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hero { display: flex; align-items: center; gap: 14px; }
+.hero .ic { width: 64px; height: 64px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+.hero .ic svg { width: 38px; height: 38px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.hero h2 { margin: 0; text-transform: uppercase; letter-spacing: .06em; }
+.sect { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sect > h3 { font-size: 16px; margin: 0; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.pr { display: grid; gap: 4px; }
+.pr .row { gap: 6px; }
+textarea.field { width: 100%; min-height: 64px; }
+.dim { opacity: .45; }
+@media (max-width: 760px) {
+  .shell { padding: 12px 16px 84px; }
+  .layout, .two { grid-template-columns: minmax(0, 1fr); }
+  .steps { position: static; }
+  .steps summary { display: block; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; font-weight: 700; }
+  .steps details ol { margin-top: 4px; }
+  .lvl { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; margin: 0; padding: 10px 16px; background: var(--sunken); border-top: 1px solid var(--line-strong); }
+  .nav .btn { flex: 1; justify-content: center; }
+  .ab { grid-template-columns: 44px minmax(0, 1fr); }
+  .ab .ctl { grid-column: 1 / -1; justify-self: stretch; }
+  .ab .ctl select, .ab .ctl input { width: 100% !important; }
+  .cap { position: static; }
+  .modal .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="cap" id="cap"><b>Mockup screens:</b></div>
+
+<div class="shell page" id="app" hidden>
+  <div class="top"><h1>New character <span class="muted" style="font-size:14px;font-weight:400" id="topsum"></span></h1><button class="btn small" id="exit">Cancel</button></div>
+  <div class="layout">
+    <nav class="steps" aria-label="Steps"><details id="stepsdet" open><summary id="stepsum"></summary><ol id="steplist"></ol></details></nav>
+    <main><div class="card stepcard" id="step"></div>
+      <div class="nav"><button class="btn" id="back">Back</button><button class="btn primary" id="next">Next</button></div>
+    </main>
+  </div>
+</div>
+
+<div class="scrim open" id="scrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+    <small class="muted">Screen 1 - entry popup</small>
+    <h2 id="mt">Create a character</h2>
+    <p class="hint">Build it with a guide, or start from an empty sheet and fill it in yourself.</p>
+    <div class="grid" role="radiogroup" aria-labelledby="mt">
+      <label class="pick"><input type="radio" name="entry" value="build" checked><span class="box"><b>Build step by step</b><small>Race, class, level, ability scores, equipment. Any level 1 to 20.</small></span></label>
+      <label class="pick"><input type="radio" name="entry" value="blank"><span class="box"><b>Blank character</b><small>An empty sheet. Fill in everything yourself.</small></span></label>
+    </div>
+    <div class="actions" style="justify-content:flex-end"><button class="btn" id="mcancel">Cancel</button><button class="btn primary" id="mgo">Continue</button></div>
+  </div>
+</div>
+
+<script>
+const AB = ['STR','DEX','CON','INT','WIS','CHA'];
+const SKILLS = ['Acrobatics','Animal Handling','Arcana','Athletics','Deception','History','Insight','Intimidation','Investigation','Medicine','Nature','Perception','Performance','Persuasion','Religion','Sleight of Hand','Stealth','Survival'];
+const LANGS = ['Dwarvish','Elvish','Halfling','Draconic','Gnomish','Infernal','Orc','Celestial','Giant','Goblin','Sylvan','Undercommon'];
+const DARK = ['Darkvision','60 ft in dim light.'];
+const R = (n, b, sp, sz, tr, subs) => ({n, b, sp, sz, tr, subs});
+const RACES = [
+ R('Alseid',{WIS:2,DEX:1},30,'Medium',[['Woodland Step','Move through undergrowth without slowing.'],['Keen Senses','Proficiency in Perception.']]),
+ R('Bhain Kwai',{DEX:2,CHA:1},30,'Medium',[['Nimble Climber','Climbing speed of 20 ft.'],['Mimicry','Imitate sounds you have heard.']]),
+ R('Boghaid',{CON:2,WIS:1},30,'Medium',[['Swamp Born','Ignore difficult terrain in marsh.'],['Hold Breath','Hold your breath for 30 minutes.']]),
+ R('Catfolk',{DEX:2,CHA:1},30,'Medium',[['Cat\'s Claws','Natural claw attacks.'],['Feline Agility','Double speed for one turn, once per rest.']]),
+ R('Darakhul',{CON:2,STR:1},30,'Medium',[DARK,['Undead Resilience','Advantage on saves vs disease and poison.']]),
+ R('Derro',{WIS:2,DEX:1},30,'Small',[['Superior Darkvision','120 ft in dim light.'],['Sunlight Sensitivity','Disadvantage on attacks in bright sun.']]),
+ R('Dragonborn',{STR:2,CHA:1},30,'Medium',[['Draconic Ancestry','Pick a dragon type.'],['Breath Weapon','Exhale destructive energy.'],['Damage Resistance','Resistance to your ancestry damage type.']]),
+ R('Dwarf',{CON:2},25,'Medium',[DARK,['Dwarven Resilience','Advantage on saves vs poison, resistance to poison damage.'],['Stonecunning','Double proficiency on History checks about stonework.']],[{n:'Hill Dwarf',b:{WIS:1},t:'Dwarven Toughness: +1 HP per level.'},{n:'Mountain Dwarf',b:{STR:2},t:'Dwarven Armor Training: light and medium armor.'},{n:'Duergar',b:{STR:1},t:'Superior Darkvision and Duergar Magic.'}]),
+ R('Elf',{DEX:2},30,'Medium',[DARK,['Fey Ancestry','Advantage vs being charmed, magic cannot put you to sleep.'],['Trance','4 hours of meditation instead of 8 hours of sleep.']],[{n:'High Elf',b:{INT:1},t:'Elf Weapon Training, one wizard cantrip, one extra language.'},{n:'Wood Elf',b:{WIS:1},t:'Fleet of Foot (35 ft) and Mask of the Wild.'},{n:'Drow',b:{CHA:1},t:'Superior Darkvision and Drow Magic.'},{n:'Shadow Fey',b:{CHA:1},t:'Shadow Traveler and Fey Charm.'}]),
+ R('Erina',{DEX:2,CON:1},30,'Small',[['Spines','Damage creatures that grapple you.'],['Hardy','Advantage vs poison.']]),
+ R('Far-Touched',{CHA:2,INT:1},30,'Medium',[['Psychic Whispers','Speak mind to mind.'],['Alien Mind','Advantage vs being charmed.']]),
+ R('Gearforged',{CON:2,INT:1},30,'Medium',[['Constructed Resilience','Advantage vs poison, no need to eat or breathe.'],['Mechanical Nature','Immune to disease.']]),
+ R('Gnome',{INT:2},25,'Small',[DARK,['Gnome Cunning','Advantage on INT, WIS, CHA saves vs magic.']],[{n:'Rock Gnome',b:{CON:1},t:'Artificer\'s Lore and Tinker.'},{n:'Forest Gnome',b:{DEX:1},t:'Speak with Small Beasts and Natural Illusionist.'},{n:'Deep Gnome',b:{WIS:1},t:'Superior Darkvision and Stone Camouflage.'}]),
+ R('Goliath',{STR:2,CON:1},30,'Medium',[['Stone\'s Endurance','Reduce damage once per rest.'],['Powerful Build','Count as one size larger for carrying.']]),
+ R('Half-Elf',{CHA:2},30,'Medium',[DARK,['Fey Ancestry','Advantage vs being charmed.'],['Skill Versatility','Proficiency in two skills of your choice.']]),
+ R('Half-Orc',{STR:2,CON:1},30,'Medium',[DARK,['Relentless Endurance','Drop to 1 HP instead of 0, once per long rest.'],['Savage Attacks','Extra weapon die on a critical hit.']]),
+ R('Halfling',{DEX:2},25,'Small',[['Lucky','Reroll natural 1s on attacks, checks and saves.'],['Brave','Advantage on saves vs being frightened.'],['Halfling Nimbleness','Move through the space of larger creatures.']],[{n:'Lightfoot',b:{CHA:1},t:'Naturally Stealthy: hide behind creatures one size larger.'},{n:'Stoor',b:{STR:1},t:'Stout Resilience: advantage vs poison.'}]),
+ R('Human',{STR:1,DEX:1,CON:1,INT:1,WIS:1,CHA:1},30,'Medium',[['Languages','Common and one extra language.']]),
+ R('Kobold',{DEX:2,STR:-2},30,'Small',[DARK,['Pack Tactics','Advantage when an ally is next to your target.']]),
+ R('Malkin',{DEX:2,CHA:1},30,'Small',[['Keen Hearing','Advantage on Perception by sound.'],['Quick Reflexes','Bonus to initiative.']]),
+ R('Minotaur',{STR:2,CON:1},30,'Medium',[['Horns','Natural horn attack.'],['Goring Rush','Charge attack with a bonus action.']]),
+ R('Morel',{CON:2,WIS:1},30,'Medium',[['Spore Cloud','Release a harmless cloud once per rest.'],['Fungal Health','Resistance to poison.']]),
+ R('Mushroomfolk',{CON:2,WIS:1},25,'Small',[['Fungal Body','Resistance to poison.'],['Spore Burst','Short-range spore attack.']]),
+ R('Orc',{STR:2,CON:1,INT:-2},30,'Medium',[DARK,['Aggressive','Bonus action dash toward an enemy.']]),
+ R('Pantheran',{DEX:2,WIS:1},35,'Medium',[['Pounce','Knock a creature prone after a charge.'],['Night Eyes','Darkvision 60 ft.']]),
+ R('Ravenfolk',{DEX:2,WIS:1},30,'Medium',[['Flight','Glide for short distances.'],['Mimicry','Imitate sounds you have heard.']]),
+ R('Satarre',{CHA:2,INT:1},30,'Medium',[['Infernal Heritage','Resistance to fire.'],['Gift of Ruin','Cast a minor illusion.']]),
+ R('Shade',{DEX:2,CHA:1},30,'Medium',[['Shadow Step','Teleport between dim areas.'],['Fading','Resistance to necrotic damage.']]),
+ R('Tiefling',{INT:1,CHA:2},30,'Medium',[DARK,['Hellish Resistance','Resistance to fire damage.'],['Infernal Legacy','Thaumaturgy cantrip, then Hellish Rebuke and Darkness.']]),
+ R('Trollkin',{STR:2,CON:1},30,'Medium',[['Regeneration','Regain a few HP each turn.'],['Thick Hide','Natural armor.']]),
+];
+const CLS = [
+ {n:'Barbarian',d:12,pri:'STR, CON',blurb:'A fierce warrior of primitive background who can enter a battle rage.',c:'#b3412f',p:'M5 20L16 4M11 6c4-3 9 0 9 0-1 6-5 7-9 5z',sub:['Path of the Berserker','Path of the Totem Warrior','Path of the Herald','Path of Hellfire','Path of the Juggernaut'],sl:3},
+ {n:'Bard',d:8,pri:'DEX, CHA',blurb:'An inspiring magician whose power echoes the music of creation.',c:'#a84f8c',p:'M9 18V6l10-2v12M9 18a3 3 0 11-6 0 3 3 0 016 0zM19 16a3 3 0 11-6 0 3 3 0 016 0z',sub:['College of Lore','College of Valor','College of Echoes','College of Skalds','College of Investigation'],sl:3},
+ {n:'Cleric',d:8,pri:'WIS, CHA',blurb:'A priestly champion who wields divine magic in service of a higher power.',c:'#c79a2b',p:'M12 3v18M6 9h12',sub:['Life Domain','Light Domain','Hunt Domain','Mercy Domain','Portal Domain'],sl:1},
+ {n:'Druid',d:8,pri:'WIS, CON',blurb:'A priest of the Old Faith, wielding the powers of nature and adopting animal forms.',c:'#4f8f3c',p:'M5 19C5 9 11 4 20 4c0 9-5 15-15 15zM5 19L14 10',sub:['Circle of the Land','Circle of the Moon','Circle of Ash','Circle of Bees','Circle of Crystals'],sl:2},
+ {n:'Fighter',d:10,pri:'STR or DEX, CON',blurb:'A master of martial combat, skilled with a variety of weapons and armor.',c:'#6b6f78',p:'M4 20l4-4M7 13l4 4M9 15L20 4M16 4h4v4',sub:['Champion','Battle Master','Eldritch Knight','Gambling General','Arcane Warrior'],sl:3},
+ {n:'Monk',d:8,pri:'DEX, WIS',blurb:'A master of martial arts, harnessing the power of the body in pursuit of perfection.',c:'#3a8f9a',p:'M12 4a8 8 0 018 8 5 5 0 01-10 0 2 2 0 014 0',sub:['Way of the Open Hand','Way of Shadow','Way of the Four Elements','Way of the Inner Eye','Way of Mercy'],sl:3},
+ {n:'Paladin',d:10,pri:'STR, CHA',blurb:'A holy warrior bound to a sacred oath.',c:'#d4a02e',p:'M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z',sub:['Oath of Devotion','Oath of the Ancients','Oath of Vengeance','Oath of Justice','Oath of the Hearth'],sl:3},
+ {n:'Ranger',d:10,pri:'DEX, WIS',blurb:'A warrior who uses martial prowess and nature magic to combat threats on the edges of civilization.',c:'#3f7a55',p:'M7 3c9 3 9 15 0 18M7 3v18M7 12h13M17 9l3 3-3 3',sub:['Hunter','Beast Master','Hunter in Darkness','Courser Mage','Snake Speaker'],sl:3},
+ {n:'Rogue',d:8,pri:'DEX',blurb:'A scoundrel who uses stealth and trickery to overcome obstacles and enemies.',c:'#555d8a',p:'M12 3l3 9-3 3-3-3zM12 15v6M9 17h6',sub:['Thief','Assassin','Arcane Trickster','Cat Burglar','Smuggler'],sl:3},
+ {n:'Sorcerer',d:6,pri:'CHA, CON',blurb:'A spellcaster who draws on inherent magic from a gift or bloodline.',c:'#c8552a',p:'M12 3c1 4 6 6 6 11a6 6 0 01-12 0c0-3 2-4 3-7 1 1 2 2 3 2 0-2 0-4 0-6z',sub:['Draconic Bloodline','Wild Magic','Runechild','Shadow Sorcery','Storm Sorcery'],sl:1},
+ {n:'Warlock',d:8,pri:'CHA, CON',blurb:'A wielder of magic that is derived from a bargain with an extraplanar entity.',c:'#6a45a3',p:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z',sub:['The Fiend','The Archfey','The Great Old One','The Raven Queen','The Hungering'],sl:1},
+ {n:'Wizard',d:6,pri:'INT, CON',blurb:'A scholarly magic-user capable of manipulating the structures of reality.',c:'#3a67b5',p:'M12 3l2.5 6.5 7 .5-5.5 4.5 2 7L12 17.5 6 21.5l2-7L2.5 10l7-.5z',sub:['School of Evocation','School of Abjuring and Warding','School of Illusions and Phantasms','School of Liminality','School of Necrotic Arts'],sl:2},
+];
+const NSK = {Barbarian:2,Bard:3,Cleric:2,Druid:2,Fighter:2,Monk:2,Paladin:2,Ranger:3,Rogue:4,Sorcerer:2,Warlock:2,Wizard:2};
+const CASTERS = ['Bard','Cleric','Druid','Sorcerer','Warlock','Wizard'];
+const STYLE_CLS = {Fighter:1,Paladin:2,Ranger:2};
+const STYLES = ['Archery','Defense','Dueling','Great Weapon Fighting','Protection','Two-Weapon Fighting'];
+const SPELLS = {Cleric:[['Sacred Flame','Guidance','Light','Spare the Dying'],['Bless','Cure Wounds','Guiding Bolt','Healing Word','Shield of Faith','Sanctuary']],Wizard:[['Fire Bolt','Mage Hand','Light','Prestidigitation','Ray of Frost'],['Magic Missile','Shield','Mage Armor','Sleep','Detect Magic','Burning Hands']]};
+const BGS = ['Acolyte','Artisan','Charlatan','Con Artist','Court Servant','Crime Syndicate Member','Criminal','Cultist','Deep Hunter','Desert Runner','Destined','Diplomat','Dungeon Robber','Elemental Warden','Entertainer','Escapee from Below','Exile','Farmer','Fate-Touched','Folk Hero','Forest Dweller','Former Adventurer','Freebooter','Gambler','Gamekeeper','Guard','Guild Artisan','Haunted','Hermit','Innkeeper','Lyceum Student','Marauder','Mercenary Recruit','Monstrous Adoptee','Mysterious Origins','Noble','Northern Minstrel','Occultist','Outlander','Parfumier','Sage','Sailor','Scoundrel','Sentry','Soldier','Trader','Trophy Hunter','Urchin'];
+const S = {step:0, race:'Dwarf', subi:0, rview:'list', cview:'list', bview:'list', cls:'Fighter', bg:'Acolyte', lvl:5, hp:'avg', rolls:{}, method:'pb', pb:[8,8,8,8,8,8], std:['','','','','',''], sets:[], assign:['','','','','',''], man:[10,10,10,10,10,10], eq:{a:'a',b:'a',c:'b',d:'a'}, name:'Thorin Rockfist', cs:['Athletics','Perception'], sp:[[],[]], style:'Defense', subc:0, f:{}, extra:[]};
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const curRace = () => RACES.find((r) => r.n === S.race);
+const curCls = () => CLS.find((c) => c.n === S.cls);
+const curSub = () => { const r = curRace(); return r.subs ? r.subs[S.subi] : null; };
+const rb = (k) => { const r = curRace(), s = curSub(); return (r.b[k]||0) + (s && s.b[k] || 0); };
+const bonusTxt = (r, s) => Object.entries(r.b).concat(s ? Object.entries(s.b) : []).map(([k,v]) => k + (v<0?' ':' +') + v).join(', ');
+const mod = (v) => { const m = Math.floor((v - 10) / 2); return (m >= 0 ? '+' : '−') + Math.abs(m); };
+const PBC = {8:0,9:1,10:2,11:3,12:4,13:5,14:7,15:9};
+const left = () => 27 - S.pb.reduce((a, v) => a + PBC[v], 0);
+const rollOne = () => { const d = Array.from({length:4}, () => 1 + Math.floor(Math.random()*6)); const lo = d.indexOf(Math.min(...d)); return {d, lo, t: d.reduce((a,b)=>a+b) - d[lo]}; };
+function baseOf(i) { return S.method==='pb' ? S.pb[i] : S.method==='man' ? S.man[i] : S.method==='std' ? (+S.std[i]||0) : (S.assign[i]===''?0:S.sets[+S.assign[i]].t); }
+const total = (i) => baseOf(i) + rb(AB[i]);
+const conMod = () => Math.floor((total(2) - 10) / 2);
+const hpAt = (l) => S.hp === 'avg' ? curCls().d/2 + 1 : (S.rolls[l] || (S.rolls[l] = 1 + Math.floor(Math.random()*curCls().d)));
+const asiLevels = () => [4,8,12,16,19].concat(S.cls === 'Fighter' ? [6,14] : []).sort((a,b)=>a-b);
+const hpTotal = () => { let t = curCls().d + conMod(); for (let l = 2; l <= S.lvl; l++) t += hpAt(l) + conMod(); return t; };
+const MW = ['Battleaxe','Flail','Glaive','Greataxe','Greatsword','Halberd','Lance','Longsword','Maul','Morningstar','Pike','Rapier','Scimitar','Shortsword','Trident','Warhammer','War pick','Whip'];
+const mwSel = (l) => `<label class="f">${l}<select class="field">${MW.map((w)=>`<option>${w}</option>`).join('')}</select></label>`;
+const hue = (s) => [...s].reduce((a, c) => a + c.charCodeAt(0) * 7, 0) % 360;
+const opts = (arr, sel) => arr.map((x) => `<option ${x===sel?'selected':''}>${x}</option>`).join('');
+const F = (k, d = '') => esc(S.f[k] ?? d);
+const clsIcon = (c, big) => `<span class="ic" style="background:${c.c}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${c.p}"/></svg></span>`;
+const avatar = (n) => `<span class="ic" style="background:hsl(${hue(n)} 38% 34%)"><svg viewBox="0 0 24 24" aria-hidden="true" style="fill:#fff;stroke:none;opacity:.85"><circle cx="12" cy="9" r="4"/><path d="M4 21c0-5 4-7 8-7s8 2 8 7z"/></svg></span>`;
+const letter = (n) => `<span class="ic" style="background:hsl(${hue(n)} 34% 32%);font-weight:700;font-size:22px;color:#fff">${n[0]}</span>`;
+const row = (act, key, ic, name, cur, sub, tag) => `<button type="button" class="lrow" data-act="${act}" data-key="${esc(key)}" ${cur?'aria-current="true"':''}>${ic}<span class="nm">${esc(name)}${sub?`<small>${sub}</small>`:''}</span>${tag?`<span class="tag">${tag}</span>`:''}<span class="chev" aria-hidden="true">›</span></button>`;
+const back = (act, label) => `<div class="crumb"><button type="button" class="btn small" data-act="${act}">‹ ${label}</button></div>`;
+const bgSk = () => S.bg === 'Acolyte' ? ['Insight','Religion'] : [SKILLS[(BGS.indexOf(S.bg)*3)%18], SKILLS[(BGS.indexOf(S.bg)*3+7)%18]];
+const KEYS_P = ['Personality traits','Ideals','Bonds','Flaws'];
+const SAMPLE = {'Personality traits':'I idolize a particular hero and constantly refer to their deeds.','Ideals':'Charity. I always try to help those in need.','Bonds':'I would die to recover an ancient relic of my faith.','Flaws':'I judge others harshly, and myself even more so.'};
+
+function skillsHtml(c, L) { const nm = c.n, n = NSK[nm], sk = S.cs.slice(0, n);
+  const out = [`<div class="sect"><h3>Class skills: choose ${n}</h3><p class="hint">${sk.length} of ${n} chosen</p><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:2px">${SKILLS.map((x)=>`<label class="check"><input type="checkbox" data-cs="${x}" ${sk.includes(x)?'checked':''} ${!sk.includes(x)&&sk.length>=n?'disabled':''}> ${x}</label>`).join('')}</div></div>`];
+  if (STYLE_CLS[nm] && L >= STYLE_CLS[nm]) out.push(`<div class="sect"><h3>Fighting style</h3><div class="grid" role="radiogroup" aria-label="Fighting style">${STYLES.map((x)=>`<label class="pick"><input type="radio" name="style" value="${x}" ${S.style===x?'checked':''}><span class="box"><b style="font-size:14px">${x}</b></span></label>`).join('')}</div></div>`);
+  if (!CASTERS.includes(nm)) return out.join('') + `<div class="sect"><h3>Spells</h3><p class="hint">${nm} has no spells at level ${L}. Casters pick cantrips and spells here.</p></div>`;
+  const [ct, s1] = SPELLS[nm] || SPELLS.Wizard, nc = 3, n1 = L >= 3 ? 4 : 2;
+  const lst = (arr, k, lim) => `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px">${arr.map((x)=>`<label class="check"><input type="checkbox" data-sp="${k}|${x}" ${S.sp[k].includes(x)?'checked':''} ${!S.sp[k].includes(x)&&S.sp[k].length>=lim?'disabled':''}> ${x}</label>`).join('')}</div>`;
+  out.push(`<div class="sect"><h3>Spells${SPELLS[nm] ? '' : ' (example list)'}</h3><p class="hint">Cantrips: choose ${nc} (${S.sp[0].length} chosen)</p>${lst(ct,0,nc)}<p class="hint">1st-level spells: choose ${n1} (${S.sp[1].length} chosen)</p>${lst(s1,1,n1)}</div>`);
+  return out.join(''); }
+
+function racePicks(r, s) { return '<h3 style="margin-top:12px">Your picks</h3>' + (r.n==='Half-Elf' ? '<p class="hint">Skill Versatility: choose two skills.</p>' + [5,6].map((d,i)=>`<label class="f" style="margin-top:6px">Skill ${i+1}<select class="field">${SKILLS.map((x,j)=>`<option ${j===d?'selected':''}>${x}</option>`).join('')}</select></label>`).join('') + '<label class="f" style="margin-top:6px">+1 to two other abilities<select class="field"><option>STR and DEX</option><option>DEX and CON</option><option>WIS and INT</option></select></label>'
+  : s && s.n==='High Elf' ? '<label class="f">High Elf cantrip<select class="field"><option>Fire Bolt</option><option>Light</option><option>Mage Hand</option></select></label>'
+  : r.n==='Human' ? '<label class="f">Extra language<select class="field">'+opts(LANGS,'Elvish')+'</select></label>'
+  : r.n==='Dragonborn' ? '<label class="f">Draconic ancestry<select class="field"><option>Red (fire)</option><option>Blue (lightning)</option><option>Black (acid)</option><option>White (cold)</option><option>Green (poison)</option></select></label>' : '<p class="hint">No picks needed for this race.</p>'); }
+
+const views = {
+'Name & look'() { return `<h2>Name and look</h2><div class="form"><label>Character name<input class="field" id="nm" value="${esc(S.name)}"></label>
+ <fieldset><legend>Starting level</legend><div class="lvl" role="radiogroup" aria-label="Starting level">${Array.from({length:20},(_,i)=>`<label><input type="radio" name="lvl" value="${i+1}" ${i+1===S.lvl?'checked':''}><span>${i+1}</span></label>`).join('')}</div>
+ <p class="hint" style="margin-top:6px">Level ${S.lvl}: proficiency bonus +${2+Math.floor((S.lvl-1)/4)}. The class step then asks for the subclass, ability score improvements and hit points for every level up to ${S.lvl}.</p></fieldset>
+ <div class="row"><div style="width:96px;height:96px;display:grid;place-items:center;background:var(--card2);border:1px dashed var(--line-strong);border-radius:var(--radius-lg);color:var(--muted);font-size:12px">No portrait</div><div><button class="btn small" type="button">Upload portrait</button><p class="hint" style="margin-top:6px">Optional. JPG, PNG, WebP or GIF. You can change it later on the sheet.</p></div></div></div>`; },
+
+'Class'() { const L = S.lvl;
+ if (S.cview === 'list') return `<h2>Choose a class</h2><p class="hint">Tap a class to read about it and make its choices.</p><div class="list">${CLS.map((c)=>row('cls',c.n,clsIcon(c),c.n,c.n===S.cls,'',c.n===S.cls?'Selected':'')).join('')}</div>`;
+ const c = curCls();
+ const items = [[1,'Hit die d'+c.d+', saving throws, starting proficiencies']];
+ if (L>=c.sl) items.push([c.sl,'Subclass: '+c.sub.length+' to choose from']);
+ asiLevels().filter((l)=>l<=L).forEach((l)=>items.push([l,'Ability Score Improvement or a feat']));
+ if (L>=5 && ['Fighter','Barbarian','Monk','Paladin','Ranger'].includes(c.n)) items.push([5,'Extra Attack']);
+ items.sort((a,b)=>a[0]-b[0]);
+ const todo = (t) => /Subclass|Improvement/.test(t);
+ return `${back('clsback','Change class')}<div class="hero">${clsIcon(c).replace('class="ic"','class="ic"')}<div><h2>${c.n}</h2><span class="badge">Level ${L}</span> <span class="badge">Hit die d${c.d}</span> <span class="badge">${c.pri}</span></div></div>
+ <p>${c.blurb} A ${c.n.toLowerCase()} starts with the hit die and proficiencies shown below, then gains features as they level up.</p>
+ <div class="sect"><h3>What level ${L} ${c.n} gets</h3><ul class="unlock">${items.map(([l,t])=>`<li class="${todo(t)?'todo':''}"><span class="lv">Lv ${l}</span><span>${t}${todo(t)?' <span class="badge">you choose</span>':''}</span></li>`).join('')}</ul></div>
+ ${L>=c.sl?`<div class="sect"><h3>Subclass (level ${c.sl})</h3><div class="grid" role="radiogroup" aria-label="Subclass">${c.sub.map((x,i)=>`<label class="pick"><input type="radio" name="subc" value="${i}" ${S.subc===i?'checked':''}><span class="box"><b style="font-size:14px">${x}</b></span></label>`).join('')}</div></div>`:`<div class="sect"><h3>Subclass</h3><p class="hint">A ${c.n} picks a subclass at level ${c.sl}. Raise the starting level on Name & look to see it.</p></div>`}
+ ${asiLevels().filter((l)=>l<=L).length?`<div class="sect"><h3>Ability score improvements and feats</h3>${asiLevels().filter((l)=>l<=L).map((l)=>`<label class="f">Level ${l}<select class="field"><option>+2 STR</option><option>+1 STR, +1 CON</option><option>Feat: Tough</option><option>Feat: Alert</option></select></label>`).join('')}</div>`:''}
+ ${skillsHtml(c, L)}
+ <div class="sect"><h3>Hit points</h3><div class="seg" role="radiogroup" aria-label="Hit points"><label><input type="radio" name="hp" value="avg" ${S.hp==='avg'?'checked':''}><span>Take the average</span></label><label><input type="radio" name="hp" value="roll" ${S.hp==='roll'?'checked':''}><span>Roll each level</span></label></div>
+   <p class="hint">Level 1 is always the maximum (${c.d}). Each later level adds ${S.hp==='avg'?'the average ('+(c.d/2+1)+')':'a d'+c.d+' roll'} plus Con modifier ${mod(total(2))}.</p>
+   ${S.hp==='roll'?`<div class="row"><button class="btn small" id="rollhp" type="button">Roll all (3D dice)</button><span class="hint">Every roll is kept in the roll log.</span></div>`:''}
+   <div class="hpgrid">${Array.from({length:L},(_,i)=>i+1).map((l)=>`<div>Lv ${l}<b>${l===1?c.d:hpAt(l)}</b></div>`).join('')}</div><p class="big" style="margin:0">Total HP: ${hpTotal()}</p></div>`; },
+
+'Race'() { const r = curRace();
+ if (S.rview === 'list') return `<h2>Choose a race</h2><p class="hint">Small pictures are placeholders. Races with subraces open a second list.</p><div class="list">${RACES.map((x)=>row('race',x.n,avatar(x.n),x.n,x.n===S.race,`${bonusTxt(x)} - Speed ${x.sp} ft - ${x.sz}${x.subs?' - '+x.subs.length+' subraces':''}`,x.n===S.race?'Selected':'')).join('')}</div>`;
+ if (S.rview === 'subs') return `${back('raceback','All races')}<div class="hero">${avatar(r.n)}<div><h2>${r.n}</h2><span class="hint">Pick a subrace</span></div></div><div class="list">${r.subs.map((x,i)=>row('sub',i,avatar(x.n),x.n,i===S.subi&&r.n===S.race,bonusTxt(r,x)+' - '+x.t.split(':')[0].split('.')[0],'')).join('')}</div>`;
+ const s = curSub();
+ return `${back(r.subs?'racesubs':'raceback', r.subs?'Subraces':'All races')}<div class="hero">${avatar(s?s.n:r.n)}<div><h2>${s?s.n:r.n}</h2><span class="badge b">${bonusTxt(r,s)}</span> <span class="badge">Speed ${r.sp} ft</span> <span class="badge">${r.sz}</span></div></div>
+ <p>${s?s.n+' is a kind of '+r.n.toLowerCase()+'. ':''}${r.n} characters share the traits below${s?', plus the traits of their subrace':''}. Pick the details at the bottom, then continue to ability scores.</p>
+ <div class="sect"><h3>Traits</h3><dl class="detail" style="margin:0;display:grid;gap:8px;font-size:14px">${r.tr.map(([a,b])=>`<div><dt style="font-weight:700">${a}</dt><dd style="margin:0;color:var(--muted)">${b}</dd></div>`).join('')}${s?`<div><dt style="font-weight:700">${s.n}</dt><dd style="margin:0;color:var(--muted)">${s.t}</dd></div>`:''}</dl></div>
+ <div class="sect">${racePicks(r,s)}</div>`; },
+
+'Ability scores'() { const r = curRace(), s = curSub();
+ const tab = (k,t) => `<button type="button" role="tab" aria-selected="${S.method===k}" class="${S.method===k?'on':''}" data-m="${k}">${t}</button>`;
+ let intro = '';
+ if (S.method==='pb') intro = `<div class="row"><span class="big">Points left: ${left()}</span><span class="hint">of 27. Scores 8 to 15 before racial bonuses.</span></div>
+  <div class="table-wrap"><table class="table" style="max-width:460px"><tr><th>Score</th>${[8,9,10,11,12,13,14,15].map((v)=>`<td>${v}</td>`).join('')}</tr><tr><th>Cost</th>${[0,1,2,3,4,5,7,9].map((v)=>`<td>${v}</td>`).join('')}</tr></table></div>`;
+ if (S.method==='std') intro = `<p class="hint">Assign 15, 14, 13, 12, 10 and 8, one to each ability. A value already used is greyed out.</p>`;
+ if (S.method==='roll') { const n = S.sets.length; intro = `<div class="row"><button class="btn primary" id="rollsets" type="button" ${n>=6?'disabled':''}>${n>=6?'All six sets rolled':`Roll set ${n+1} of 6`}</button>${n?'<button class="btn small" id="clearsets" type="button">Start over</button>':''}</div>
+  <p class="hint">Each click is one throw of four dice, and the lowest is dropped. In the real build this is a real 3D dice throw, and every roll is kept in the roll log. Here it is just a random number.</p>
+  <div class="sets">${Array.from({length:6},(_,i)=>{ const x = S.sets[i]; return x ? `<div class="set"><span class="t">4d6 drop lowest:</span>${x.d.map((v,j)=>`<span class="die ${j===x.lo?'low':''}">${v}</span>`).join('')}<b>= ${x.t}</b></div>` : `<div class="set dim"><span class="t">Set ${i+1}: not rolled yet</span></div>`; }).join('')}</div>`; }
+ if (S.method==='man') intro = `<p class="hint">Type any score from 1 to 30, for scores rolled at the table or given by your DM.</p>`;
+ const rows = AB.map((a,i)=>{ const b = baseOf(i), rbn = rb(a); let ctl='';
+  if (S.method==='pb') ctl = `<span class="pm"><button class="btn small" data-pb="${i},-1" aria-label="Lower ${a}" ${b<=8?'disabled':''}>−</button><b style="min-width:2ch;text-align:center">${b}</b><button class="btn small" data-pb="${i},1" aria-label="Raise ${a}" ${b>=15||left()<(PBC[b+1]-PBC[b])?'disabled':''}>+</button></span>`;
+  if (S.method==='std') ctl = `<select class="field" data-std="${i}" aria-label="${a} value"><option value="">Pick...</option>${[15,14,13,12,10,8].map((v)=>`<option ${S.std[i]==v?'selected':''} ${S.std.includes(String(v))&&S.std[i]!=v?'disabled':''}>${v}</option>`).join('')}</select>`;
+  if (S.method==='roll') ctl = `<select class="field" data-as="${i}" aria-label="${a} set" ${S.sets.length?'':'disabled'}><option value="">${S.sets.length?'Pick a set...':'Roll first'}</option>${S.sets.map((x,j)=>`<option value="${j}" ${S.assign[i]===String(j)?'selected':''} ${S.assign.includes(String(j))&&S.assign[i]!==String(j)?'disabled':''}>Set ${j+1} = ${x.t}</option>`).join('')}</select>`;
+  if (S.method==='man') ctl = `<input class="field" type="number" min="1" max="30" value="${S.man[i]}" data-man="${i}" aria-label="${a} score" style="width:80px">`;
+  return `<div class="ab"><span class="nm">${a}</span><span class="calc">${b} + ${rbn} = <b>${b+rbn}</b><span class="mod">${mod(b+rbn)}</span></span><span class="ctl">${ctl}</span></div>`; }).join('');
+ return `<h2>Ability scores</h2><p class="hint">The racial bonus (${s?s.n:r.n}) is added for you: base + bonus = total.</p>
+ <div class="stabs" role="tablist">${tab('pb','Point buy')}${tab('std','Standard array')}${tab('roll','4d6 drop lowest')}${tab('man','Manual')}</div>${intro}<div class="abil">${rows}</div>`; },
+
+'Background'() {
+ if (S.bview === 'list') return `<h2>Choose a background</h2><div class="list">${BGS.map((x)=>row('bg',x,letter(x),x,x===S.bg,'',x===S.bg?'Selected':'')).join('')}</div>`;
+ const sk = bgSk();
+ const pr = KEYS_P.map((k)=>`<div class="pr"><label class="f">${k}<textarea class="field" data-f="${k}" rows="2">${F(k)}</textarea></label><div class="row"><button class="btn small" type="button" data-act="pick" data-key="${k}">Pick from list</button><button class="btn small" type="button" data-act="rollp" data-key="${k}">Roll d8</button><span class="hint">or type your own</span></div></div>`).join('');
+ const ta = (k, rows = 2) => `<label class="f">${k}<textarea class="field" data-f="${k}" rows="${rows}">${F(k)}</textarea></label>`;
+ const inp = (k, ph = '') => `<label class="f">${k}<input class="field" data-f="${k}" value="${F(k)}" placeholder="${ph}"></label>`;
+ return `${back('bgback','All backgrounds')}<div class="hero">${letter(S.bg)}<div><h2>${S.bg}</h2><div class="badges" style="margin:4px 0 0"><span class="badge g">${sk[0]}</span><span class="badge g">${sk[1]}</span><span class="badge">2 languages</span></div></div></div>
+ <p>A character with the ${S.bg} background has spent their life in a way that gave them the skills above, a feature of their own and a few starting items. Everything below is optional and can be changed on the sheet later.</p>
+ <div class="sect"><h3>Languages</h3><div class="fgrid"><label class="f">Language 1<select class="field">${opts(LANGS,'Dwarvish')}</select></label><label class="f">Language 2<select class="field">${opts(LANGS,'Elvish')}</select></label></div></div>
+ <div class="sect"><h3>Alignment, faith, lifestyle</h3><div class="fgrid"><label class="f">Alignment<select class="field" data-f="Alignment">${opts(['Lawful good','Neutral good','Chaotic good','Lawful neutral','True neutral','Chaotic neutral','Lawful evil','Neutral evil','Chaotic evil'],S.f.Alignment||'Lawful good')}</select></label>${inp('Faith','Deity or belief')}<label class="f">Lifestyle<select class="field" data-f="Lifestyle">${opts(['Wretched','Squalid','Poor','Modest','Comfortable','Wealthy','Aristocratic'],S.f.Lifestyle||'Modest')}</select></label></div></div>
+ <div class="sect"><h3>Physical characteristics</h3><div class="fgrid">${inp('Age')}${inp('Height')}${inp('Weight')}<label class="f">Size<select class="field" data-f="Size">${opts(['Small','Medium','Large'],S.f.Size||curRace().sz)}</select></label>${inp('Skin')}${inp('Hair')}${inp('Eyes')}${inp('Gender and pronouns')}</div>${ta('Appearance notes')}</div>
+ <div class="sect"><h3>Personality</h3>${pr}</div>
+ <div class="sect"><h3>Allies, enemies, organisations</h3>${ta('Allies')}${ta('Enemies')}${ta('Organisations')}</div>
+ <div class="sect"><h3>Backstory</h3>${ta('Backstory',6)}</div>`; },
+
+Equipment() { const E = [
+  {k:'a',q:'First choice',o:[['a','Chain mail'],['b','Leather armor, longbow and 20 arrows']]},
+  {k:'b',q:'Second choice',o:[['a','A martial weapon and a shield'],['b','Two martial weapons']]},
+  {k:'c',q:'Third choice',o:[['a','A light crossbow and 20 bolts'],['b','Two handaxes']]},
+  {k:'d',q:'Fourth choice',o:[['a',"Dungeoneer's pack"],['b',"Explorer's pack"]]}];
+  const pack = {a:['Backpack','Crowbar','Hammer','10 pitons','10 torches','Tinderbox','10 days of rations','Waterskin','50 ft hempen rope'],b:['Backpack','Bedroll','Mess kit','Tinderbox','10 torches','10 days of rations','Waterskin','50 ft hempen rope']};
+  const MORE = ['Healer\'s kit','Potion of Healing','Bag of Holding','Rope of Climbing','Wand of Secrets','Cloak of Billowing','Lantern of Tracking','Mapmaker\'s tools','Thieves\' tools','Climber\'s kit','Spyglass','Hunting trap'];
+  return `<h2>Equipment</h2><p class="hint">Fighter starting equipment. Packs are unpacked into single items on the sheet.</p>`+E.map((e)=>`<fieldset style="border:0;padding:0;margin:0"><legend class="hint" style="margin-bottom:6px">${e.q}</legend><div class="grid" role="radiogroup" style="grid-template-columns:repeat(auto-fill,minmax(230px,1fr))">${e.o.map(([v,t])=>`<label class="pick"><input type="radio" name="eq${e.k}" value="${v}" data-eq="${e.k}" ${S.eq[e.k]===v?'checked':''}><span class="box"><b>(${v}) ${t}</b>
+   ${e.k==='b'&&S.eq.b===v?`<span class="sub">${v==='a'?mwSel('Martial weapon'):mwSel('Martial weapon 1')+'<div style="height:6px"></div>'+mwSel('Martial weapon 2')}</span>`:''}
+   ${e.k==='d'?`<ul class="pack">${pack[v].map((p)=>`<li>${p}</li>`).join('')}</ul>`:''}</span></label>`).join('')}</div></fieldset>`).join('')+
+  `<div class="sect"><h3>Extra gear (optional)</h3><p class="hint">Anything the DM allows. Searchable in the real build.</p><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:2px">${MORE.map((x)=>`<label class="check"><input type="checkbox" data-ex="${x}" ${S.extra.includes(x)?'checked':''}> ${x}</label>`).join('')}</div></div>
+  <p class="hint">Also from the ${S.bg} background: a few items and a belt pouch with 15 gp.</p>`; },
+
+Review() { const r = curRace(), s = curSub(), c = curCls(), L = S.lvl, f = S.f;
+ const dexm = Math.floor((total(1)-10)/2), strm = Math.floor((total(0)-10)/2), pb = 2 + Math.floor((L-1)/4), sg = (n) => (n>=0?'+':'') + n;
+ const line = (k) => f[k] ? `<li>${k}: ${esc(f[k])}</li>` : '';
+ const bi = BGS.indexOf(S.bg), sk = S.cs.slice(0, NSK[c.n]);
+ const txt = (k) => f[k] ? `<p style="margin:0 0 6px"><b>${k}:</b> ${esc(f[k])}</p>` : '';
+ return `<h2>Review</h2><p class="hint">Check everything, then Finish. All of it stays editable on the sheet.</p>
+ <div class="review">
+  <div class="card"><h3>Who</h3><b>${esc(S.name)}</b><br>${s?s.n:r.n} ${c.n}, level ${L}${L>=c.sl?' ('+c.sub[S.subc]+')':''}<br><span class="muted">Background: ${S.bg}</span><br><span class="muted">Alignment: ${f.Alignment||'Lawful good'}${f.Faith?', faith: '+esc(f.Faith):''}</span><br><span class="muted">Lifestyle: ${f.Lifestyle||'Modest'}</span></div>
+  <div class="card"><h3>Ability scores</h3><div class="tiles" style="grid-template-columns:repeat(3,1fr)">${AB.map((a,i)=>`<div class="tile"><span>${a}</span><b>${total(i)}</b><span>${mod(total(i))}</span></div>`).join('')}</div></div>
+  <div class="card"><h3>Combat</h3><div class="tiles" style="grid-template-columns:repeat(3,1fr)"><div class="tile"><span>HP</span><b>${hpTotal()}</b></div><div class="tile"><span>AC</span><b>${S.eq.a==='a'?16:11+dexm}</b></div><div class="tile"><span>Speed</span><b>${r.sp}</b></div></div><p class="hint" style="margin-top:8px">Proficiency bonus +${pb}. Hit dice ${L}d${c.d}.</p></div>
+  <div class="card"><h3>Skills</h3><ul><li>${sk.length?sk.join(', ')+' (class)':'No class skills picked yet'}</li><li>${bgSk().join(', ')} (${S.bg})</li></ul></div>
+  <div class="card"><h3>Attacks</h3><ul><li>Longsword: ${sg(strm+pb)} to hit, 1d8${sg(strm)} slashing</li><li>Light crossbow: ${sg(dexm+pb)} to hit, 1d8${sg(dexm)}</li></ul></div>
+  <div class="card"><h3>Spells</h3><p class="muted" style="margin:0">${CASTERS.includes(c.n)?(S.sp[0].concat(S.sp[1]).join(', ')||'None picked yet'):'None ('+c.n+').'}</p></div>
+  <div class="card"><h3>Equipment</h3><ul><li>${S.eq.a==='a'?'Chain mail':'Leather armor, longbow, 20 arrows'}</li><li>Longsword, shield</li><li>${S.eq.c==='a'?'Light crossbow, 20 bolts':'2 handaxes'}</li><li>${S.eq.d==='a'?"Dungeoneer's pack":"Explorer's pack"} (unpacked)</li>${S.extra.map((x)=>`<li>${x}</li>`).join('')}<li>Belt pouch, 15 gp</li></ul></div>
+  ${L>=2?`<div class="card"><h3>Level choices</h3><ul>${L>=c.sl?`<li>Subclass: ${c.sub[S.subc]}</li>`:''}${STYLE_CLS[c.n]&&L>=STYLE_CLS[c.n]?`<li>Fighting style: ${S.style}</li>`:''}${asiLevels().filter((l)=>l<=L).map((l)=>`<li>Level ${l}: +2 STR</li>`).join('')}</ul></div>`:''}
+  <div class="card"><h3>Physical</h3><ul>${['Age','Height','Weight','Size','Skin','Hair','Eyes','Gender and pronouns','Appearance notes'].map(line).join('')||'<li class="muted" style="list-style:none;margin-left:-18px">Nothing filled in yet</li>'}</ul></div>
+  <div class="card"><h3>Personality</h3>${KEYS_P.map(txt).join('')||'<p class="muted" style="margin:0">Nothing filled in yet</p>'}</div>
+  <div class="card"><h3>Allies, enemies, organisations</h3>${['Allies','Enemies','Organisations'].map(txt).join('')||'<p class="muted" style="margin:0">Nothing filled in yet</p>'}</div>
+  <div class="card"><h3>Backstory</h3><p style="margin:0;font-size:14px">${f.Backstory?esc(f.Backstory):'<span class="muted">Nothing written yet</span>'}</p></div>
+ </div>`; }
+};
+const STEPS = ['Name & look','Class','Race','Ability scores','Background','Equipment','Review'];
+
+function render() {
+  const n = STEPS[S.step];
+  $('#step').innerHTML = views[n]();
+  $('#steplist').innerHTML = STEPS.map((s,i)=>`<li><button type="button" class="${i<S.step?'done':''}" ${i===S.step?'aria-current="step"':''} data-go="${i}"><span class="n">${i<S.step?'✓':i+1}</span>${s}</button></li>`).join('');
+  $('#stepsum').textContent = `Step ${S.step+1} of ${STEPS.length}: ${n} ▾`;
+  $('#back').disabled = S.step===0; $('#next').textContent = S.step===STEPS.length-1 ? 'Finish' : 'Next';
+  const r = curRace(), s = curSub();
+  $('#topsum').textContent = `${s?s.n:r.n} ${S.cls} ${S.lvl}`;
+  const modal = $('#scrim').classList.contains('open');
+  document.querySelectorAll('#cap button').forEach((b)=>b.classList.toggle('on', !modal && b.dataset.i === S.cap));
+}
+const go = (i) => { S.step = Math.max(0, Math.min(STEPS.length-1, i)); S.cap = null; render(); if (matchMedia('(max-width:760px)').matches) { $('#stepsdet').open = false; } scrollTo(0,0); };
+document.addEventListener('input', (e) => { const t = e.target; if (t.dataset.f) S.f[t.dataset.f] = t.value; else if (t.id==='nm') S.name = t.value; });
+document.addEventListener('change', (e) => { const t = e.target;
+  if (t.dataset.f) { S.f[t.dataset.f] = t.value; return; }
+  if (t.dataset.cs) S.cs = t.checked ? S.cs.concat(t.dataset.cs) : S.cs.filter((x)=>x!==t.dataset.cs);
+  else if (t.dataset.sp) { const [k,v] = t.dataset.sp.split('|'); S.sp[k] = t.checked ? S.sp[k].concat(v) : S.sp[k].filter((x)=>x!==v); }
+  else if (t.dataset.ex) S.extra = t.checked ? S.extra.concat(t.dataset.ex) : S.extra.filter((x)=>x!==t.dataset.ex);
+  else if (t.name==='lvl') S.lvl = +t.value; else if (t.name==='hp') S.hp = t.value; else if (t.name==='style') S.style = t.value; else if (t.name==='subc') S.subc = +t.value;
+  else if (t.dataset.std !== undefined) S.std[+t.dataset.std] = t.value; else if (t.dataset.as !== undefined) S.assign[+t.dataset.as] = t.value;
+  else if (t.dataset.man !== undefined) S.man[+t.dataset.man] = Math.max(1, Math.min(30, +t.value||10)); else if (t.dataset.eq) S.eq[t.dataset.eq] = t.value;
+  else return;
+  const f = t.name ? `input[name="${t.name}"][value="${t.value}"]` : null;
+  const sel = t.dataset.std !== undefined ? `[data-std="${t.dataset.std}"]` : t.dataset.as !== undefined ? `[data-as="${t.dataset.as}"]` : null;
+  render(); const el = (f && $(f)) || (sel && $(sel)); if (el) el.focus(); });
+document.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; const a = b.dataset.act, k = b.dataset.key;
+  if (b.dataset.go) go(+b.dataset.go); else if (b.dataset.m) { S.method = b.dataset.m; render(); }
+  else if (b.dataset.pb) { const [i,d] = b.dataset.pb.split(',').map(Number); S.pb[i] += d; render(); const n = $(`[data-pb="${i},${d}"]`); (n && !n.disabled ? n : $(`[data-pb="${i},${-d}"]`))?.focus(); }
+  else if (b.id==='rollsets') { if (S.sets.length < 6) S.sets.push(rollOne()); render(); $('#rollsets').focus(); }
+  else if (b.id==='clearsets') { S.sets = []; S.assign = ['','','','','','']; render(); }
+  else if (b.id==='rollhp') { S.rolls = {}; render(); }
+  else if (a==='cls') { if (S.cls !== k) { S.cls = k; S.rolls = {}; S.cs = []; S.sp = [[],[]]; S.subc = 0; } S.cview = 'detail'; render(); scrollTo(0,0); }
+  else if (a==='clsback') { S.cview = 'list'; render(); scrollTo(0,0); }
+  else if (a==='race') { if (S.race !== k) { S.race = k; S.subi = 0; } S.rview = curRace().subs ? 'subs' : 'detail'; render(); scrollTo(0,0); }
+  else if (a==='sub') { S.subi = +k; S.rview = 'detail'; render(); scrollTo(0,0); }
+  else if (a==='racesubs') { S.rview = 'subs'; render(); scrollTo(0,0); }
+  else if (a==='raceback') { S.rview = 'list'; render(); scrollTo(0,0); }
+  else if (a==='bg') { S.bg = k; S.bview = 'detail'; render(); scrollTo(0,0); }
+  else if (a==='bgback') { S.bview = 'list'; render(); scrollTo(0,0); }
+  else if (a==='rollp' || a==='pick') { const v = SAMPLE[k]; S.f[k] = v; const ta = $(`[data-f="${k}"]`); if (ta) ta.value = v; }
+  else if (b.id==='back') go(S.step-1); else if (b.id==='next') { if (S.step===STEPS.length-1) alert('Mockup: this would create the character and open its sheet.'); else go(S.step+1); } });
+$('#exit').onclick = () => openModal();
+function openModal() { $('#scrim').classList.add('open'); render(); }
+$('#mcancel').onclick = () => { $('#scrim').classList.remove('open'); render(); };
+$('#mgo').onclick = () => { if (document.querySelector('[name=entry]:checked').value==='blank') { alert('Mockup: opens an empty sheet.'); return; } $('#scrim').classList.remove('open'); render(); };
+// caption: [label, step, state to set]
+const caps = [['Popup','m'],['1 Name & look',0,{}],['2 Class list',1,{cview:'list'}],['2 Class detail',1,{cview:'detail'}],['3 Race list',2,{rview:'list'}],['3 Subraces',2,{race:'Elf',subi:0,rview:'subs'}],['3 Race detail',2,{race:'Elf',subi:0,rview:'detail'}],['4 Ability scores',3,{}],['5 Background list',4,{bview:'list'}],['5 Background detail',4,{bview:'detail'}],['6 Equipment',5,{}],['7 Review',6,{}]];
+$('#cap').append(...caps.map(([t,s,st],i) => { const b = document.createElement('button'); b.textContent = t; b.dataset.i = ''+i; b.onclick = () => { if (s==='m') { openModal(); return; } $('#scrim').classList.remove('open'); Object.assign(S, st); S.step = s; if (matchMedia('(max-width:760px)').matches) $('#stepsdet').open = false; S.cap = ''+i; render(); scrollTo(0,0); }; return b; }));
+$('#app').hidden = false; render();
+</script>
+</body>
+</html>

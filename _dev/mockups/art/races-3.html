@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Race pictures 3</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,sans-serif}
+h1{font-size:22px;margin:0 0 4px}p{color:var(--muted);margin:0 0 12px;max-width:80ch}
+.sets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.sets div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px}
+.sets b{color:var(--accent)}
+.bar{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+button{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--accent)}
+.wrap{overflow-x:auto}
+table{border-collapse:separate;border-spacing:0 8px;width:100%;min-width:1100px}
+th{color:var(--muted);font-weight:600;text-align:left;padding:0 8px}
+td{background:var(--card);padding:8px;vertical-align:top;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+td:first-child{border-left:1px solid var(--line);border-radius:8px 0 0 8px;font-weight:700;white-space:nowrap}
+td:last-child{border-right:1px solid var(--line);border-radius:0 8px 8px 0;white-space:nowrap}
+.lab{font-weight:700;color:var(--accent);font-size:13px;margin-bottom:4px}
+.dk,.lt{display:flex;gap:10px;align-items:center;padding:6px 8px;border-radius:8px;margin-bottom:6px}
+.dk{background:#161616;color:#ececec;--cut:#161616}
+.lt{background:#fff;color:#222;--cut:#fff;border:1px solid #ddd}
+.lt .nm{font-weight:800;letter-spacing:.03em;text-transform:uppercase;font-size:14px;margin-left:6px;flex:1}
+.lt .chev{color:#1a73d9;font-weight:700;font-size:20px;line-height:1}
+svg{display:block;flex:none}
+label.pick{display:block;margin:2px 0;cursor:pointer}
+#out{width:100%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:14px monospace;min-height:60px}
+.sticky{position:sticky;bottom:0;background:var(--bg);padding:8px 0}
+</style></head><body>
+<h1>Race pictures 3: pick a style per race</h1>
+<p>21 races (halfling to owlin), three styles each. Every picture is hand-drawn inline SVG. Each is shown at 80 px and 40 px on the dark site background, then on a white list row. Choose A, B or C per race and tick "redo" if none is good enough.</p>
+<div class="sets">
+<div><b>A</b> Tile portrait: 64 px rounded square, muted background, flat 3/4 head and shoulders.</div>
+<div><b>B</b> Silhouette badge: dark round badge, light head silhouette, one accent colour.</div>
+<div><b>C</b> Emblem: one-colour bold symbol, no background, built for small sizes.</div>
+</div>
+<div class="bar"><b>Pick for all:</b><button data-all="A">Pick A for all</button><button data-all="B">Pick B for all</button><button data-all="C">Pick C for all</button><button data-all="">Clear</button></div>
+<div class="wrap"><table><thead><tr><th>Race</th><th>A Tile portrait</th><th>B Silhouette badge</th><th>C Emblem</th><th>Pick</th></tr></thead><tbody id="t"></tbody></table></div>
+<div class="sticky"><div class="bar"><button id="copy">Copy</button></div><textarea id="out" readonly placeholder="Your picks appear here"></textarea></div>
+<script>
+const SH='<path d="M5 64C5 52 15 46.5 33 46.5S61 52 61 64Z" fill="@c"/>';
+const NECK='<path d="M27.5 36h11v12.5c-3 2.5-8 2.5-11 0z" fill="@s"/><path d="M27.5 40c4 4 7 4 11 0v-4h-11z" fill="#000" opacity=".15"/>';
+const HEAD='<ellipse cx="33" cy="28" rx="12.5" ry="14.5" fill="@s"/>';
+const FACE='<ellipse cx="29" cy="28" rx="1.5" ry="1.8" fill="@d"/><ellipse cx="38.5" cy="28" rx="1.5" ry="1.8" fill="@d"/><path d="M35.5 29.5l2.2 5h-2.8" stroke="@d" stroke-width="1.1" fill="none" opacity=".5" stroke-linejoin="round"/><path d="M30 37q3.5 2.5 7 0" stroke="@d" stroke-width="1.3" fill="none" stroke-linecap="round"/>';
+const EARS='<ellipse cx="20.6" cy="29" rx="2.4" ry="3.5" fill="@s"/><ellipse cx="45.4" cy="29" rx="2.4" ry="3.5" fill="@s"/>';
+// bg skin cloth hair accent; b = overrides for the badge; head/face replace the defaults
+const R=[
+{n:'Halfling',bg:'#6a8a52',s:'#e3b48a',c:'#8a5a3a',h:'#6b4226',k:'#d9b24c',b:{h:'#d9b24c'},
+ back:'<ellipse cx="20.7" cy="30" rx="2.6" ry="3.6" fill="@s"/><ellipse cx="45.3" cy="30" rx="2.6" ry="3.6" fill="@s"/>',
+ face:'<ellipse cx="29" cy="28" rx="1.6" ry="1.9" fill="@d"/><ellipse cx="38.5" cy="28" rx="1.6" ry="1.9" fill="@d"/><path d="M35.5 29.5l2.2 4.5h-2.8" stroke="@d" stroke-width="1.1" fill="none" opacity=".5"/><path d="M28.5 35.5q5 5 10 0" stroke="@d" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
+ front:'<g fill="@h"><circle cx="23" cy="20" r="5"/><circle cx="29" cy="15" r="5.5"/><circle cx="36" cy="14" r="5.5"/><circle cx="42.5" cy="18" r="5"/><circle cx="45" cy="25" r="3.5"/><circle cx="21.5" cy="26" r="3.5"/><circle cx="33" cy="19" r="4"/></g><path d="M27 47l6 7 6-7" fill="@k"/>',
+ em:'<path d="M3 58C3 28 17 10 32 10s29 18 29 48z"/><circle cx="32" cy="38" r="15" fill="var(--cut)"/><circle cx="32" cy="38" r="12"/><path d="M32 26v24M20 38h24M23.500 29.500l17 17M40.500 29.500l-17 17" stroke="var(--cut)" stroke-width="1.600"/><circle cx="32" cy="38" r="3.500" fill="var(--cut)"/><rect x="44" y="2" width="8" height="12" rx="1.500"/>'},
+{n:'Harengon',bg:'#5f7a8a',s:'#d6a878',c:'#4e6a4a',h:'#f1e2cc',k:'#f4a3b3',
+ back:'<g transform="rotate(-12 27 14)"><ellipse cx="27" cy="12" rx="5.2" ry="14" fill="@s"/><ellipse cx="27" cy="12" rx="2.6" ry="10" fill="@k"/></g><g transform="rotate(14 40 14)"><ellipse cx="40" cy="12" rx="5.2" ry="14" fill="@s"/><ellipse cx="40" cy="12" rx="2.6" ry="10" fill="@k"/></g>',
+ face:'<ellipse cx="29" cy="27" rx="1.6" ry="2" fill="@d"/><ellipse cx="39" cy="27" rx="1.6" ry="2" fill="@d"/><ellipse cx="34.5" cy="35" rx="6.5" ry="5" fill="@h"/><path d="M32 32h5l-2.5 3z" fill="@k"/><path d="M34.5 35v2.5M34.5 37.5q-2 1.5-4 0M34.5 37.5q2 1.5 4 0" stroke="@d" stroke-width="1.1" fill="none" stroke-linecap="round"/>',
+ em:'<path d="M20 36C13 24 14 8 22 4c8 4 8 20 4 32z"/><path d="M40 36c-3-12-3-29 4-32 8 4 8 20 2 32z"/><ellipse cx="32" cy="46" rx="17" ry="14"/><path d="M22 10c4 4 4 16 1 24-3-8-4-18-1-24zM43 10c-4 4-4 16-1 24 3-8 4-18 1-24z" fill="var(--cut)"/><circle cx="25" cy="44" r="2.2" fill="var(--cut)"/><circle cx="39" cy="44" r="2.2" fill="var(--cut)"/>'},
+{n:'Hexblood',bg:'#5a4670',s:'#b8c7ae',c:'#3a2c4a',h:'#2a1f3a',k:'#7ff0b0',b:{h:'#8a93aa'},
+ back:'<path d="M18 30C10 20 14 8 24 6c-2 4 0 6 3 5 0-5 4-8 8-8 0 3 2 5 5 5 3-3 8-1 9 3 6 3 8 12 2 20-1-8-4-12-8-14H27c-5 2-8 8-9 13z" fill="@h"/><path d="M20 28c-4 8-3 16-6 22l8-3z" fill="@h"/><path d="M46 28c4 8 3 16 6 22l-8-3z" fill="@h"/><path d="M21 31L8 24l13-1z" fill="@s"/><path d="M45 31l13-7-13-1z" fill="@s"/>',
+ face:'<ellipse cx="29" cy="28" rx="1.4" ry="1.7" fill="@d"/><circle cx="38.5" cy="28" r="3.8" fill="@k"/><circle cx="38.5" cy="28" r="1.5" fill="@d"/><path d="M35 29l3.5 7h-4.5" stroke="@d" stroke-width="1.1" fill="none" opacity=".5"/><path d="M30 37.5q3 1.5 6 0" stroke="@d" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M23.5 33l5 3M23.5 36l5-3" stroke="@d" stroke-width="1" opacity=".7"/>',
+ front:'<path d="M21 25c4-8 12-11 20-8 2 3 3 6 3 9-4-5-10-7-14-6-3 1-6 3-9 5z" fill="@h"/>',
+ em:'<path d="M32 3l25 14.5v29L32 61 7 46.5v-29z"/><path d="M12 32q20-19 40 0q-20 19-40 0z" fill="var(--cut)"/><circle cx="32" cy="32" r="8.5"/><circle cx="32" cy="32" r="3.2" fill="var(--cut)"/>'},
+{n:'Hobgoblin',bg:'#6b4030',s:'#c8683a',c:'#7a2f2a',h:'#1d1a1a',k:'#f2c230',b:{h:'#8a93aa'},
+ back:'<path d="M21 30L3 19l18-1z" fill="@s"/><path d="M45 30l18-11-18-1z" fill="@s"/><circle cx="33" cy="9" r="4.5" fill="@h"/>',
+ head:'<path d="M20 22c0-9 6-10 13-10s13 1 13 10v8c0 9-6 13-13 13s-13-4-13-13z" fill="@s"/>',
+ face:'<path d="M23 25l10 3.5M44 25l-9 3.5" stroke="@d" stroke-width="2.4" stroke-linecap="round"/><ellipse cx="28.5" cy="30" rx="2.2" ry="1.7" fill="@k"/><ellipse cx="38.5" cy="30" rx="2.2" ry="1.7" fill="@k"/><circle cx="29" cy="30" r=".9" fill="@d"/><circle cx="39" cy="30" r=".9" fill="@d"/><ellipse cx="35" cy="35" rx="3.5" ry="2" fill="#000" opacity=".25"/><path d="M27 40h12" stroke="@d" stroke-width="1.4" stroke-linecap="round"/><path d="M29.5 40l1 3 1-3z" fill="#fff"/>',
+ front:'<path d="M20 20c1-7 6-8 13-8s12 1 13 8c-4-3-8-4-13-4s-9 1-13 4z" fill="@h"/>',
+ em:'<path d="M12 58V32C12 18 21 10 32 10s20 8 20 22v26l-8-6V40H20v12z"/><path d="M29 11L32 1l3 10z"/><path d="M19 29h26v5H19z" fill="var(--cut)"/><path d="M30 29h4v14h-4z" fill="var(--cut)"/>'},
+{n:'Human',bg:'#4d6d92',s:'#e6bb98',c:'#3f4f7a',h:'#5b3a24',k:'#e0b84c',b:{h:'#e0b84c'},
+ back:EARS,
+ front:'<path d="M20.5 27c-1-10 4-16 13-16 8 0 13 5 12.5 16-1-5-3-8-6-9-5 3-12 4-18 3-1 2-1 4-1.5 6z" fill="@h"/><path d="M27 47l6 6 6-6" stroke="@k" stroke-width="3" fill="none"/>',
+ em:'<circle cx="32" cy="20" r="12"/><path d="M6 60c0-14 10-22 26-22s26 8 26 22z"/>'},
+{n:'Kalashtar',bg:'#3c3f7c',s:'#d6ad90',c:'#5a4f9a',h:'#cfd3ee',k:'#8fe0ff',b:{h:'#8a93aa'},
+ back:'<circle cx="33" cy="26" r="25" fill="none" stroke="@k" stroke-width="2" opacity=".55"/><circle cx="33" cy="26" r="20" fill="@k" opacity=".14"/><path d="M20 28c-3 10-2 18-6 26h12V40zM46 28c3 10 2 18 6 26H40V40z" fill="@h"/>',
+ face:'<ellipse cx="29" cy="29" rx="2.2" ry="1.7" fill="@k"/><ellipse cx="38.5" cy="29" rx="2.2" ry="1.7" fill="@k"/><circle cx="29" cy="29" r=".8" fill="@d"/><circle cx="38.5" cy="29" r=".8" fill="@d"/><path d="M35.5 30l2 4.5h-2.7" stroke="@d" stroke-width="1" fill="none" opacity=".5"/><path d="M30.5 37q2.5 1.5 5 0" stroke="@d" stroke-width="1.3" fill="none" stroke-linecap="round"/>',
+ front:'<path d="M20.5 27c-1-10 4-16 12.5-16 8.5 0 13 6 12.5 16-3-6-8-10-12.5-11-4.5 1-9 5-12.5 11z" fill="@h"/><path d="M33 17.5l2.6 3.6-2.6 3.6-2.6-3.6z" fill="@k"/>',
+ em:'<path d="M32 12l15 20-15 20-15-20z"/><circle cx="32" cy="32" r="7" fill="var(--cut)"/><circle cx="32" cy="32" r="3"/><path d="M32 2v6M32 56v6M7 32H2M62 32h-5M11 11l4 4M53 11l-4 4M11 53l4-4M53 53l-4-4" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>'},
+{n:'Kender',bg:'#5f8a7a',s:'#ecc7a4',c:'#8b5a3a',h:'#6a3b1e',k:'#e0a030',b:{h:'#8a93aa'},
+ back:'<path d="M30 15C32 3 46 0 54 8c-4 0-7 1-9 4 7 0 11 5 9 11-3-5-7-6-12-4z" fill="@h"/><rect x="33.5" y="10" width="5" height="4" rx="1.2" fill="@k" transform="rotate(-30 36 12)"/><path d="M21.5 31l-8-8 9 1z" fill="@s"/><path d="M44.5 31l8-8-9 1z" fill="@s"/>',
+ face:'<ellipse cx="29" cy="27.5" rx="2" ry="2.4" fill="@d"/><ellipse cx="38.5" cy="27.5" rx="2" ry="2.4" fill="@d"/><path d="M35.5 29.5l2 4.5h-2.7" stroke="@d" stroke-width="1" fill="none" opacity=".5"/><path d="M28 35q5.5 6 11 0z" fill="@d"/>',
+ front:'<path d="M20.5 26c0-10 5-14 12.5-14 8 0 12.5 5 12.5 14-3-5-7-7-12.5-7s-9 2-12.5 7z" fill="@h"/><path d="M14 64l36-18" stroke="@k" stroke-width="3" opacity=".9"/><rect x="18" y="52" width="10" height="10" rx="3.5" fill="@k"/><path d="M19 55h8" stroke="@d" stroke-width="1" opacity=".5"/>',
+ em:'<path d="M23 17l-4-11 8 6 5-9 5 9 8-6-4 11z"/><path d="M20 21c0-3 4-5 12-5s12 2 12 5l8 29c1 6-4 10-10 10H22c-6 0-11-4-10-10z"/><path d="M19 28c8 4 18 4 26 0" stroke="var(--cut)" stroke-width="2.6" fill="none"/><circle cx="32" cy="45" r="5" fill="var(--cut)"/><circle cx="32" cy="45" r="2.2"/>'},
+{n:'Kenku',bg:'#7f8ea8',s:'#2a2d3a',c:'#6b4e3a',h:'#4a5168',k:'#d6c27a',ey:'#f4dc6a',
+ back:'',
+ head:'<path d="M21 21l-9-5 10-2zM24 15l-6-8 10 3z" fill="@s"/><ellipse cx="31" cy="27" rx="13" ry="14.5" fill="@s"/>',
+ face:'<path d="M39 21c8 0 17 7 19 13-8 2-14 1-19 0z" fill="@k"/><path d="M39 28c6 1 12 3 19 6-7 3-14 3-19 1z" fill="#000" opacity=".22"/><circle cx="35.5" cy="23.5" r="3.4" fill="@e"/><circle cx="36.3" cy="23.5" r="1.5" fill="@d"/><path d="M22 34q3 4 6 0M25 38q3 4 6 0M22 28q3 4 6 0" stroke="@h" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
+ em:'<path d="M6 36C6 18 20 6 36 8c6 1 10 4 12 8l14 10-14 4c0 10-6 20-18 22C18 54 6 50 6 36z"/><circle cx="35" cy="20" r="3.6" fill="var(--cut)"/><path d="M47 26l13 1" stroke="var(--cut)" stroke-width="1.8"/><path d="M14 38q4 3 8 0M18 44q4 3 8 0" stroke="var(--cut)" stroke-width="2" fill="none" stroke-linecap="round"/>'},
+{n:'Khenra',bg:'#6b5638',s:'#b5865c',c:'#2e5f8a',h:'#1d1d28',k:'#e6b83a',b:{h:'#8a93aa'},
+ back:'<path d="M25 16L19 1l13 11zM42 16l5-15-13 11z" fill="@s"/><path d="M20 24c-4 10-4 20-8 28h14V34zM46 24c4 10 4 20 8 28H40V34z" fill="@k"/><path d="M16 36l8 3M15 42l9 3M50 36l-8 3M51 42l-9 3" stroke="@c" stroke-width="2"/>',
+ face:'<path d="M24 28h9M35.5 28h10" stroke="@d" stroke-width="1.5" stroke-linecap="round"/><ellipse cx="29" cy="28" rx="1.6" ry="1.5" fill="@d"/><ellipse cx="39" cy="28" rx="1.6" ry="1.5" fill="@d"/><path d="M35.5 30l2 4.5h-2.7" stroke="@d" stroke-width="1" fill="none" opacity=".5"/><path d="M30 37q3.5 2 7 0" stroke="@d" stroke-width="1.3" fill="none" stroke-linecap="round"/>',
+ front:'<path d="M20.5 26c0-10 5-15 12.5-15 8 0 12.5 5 12.5 15-4-4-8-5-12.5-5s-8.5 1-12.5 5z" fill="@k"/><path d="M24 17q9-5 18 0" stroke="@c" stroke-width="1.6" fill="none"/>',
+ em:'<path d="M32 3c-11 0-17 7-17 16 0 8 6 13 13 15v4H10v7h18v14h8V45h18v-7H36v-4c7-2 13-7 13-15 0-9-6-16-17-16z"/><path d="M32 10c-5 0-8 4-8 9s3 9 8 9 8-4 8-9-3-9-8-9z" fill="var(--cut)"/>'},
+{n:'Kobold',bg:'#5b6b4a',s:'#b8573d',c:'#5a4a38',h:'#e8a77c',k:'#efe3c4',ey:'#f2d34a',
+ back:'<path d="M26 17L18 2l13 10zM38 17l9-14-13 10z" fill="@k"/><path d="M21 30L8 24l3 10z" fill="@s"/>',
+ head:'<ellipse cx="31" cy="28" rx="12" ry="13.5" fill="@s"/><path d="M38 24c8-1 17 3 19 8-1 5-10 7-19 5z" fill="@s"/>',
+ face:'<path d="M38 35c8 2 15 1 18-3-1 5-10 8-18 6z" fill="@h"/><circle cx="53" cy="29.5" r="1.2" fill="@d"/><circle cx="35.5" cy="23.5" r="3" fill="@e"/><rect x="35" y="21.5" width="1.2" height="4" fill="@d"/><path d="M30 20l9 2" stroke="@d" stroke-width="1.6" stroke-linecap="round"/><path d="M41 36l1.5 3 1.5-3zM48 35l1.5 3 1.5-3z" fill="#fff"/>',
+ em:'<path d="M6 42C6 28 16 22 28 22h6l22 8c4 2 4 6 0 8l-16 5c-4 6-10 9-18 9C14 54 6 52 6 42z"/><path d="M13 26L7 6l14 14zM26 23l4-17 8 19z"/><circle cx="30" cy="32" r="3.2" fill="var(--cut)"/><circle cx="53" cy="33" r="1.6" fill="var(--cut)"/><path d="M38 38l2 4 2-4M46 36l2 4 2-4" fill="var(--cut)"/>'},
+{n:'Kor',bg:'#6a5a80',s:'#9dc0dc',c:'#7a6a50',h:'#f1f1f4',k:'#e0b24f',b:{h:'#8a93aa'},
+ back:'<path d="M20 26c-4 10-3 20-5 28h10zM46 26c4 10 3 20 5 28H41z" fill="@h"/><path d="M21 31l-6-6 8 0zM45 31l6-6-8 0z" fill="@s"/>',
+ face:'<ellipse cx="29" cy="28" rx="1.5" ry="1.8" fill="@d"/><ellipse cx="38.5" cy="28" rx="1.5" ry="1.8" fill="@d"/><path d="M35.5 29.5l2.2 5h-2.8" stroke="@d" stroke-width="1.1" fill="none" opacity=".5"/><path d="M30 37q3.5 2.5 7 0" stroke="@d" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M23.5 31l5 2M24 34.5l4 1.5" stroke="@k" stroke-width="1.3" stroke-linecap="round"/>',
+ front:'<path d="M20.5 27c-1-10 4-16 13-16 8 0 13 5 12.5 16-3-5-6-8-8-9-6 3-11 4-17 9z" fill="@h"/><path d="M10 64L52 46" stroke="@k" stroke-width="5.5" stroke-linecap="round"/><path d="M10 64L52 46" stroke="#000" opacity=".3" stroke-width="5.5" stroke-dasharray="1.6 3.4"/>',
+ em:'<g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><circle cx="32" cy="8" r="5"/><path d="M32 13v22M32 35C22 36 12 32 10 18M32 35C42 36 52 32 54 18M32 35v22"/></g><circle cx="32" cy="35" r="5.500"/><path d="M3 20l7-11 7 11zM47 20l7-11 7 11zM25 56l7 7 7-7z"/>'},
+{n:'Leonin',bg:'#3f6b66',s:'#d8a050',c:'#5a3a2a',h:'#f0d9a8',k:'#c9782e',b:{h:'#aab3c6'},
+ back:'<g fill="@k"><circle cx="33" cy="29" r="19"/><circle cx="52" cy="29" r="7.5"/><circle cx="48.4" cy="40.2" r="7.5"/><circle cx="38.9" cy="47.1" r="7.5"/><circle cx="27.1" cy="47.1" r="7.5"/><circle cx="17.6" cy="40.2" r="7.5"/><circle cx="14" cy="29" r="7.5"/><circle cx="17.6" cy="17.8" r="7.5"/><circle cx="27.1" cy="10.9" r="7.5"/><circle cx="38.9" cy="10.9" r="7.5"/><circle cx="48.4" cy="17.8" r="7.5"/></g><circle cx="23" cy="18" r="4.5" fill="@s"/><circle cx="43" cy="18" r="4.5" fill="@s"/>',
+ face:'<ellipse cx="28.5" cy="26.5" rx="1.6" ry="1.9" fill="@d"/><ellipse cx="38.5" cy="26.5" rx="1.6" ry="1.9" fill="@d"/><ellipse cx="34" cy="34" rx="7.5" ry="6" fill="@h"/><path d="M30.5 29.5h7l-3.5 4z" fill="@d"/><path d="M34 33.5v3M34 36.5q-3 2.5-6 0M34 36.5q3 2.5 6 0" stroke="@d" stroke-width="1.2" fill="none" stroke-linecap="round"/>',
+ em:'<g><circle cx="32" cy="32" r="22"/><circle cx="54" cy="32" r="7"/><circle cx="51" cy="43" r="7"/><circle cx="43" cy="51" r="7"/><circle cx="32" cy="54" r="7"/><circle cx="21" cy="51" r="7"/><circle cx="13" cy="43" r="7"/><circle cx="10" cy="32" r="7"/><circle cx="13" cy="21" r="7"/><circle cx="21" cy="13" r="7"/><circle cx="32" cy="10" r="7"/><circle cx="43" cy="13" r="7"/><circle cx="51" cy="21" r="7"/></g><ellipse cx="32" cy="33" rx="12" ry="13" fill="var(--cut)"/><circle cx="26.5" cy="27" r="2"/><circle cx="37.5" cy="27" r="2"/><path d="M27.5 32h9l-4.5 5z"/><path d="M32 37v3M32 40q-4 3-8 0M32 40q4 3 8 0" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>'},
+{n:'Lizardfolk',bg:'#5b4b36',s:'#6e9a4e',c:'#4a3a2a',h:'#a9c27a',k:'#e0c040',ey:'#e0c040',
+ back:'<path d="M22 20L17 6l8 6 3-9 5 9 5-9 3 9 6-6-3 14z" fill="@k"/>',
+ head:'<ellipse cx="29" cy="28" rx="12" ry="13" fill="@s"/><path d="M36 22h21c3 0 4 3 3 6-1 4-4 8-10 8H36z" fill="@s"/>',
+ face:'<path d="M37 31h22" stroke="@d" stroke-width="1.2"/><path d="M42 31l1.5 3.2 1.5-3.2zM49 31l1.5 3.2 1.5-3.2z" fill="#fff"/><circle cx="56" cy="25.5" r="1" fill="@d"/><circle cx="34" cy="23.5" r="3.2" fill="@e"/><rect x="33.4" y="21" width="1.3" height="5" fill="@d"/><g stroke="@h" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".9"><path d="M20 33q3 3 6 0M23 38q3 3 6 0M19 26q3 3 6 0"/></g>',
+ em:'<ellipse cx="32" cy="9" rx="6" ry="8"/><path d="M26 16h12c4 8 4 18 0 26-2 6-1 10 2 14 2 3 0 6-3 4-6-4-9-10-8-18-4-8-4-18-3-26z"/><path d="M27 20l-10-4-5 7M37 20l10-4 5 7M27 34l-10 3-3 8M37 34l10 3 3 8" stroke="currentColor" stroke-width="4.500" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="29.500" cy="7" r="1.500" fill="var(--cut)"/><circle cx="34.500" cy="7" r="1.500" fill="var(--cut)"/>'},
+{n:'Locathah',bg:'#2f5f78',s:'#7cb8cc',c:'#3a6a80',h:'#4f8aa3',k:'#f08a3c',ey:'#f3f0d0',b:{h:'#aab3c6'},
+ back:'<path d="M17 24C14 12 22 4 33 3c11 1 19 9 16 21-4-6-9-9-16-9s-12 3-16 9z" fill="@k"/><path d="M33 3v12M24 6l4 10M42 6l-4 10M19 13l7 7M47 13l-7 7" stroke="@h" stroke-width="1" opacity=".6"/><path d="M21 28l-11-7-1 14 12-3z" fill="@k"/><path d="M45 28l11-7 1 14-12-3z" fill="@k"/>',
+ face:'<circle cx="27" cy="27" r="4.4" fill="@e"/><circle cx="39.5" cy="27" r="4.4" fill="@e"/><circle cx="27.8" cy="27" r="2.1" fill="@d"/><circle cx="38.7" cy="27" r="2.1" fill="@d"/><path d="M26 37q7 3.5 14 0" stroke="@d" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M29 42h7M29.5 45h6" stroke="@d" stroke-width="1.3" stroke-linecap="round"/><g stroke="@h" stroke-width="1.2" fill="none" stroke-linecap="round"><path d="M22 35q2 2.5 4 0M41 35q2 2.5 4 0"/></g>',
+ em:'<path d="M3 32C14 16 30 14 42 22l17-12v44L42 42C30 50 14 48 3 32z"/><circle cx="15" cy="29" r="3.2" fill="var(--cut)"/><path d="M27 24q-4 8 0 16M33 23q-4 9 0 18" stroke="var(--cut)" stroke-width="2.2" fill="none" stroke-linecap="round"/>'},
+{n:'Loxodon',bg:'#7a5f45',s:'#a3a6b3',c:'#7b4a3a',h:'#7e8190',k:'#f2ead2',b:{h:'#aab3c6'},
+ back:'<ellipse cx="16" cy="27" rx="11" ry="15" fill="@s"/><ellipse cx="16" cy="27" rx="6.5" ry="10.5" fill="@h"/><ellipse cx="50" cy="27" rx="11" ry="15" fill="@s"/><ellipse cx="50" cy="27" rx="6.5" ry="10.5" fill="@h"/>',
+ head:'<ellipse cx="33" cy="26" rx="13.5" ry="15.5" fill="@s"/>',
+ face:'<path d="M28 31c0 9-1 17 3 22 3 4 8 2 8-2 0-3-4-2-4-6 0-5 2-9 2-14z" fill="@s"/><path d="M29.5 38h5M30 42h5M30.5 46h4" stroke="@h" stroke-width="1.2" opacity=".8"/><path d="M27 38c-4 4-6 8-3 13 0-4 3-6 5-8zM40 38c4 4 6 8 3 13 0-4-3-6-5-8z" fill="@k"/><circle cx="27.5" cy="25" r="1.7" fill="@d"/><circle cx="39" cy="25" r="1.7" fill="@d"/>',
+ em:'<circle cx="11" cy="26" r="10"/><circle cx="53" cy="26" r="10"/><ellipse cx="32" cy="24" rx="15" ry="17"/><path d="M26 32h12v16c0 6-3 10-8 11-4 1-7-2-4-4 2-1 3-2 3-7z"/><path d="M23 38c-6 4-8 10-6 17 3-5 6-8 10-9zM41 38c6 4 8 10 6 17-3-5-6-8-10-9z"/><circle cx="10" cy="26" r="4.5" fill="var(--cut)"/><circle cx="54" cy="26" r="4.5" fill="var(--cut)"/><circle cx="25" cy="21" r="2" fill="var(--cut)"/><circle cx="39" cy="21" r="2" fill="var(--cut)"/>'},
+{n:'Merfolk',bg:'#3d5a8a',s:'#8fd0c4',c:'#3e9aa8',h:'#1f6f8f',k:'#f3a6b6',b:{h:'#aab3c6'},
+ back:'<path d="M20 24c-6 10 0 16-4 24s0 12 6 14l10-6V30zM46 24c6 10 0 16 4 24s0 10-6 14l-10-6V30z" fill="@h"/><path d="M21 27l-10-8 1 13 10-2z" fill="@k"/><path d="M45 27l10-8-1 13-10-2z" fill="@k"/>',
+ front:'<path d="M20.5 27c-1-10 4-16 12.5-16 8.5 0 13 6 12.5 16-3-6-8-9-12.5-10-4.5 1-9 4-12.5 10z" fill="@h"/><path d="M33 62l-9-9c1-6 5-8 9-8s8 2 9 8z" fill="@k"/><path d="M33 62V47M28 59l5-12M38 59l-5-12" stroke="@c" stroke-width="1" opacity=".6"/>',
+ em:'<path d="M14 2C34 0 46 14 38 30c-3 6-5 9-6 12 6 4 14 6 24 6-8 10-20 10-25 4-5 6-17 6-25-4 10 0 18-2 24-6 1-8 0-14-5-20C18 16 10 10 14 2z"/><path d="M22 14q8 3 13-1M22 24q8 3 13-1M27 33q6 2 9-2" stroke="var(--cut)" stroke-width="2" fill="none" stroke-linecap="round"/>'},
+{n:'Minotaur',bg:'#5d5470',s:'#8b5a3c',c:'#3d3a4a',h:'#c8a07c',k:'#eadfc0',b:{h:'#aab3c6'},
+ back:'<path d="M23 20C12 20 8 10 11 2c3 7 8 10 16 11z" fill="@k"/><path d="M43 20C54 20 58 10 55 2 52 9 47 12 39 13z" fill="@k"/><path d="M21 26L6 22l5 10 10-1z" fill="@s"/><path d="M45 26l15-4-5 10-10-1z" fill="@s"/>',
+ head:'<path d="M20 20c0-5 6-8 13-8s13 3 13 8c0 8-3 13-4 18-1 4-5 6-9 6s-8-2-9-6c-1-5-4-10-4-18z" fill="@s"/>',
+ face:'<path d="M27 13c3-4 7-4 12 0-3 1-9 1-12 0z" fill="@h"/><ellipse cx="34" cy="38" rx="7.5" ry="5.5" fill="@h"/><circle cx="31" cy="38.5" r="1.2" fill="@d"/><circle cx="37" cy="38.5" r="1.2" fill="@d"/><path d="M23 24l6 3M45 24l-6 3" stroke="@d" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="28.5" cy="29" rx="1.6" ry="1.4" fill="@d"/><ellipse cx="39.5" cy="29" rx="1.6" ry="1.4" fill="@d"/><circle cx="34" cy="43.5" r="3.5" fill="none" stroke="@k" stroke-width="1.7"/>',
+ em:'<path d="M16 24C5 24 1 13 3 3c4 9 9 12 17 13z"/><path d="M48 24c11 0 15-11 13-21-4 9-9 12-17 13z"/><path d="M17 14h30c4 12 1 22-3 30-2 6-6 11-12 11s-10-5-12-11c-4-8-7-18-3-30z"/><path d="M20 27l8 4-8 1zM44 27l-8 4 8 1z" fill="var(--cut)"/><circle cx="27" cy="46" r="1.8" fill="var(--cut)"/><circle cx="37" cy="46" r="1.8" fill="var(--cut)"/><circle cx="32" cy="58" r="3.8" fill="none" stroke="currentColor" stroke-width="2.2"/>'},
+{n:'Mushroomfolk',bg:'#4d6b49',s:'#efe3c8',c:'#7a5a3a',h:'#c93a3a',k:'#fff7e6',b:{h:'#ff7a66'},
+ back:'',
+ face:'<ellipse cx="29" cy="31" rx="1.8" ry="2.2" fill="@d"/><ellipse cx="38.5" cy="31" rx="1.8" ry="2.2" fill="@d"/><path d="M30 37.5q3.5 2.5 7 0" stroke="@d" stroke-width="1.3" fill="none" stroke-linecap="round"/>',
+ front:'<path d="M12 25C12 8 22 2 33 2s21 6 21 23c-7-4-14-6-21-6s-14 2-21 6z" fill="@h"/><path d="M17 24c6-3 10-4 16-4s10 1 16 4v2c-6-3-10-4-16-4s-10 1-16 4z" fill="@d" opacity=".25"/><circle cx="22" cy="13" r="3.2" fill="@k"/><circle cx="35" cy="8.5" r="3.8" fill="@k"/><circle cx="46" cy="15" r="2.8" fill="@k"/><circle cx="29" cy="17" r="1.8" fill="@k"/><circle cx="12" cy="40" r="1.3" fill="@k" opacity=".8"/><circle cx="54" cy="36" r="1.5" fill="@k" opacity=".8"/><circle cx="9" cy="32" r="1" fill="@k" opacity=".8"/>',
+ em:'<path d="M3 35C3 16 15 3 32 3s29 13 29 32z"/><circle cx="17" cy="20" r="4.5" fill="var(--cut)"/><circle cx="33" cy="14" r="5.5" fill="var(--cut)"/><circle cx="48" cy="23" r="4" fill="var(--cut)"/><circle cx="26" cy="28" r="2.5" fill="var(--cut)"/><path d="M21 36h22l-3 21c0 3-3 5-8 5s-8-2-8-5z"/><circle cx="28" cy="46" r="2.3" fill="var(--cut)"/><circle cx="36" cy="46" r="2.3" fill="var(--cut)"/>'},
+{n:'Naga',bg:'#4a3a5c',s:'#5c9a7a',c:'#3a3050',h:'#2f6a52',k:'#e8506a',ey:'#f2d34a',b:{h:'#aab3c6'},
+ back:'<path d="M33 4C50 4 62 18 56 40c-3 6-8 8-12 8H22c-4 0-9-2-12-8C4 18 16 4 33 4z" fill="@h"/><circle cx="13" cy="28" r="3.2" fill="@k"/><circle cx="53" cy="28" r="3.2" fill="@k"/><path d="M10 38q4 8 11 9M56 38q-4 8-11 9" stroke="@k" stroke-width="2" fill="none" stroke-linecap="round"/>',
+ face:'<ellipse cx="29" cy="28" rx="2.4" ry="2.1" fill="@e"/><ellipse cx="38.5" cy="28" rx="2.4" ry="2.1" fill="@e"/><rect x="28.5" y="25.8" width="1" height="4.4" fill="@d"/><rect x="38" y="25.8" width="1" height="4.4" fill="@d"/><circle cx="35" cy="33" r=".8" fill="@d"/><circle cx="37" cy="33" r=".8" fill="@d"/><path d="M29 37q4.5 3 9 0" stroke="@d" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M33.5 39v6l-2 2.5M33.5 45l2 2.5" stroke="@k" stroke-width="1.5" fill="none" stroke-linecap="round"/>',
+ front:'<path d="M23 20q10-9 20 0q-10-4-20 0z" fill="@h"/>',
+ em:'<path d="M32 2c15 0 28 10 28 26 0 10-8 14-14 18-2 4-3 9-3 14H21c0-5-1-10-3-14C12 42 4 38 4 28 4 12 17 2 32 2z"/><path d="M32 9c7 0 11 5 9 11l-5 14h-8l-5-14c-2-6 2-11 9-11z" fill="var(--cut)"/><circle cx="28" cy="19" r="2"/><circle cx="36" cy="19" r="2"/><path d="M32 36v9M32 45l-3 4M32 45l3 4" stroke="var(--cut)" stroke-width="2" fill="none" stroke-linecap="round"/><circle cx="13" cy="26" r="3.500" fill="var(--cut)"/><circle cx="51" cy="26" r="3.500" fill="var(--cut)"/>'},
+{n:'Orc',bg:'#6a3f3f',s:'#7c9a5a',c:'#4a3a30',h:'#1b1b1f',k:'#f3ecd4',b:{h:'#8a93aa'},
+ back:'<path d="M21 30L8 23l12-1z" fill="@s"/><path d="M45 30l13-7-12-1z" fill="@s"/><path d="M25 16l2-10 5 7 3-10 3 10 5-7 1 10z" fill="@h"/>',
+ head:'<path d="M19.5 22c0-9 6-11 13.5-11s13.5 2 13.5 11v7c0 10-6 15-13.5 15s-13.5-5-13.5-15z" fill="@s"/>',
+ face:'<path d="M22 24l11 5M46 24l-11 5" stroke="@d" stroke-width="2.8" stroke-linecap="round"/><circle cx="28.5" cy="30.5" r="1.5" fill="@d"/><circle cx="38.5" cy="30.5" r="1.5" fill="@d"/><ellipse cx="35" cy="35" rx="3.5" ry="2" fill="#000" opacity=".25"/><path d="M26 40h14" stroke="@d" stroke-width="1.5" stroke-linecap="round"/><path d="M27 41l-2-9 5 6zM39 41l2-9-5 6z" fill="@k"/><path d="M41 20l-3 8" stroke="@d" stroke-width="1.2"/>',
+ em:'<path d="M11 22c0-13 9-19 21-19s21 6 21 19v10c0 14-8 25-21 25S11 46 11 32z"/><path d="M16 22l14 6v4l-14-2zM48 22l-14 6v4l14-2z" fill="var(--cut)"/><path d="M20 47h24v3H20z" fill="var(--cut)"/><path d="M22 47l-3-10 7 8zM42 47l3-10-7 8z" fill="var(--cut)"/>'},
+{n:'Owlin',bg:'#5a4a6a',s:'#9a7650',c:'#3a4a5a',h:'#e2cfa8',k:'#f2a82a',b:{h:'#aab3c6'},
+ back:'<path d="M22 18L15 2l14 9zM44 18l7-16-14 9z" fill="@s"/>',
+ head:'<ellipse cx="33" cy="29" rx="14.5" ry="15" fill="@s"/><circle cx="26.5" cy="29" r="9.5" fill="@h"/><circle cx="39.5" cy="29" r="9.5" fill="@h"/>',
+ face:'<path d="M20 21l7 4M46 21l-7 4" stroke="@d" stroke-width="1.8" stroke-linecap="round"/><circle cx="27" cy="28.5" r="5" fill="@k"/><circle cx="39" cy="28.5" r="5" fill="@k"/><circle cx="27.5" cy="28.5" r="2.4" fill="@d"/><circle cx="39.5" cy="28.5" r="2.4" fill="@d"/><path d="M30.5 31h5l-2.5 8z" fill="@k" stroke="@d" stroke-width=".8" stroke-linejoin="round"/><path d="M24 44q3 4 6 0M33 45q3 4 6 0" stroke="@s" stroke-width="1.5" fill="none"/>',
+ em:'<path d="M7 14l11 5c4-3 9-5 14-5s10 2 14 5l11-5v28c0 10-10 18-25 18S7 52 7 42z"/><circle cx="21" cy="32" r="9" fill="var(--cut)"/><circle cx="43" cy="32" r="9" fill="var(--cut)"/><circle cx="21" cy="32" r="4.5"/><circle cx="43" cy="32" r="4.5"/><path d="M28.5 38h7l-3.5 10z" fill="var(--cut)"/>'}
+];
+let uid=0;
+function col(str,m){return str.replace(/@(\w)/g,(_,k)=>m[k]||'#f0f')}
+function body(r,m){return col((r.back||'')+SH+NECK+(r.head||HEAD)+(r.face||FACE)+(r.front||''),m)}
+function svgA(r,px){const m={s:r.s,c:r.c,h:r.h,k:r.k,d:'#1c1c24',e:r.ey||'#f1d36a'};const i=++uid;
+ return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" role="img" aria-label="${r.n} A"><defs><clipPath id="a${i}"><rect width="64" height="64" rx="10"/></clipPath></defs><g clip-path="url(#a${i})"><rect width="64" height="64" fill="${r.bg}"/>${body(r,m)}</g></svg>`}
+function svgB(r,px){const m={s:'#e3e7ef',c:'#c2c9d8',h:(r.b&&r.b.h)||'#aab3c6',k:r.k,d:'#141926',e:'#141926'};const i=++uid;
+ return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" role="img" aria-label="${r.n} B"><defs><radialGradient id="g${i}" cx=".5" cy=".3" r=".9"><stop offset="0" stop-color="#2f3750"/><stop offset="1" stop-color="#0d1019"/></radialGradient><clipPath id="b${i}"><circle cx="32" cy="32" r="30.5"/></clipPath></defs><circle cx="32" cy="32" r="31" fill="url(#g${i})" stroke="${r.k}" stroke-opacity=".5" stroke-width="1"/><g clip-path="url(#b${i})"><g transform="translate(6.4 7) scale(.8)">${body(r,m)}</g></g></svg>`}
+function svgC(r,px){return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" fill="currentColor" role="img" aria-label="${r.n} C">${r.em}</svg>`}
+const F={A:svgA,B:svgB,C:svgC};
+const tb=document.getElementById('t');
+R.forEach(r=>{const id=r.n.toLowerCase();const tr=document.createElement('tr');
+ let h=`<td>${r.n}</td>`;
+ for(const L of 'ABC'){const f=F[L];
+  h+=`<td><div class="lab">${r.n} ${L}</div><div class="dk">${f(r,80)}${f(r,40)}</div><div class="lt">${f(r,80)}${f(r,40)}<span class="nm">${r.n}</span><span class="chev">&rsaquo;</span></div></td>`}
+ h+=`<td>${['A','B','C'].map(L=>`<label class="pick"><input type="radio" name="r_${id}" value="${L}"> ${L}</label>`).join('')}<label class="pick"><input type="checkbox" name="redo_${id}"> redo</label></td>`;
+ tr.innerHTML=h;tb.appendChild(tr)});
+const out=document.getElementById('out');
+function upd(){const p=[];R.forEach(r=>{const id=r.n.toLowerCase();const c=document.querySelector(`input[name=r_${id}]:checked`);const rd=document.querySelector(`input[name=redo_${id}]`).checked;
+ if(c||rd)p.push(`${r.n}: ${c?c.value:'?'}${rd?' (redo)':''}`)});out.value=p.join(', ')}
+document.addEventListener('change',upd);
+document.querySelectorAll('[data-all]').forEach(b=>b.onclick=()=>{R.forEach(r=>{const id=r.n.toLowerCase();document.querySelectorAll(`input[name=r_${id}]`).forEach(i=>i.checked=i.value===b.dataset.all)});upd()});
+document.getElementById('copy').onclick=()=>{out.select();try{navigator.clipboard.writeText(out.value)}catch(e){document.execCommand('copy')}};
+</script></body></html>

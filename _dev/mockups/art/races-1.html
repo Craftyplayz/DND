@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Race pictures 1</title>
+<style>
+:root{--bg:#202020;--card:#2a2a2a;--line:#3d3d3d;--text:#ececec;--muted:#9b9b9b;--accent:#66c0f4}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:var(--text);font:15px/1.4 system-ui,sans-serif}
+h1{font-size:22px;margin:0 0 4px}p{color:var(--muted);margin:0 0 12px;max-width:75ch}
+.sets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.sets div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px}
+.sets b{color:var(--accent)}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--accent)}
+.race{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+.race h2{margin:0 0 8px;font-size:17px}
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{min-width:0}
+.lab{font-weight:700;color:var(--accent);margin-bottom:4px;display:flex;gap:6px;align-items:center;cursor:pointer}
+.row{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;margin-bottom:6px;font-weight:800;letter-spacing:.04em;font-size:14px}
+.row .nm{flex:1;min-width:0}
+.row svg.ch{width:14px;height:14px;flex:none}
+.w{background:#fff;color:#1b1b1b}.w .ch{color:#1a73c8}
+.pic{flex:none;display:block}
+.dk{display:flex;align-items:center;gap:10px;background:#161616;border-radius:10px;padding:6px 10px;color:#ececec}
+.pk{display:flex;gap:14px;align-items:center;margin-top:8px;color:var(--muted);font-size:14px}
+.pk label{cursor:pointer;color:var(--text)}
+#out{width:100%;background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:14px monospace;min-height:70px}
+.sticky{position:sticky;bottom:0;background:var(--bg);padding:8px 0}
+@media(max-width:800px){.opts{grid-template-columns:1fr}.sets{grid-template-columns:1fr}}
+</style></head><body>
+<h1>Race pictures: pick one per race</h1>
+<p>Each race has three hand-drawn options (all original SVG). Each is shown at 40 px and 80 px on a white list row and on the dark site background. Pick A, B or C per race and tick "redo" if none is right. The box at the bottom collects your picks.</p>
+<div class="sets">
+<div><b>A Tile portrait</b>: rounded square, flat-shaded head and shoulders, 3/4 view.</div>
+<div><b>B Silhouette badge</b>: round dark badge, light bust with one accent colour.</div>
+<div><b>C Emblem</b>: single-colour bold symbol for small sizes.</div>
+</div>
+<div class="bar"><b>Pick for all:</b><button data-all="A">Pick A for all</button><button data-all="B">Pick B for all</button><button data-all="C">Pick C for all</button><button data-all="">Clear</button></div>
+<div id="list"></div>
+<div class="sticky"><textarea id="out" readonly placeholder="Your picks appear here"></textarea><div class="pk"><button id="copy">Copy</button><span id="cs"></span></div></div>
+<script>
+let N=0;const L='#dfe4ee';
+const svg=(i)=>`<svg class="pic" viewBox="0 0 64 64" width="__S__" height="__S__" xmlns="http://www.w3.org/2000/svg">${i}</svg>`;
+const tile=(bg,i)=>{const id='c'+(++N);return svg(`<defs><clipPath id="${id}"><rect width="64" height="64" rx="10"/></clipPath></defs><g clip-path="url(#${id})"><rect width="64" height="64" fill="${bg}"/>${i}</g>`)};
+const badge=i=>{const id='g'+(++N);return svg(`<defs><radialGradient id="${id}" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#3a4258"/><stop offset="1" stop-color="#12151c"/></radialGradient><clipPath id="k${id}"><circle cx="32" cy="32" r="31"/></clipPath></defs><circle cx="32" cy="32" r="31" fill="url(#${id})"/><g clip-path="url(#k${id})">${i}</g><circle cx="32" cy="32" r="30.5" fill="none" stroke="#fff" stroke-opacity=".25"/>`)};
+const emb=(i,cut='')=>{if(!cut)return svg(`<g fill="currentColor">${i}</g>`);const id='m'+(++N);return svg(`<mask id="${id}"><rect width="64" height="64" fill="#fff"/>${cut}</mask><g fill="currentColor" mask="url(#${id})">${i}</g>`)};
+const K='fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round"';
+const head=(f,rx=13,ry=15)=>`<ellipse cx="31" cy="30" rx="${rx}" ry="${ry}" fill="${f}"/>`;
+const sh=c=>`<path d="M5 66C7 50 19 46 31 46s24 4 27 20z" fill="${c}"/>`;
+const neck=c=>`<path d="M25 38v10q6 5 13 0V38z" fill="${c}"/>`;
+const shade=c=>`<path d="M38 16a13 15 0 0 1 6 14 13 15 0 0 1-13 15q10-2 11-14 0-9-4-15z" fill="${c}" opacity=".45"/>`;
+const eyes=(c='#222',r=1.8)=>`<ellipse cx="25.5" cy="30" rx="${r}" ry="${r*1.1}" fill="${c}"/><ellipse cx="37" cy="29.5" rx="${r*.85}" ry="${r}" fill="${c}"/>`;
+const nose=c=>`<path d="M32 31q3 5-1 7" fill="none" stroke="${c}" stroke-width="1.4" stroke-linecap="round"/>`;
+const mouth=(c='#7a3b3b')=>`<path d="M27 41q4 2.5 9 0" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/>`;
+const ears=(s,d)=>`<path d="M19 28L5 14l6 20 8 3z" fill="${s}"/><path d="M18 29L10 20l3 11z" fill="${d}"/><path d="M43 27l11-9-5 17-6 0z" fill="${s}"/>`;
+const bust=(f)=>`<path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${f}"/><path d="M25 38v10h12V38z" fill="${f}"/>`+head(f);
+const star=(x,y,r,f)=>`<path d="M${x} ${y-r}Q${x} ${y} ${x+r} ${y}Q${x} ${y} ${x} ${y+r}Q${x} ${y} ${x-r} ${y}Q${x} ${y} ${x} ${y-r}z" fill="${f}"/>`;
+const gear=(cx,cy,R,f,n=8)=>{let t='';for(let i=0;i<n;i++)t+=`<rect x="${cx-R*.18}" y="${cy-R*1.22}" width="${R*.36}" height="${R*.5}" fill="${f}" transform="rotate(${i*360/n} ${cx} ${cy})"/>`;return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${f}"/>${t}`};
+
+const R=[];
+const add=(id,name,a,b,c)=>R.push({id,name,a,b,c});
+
+// 1 aarakocra
+add('aarakocra','Aarakocra',
+()=>tile('#3f7f86',`<path d="M4 66C6 50 18 47 31 47s24 3 27 19z" fill="#2b5f9e"/><path d="M14 56q4 5 8 0q4 5 8 0q4 5 8 0q4 5 8 0" fill="none" stroke="#6fb0e8" stroke-width="2"/><g transform="translate(29 17)"><ellipse rx="3.5" ry="13" fill="#e8553a" transform="rotate(-35)"/><ellipse rx="3.5" ry="13" fill="#f2a53a" transform="rotate(-5)"/><ellipse rx="3.5" ry="13" fill="#e8553a" transform="rotate(25)"/></g><circle cx="29" cy="31" r="14" fill="#3a78b8"/><path d="M29 17a14 14 0 0 1 14 14 14 14 0 0 1-14 14q9-3 9-14 0-8-9-14z" fill="#265d93" opacity=".5"/><path d="M39 28l19 6-19 8z" fill="#f4c542"/><path d="M39 36l19-2-19 8z" fill="#d9a21e"/><circle cx="34" cy="28" r="4.2" fill="#fff6c8"/><circle cx="34.8" cy="28" r="2.2" fill="#222"/>`),
+()=>badge(`<path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${L}"/><g transform="translate(29 17)" fill="#ff9a3c"><ellipse rx="3.5" ry="13" transform="rotate(-35)"/><ellipse rx="3.5" ry="13" transform="rotate(-5)"/><ellipse rx="3.5" ry="13" transform="rotate(25)"/></g><circle cx="29" cy="31" r="14" fill="${L}"/><path d="M39 28l19 6-19 8z" fill="${L}"/><circle cx="34" cy="28" r="2.6" fill="#12151c"/>`),
+()=>emb(`<path d="M54 8C28 8 12 26 10 50c8-4 14-12 20-18-4 8-8 14-10 20 18-2 32-18 34-44z"/>`,`<path d="M10 56C22 42 36 26 50 14" ${K} stroke-width="2.5"/>`));
+
+// 2 aasimar
+add('aasimar','Aasimar',
+()=>tile('#7a6a4a',`<circle cx="31" cy="22" r="26" fill="#ffe9a0" opacity=".28"/>${sh('#e9e4d8')}<path d="M22 49l9 6 9-6" fill="none" stroke="#c9a94a" stroke-width="2"/><path d="M16 34Q13 54 21 56L22 34z" fill="#e8c46a"/>${neck('#d9a77e')}${head('#f2d3b4')}${shade('#d9a77e')}<path d="M17 30Q18 14 31 15 44 14 45 30 42 22 34 20 24 21 17 30z" fill="#e8c46a"/>${eyes('#c4d4e6')}<circle cx="25.5" cy="30" r=".8" fill="#fff"/>${nose('#c88e68')}${mouth()}<ellipse cx="31" cy="8" rx="14" ry="4" fill="none" stroke="#ffd86b" stroke-width="3"/>`),
+()=>badge(`${bust(L)}<ellipse cx="31" cy="9" rx="14.5" ry="4.2" fill="none" stroke="#ffd25a" stroke-width="3.2"/>`),
+()=>emb(`<ellipse cx="32" cy="14" rx="15" ry="5" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="32" cy="34" r="8"/><path d="M12 62c0-14 8-18 20-18s20 4 20 18z"/>`));
+
+// 3 aetherborn
+add('aetherborn','Aetherborn',
+()=>tile('#33294f',`<path d="M10 6q6 8 0 16M52 4q-6 10 0 18M20 2q-4 6 0 12" fill="none" stroke="#b7a0f0" stroke-width="2" opacity=".5"/>${sh('#1f1a38')}<path d="M16 28Q12 8 31 9 50 8 46 28 44 18 31 17 20 18 16 28z" fill="#e8e4ff"/>${neck('#3a3290')}${head('#4a3fa8')}${shade('#2a2470')}<path d="M26 18l3 8-3 6M40 24l-4 6 3 8M24 40l5 2-2 5" fill="none" stroke="#d2bcff" stroke-width="1.2" stroke-linecap="round"/><ellipse cx="25.5" cy="30" rx="2.4" ry="1.6" fill="#f4eaff"/><ellipse cx="37" cy="29.5" rx="2.1" ry="1.5" fill="#f4eaff"/>${nose('#2a2470')}${mouth('#d2bcff')}`),
+()=>badge(`${bust(L)}<path d="M20 14q-6-8 2-14M31 12q-6-10 2-16M42 14q-5-8 3-14" fill="none" stroke="#b58bff" stroke-width="3" stroke-linecap="round"/>`),
+()=>emb(`<path d="M32 4C44 18 54 28 50 44a18 18 0 0 1-36 0C12 32 22 24 32 4z"/><path d="M50 8l3 6 6 3-6 3-3 6-3-6-6-3 6-3z"/>`,`<path d="M32 22C26 32 36 36 32 52" ${K} stroke-width="4"/>`));
+
+// 4 alseid
+add('alseid','Alseid',
+()=>tile('#6b6a45',`${sh('#4d4631')}<path d="M24 18Q18 8 12 4M20 12Q12 12 8 8M38 18Q44 8 50 4M42 12Q50 12 54 8" fill="none" stroke="#efdcab" stroke-width="3.2" stroke-linecap="round"/><ellipse cx="14" cy="26" rx="8" ry="4" fill="#b88650" transform="rotate(-25 14 26)"/><ellipse cx="14" cy="26" rx="5" ry="2" fill="#e6b6a0" transform="rotate(-25 14 26)"/><ellipse cx="48" cy="26" rx="8" ry="4" fill="#9c6e3e" transform="rotate(25 48 26)"/>${neck('#a97b47')}<ellipse cx="31" cy="30" rx="11" ry="16" fill="#c99a62"/><ellipse cx="33" cy="41" rx="7" ry="8" fill="#efd9b6"/><ellipse cx="34" cy="38" rx="2.8" ry="2" fill="#3b2a22"/><circle cx="25" cy="28" r="2.4" fill="#2a1d18"/><circle cx="38" cy="27" r="2" fill="#2a1d18"/><g fill="#fff6e0"><circle cx="22" cy="36" r="1.2"/><circle cx="26" cy="21" r="1.1"/><circle cx="38" cy="20" r="1.1"/><circle cx="40" cy="35" r="1.2"/></g>`),
+()=>badge(`${bust(L)}<ellipse cx="14" cy="25" rx="8" ry="3.6" fill="${L}" transform="rotate(-25 14 25)"/><ellipse cx="48" cy="25" rx="8" ry="3.6" fill="${L}" transform="rotate(25 48 25)"/><path d="M24 18Q18 8 12 3M20 11Q12 12 8 7M38 18Q44 8 50 3M42 11Q50 12 54 7" fill="none" stroke="#f0b455" stroke-width="3.4" stroke-linecap="round"/>`),
+()=>emb(`<path d="M22 60V34M42 60V34" stroke="currentColor" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M22 36C20 20 14 14 8 6M18 22C12 22 8 18 6 14M20 30C14 30 10 28 6 26M42 36C44 20 50 14 56 6M46 22C52 22 56 18 58 14M44 30C50 30 54 28 58 26" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round"/>`));
+
+// 5 autognome
+add('autognome','Autognome',
+()=>tile('#566570',`${sh('#7c8791')}<rect x="26" y="40" width="10" height="9" fill="#6c5a2e"/><path d="M31 6v6" stroke="#9a7a3a" stroke-width="2"/><circle cx="31" cy="5" r="3" fill="#e65a4a"/>${gear(13,30,5,'#b0b8c0')}${gear(49,30,5,'#b0b8c0')}<rect x="16" y="12" width="30" height="32" rx="9" fill="#c8a45a"/><rect x="16" y="12" width="30" height="32" rx="9" fill="none" stroke="#9a7a3a" stroke-width="2"/><circle cx="24" cy="29" r="7.5" fill="#2c3338" stroke="#e8e0c0" stroke-width="2"/><circle cx="24" cy="29" r="4" fill="#7fe0f0"/><circle cx="22.5" cy="27.5" r="1.3" fill="#fff"/><circle cx="39" cy="29" r="3" fill="#2c3338"/><circle cx="39" cy="29" r="1.2" fill="#7fe0f0"/><path d="M24 38h14M24 41h14" stroke="#7a5f28" stroke-width="1.4"/><g fill="#6c5a2e"><circle cx="20" cy="17" r="1.1"/><circle cx="42" cy="17" r="1.1"/></g>${gear(31,56,5,'#d8c07a')}`),
+()=>badge(`<path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${L}"/><rect x="25" y="38" width="12" height="10" fill="${L}"/><rect x="16" y="12" width="30" height="30" rx="8" fill="${L}"/><path d="M31 12V5" stroke="${L}" stroke-width="2.5"/><circle cx="31" cy="4" r="3" fill="${L}"/>${gear(12,28,5,L)}${gear(50,28,5,L)}<circle cx="24" cy="26" r="6.5" fill="#12151c"/><circle cx="24" cy="26" r="4.4" fill="#4fe0ff"/><circle cx="39" cy="26" r="2.6" fill="#12151c"/>`),
+()=>emb(gear(32,32,17,'currentColor',8),`<circle cx="32" cy="32" r="7" fill="#000"/>`));
+
+// 6 aven
+add('aven','Aven',
+()=>tile('#5d4a38',`<path d="M4 66C6 50 18 47 31 47s24 3 27 19z" fill="#6b4524"/><path d="M12 56q4 5 8 0q4 5 8 0q4 5 8 0q4 5 8 0q4 5 8 0" fill="none" stroke="#a9753a" stroke-width="2"/><path d="M18 40q-4 8 2 14l22-2q6-8 2-14z" fill="#f1ead8"/><path d="M17 34a14 15 0 1 1 28 0q-2 12-14 14-12-2-14-14z" fill="#f4efe0"/><path d="M42 24q8 4 8 11" fill="none" stroke="#d9d2bc" stroke-width="3"/><path d="M38 28Q54 28 58 38Q56 46 50 44Q52 38 44 36L38 40z" fill="#f2b84b"/><path d="M44 36Q52 38 50 44" fill="none" stroke="#b9801f" stroke-width="1.6"/><circle cx="35" cy="28" r="3.6" fill="#ffd54a"/><circle cx="35.6" cy="28" r="1.8" fill="#222"/><path d="M28 23l14 4" stroke="#6b4524" stroke-width="3" stroke-linecap="round"/>`),
+()=>badge(`<path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${L}"/><path d="M17 34a14 15 0 1 1 28 0q-2 12-14 14-12-2-14-14z" fill="${L}"/><path d="M38 27Q54 27 58 38Q56 47 50 45Q52 38 44 36L38 40z" fill="${L}"/><path d="M27 22l16 5" stroke="#12151c" stroke-width="3" stroke-linecap="round"/><circle cx="35" cy="28" r="3.2" fill="#ffc83a"/>`),
+()=>emb(`<path d="M6 54C6 30 22 14 56 8c-6 6-8 10-8 14 4-2 8-3 12-3-6 6-8 10-8 14 3-1 6-1 10-1-8 12-22 20-36 22-6 6-12 6-20 6z"/>`,`<path d="M20 44C28 34 38 24 50 18M16 38C26 30 34 22 40 14" ${K} stroke-width="2"/>`));
+
+// 7 bugbear
+add('bugbear','Bugbear',
+()=>tile('#6a5a3a',`<path d="M4 66C6 50 18 46 31 46s24 4 27 20z" fill="#4a3018"/><path d="M12 56l3-4 3 4 3-4 3 4 3-4 3 4 3-4 3 4 3-4 3 4" fill="none" stroke="#6e4524" stroke-width="2"/><path d="M15 26L2 6l18 8zM47 26L60 6 42 14z" fill="#8a5a2d"/><path d="M14 22L7 11l8 5zM48 22l7-11-8 5z" fill="#d8a08a"/><ellipse cx="31" cy="31" rx="16" ry="16" fill="#a8703d"/><path d="M40 16a16 16 0 0 1 7 15 16 16 0 0 1-16 16q12-3 12-16 0-8-3-15z" fill="#6e4524" opacity=".4"/><path d="M17 26Q31 20 45 26L44 30Q31 25 18 30z" fill="#4a3018"/><circle cx="24" cy="31" r="2.6" fill="#ffd23a"/><circle cx="38" cy="31" r="2.6" fill="#ffd23a"/><circle cx="24" cy="31" r="1" fill="#222"/><circle cx="38" cy="31" r="1" fill="#222"/><ellipse cx="31" cy="38" rx="6" ry="3.6" fill="#3a2410"/><path d="M22 44q9 4 18 0" fill="none" stroke="#3a2410" stroke-width="2"/><path d="M24 44l1.5-6 2 5zM38 44l-1.5-6-2 5z" fill="#f6f0d8"/><path d="M18 40l-3 5 5-1M44 40l3 5-5-1M28 48l-2 5 4-2z" fill="#6e4524"/>`),
+()=>badge(`<path d="M4 66C6 52 18 47 31 47s24 5 27 19z" fill="${L}"/><path d="M15 26L2 6l18 8zM47 26L60 6 42 14z" fill="${L}"/><ellipse cx="31" cy="31" rx="16.5" ry="16.5" fill="${L}"/><path d="M18 31l8 2-1 3zM44 31l-8 2 1 3z" fill="#12151c"/><ellipse cx="22" cy="30" rx="3.8" ry="3" fill="#ffd23a"/><ellipse cx="40" cy="30" rx="3.8" ry="3" fill="#ffd23a"/><path d="M26 43h10l-3 4h-4z" fill="#12151c"/>`),
+()=>emb(`<path d="M8 6h10L30 58 24 60z"/><path d="M26 4h10L48 58 42 60z"/><path d="M44 8h10L62 52 58 54z"/>`));
+
+// 8 catfolk
+add('catfolk','Catfolk',
+()=>tile('#6a7a5a',`${sh('#7a4a2a')}<path d="M13 28L12 4 30 14zM49 28L50 4 32 14z" fill="#e09a4a"/><path d="M16 22l0-12 9 5zM46 22l0-12-9 5z" fill="#eaa8a0"/><ellipse cx="31" cy="31" rx="18" ry="16" fill="#e09a4a"/><path d="M25 17l2 7M31 15v8M37 17l-2 7M13 30l5 1M49 30l-5 1" stroke="#a85f1e" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="31" cy="40" rx="9" ry="6.5" fill="#fff3e0"/><ellipse cx="22" cy="30" rx="3.4" ry="3.6" fill="#a9e86b"/><ellipse cx="40" cy="30" rx="3.4" ry="3.6" fill="#a9e86b"/><ellipse cx="22" cy="30" rx="1" ry="3.2" fill="#1c2a10"/><ellipse cx="40" cy="30" rx="1" ry="3.2" fill="#1c2a10"/><path d="M28 37h6l-3 3.5z" fill="#d97b86"/><path d="M31 40.5v2q-3 3-6 1M31 42.5q3 3 6 1" fill="none" stroke="#7a4a2a" stroke-width="1.3"/><path d="M8 36l13 2M8 41l13 -1M54 36l-13 2M54 41l-13-1" stroke="#fff" stroke-width="1.1" opacity=".9"/>`),
+()=>badge(`<path d="M6 66C8 54 19 49 31 49s23 5 25 17z" fill="${L}"/><path d="M13 28L12 3 30 14zM49 28L50 3 32 14z" fill="${L}"/><ellipse cx="31" cy="31" rx="18.5" ry="16.5" fill="${L}"/><path d="M8 37l12 2M8 42l12-1M54 37l-12 2M54 42l-12-1" stroke="${L}" stroke-width="1.4"/><ellipse cx="22" cy="30" rx="3.6" ry="4" fill="#9be36b"/><ellipse cx="40" cy="30" rx="3.6" ry="4" fill="#9be36b"/><ellipse cx="22" cy="30" rx="1" ry="3.6" fill="#12151c"/><ellipse cx="40" cy="30" rx="1" ry="3.6" fill="#12151c"/>`),
+()=>emb(`<ellipse cx="32" cy="42" rx="14" ry="12"/><ellipse cx="13" cy="28" rx="6" ry="8" transform="rotate(-20 13 28)"/><ellipse cx="25" cy="16" rx="6" ry="8" transform="rotate(-6 25 16)"/><ellipse cx="39" cy="16" rx="6" ry="8" transform="rotate(6 39 16)"/><ellipse cx="51" cy="28" rx="6" ry="8" transform="rotate(20 51 28)"/>`));
+
+// 9 centaur
+add('centaur','Centaur',
+()=>tile('#5a7a52',`<path d="M-4 66C0 44 22 46 40 50 56 48 70 56 70 66z" fill="#8a4f2a"/><path d="M36 50q10-6 24 0" fill="none" stroke="#3a2010" stroke-width="3"/><path d="M60 52q4 8 0 14" fill="none" stroke="#3a2010" stroke-width="4"/><path d="M8 66C8 52 18 46 28 46s14 6 14 20z" fill="#d9a77e"/><path d="M14 46l22 20" stroke="#6b3a1e" stroke-width="3.5"/><path d="M14 22Q10 6 28 8 46 8 42 24 40 16 28 15 18 16 14 22zM15 24Q10 38 14 46l4-1-1-20z" fill="#4a2c15"/><path d="M24 36v10h8V36z" fill="#c0865e"/><ellipse cx="28" cy="28" rx="11" ry="13" fill="#e2b48b"/><path d="M34 16a11 13 0 0 1 5 12 11 13 0 0 1-11 13q8-2 9-13 0-7-3-12z" fill="#c0865e" opacity=".5"/><ellipse cx="23" cy="28" rx="1.6" ry="1.8" fill="#222"/><ellipse cx="33" cy="27.6" rx="1.4" ry="1.6" fill="#222"/><path d="M24 36q4 2 7 0" fill="none" stroke="#7a3b3b" stroke-width="1.4"/>`),
+()=>badge(`<ellipse cx="38" cy="45" rx="19" ry="8.5" fill="${L}"/><path d="M26 50v12M32 52v10M46 52v10M52 50v10" stroke="${L}" stroke-width="3.6" stroke-linecap="round"/><path d="M55 40q10 6 5 20" fill="none" stroke="#f0a455" stroke-width="3.6" stroke-linecap="round"/><path d="M10 48V26q9-4 18 0l4 22z" fill="${L}"/><path d="M12 28l-5 12M26 28l8 8" stroke="${L}" stroke-width="3.5" stroke-linecap="round"/><circle cx="19" cy="15" r="8" fill="${L}"/><path d="M11 12Q6 22 9 34" fill="none" stroke="#f0a455" stroke-width="3.5" stroke-linecap="round"/>`),
+()=>emb(`<path d="M12 56V28C12 8 52 8 52 28v28H40V30C40 20 24 20 24 30v26z"/><path d="M12 38h12v8H12zM40 38h12v8H40z"/>`,`<circle cx="18" cy="42" r="2" fill="#000"/><circle cx="46" cy="42" r="2" fill="#000"/><circle cx="18" cy="30" r="2" fill="#000"/><circle cx="46" cy="30" r="2" fill="#000"/>`));
+
+// 10 changeling
+add('changeling','Changeling',
+()=>tile('#5a5a6a',`${sh('#3a3a48')}<ellipse cx="36" cy="30" rx="12" ry="15" fill="#aab8d8" opacity=".55"/><path d="M42 26l9-6-3 12z" fill="#aab8d8" opacity=".55"/>${neck('#9ea3ad')}<path d="M18 28Q15 10 31 11 47 10 44 28 42 20 31 18 21 19 18 28z" fill="#6c6f78"/>${head('#d3d6dc')}${shade('#9ea3ad')}<path d="M19 26Q17 12 31 14 44 13 43 26 40 19 31 19 23 19 19 26z" fill="#6c6f78"/><ellipse cx="25.5" cy="30" rx="3" ry="2.4" fill="#fff"/><ellipse cx="37" cy="29.5" rx="2.6" ry="2.2" fill="#fff"/><circle cx="25.5" cy="30" r="1" fill="#6a7ea8"/><circle cx="37" cy="29.5" r="1" fill="#6a7ea8"/>${nose('#9ea3ad')}${mouth('#8a8f9a')}<path d="M31 14v28" stroke="#fff" stroke-width="1" stroke-dasharray="2 3" opacity=".8"/>`),
+()=>badge(`${bust(L)}<ellipse cx="37" cy="29" rx="13" ry="15" fill="none" stroke="#7fd0ff" stroke-width="2.4" stroke-dasharray="4 3"/>`),
+()=>emb(`<path d="M8 12h48v18c0 16-10 26-24 26S8 46 8 30z"/>`,`<path d="M16 24q5-5 10 0M38 24q5-5 10 0" ${K} stroke-width="3.5"/><path d="M20 38q12 12 24 0" ${K} stroke-width="3.5"/><path d="M32 14v34" ${K} stroke-width="1.5" stroke-dasharray="3 3"/>`));
+
+// 11 darakhul
+add('darakhul','Darakhul',
+()=>tile('#34463a',`${sh('#1d1f22')}<path d="M10 66Q4 36 14 20Q22 4 31 4t17 16q10 16 4 46L44 50q4-20-2-30-4-6-11-6t-11 6q-6 10-2 30z" fill="#26292d"/>${neck('#6c7a5c')}<ellipse cx="31" cy="31" rx="12" ry="15" fill="#8c9a7a"/><path d="M19 30q3 8 8 12M43 30q-3 8-8 12" fill="none" stroke="#5c6a4c" stroke-width="3"/><ellipse cx="25" cy="29" rx="3.4" ry="3" fill="#1a1c1a"/><ellipse cx="37" cy="29" rx="3" ry="2.8" fill="#1a1c1a"/><circle cx="25" cy="29" r="1" fill="#ff4a3a"/><circle cx="37" cy="29" r="1" fill="#ff4a3a"/><path d="M30 33l-2 5h4z" fill="#4a5640"/><path d="M23 41h16l-2 5h-12z" fill="#2a1a1a"/><path d="M24 41l1.5 3 1.5-3 1.5 3 1.5-3 1.5 3 1.5-3 1.5 3 1.5-3 1.5 3 1.5-3" fill="none" stroke="#eee8d0" stroke-width="1.5"/>`),
+()=>badge(`<path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${L}"/><path d="M10 66Q4 36 14 20Q22 4 31 4t17 16q10 16 4 46L44 52q4-22-2-32-4-6-11-6t-11 6q-6 10-2 32z" fill="${L}"/><ellipse cx="31" cy="31" rx="12" ry="15" fill="#12151c"/><ellipse cx="25" cy="29" rx="3.2" ry="2.4" fill="#ff3a2a"/><ellipse cx="37" cy="29" rx="3.2" ry="2.4" fill="#ff3a2a"/><path d="M24 42l1.5 3 1.5-3 1.5 3 1.5-3 1.5 3 1.5-3 1.5 3 1.5-3" fill="none" stroke="${L}" stroke-width="1.6"/>`),
+()=>emb(`<path d="M32 6C18 6 10 16 10 28c0 8 4 12 8 14v10h28V42c4-2 8-6 8-14C54 16 46 6 32 6z"/>`,`<ellipse cx="23" cy="28" rx="5" ry="6" fill="#000"/><ellipse cx="41" cy="28" rx="5" ry="6" fill="#000"/><path d="M28 38h8l-4 6z" fill="#000"/><path d="M26 46v6M32 46v6M38 46v6" ${K} stroke-width="2.4"/>`));
+
+// 12 deep gnome
+add('deep-gnome','Deep Gnome',
+()=>tile('#5a5a62',`${sh('#40463f')}<path d="M16 24Q14 4 36 6l-5-4q16 4 15 20-6-6-15-6-8 0-15 8z" fill="#6c4a2c"/><path d="M33 6l6-6 4 8z" fill="#6de0d0"/>${ears('#9a9a96','#6e6e6a')}${neck('#7c7c78')}${head('#a6a6a0')}${shade('#6e6e6a')}<path d="M19 36q-2 6 2 10M43 36q2 6-2 10" fill="none" stroke="#c8c8c0" stroke-width="2" opacity=".7"/><ellipse cx="25" cy="29" rx="4" ry="4.6" fill="#15151a"/><ellipse cx="37.5" cy="28.5" rx="3.6" ry="4.2" fill="#15151a"/><circle cx="26" cy="27.4" r="1.2" fill="#fff"/><circle cx="38.5" cy="27" r="1.1" fill="#fff"/><ellipse cx="32" cy="36" rx="4.6" ry="4.2" fill="#8c8c86"/><path d="M26 44q5 2 10 0" fill="none" stroke="#4a4a46" stroke-width="1.6" stroke-linecap="round"/><path d="M20 18l2 5M24 16l1 5" stroke="#7c7c78" stroke-width="1.4"/>`),
+()=>badge(`${bust(L)}<path d="M19 22Q16 2 38 4l-6-4q16 4 16 22-6-6-17-6-9 0-14 6z" fill="${L}"/><path d="M34 6l-5-7 8 2zM34 6l7-4 3 6z" fill="#4be0d0"/><path d="M18 28L4 18l6 14zM44 28l14-10-6 14z" fill="${L}"/><ellipse cx="25" cy="29" rx="3.6" ry="4.2" fill="#12151c"/><ellipse cx="37.5" cy="28.5" rx="3.4" ry="4" fill="#12151c"/><ellipse cx="32" cy="36" rx="5" ry="4.4" fill="${L}"/>`),
+()=>emb(`<path d="M32 4l22 14-6 38H16L10 18z"/>`,`<path d="M10 18h44M32 4l-8 14 8 38 8-38-8-14M24 18L16 56M40 18l8 38" ${K} stroke-width="2.4"/>`));
+
+// 13 derro
+add('derro','Derro',
+()=>tile('#3a5a6a',`${sh('#4a3a2c')}<path d="M16 26L6 12l11 5-2-14 8 12 3-12 5 11 7-11 1 13 10-6-4 12 12 3-13 7z" fill="#e8ecf0"/>${ears('#a8c8dc','#7a9cb4')}${neck('#7a9cb4')}${head('#a8c8dc')}${shade('#6c8ea6')}<path d="M18 18q4-4 10-2l-3 6zM44 18q-4-4-10-2l3 6z" fill="#e8ecf0"/><circle cx="25" cy="28" r="5" fill="#fff"/><circle cx="38" cy="30" r="3.4" fill="#fff"/><circle cx="26" cy="29" r="1.7" fill="#222"/><circle cx="37" cy="29" r="1.3" fill="#222"/><path d="M20 22l9 2M43 24l-8 2" stroke="#4a3a2c" stroke-width="2" stroke-linecap="round"/><path d="M22 39q9 10 20-2" fill="#3a1a1a" stroke="#3a1a1a" stroke-width="1"/><path d="M24 40l2 3 2-2 2 3 2-3 2 3 2-3 2 3 2-2" fill="none" stroke="#fff" stroke-width="1.4"/><path d="M45 36a3 3 0 1 0-3 3 5 5 0 0 0 5-5" fill="none" stroke="#c15bd6" stroke-width="1.5" transform="translate(-2 4)"/>`),
+()=>badge(`${bust(L)}<path d="M16 26L6 12l11 5-2-14 8 12 3-12 5 11 7-11 1 13 10-6-4 12 12 3-13 7z" fill="${L}"/><path d="M36 22a5 5 0 1 1-5 5 3 3 0 1 1 3-3 1.6 1.6 0 1 1-1.8 1.8" fill="none" stroke="#c15bd6" stroke-width="2.4" stroke-linecap="round" transform="translate(-4 3)"/>`),
+()=>emb(`<path d="M34.0 32.0L34.4 32.6L34.6 33.4L34.5 34.3L34.1 35.3L33.4 36.2L32.3 36.8L31.1 37.2L29.6 37.3L28.1 36.9L26.6 36.0L25.3 34.8L24.4 33.1L23.9 31.1L23.9 29.0L24.5 26.8L25.7 24.7L27.5 23.0L29.8 21.7L32.4 21.0L35.3 21.0L38.1 21.7L40.8 23.2L43.1 25.4L44.9 28.3L45.9 31.5L46.0 35.1L45.2 38.7L43.5 42.1L41.0 45.0L37.6 47.2L33.7 48.6L29.5 49.0L25.2 48.3L21.1 46.5L17.5 43.6L14.6 39.9L12.7 35.4L12.0 30.5L12.6 25.4L14.4 20.6L17.4 16.2L21.6 12.7L26.5 10.2L32.1 9.1L37.9 9.4L43.5 11.1L48.7 14.3L52.9 18.7L56.0 24.1L57.7 30.3L57.8 36.8L56.2 43.2L53.1 49.2L48.4 54.2L42.6 58.0L35.9 60.3L28.7 60.9L21.5 59.6L14.7 56.6L8.8 51.8L4.2 45.7L1.2 38.5L0.1 30.7L1.0 22.7L3.8 15.0L8.6 8.3L14.9 2.8L22.6 -1.0L31.0 -2.8L39.7 -2.4L48.2 0.2L55.9 4.8L62.3 11.3L66.9 19.3L69.4 28.3L69.7 37.7L67.5 47.0L63.1 55.6L56.6 63.0L48.3 68.5" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`));
+
+// 14 dhampir
+add('dhampir','Dhampir',
+()=>tile('#4a2a3a',`<path d="M2 66L8 14l14 22M60 66L54 14 40 36z" fill="#8a1a2e"/>${sh('#1c1a22')}<path d="M14 50L8 18 22 40M48 50l6-32-14 22z" fill="#2a1a24"/><path d="M16 26Q12 6 31 8 50 6 46 26 44 16 31 14 20 16 16 26zM15 28Q12 46 17 54l5-18zM47 28q3 18-2 26l-5-18z" fill="#14121a"/>${neck('#d9c4c4')}${head('#f2e4e4')}${shade('#d9c4c4')}<path d="M18 24Q31 18 44 24 36 14 31 20 26 14 18 24z" fill="#14121a"/><ellipse cx="25.5" cy="30" rx="2.4" ry="2" fill="#e0243a"/><ellipse cx="37" cy="29.5" rx="2.1" ry="1.8" fill="#e0243a"/><path d="M22 26l7 1M40 26l-6 1" stroke="#14121a" stroke-width="1.8" stroke-linecap="round"/>${nose('#cdb2b2')}<path d="M27 41q4 2 9 0" fill="#a02a3a" stroke="#a02a3a" stroke-width="1"/><path d="M29 41.5l1-3.4 1.4 3.6zM34 41.6l1-3.4 1.4 3.4z" fill="#fff"/><circle cx="30" cy="47" r="1.4" fill="#d0243a"/>`),
+()=>badge(`<path d="M2 66L8 14l14 22M60 66L54 14 40 36z" fill="${L}"/><path d="M14 52L10 22 22 40M48 52l4-30-12 18z" fill="#c8243c"/><path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${L}"/><path d="M25 38v10h12V38z" fill="${L}"/>${head(L)}<path d="M16 26Q12 6 31 8 50 6 46 26 44 16 31 14 20 16 16 26z" fill="#12151c" opacity=".6"/>`),
+()=>emb(`<path d="M8 16h48v6C56 34 46 38 40 36L36 52 32 38 28 52 24 36C18 38 8 34 8 22z"/><path d="M52 40c4 6 4 12 0 16-4-4-4-10 0-16z"/>`));
+
+// 15 dragonborn
+add('dragonborn','Dragonborn',
+()=>tile('#7a3a3a',`${sh('#5a2a24')}<path d="M10 60q4-4 8 0q4-4 8 0q4-4 8 0q4-4 8 0q4-4 8 0q4-4 8 0" fill="none" stroke="#c0392b" stroke-width="2.2"/><path d="M24 20Q16 4 4 8q10 2 14 18zM30 18Q26 2 16 0q8 4 8 20z" fill="#f0dca8"/><path d="M12 28l-8 6 10 2zM14 38l-8 8 11-2z" fill="#8a2218"/><path d="M26 38v10q6 4 12 0V38z" fill="#b83224"/><ellipse cx="29" cy="29" rx="14" ry="15" fill="#c0392b"/><path d="M36 20L58 29Q61 38 55 42L36 46z" fill="#c9402e"/><path d="M36 38L56 41 36 46z" fill="#e8b08a"/><path d="M42 29L40 22" stroke="#8a2218" stroke-width="2"/><circle cx="50" cy="29" r="1.3" fill="#5a1410"/><ellipse cx="34" cy="26" rx="3.4" ry="2.6" fill="#ffb02e"/><ellipse cx="34.5" cy="26" rx="0.9" ry="2.4" fill="#222"/><path d="M25 18q4 3 2 7M20 22q5 2 3 7" stroke="#8a2218" stroke-width="1.6" fill="none"/><g fill="#8a2218"><circle cx="20" cy="34" r="1.3"/><circle cx="24" cy="40" r="1.3"/><circle cx="28" cy="34" r="1.3"/></g><path d="M40 42l2 3 2-3 2 3 2-3" fill="none" stroke="#fff" stroke-width="1.4"/>`),
+()=>badge(`<path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${L}"/><path d="M26 38v10q6 4 12 0V38z" fill="${L}"/><path d="M12 28l-8 6 10 2zM14 38l-8 8 11-2z" fill="${L}"/><ellipse cx="29" cy="29" rx="14" ry="15" fill="${L}"/><path d="M36 20L58 29Q61 38 55 42L36 46z" fill="${L}"/><path d="M24 20Q16 4 4 8q10 2 14 18zM31 18Q27 1 16 -1q9 4 8 21z" fill="#ffb02e"/><path d="M30 24l9 3" stroke="#12151c" stroke-width="3" stroke-linecap="round"/>`),
+()=>emb(`<path d="M24 16C18 6 10 2 2 4c8 4 10 10 12 18z"/><path d="M6 8c10 0 16 4 18 10 8 0 20 0 30 10 4 4 4 10 0 12L38 44l-8 10-4-10C14 42 8 30 6 8z"/>`,`<circle cx="34" cy="24" r="3" fill="#000"/><path d="M42 36l4 4 4-4" ${K} stroke-width="2.4"/>`));
+
+// 16 drow
+add('drow','Drow',
+()=>tile('#2f2f4a',`${sh('#14141f')}<path d="M16 26Q12 6 31 8 50 6 46 26 44 16 31 14 20 16 16 26zM15 28Q10 46 14 62l8-4-3-26zM47 28q5 18 0 34l-8-4 3-26z" fill="#f2f2fa"/>${ears('#5c5c74','#3c3c54')}${neck('#3c3c54')}${head('#5c5c74')}${shade('#3c3c54')}<path d="M18 24Q31 15 44 24 40 17 31 15 22 17 18 24z" fill="#f2f2fa"/><ellipse cx="25.5" cy="30" rx="2.6" ry="2" fill="#ff5a78"/><ellipse cx="37" cy="29.5" rx="2.3" ry="1.8" fill="#ff5a78"/><path d="M21 27l8 1.5M42 27l-6 1.5" stroke="#f2f2fa" stroke-width="1.6" stroke-linecap="round"/>${nose('#3c3c54')}<path d="M27 41q5 2 10-1" fill="none" stroke="#c9a0b8" stroke-width="1.5" stroke-linecap="round"/>`),
+()=>badge(`<path d="M15 26Q10 46 14 66h36q4-20-1-40Q47 6 31 8 17 6 15 26z" fill="${L}" opacity=".55"/>${bust(L)}<path d="M19 28L5 14l6 20 8 3zM43 27l14-13-6 20-8 3z" fill="${L}"/><g transform="translate(31 56)" stroke="#d05ae0" stroke-width="1.6" fill="none" stroke-linecap="round"><path d="M-8-5L-3-3M-8 5L-3 3M8-5L3-3M8 5L3 3"/><ellipse rx="3" ry="4.2" fill="#d05ae0"/></g>`),
+()=>emb(`<ellipse cx="32" cy="38" rx="9" ry="12"/><circle cx="32" cy="22" r="6"/><g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 30L10 22 6 8M24 38L6 38 4 52M26 46L14 54 14 62M40 30l14-8 4-14M40 38h18l2 14M38 46l12 8v8"/></g>`));
+
+// 17 duergar
+add('duergar','Duergar',
+()=>tile('#4a4a52',`${sh('#2c2c32')}${neck('#7a7a84')}${head('#8f8f98')}${shade('#6a6a74')}<path d="M16 38Q16 62 31 62t15-24Q31 46 16 38z" fill="#b2b8c0"/><path d="M26 56q5 4 10 0" stroke="#7a8088" stroke-width="2" fill="none"/><path d="M21 31l8 3M42 31l-8 3" stroke="#2c2c32" stroke-width="2.6" stroke-linecap="round"/><ellipse cx="25.5" cy="33" rx="2.2" ry="1.6" fill="#ff7a3a"/><ellipse cx="37" cy="32.6" rx="2" ry="1.5" fill="#ff7a3a"/><ellipse cx="31.5" cy="38" rx="3.4" ry="2.8" fill="#7a7a84"/><path d="M22 46q9-4 18 0q-9 3-18 0z" fill="#d0d6dc"/><path d="M15 26Q15 10 31 4q16 6 16 22-8-6-16-6t-16 6z" fill="#6c7482"/><path d="M15 26h32" stroke="#4a5160" stroke-width="2"/><path d="M29 24v14" stroke="#4a5160" stroke-width="3"/><path d="M31 5l-3-7 6 0z" fill="#9aa4b4"/>`),
+()=>badge(`<path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${L}"/>${neck(L)}${head(L)}<path d="M16 38Q16 62 31 62t15-24Q31 46 16 38z" fill="${L}"/><path d="M14 28Q14 8 31 2q17 6 17 26-8-4-17-4t-17 4z" fill="#ff7a3a"/><path d="M31 2V-4" stroke="#ff7a3a" stroke-width="3"/><path d="M29 24v14" stroke="#ff7a3a" stroke-width="3"/><ellipse cx="25" cy="33" rx="2.4" ry="1.6" fill="#12151c"/><ellipse cx="37.5" cy="33" rx="2.4" ry="1.6" fill="#12151c"/>`),
+()=>emb(`<path d="M6 14h38c8 0 14 6 14 14H44l-4 8H46l4 8v10H14V44l4-8h8l-4-8H6z"/>`,`<path d="M20 52h24" ${K} stroke-width="2.4"/>`));
+
+// 18 dwarf
+add('dwarf','Dwarf',
+()=>tile('#8a5a3b',`${sh('#5b3a22')}<path d="M16 34Q14 62 31 63t15-29Q31 46 16 34z" fill="#c8641e"/><circle cx="21" cy="57" r="3" fill="#a84e12"/><circle cx="41" cy="57" r="3" fill="#a84e12"/>${neck('#c4835a')}${head('#e0a47a')}${shade('#c4835a')}<path d="M16 34Q14 62 31 63t15-29Q31 46 16 34z" fill="#d6711f"/><path d="M26 56l5 4 5-4M31 47v12" stroke="#a84e12" stroke-width="1.6" fill="none"/><ellipse cx="25.5" cy="29" rx="1.8" ry="2" fill="#222"/><ellipse cx="37" cy="28.5" rx="1.6" ry="1.8" fill="#222"/><path d="M21 25l8 2M42 25l-6 2" stroke="#a84e12" stroke-width="2.4" stroke-linecap="round"/><ellipse cx="32" cy="35" rx="4.2" ry="3.6" fill="#d6805c"/><path d="M21 40Q31 34 43 40Q37 47 31 42 25 47 21 40z" fill="#e8851f"/><path d="M16 22Q18 6 31 6t15 16Z" fill="#8f98a4"/><rect x="15" y="20" width="32" height="4" fill="#6c7480"/><path d="M16 14l-7-9 3 12zM46 14l7-9-3 12z" fill="#efe6c8"/>`),
+()=>badge(`<path d="M6 66C8 52 19 47 31 47s23 5 25 19z" fill="${L}"/>${neck(L)}${head(L)}<path d="M15 33Q12 63 31 64t16-31Q31 47 15 33z" fill="#f09a3a"/><path d="M16 24Q18 6 31 6t15 18Z" fill="${L}"/><path d="M16 14l-8-8 2 12zM46 14l8-8-2 12z" fill="${L}"/><rect x="15" y="22" width="32" height="3.5" fill="#12151c" opacity=".5"/>`),
+()=>emb(`<path d="M22 6h4v52h-4z"/><path d="M24 8C10 8 4 18 4 28c8-3 14-2 20 2z"/><path d="M34 26h20v22c0 6-4 10-10 10s-10-4-10-10z"/><path d="M54 30h4a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-4v-4h2.5V34H54z"/><path d="M34 26q4-6 10-2 6-4 10 2z"/>`,`<path d="M36 38h16" ${K} stroke-width="2.4"/>`));
+
+// 19 eladrin
+add('eladrin','Eladrin',
+()=>tile('#a5663a',`<g fill="#ffcf5a"><path d="M8 10l4 2-2 4-4-2z"/><path d="M52 50l4 2-2 4-4-2z"/><path d="M54 12l3 1-1 3-3-1z" fill="#e0502a"/></g>${sh('#7a3c1c')}<path d="M16 28Q10 4 31 6 52 4 46 28L48 58 40 50 22 50 14 58z" fill="#e0702a"/>${ears('#f4dcc8','#d9a88a')}${neck('#d9a88a')}${head('#f8e6d4')}${shade('#d9a88a')}<path d="M18 24Q18 12 32 13 44 12 44 24 40 16 32 18 24 18 18 24z" fill="#e0702a"/><path d="M26 11l5 4-1 5z" fill="#f0c030"/><circle cx="27" cy="12" r="2.4" fill="#ffe27a"/><ellipse cx="25.5" cy="30" rx="2.3" ry="1.8" fill="#ffd23a"/><ellipse cx="37" cy="29.5" rx="2" ry="1.6" fill="#ffd23a"/><circle cx="25.5" cy="30" r=".7" fill="#fff"/><circle cx="37" cy="29.5" r=".7" fill="#fff"/>${nose('#d9a88a')}${mouth('#a85a4a')}<path d="M10 40l3 3-3 3-3-3z" fill="#ffcf5a"/>`),
+()=>badge(`<path d="M16 28Q10 4 31 6 52 4 46 28L48 58 14 58z" fill="${L}" opacity=".55"/>${bust(L)}<path d="M19 28L3 16l8 18 8 3zM43 27l16-11-8 18-8 3z" fill="${L}"/>${star(52,12,7,'#ffb43a')}${star(12,12,4,'#ffb43a')}`),
+()=>emb(`<path d="M32 4c6 8 6 16 0 26-6-10-6-18 0-26zM60 32c-8 6-16 6-26 0 10-6 18-6 26 0zM32 60c-6-8-6-16 0-26 6 10 6 18 0 26zM4 32c8-6 16-6 26 0-10 6-18 6-26 0z"/>`,`<circle cx="32" cy="32" r="4.5" fill="#000"/>`));
+
+// 20 elf
+add('elf','Elf',
+()=>tile('#4a7a56',`${sh('#2f5a3c')}<path d="M16 28Q10 4 31 6 52 4 46 28L50 60 40 52 22 52 12 60z" fill="#e6d9a0"/>${ears('#f2d5b4','#d9a97e')}${neck('#d9a97e')}${head('#f6dcc0')}${shade('#d9a97e')}<path d="M17 28Q17 12 31 12 45 12 45 28 41 18 31 19 23 19 17 28z" fill="#e6d9a0"/><path d="M17 17q14-6 28 0" fill="none" stroke="#c9a94a" stroke-width="1.6"/><path d="M31 12l-4-6 4 3 4-3z" fill="#7ddc8a"/><ellipse cx="25.5" cy="30" rx="2.3" ry="1.8" fill="#2f8a4a"/><ellipse cx="37" cy="29.5" rx="2" ry="1.6" fill="#2f8a4a"/>${nose('#d9a97e')}${mouth('#a85a4a')}<path d="M21 26l7 1M41 26l-5 1" stroke="#a08a40" stroke-width="1.4" stroke-linecap="round"/>`),
+()=>badge(`<path d="M16 28Q10 4 31 6 52 4 46 28L50 62 12 62z" fill="${L}" opacity=".5"/>${bust(L)}<path d="M19 27L2 12l8 22 9 3zM43 26l17-14-8 22-9 3z" fill="${L}"/><path d="M18 18q13-6 26 0" fill="none" stroke="#6fe08a" stroke-width="2"/><path d="M31 19c-6-3-8-9-7-14 6 1 9 7 7 14z" fill="#6fe08a"/>`),
+()=>emb(`<path d="M56 6C30 6 10 20 10 44c0 3 .5 6 1 8 8-2 14-8 18-14-3 8-8 14-12 18 4 2 10 2 12 2C50 58 56 30 56 6z"/>`,`<path d="M14 54C28 40 40 26 50 12" ${K} stroke-width="2.6"/><path d="M26 38l-6-1M34 30l-6-1M42 22l-6-1" ${K} stroke-width="2"/>`));
+
+// 21 elf-astral
+add('elf-astral','Astral Elf',
+()=>tile('#1d2450',`<g fill="#fff"><circle cx="8" cy="10" r="1"/><circle cx="56" cy="8" r="1.2"/><circle cx="52" cy="52" r="1"/><circle cx="10" cy="54" r="1.2"/><circle cx="58" cy="30" r=".9"/></g>${sh('#2a2f70')}<path d="M16 28Q10 4 31 4 52 4 46 28L52 46 40 36 22 36 10 46z" fill="#f0f0fa"/>${ears('#5a64b8','#3a4490')}${neck('#3a4490')}${head('#5a64b8')}${shade('#2a3070')}<path d="M18 26Q19 12 31 13 44 12 44 26 40 17 31 18 23 18 18 26z" fill="#f0f0fa"/><g fill="#fff"><circle cx="22" cy="36" r=".9"/><circle cx="40" cy="36" r=".9"/><circle cx="29" cy="40" r=".8"/><circle cx="35" cy="22" r=".8"/><circle cx="42" cy="28" r=".7"/><circle cx="20" cy="30" r=".7"/></g>${star(31,21,2.6,'#fff')}<ellipse cx="25.5" cy="30" rx="2.4" ry="1.8" fill="#fff"/><ellipse cx="37" cy="29.5" rx="2.1" ry="1.6" fill="#fff"/>${nose('#2a3070')}${mouth('#c8d0ff')}`),
+()=>badge(`<path d="M16 28Q10 4 31 4 52 4 46 28L52 50 10 50z" fill="${L}" opacity=".5"/>${bust(L)}<path d="M19 27L2 12l8 22 9 3zM43 26l17-14-8 22-9 3z" fill="${L}"/>${star(31,18,5,'#ffd25a')}<g fill="#ffd25a"><circle cx="8" cy="40" r="1.3"/><circle cx="55" cy="44" r="1.3"/><circle cx="50" cy="8" r="1.3"/></g>`),
+()=>emb(`<path d="M32 2Q34 30 62 32 34 34 32 62 30 34 2 32 30 30 32 2z"/><circle cx="52" cy="12" r="3"/><circle cx="12" cy="52" r="2.4"/><circle cx="14" cy="14" r="1.8"/>`));
+
+// page
+const list=document.getElementById('list');
+const chev='<svg class="ch" viewBox="0 0 16 16"><path d="M5 2l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const row=(cls,s,svg,nm)=>`<div class="row ${cls}">${svg.replaceAll('__S__',s)}<span class="nm">${nm.toUpperCase()}</span>${chev}</div>`;
+R.forEach(r=>{
+  let h=`<div class="race"><h2>${r.name}</h2><div class="opts">`;
+  ['a','b','c'].forEach(k=>{
+    const U=k.toUpperCase(),s=r[k]();
+    h+=`<div class="opt"><label class="lab"><input type="radio" name="r_${r.id}" value="${U}"> ${r.name} ${U}</label>${row('w',40,s,r.name)}${row('w',80,s,r.name)}<div class="dk">${s.replaceAll('__S__',40)}${s.replaceAll('__S__',80)}<span style="color:#9b9b9b;font-size:12px">dark</span></div></div>`;
+  });
+  h+=`</div><div class="pk"><label><input type="checkbox" name="x_${r.id}"> redo (none of these)</label></div></div>`;
+  list.insertAdjacentHTML('beforeend',h);
+});
+const out=document.getElementById('out');
+function sum(){out.value=R.map(r=>{const v=document.querySelector(`input[name=r_${r.id}]:checked`),x=document.querySelector(`input[name=x_${r.id}]`).checked;return (v||x)?`${r.name}: ${v?v.value:'-'}${x?' (redo)':''}`:null}).filter(Boolean).join(', ')}
+document.addEventListener('change',sum);
+document.querySelectorAll('[data-all]').forEach(b=>b.onclick=()=>{R.forEach(r=>{document.querySelectorAll(`input[name=r_${r.id}]`).forEach(i=>i.checked=i.value===b.dataset.all)});sum()});
+document.getElementById('copy').onclick=()=>{out.select();const s=document.getElementById('cs');(navigator.clipboard?navigator.clipboard.writeText(out.value):Promise.reject()).catch(()=>document.execCommand('copy')).finally(()=>{s.textContent='Copied';setTimeout(()=>s.textContent='',1500)})};
+</script></body></html>
