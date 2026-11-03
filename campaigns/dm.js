@@ -1,7 +1,8 @@
 // DM notes and handouts on the campaign page (ROADMAP 3.4), for the DM and co-DMs. campaigns.js starts it:
 //   DmTools.start(campaignId, {notes, handouts, players}) -> { refresh() }   refresh: load both again from the server
 // Every note and every handout's text is also kept in this browser (localStorage "campaign-dm":
-// {<campaign id>: {notes: {id: note}, handouts: {id: {id, title, text, table, updated}}, dirty: ["n:<id>", "h:<id>"]}}),
+// {<campaign id>: {notes: {id: note}, handouts: {id: {id, title, text, updated}}, dirty: ["n:<id>", "h:<id>"]}}; older copies
+// may still carry "table", the old Table view switch, which the server ignores since 1.7's "Show on TV now"),
 // so writing works offline. Edits save by themselves to campaigns/handouts.php, and per note and per handout the newest
 // "updated" wins, as with characters. Pictures go up in 4 MB pieces (a broken upload carries on where it stopped) and
 // wait in this page while offline. A handout can't be sent, or have its players changed, until its text and pictures are
@@ -21,7 +22,7 @@ window.DmTools = (() => {
         const pickTo = {}; // handout id -> "everyone" or [sub]: the recipients being picked
         const queue = []; // pictures waiting to go up: {hid, file, up, at}
         const post = (body) => fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ c: cid, ...body }) });
-        const fields = (h) => ({ id: h.id, title: h.title, text: h.text, table: !!h.table, updated: h.updated });
+        const fields = (h) => ({ id: h.id, title: h.title, text: h.text, updated: h.updated });
 
         // the server's copies: each one wins over this browser's unless this browser's is newer
         function take(notes, handouts) {
@@ -151,7 +152,7 @@ window.DmTools = (() => {
             const list = Object.keys({ ...srv, ...mine.handouts }).map(merged).sort((a, b) => b.updated - a.updated);
             const live = list.filter((h) => !h.archived), arch = list.filter((h) => h.archived);
             $('#dm-hlist').innerHTML = live.length ? live.map((h) => `<button type="button" data-dm="hopen" data-id="${esc(h.id)}" aria-pressed="${h.id === openH}"><span>${esc(h.title || 'Untitled handout')}</span>
-                <span class="badge${h.to ? ' g' : ''}">${h.to ? 'Sent' : 'Draft'}</span>${h.table ? '<small>Table</small>' : ''}</button>`).join('') : '<p class="muted">No handouts yet. Make one with New handout.</p>';
+                <span class="badge${h.to ? ' g' : ''}">${h.to ? 'Sent' : 'Draft'}</span>${h.tv ? '<span class="badge b">On TV</span>' : ''}</button>`).join('') : '<p class="muted">No handouts yet. Make one with New handout.</p>';
             $('#dm-harch').hidden = !arch.length;
             $('#dm-harch').innerHTML = `<summary>Archived (${arch.length})</summary><div class="rows">${arch.map((h) => `<div class="rowi"><span class="grow">${esc(h.title || 'Untitled handout')}</span><button type="button" class="btn small" data-dm="hrestore" data-id="${esc(h.id)}">Restore</button></div>`).join('')}</div>`;
         }
@@ -163,11 +164,11 @@ window.DmTools = (() => {
                 <label>Text (optional) <textarea class="field" data-hf="text">${esc(h.text)}</textarea></label>
                 <div><div class="dm-pics" id="dm-pics"></div>
                     <p><button type="button" class="btn small" data-dm="hfile">Add pictures</button><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden data-dm-file aria-label="Add pictures"> <span class="muted" id="dm-up"></span></p></div>
-                <label class="check"><input type="checkbox" data-hf="table"${h.table ? ' checked' : ''}> Show on the Table view <small class="muted">only when sent to everyone</small></label>
                 <fieldset class="dm-to"><legend>Who gets it</legend>
                     <label class="check"><input type="checkbox" data-to="everyone"${to === 'everyone' ? ' checked' : ''}> Everyone, and players who join later</label>
                     ${players.map((p) => `<label class="check"><input type="checkbox" data-to="${esc(p.sub)}"${to === 'everyone' || to.includes(p.sub) ? ' checked' : ''}${to === 'everyone' ? ' disabled' : ''}> ${esc(p.name)}</label>`).join('') || '<p class="muted">No players have joined yet.</p>'}</fieldset>
-                <div class="actions"><button type="button" class="btn primary" data-dm="hsend">${h.to ? 'Update players' : 'Send'}</button>${h.to ? '<button type="button" class="btn" data-dm="hunshare">Unshare</button>' : ''}<button type="button" class="btn" data-dm="harc">Archive</button></div>
+                <div class="actions"><button type="button" class="btn primary" data-dm="hsend">${h.to ? 'Update players' : 'Send'}</button>${h.to ? '<button type="button" class="btn" data-dm="hunshare">Unshare</button>' : ''}<button type="button" class="btn" data-dm="harc">Archive</button>
+                    ${h.to === 'everyone' ? `<button type="button" class="btn" data-dm="htv" aria-pressed="${!!h.tv}">${h.tv ? 'Take off TV' : 'Show on TV now'}</button>` : ''}</div>
                 <p class="muted dm-state" id="dm-hstate"></p>`;
             drawUp();
         }
@@ -249,7 +250,7 @@ window.DmTools = (() => {
             else if (a === 'narc') { editNote({ archived: Date.now() }); openN = ''; drawN(); drawNEdit(); }
             else if (a === 'nrestore') { openN = id; editNote({ archived: 0 }); drawN(); drawNEdit(); }
             else if (a === 'hnew') {
-                const h = { id: uid(), title: '', text: '', table: false, updated: Date.now() };
+                const h = { id: uid(), title: '', text: '', updated: Date.now() };
                 mine.handouts[h.id] = h; openH = h.id; dirty('h:' + h.id); persist(); flushSoon();
                 drawH(); drawHEdit(); $('#dm-hedit [data-hf=title]').focus();
             }
@@ -264,6 +265,11 @@ window.DmTools = (() => {
             else if (a === 'hunshare') {
                 const was = merged(openH).to; // ticked again, so sending it back goes to the same players
                 if (await act({ act: 'unshare' }, b)) { pickTo[openH] = was; toast('Unshared. It\'s a draft again.', 'ok'); drawH(); drawHEdit(); }
+            }
+            // the Table view (1.7): this handout full screen on the TV, in place of any other; it must have gone to everyone
+            else if (a === 'htv') {
+                const on = !merged(openH).tv;
+                if (await act({ act: 'tv', on }, b)) { toast(on ? 'On the TV now.' : 'Taken off the TV.', 'ok'); drawH(); drawHEdit(); refresh(); }
             }
             else if (a === 'harc') { if (await act({ act: 'archive' }, b)) { openH = ''; drawH(); drawHEdit(); } }
             else if (a === 'hrestore') { openH = id; if (await act({ act: 'restore' }, b)) { drawH(); drawHEdit(); } }
