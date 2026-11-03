@@ -104,6 +104,7 @@ function site_footer($path = null, $crumbs = true)
     echo '<nav class="sf-links" aria-label="Pages">';
     foreach (site_pages() as $url => $page) if ($page[2]) echo '<a href="' . h($url) . '">' . h($page[0]) . '</a>';
     echo '<a href="/privacy/">Privacy</a>';
+    echo '<a href="/credits/">Credits</a>';
     echo '<a href="https://craftyplayz.com/">craftyplayz.com</a>';
     echo '</nav>';
     echo '<p class="sf-meta">© ' . date('Y') . ' CraftyPlayz</p>';
