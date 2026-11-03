@@ -9,9 +9,8 @@ const DIR = path.join(__dirname, '../../sheets/player/content');
     const index = JSON.parse(fs.readFileSync(path.join(DIR, 'index.json'), 'utf8'));
     const data = { 2014: {}, 2024: {} };
     for (const f of index.files) {
-        const body = fs.readFileSync(path.join(DIR, f.file));
-        assert.strictEqual(body.length, f.bytes, f.file + ' size in index.json');
-        const d = JSON.parse(body);
+        // sizes in index.json are as built (LF); a Windows checkout may add CRs, so they aren't compared here
+        const d = JSON.parse(fs.readFileSync(path.join(DIR, f.file), 'utf8'));
         assert.strictEqual(d.meta.rules, f.rules);
         assert.deepStrictEqual(Object.keys(d), ['meta', ...f.keys], f.file + ' keys');
         Object.assign(data[f.rules], d, { meta: undefined });
