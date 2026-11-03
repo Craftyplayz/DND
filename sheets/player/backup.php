@@ -6,7 +6,8 @@
 // picture, so a backup still has the portrait.
 // The Monster Sheet's backup.php sets its own folder and name, then includes this file.
 require_once __DIR__ . '/../../includes/characters.php';
-if (!defined('HB_BACKUPS')) define('HB_BACKUPS', __DIR__ . '/../../private/dnd/backups');
+// DND_BACKUPS moves it elsewhere (the local checks give each server its own folder)
+if (!defined('HB_BACKUPS')) define('HB_BACKUPS', getenv('DND_BACKUPS') ?: __DIR__ . '/../../private/dnd/backups');
 if (!defined('HB_UNNAMED')) define('HB_UNNAMED', 'Unnamed character');
 const HB_MAX = 8 * 1024 * 1024; // only stops a broken client: the proxy turns away requests near 8 MB anyway
 
