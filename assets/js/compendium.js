@@ -168,6 +168,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (grouped || at >= shown.length) return;
         list.insertAdjacentHTML('beforeend', shown.slice(at, at + BATCH).map(row).join(''));
         at += BATCH;
+        // a batch that leaves the sentinel near the screen (a scroll in the same frame, short rows) never re-crosses the
+        // observer's edge, so it gets no new callback: check again once the batch is laid out
+        requestAnimationFrame(() => { if (more.getClientRects().length && more.getBoundingClientRect().top < innerHeight + 600) next(); });
     }
 
     // ---- tabs and filters ----

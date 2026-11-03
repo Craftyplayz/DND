@@ -65,6 +65,15 @@ for (const name of browsers) {
             await ev('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))');
         }
         is(`${name} endless scroll reaches every spell`, await ev(`document.querySelectorAll('#cp-list .cp-row').length`), total);
+        // a fast scroll to the end: with the rows hidden a batch never moves the marker out of the observer's reach, so
+        // there's no new crossing, and loading must still carry on to the last one with no more scrolling
+        await tab('monster');
+        const monsters = +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`));
+        await ev(`(document.head.insertAdjacentHTML('beforeend', '<style id="cp-short">.cp-row { display: none; }</style>'), scrollTo(0, document.body.scrollHeight), 1)`);
+        await b.until(`${rowCount} >= ${monsters}`, 15000).catch(() => { });
+        is(`${name} a fast scroll to the end loads every monster`, [monsters > 50, await ev(rowCount)], [true, monsters]);
+        await ev(`(document.querySelector('#cp-short').remove(), scrollTo(0, 0), 1)`);
+        await tab('spell');
         ok(`${name} extra badge`, await ev(`[...document.querySelectorAll('#cp-list .badge')].some((x) => x.textContent === 'Extra')`));
         await redraw(`(() => { const s = document.querySelector('[data-f=level]'); s.value = '3'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
         ok(`${name} level filter`, (await js(`[...document.querySelectorAll('#cp-list .cp-sub')].map((x) => x.textContent)`)).every((t) => t.startsWith('Level 3')));
