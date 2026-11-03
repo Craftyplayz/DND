@@ -130,7 +130,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         ['Quickened Spell', '2', 'Cast a spell that takes an action as a bonus action instead.'],
         ['Subtle Spell', '1', 'Cast without verbal or somatic components.'],
         ['Twinned Spell', 'spell level', 'Target a second creature with a spell that targets only one.']];
-    const TYPES = { profs: 'Proficiencies', attacks: 'Actions', spells: 'Spells', items: 'Inventory', list: 'List', trackers: 'Trackers', notes: 'Notes', text: 'Text', combat: 'Death saves and hit dice', homebrew: 'Homebrew' };
+    const TYPES = { profs: 'Proficiencies', attacks: 'Actions', spells: 'Spells', items: 'Inventory', list: 'List', trackers: 'Trackers', notes: 'Notes', text: 'Text', combat: 'Death saves and hit dice', homebrew: 'Homebrew', handouts: 'Handouts' };
     const RESETS = [['', 'No reset'], ['short', 'Short rest'], ['long', 'Long rest']];
     // homebrew abilities: a sub-tab per timing (anything else goes under Other), and what each effect does
     const HB_TIMES = [['Action', 'Actions', 'action'], ['Bonus action', 'Bonus actions', 'bonus action'], ['Reaction', 'Reactions', 'reaction'], ['Other', 'Other', 'ability']];
@@ -207,6 +207,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 newPanel('trackers', 'Resources'), newPanel('homebrew'), newPanel('combat'),
                 Object.assign(newPanel('notes'), { notes: ['Personality', 'Backstory'].map((title) => Object.assign(ROW.note(), { title, group: 'Character' })) })],
             view: { tab: '', all: false, prep: false, table: '', rollTo: '' }, hbPanel: true, hb2: true, passSplit: true,
+            hoPanel: false, // handouts (3.4): true once the Handouts panel has been added (hoAdd), so a closed one stays closed
         };
     }
 
@@ -1211,10 +1212,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <h3>Hit dice</h3>
             <div class="rows">${C.classes.map((c, i) => `<div class="rowi"><span class="grow">${esc(c.name || 'Class')} · d${nm(c.die) || 8}</span><small data-c="hdl:${i}"></small>${pips(`classes.${i}.hdUsed`, c.level)}</div>`).join('')}</div>
             <p class="muted hb-hint">One hit die per level; filled boxes are spent. Spend any number in a short rest; a long rest gives half back, rounded up.</p>`,
+        handouts: () => `<div id="hb-ho">${hoPanel()}</div>`, // 3.4, see hoPanel()
     };
 
     function panels() {
-        const vis = C.panels.map((p, i) => [p, i]).filter(([p]) => p.on);
+        const vis = C.panels.map((p, i) => [p, i]).filter(([p]) => p.on && (p.type !== 'handouts' || hoOn()));
         if (!vis.length) return '<p class="note">Every panel is hidden. Turn some back on in Customise.</p>';
         const card = ([p, i]) => `<section class="card hb-panel" id="hb-p-${esc(p.id)}"><h2>${esc(p.title)}</h2>${R[p.type](p, 'panels.' + i, i)}</section>`;
         if (C.view.all) return `<div class="masonry">${vis.map(card).join('')}</div>`;
@@ -1838,11 +1840,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // (attached before the rule) keeps its last "Rolls go to" pick (view.table) until the owner picks in campNote()
     const camp = () => (camps.length === 1 ? camps[0] : camps.find((x) => x.id === tableChoice()) || null);
     async function loadCamps() {
+        const hoWas = hoOn();
         camps = [];
         if (cloud && window.Live && tableReady()) {
             try { const r = await fetch('/campaigns/log.php?' + CAMPS_Q()); if (r.ok) camps = (await r.json()).campaigns; } catch (e) { }
         }
         tableWatch(); drawTray(); drawLog(); campNote();
+        // handouts (3.4): the panel added once, or shown or hidden as the character joins or leaves a campaign
+        if (!hoAdd() && hoWas !== hoOn() && C.panels.some((p) => p.type === 'handouts')) draw();
+        hoLoad();
         // the fight in its campaign (ROADMAP 1.4, assets/js/fight.js): a strip under the top bar while one runs
         window.Fight?.strip(camp()?.id || '', C.id, () => rollShow('Initiative', [[20, 1]], d20Mod($('[data-k="fs:init"]') || { dataset: { k: 'fs:init' } })));
     }
@@ -1892,7 +1898,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 if (tlog.length > 200) tlog = tlog.slice(-200);
                 drawLog(); if (tray.open) drawTray();
             },
-            onMessage(m) { if (m.type === 'removed') loadCamps(); },
+            onMessage(m) { if (m.type === 'removed') loadCamps(); else if (m.type === 'handout' || m.type === 'handout-gone') hoLoad(id); },
+            onLoad: () => hoLoad(id), // handouts (3.4) on reconnect and every 10 s while the relay is down
         });
     }
     const strike = (t) => esc(t).replace(/~([^~]*)~/g, '<s>$1</s>');
@@ -1911,6 +1918,46 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // no picker any more: the character's one campaign gets its rolls (camp())
     const tablePick = () => (camp() ? `<div class="hb-trayrow hb-trayto"><span class="muted">Rolls go to ${esc(camp().name)}</span>
         <button type="button" class="btn small" data-act="rollto" aria-pressed="${rollTo()}" title="${camp().dm ? 'Hidden rolls show to players only as rolled' : 'Only you and the DM see rolls sent to the DM'}">${camp().dm ? (rollTo() ? 'Hidden' : 'Public') : (rollTo() ? 'To DM' : 'Everyone')}</button></div>` : '');
+
+    // ---- handouts (ROADMAP 3.4): the Handouts panel, for a signed-in character in a campaign (assets/js/handouts.js) ----
+    // The panel is added once (hoPanel), the first time the character is in a campaign; the player can move or close it like
+    // any panel. It hides while the character is in no campaign or the player is signed out. A character still in several
+    // campaigns shows each one's handouts under its name. They load with the campaigns, when the relay says one changed, on
+    // reconnect and every 10 s while the relay is down.
+    // shortcut: only the campaign the rolls go to is watched live; a character still in several gets the others' on load
+    const ho = {}; // campaign id -> its handouts
+    const hoOn = () => cloud && camps.length > 0;
+    const hoTrack = window.Handouts ? Handouts.tracker((h) => Handouts.notify(h, () => hoOpen(h.id))) : () => { };
+    function hoPanel() {
+        if (!window.Handouts) return '';
+        if (!camps.some((x) => ho[x.id])) return '<p class="muted">Loading handouts...</p>';
+        return camps.map((x) => (camps.length > 1 ? `<h3 class="ho-camp">${esc(x.name)}</h3>` : '') + (ho[x.id] ? Handouts.html(ho[x.id], x.id) : '')).join('');
+    }
+    async function hoLoad(only) {
+        if (!hoOn() || !window.Handouts) return;
+        await Promise.all(camps.filter((x) => !only || x.id === only).map(async (x) => { const l = await Handouts.load(x.id); if (l) ho[x.id] = l; }));
+        hoTrack(camps.flatMap((x) => ho[x.id] || []));
+        const box = $('#hb-ho');
+        if (!box) return;
+        const opened = [...box.querySelectorAll('details[open]')].map((d) => d.id);
+        box.innerHTML = hoPanel();
+        for (const o of opened) { const d = document.getElementById(o); if (d) d.open = true; }
+    }
+    // a toast's Open: the panel's tab first, when panels are tabs
+    function hoOpen(id) {
+        const p = C.panels.find((x) => x.type === 'handouts' && x.on);
+        if (p && !C.view.all && C.view.tab !== p.id) { C.view.tab = p.id; saveNow(false); draw(); }
+        Handouts.open(id);
+    }
+    // the first time this character is in a campaign: a Handouts panel at the end (not an edit, so "updated" stays)
+    function hoAdd() {
+        if (!hoOn() || C.hoPanel || RO || C.archived) return;
+        C.panels.push(newPanel('handouts'));
+        C.hoPanel = true;
+        saveNow(false);
+        draw();
+        return true;
+    }
 
     // shortcut: dice3d.js and dice/choice.js reuse sheet.js's ?v= version, so a change to either alone needs sheet.js touched too (last: coins fly in from any side, 31 Oct 2026)
     let dice3dP = null;
