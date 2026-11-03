@@ -165,6 +165,7 @@ try {
     await until(dm, `!!document.querySelector('[data-fi=end]')`, Boolean);
     // archiving a monster that's in the fight (ROADMAP 0.5): it stays, marked Archived, until the DM removes it
     const gobRow = `[...document.querySelectorAll('#mon-fight .fi-e')].find((li) => li.textContent.includes('Goblin'))`;
+    while (Date.now() <= goblin().updated) await sleep(100); // the stale save above is stamped a second ahead
     await click(dm, '[data-act=side][data-id=gob]');
     await until(dm, `!!document.querySelector('[data-act=manage]')`, Boolean);
     await click(dm, '[data-act=manage]'); await click(dm, '[data-act=archive]');
