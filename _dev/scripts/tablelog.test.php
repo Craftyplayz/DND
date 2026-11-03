@@ -37,8 +37,8 @@ tl_add($A, $c(), $dm, $roll('r-000013', ['name' => 'Goblin', 'title' => 'Scimita
 
 // who sees what
 $is('the DM sees everything', $names($dm), ['Lock:Stealth', 'Ozzy:Insight', 'Goblin:Ambush', 'Goblin:Scimitar']);
-$is('the whisperer sees their whisper, a hidden roll only as rolled', $names($p2), ['Lock:Stealth', 'Ozzy:Insight', 'Goblin:-', 'Goblin:Scimitar']);
-$is("another player doesn't see the whisper", $names($p1), ['Lock:Stealth', 'Goblin:-', 'Goblin:Scimitar']);
+$is('the whisperer sees their whisper, a hidden roll only as "DM rolled" (no name)', $names($p2), ['Lock:Stealth', 'Ozzy:Insight', 'DM:-', 'Goblin:Scimitar']);
+$is("another player doesn't see the whisper", $names($p1), ['Lock:Stealth', 'DM:-', 'Goblin:Scimitar']);
 $hidden = tl_view($c(), '222', tl_read($A, $id, 'unsorted')['entries'][2]);
 $is('a hidden roll carries no result', array_intersect_key($hidden, ['total' => 1, 'shown' => 1, 'expr' => 1, 'title' => 1]), []);
 $is('nobody gets a Google id', array_key_exists('sub', tl_tail($c(), '111', tl_read($A, $id, 'unsorted'))[0]), false);
@@ -57,7 +57,7 @@ $is('a co-DM sees whispers and hidden rolls', $names($p1), $names($dm));
 $is("a co-DM can't whisper", tl_add($A, $c(), $p1, $roll('r-000030', ['vis' => 'dm']))[0], 400);
 $e = tl_add($A, $c(), $p1, $roll('r-000031', ['name' => 'Wolf', 'vis' => 'hidden', 'title' => 'Bite', 'at' => 5000]))[1]['entry'] ?? null;
 $is("a co-DM rolls hidden for a monster, marked as the DM's", [$e['name'] ?? null, $e['dm'] ?? null, $e['vis'] ?? null], ['Wolf', true, 'hidden']);
-$is('a player sees the co-DM roll only as rolled', in_array('Wolf:-', $names($p2), true), true);
+$is('a player sees the co-DM roll only as "DM rolled" (no name)', in_array('DM:-', $names($p2), true), true);
 $is('the DM sees it', in_array('Wolf:Bite', $names($dm), true), true);
 cp_act($A, $dm, ['act' => 'codm', 'id' => $id, 'member' => '222', 'on' => false]);
 $is('demoted: a player again', array_values(array_filter($names($p1), fn($n) => $n !== 'Wolf:Bite')), $player); // their own roll stays theirs

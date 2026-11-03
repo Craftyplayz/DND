@@ -53,8 +53,8 @@ function tl_view($c, $sub, $e)
     $mine = ($e['sub'] ?? null) === $sub;
     $out = ['mine' => $mine] + array_diff_key($e, ['sub' => 1]);
     if (cp_is_dm($c, $sub) || $mine || ($e['vis'] ?? '') === 'public') return $out;
-    // the Table view (1.7) shows a hidden roll only as "DM rolled", without even the name it was rolled as
-    if (($e['vis'] ?? '') === 'hidden') return ['id' => $e['id'], 'at' => $e['at'], 'dm' => true, 'name' => $sub === CP_TABLE ? 'DM' : $e['name'], 'vis' => 'hidden', 'mine' => false];
+    // players and the Table view (1.7) see a hidden roll only as "DM rolled", without even the name it was rolled as (owner's choice)
+    if (($e['vis'] ?? '') === 'hidden') return ['id' => $e['id'], 'at' => $e['at'], 'dm' => true, 'name' => 'DM', 'vis' => 'hidden', 'mine' => false];
     return null; // a whisper to the DM
 }
 
