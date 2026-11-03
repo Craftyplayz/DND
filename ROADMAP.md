@@ -406,8 +406,43 @@ browser only; see CLAUDE.md and "Not planned")
   `campaigns/fight.php`, `assets/js/fight.js`, `assets/css/pages/fight.css`. Checks: `initiative.test.php`,
   `initiative-page.mjs` (both browsers, `--firefox` swaps them).
 
-**1.5 DM view of party sheets and party overview**
-- What: the campaign page shows a party overview: name, HP bar, AC, passive Perception, conditions,
+**1.5 DM edits on player sheets** (built 2026-11-03; the owner dropped the party overview: the campaign page's Party
+section stays cards + View. The plan as first written is kept below the "Built" notes.)
+- Built: the DM or a co-DM (`cp_is_dm`) of a campaign a character is attached to opens it from View at `/characters/<id>`
+  in **DM mode** (`data-dm`): a bar "Editing <player>'s character as DM. Changes go to <player>.", every control works,
+  and the DM's browser keeps no copy. Never for a character the sender owns. The DM can't change the roll log (except
+  rolls), view settings, panel layout, portrait, archive, visibility or versions (those buttons say "Only <player> can
+  do that"). Notes can be read and edited; removing a note archives it.
+- Edits: `sheets/player/dmedit.js` (rules, used by the sheets and the fight tracker) and `includes/dmedits.php` (the same
+  rules in PHP, `DM_FIELDS`: every editable path and type, mirrored from `blank()`). The DM's sheet diffs its copy against
+  the copy last loaded (`hbDm.diff`) when a field is left and sends small ops: `set` with `was` (conflict = the field no
+  longer equals `was`: the player's value stays, the DM is told), amounts as `add` (HP typed, coins, quantity, used
+  slots/resources, hit dice, exhaustion, death saves; never conflict), `hp` (damage/heal/temp with the sheet's rules),
+  `tag` (one condition, language or proficiency), `row` (a whole row from the sheet's ROW maker, added at the end),
+  `unrow`, and `roll` (a DM roll on the sheet goes into the player's roll log and the table log as the character; the
+  table log and initiative accept a DM rolling for a party character). Paths: rows with ids by id, skills and abilities by
+  name, other lists by position plus a name check ("Longsword was removed"). Each edit carries its words ("−7 HP",
+  "+50 gp", "Strength score 14 → 16", the Versions dialog's wording).
+- Delivery: `sheets/player/dm.php` checks each edit (DM_FIELDS, then against the saved character plus what's waiting)
+  and queues it in `campaigns/<id>/pending/<character id>.json`; the relay sends it to that player's key in the campaign
+  room. Every open sheet of the player applies it once (`dmApplied`, a new `blank()` field, last 500 ids), live or on
+  open, with a "DM: ..." roll-log line marked DM and a 15 s Undo (the inverse edit as the player's own change; the log
+  keeps both lines; the DM is told "Pat undid: −7 HP"). A field being typed in keeps what's typed until left (then the
+  DM's value shows; typed over, the player's stays and the DM is told). `cloud.php` puts every edit a save lacks into it
+  (so a stale or signed-out copy uploaded later can't drop one) and answers with them; an entry is marked done once a
+  save containing it is written and kept (last 200 per queue) for older copies. Archived: edits wait until unarchived.
+  Versions that brought in DM edits are marked "DM edit" (`history/dm.json`).
+- The DM's side: the copy reloads live when the player saves (relay "char" to DMs), keeping the DM's focus; 15 s Undo on
+  each sent batch (sends the reverse); conflicts, refusals and undos show as a toast plus a line on the DM's bar until
+  dismissed (stored with the queue, shared by the campaign's DMs); offline, edits wait in `dm-outbox` with "Offline,
+  changes paused".
+- Max HP: the sheet keeps its worked-out max in `calc: {hpMax}` (new in `blank()`, no version, not a Versions change).
+  The fight tracker shows player HP as cur/max (with edits still waiting) and has Damage / Heal / Temp for players,
+  sent as DM edits.
+- Checks: `dm-edits.test.js` (JS and PHP apply every edit the same, diff, undo), `dm-edits.test.php` (paths, who may
+  send, queue rules), `dm-edits.mjs` (both browsers: everything above end to end, and DM_FIELDS against `blank()`),
+  `campaigns-page.mjs`, `initiative.test.php`, `sheet-keeps-data.mjs` (new fields `dmApplied` [] and `calc`).
+- The plan as first written: the campaign page shows a party overview: name, HP bar, AC, passive Perception, conditions,
   exhaustion, death saves and spell slots left. Clicking opens the full sheet. **The DM can edit everything**
   on a player's sheet, and players keep editing their own (HP included). Party HP is private: only that player
   and the DM ever see it (the Table view and other players don't). Every DM change shows live on the player's
