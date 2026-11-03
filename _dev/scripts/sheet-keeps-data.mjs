@@ -19,6 +19,8 @@ function saves(folder) {
     if (!existsSync(BK)) return [];
     for (const ip of readdirSync(BK)) for (const name of readdirSync(join(BK, ip))) {
     const dir = join(BK, ip, name);
+    // files beside the folders (.lock, the Monster Sheet's encounters-<n>.json) aren't characters
+    if (name.startsWith('.') || !statSync(dir).isDirectory()) continue;
     const files = readdirSync(dir).filter((f) => /-\d+\.json$/.test(f)).sort((a, b) => +b.match(/-(\d+)\.json$/)[1] - +a.match(/-(\d+)\.json$/)[1]);
     if (!files[0]) continue;
     const file = join(dir, files[0]), t = statSync(file).mtimeMs, c = JSON.parse(readFileSync(file, 'utf8'));
@@ -38,7 +40,7 @@ function lost(old, now, path = '') {
 
 const b = await launch(BROWSER), ev = b.ev;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-let failed = 0;
+let failed = 0, listed = '';
 try {
     await b.block(/backup\.php|cloud\.php/);
 
@@ -58,6 +60,8 @@ try {
         }
         await sleep(800);
         const after = JSON.parse(await ev(`localStorage.getItem(${JSON.stringify(key)})`)).chars;
+        // the Monster Sheet with encounters (ROADMAP 3.1) shows Unsorted, listing every monster
+        if (base === NEW && key === 'monster-sheet') listed = await ev(`document.querySelector('.mon-encside') ? [document.querySelector('.mon-encside').value, document.querySelectorAll('#mon-side [data-act=side]').length].join() : ''`);
         await b.go(base + '/privacy/'); await sleep(500);
         return after;
     }
@@ -69,8 +73,12 @@ try {
         const after = await load(NEW, path, key, chars);
         for (const { from, c } of chars) {
             const miss = !before[c.id] ? [] : after[c.id] ? lost(before[c.id], after[c.id]) : ['the whole character'];
+            // the one field the new code may add: a monster's "enc" (ROADMAP 3.1), and every old monster starts in Unsorted
+            if (OLD && before[c.id] && after[c.id]) for (const k of Object.keys(after[c.id])) if (!(k in before[c.id]) && !(key === 'monster-sheet' && k === 'enc')) miss.push(`${k}: added`);
+            if (key === 'monster-sheet' && after[c.id] && !('enc' in c) && after[c.id].enc !== '') miss.push(`enc: ${JSON.stringify(after[c.id].enc)}, not Unsorted`);
             if (miss.length) { failed++; console.log(`FAIL ${path} ${from}: ${miss.length} value(s) changed or gone\n  ` + miss.slice(0, 8).join('\n  ')); }
         }
+        if (key === 'monster-sheet' && listed !== `,${chars.length}`) { failed++; console.log(`FAIL ${path}: the list should show Unsorted with all ${chars.length} monsters, shows "${listed}" (encounter, count)`); }
         console.log(`${path}: ${chars.length} saved characters checked in ${BROWSER}${OLD ? ' against ' + OLD : ''}`);
     }
 } finally {
