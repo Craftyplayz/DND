@@ -24,3 +24,6 @@ live/node_modules/
 
 # agent worktrees (git worktree add), never part of the site
 .claude/worktrees/
+
+# the content importer's download cache (_dev/scripts/build-content.mjs)
+_dev/cache/
