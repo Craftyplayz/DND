@@ -73,7 +73,7 @@ IDs are numeric (`auth_claims_ok` checks this), so named folders can't clash wit
 | `dev/characters/` | the archived test sheet's characters | kept as is |
 | `monsters/<sub>/<monster id>.json` | monster sheet monsters | exists (0.1) |
 | `prefs/<sub>.json` | settings in the `KEYS` list of sync.js / prefs.php | exists (0.1) |
-| `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` (1.1), `sessions/` (1.3), `initiative.json` and `fights/` (1.4) exist; the rest Phase 1 |
+| `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` (1.1), `sessions/` (1.3), `initiative.json` and `fights/` (1.4), `notes/` and `handouts/` (3.4) exist |
 | `homebrew/<sub>/<id>.json` | homebrew items, spells, monsters, classes, races... | Phase 4/5 |
 | `shares/<token>.json` | read-only share links | Phase 6 |
 
@@ -631,6 +631,31 @@ change already lands in `sheets/player/`. The test copy is archived and must not
   list on the campaign page and on their sheet. The DM can unshare a handout.
 - Storage: `campaigns/<id>/notes.json`, `campaigns/<id>/handouts/<id>.json` + images (chunked upload, no size limit beyond chunking).
 - Size: 2.5 days. Done: a handout sent to one player shows only for that player, live and after reconnecting.
+- Built (2026-11-03, owner's decisions of that day):
+  - DM notes: many per campaign on the campaign page (DM and co-DMs only): title, group, pin, search, a folded
+    "Archived (N)" with Restore. Plain text, autosaved; kept in the browser too (localStorage `campaign-dm`, offline
+    editing) and in the account, newest `updated` wins per note. Every save goes into a history folder (no Versions UI yet).
+    Never shown to players or the Table view (`handouts.test.php` checks).
+  - Handouts: title, optional text (line breaks kept) and any number of jpg/png/webp/gif pictures, stored as uploaded,
+    sent in resumable 4 MB pieces, checked by their first bytes and served with nosniff. Made as a private draft; Send to
+    picked players or "everyone" (every member, later joiners too); players can be changed, Unshare makes it a draft again,
+    Archive is the only removal (it also unshares; Restore brings it back as a draft). Editing a sent one updates players
+    live with an "Updated" mark; every save is kept in its history. A per-handout "Show on the Table view" switch is
+    stored for 1.7 (`ho_table()`: only handouts sent to everyone). A player who leaves loses them all (files stay).
+  - Players: a Handouts section on the campaign page and a new **Handouts panel type** on the sheet, added once
+    (`hoPanel` in `blank()`) the first time a character is in a campaign, at the end of its panels; it can be moved or
+    closed, and hides while the character is in no campaign or signed out. Several campaigns: grouped by campaign name.
+    "New" until opened (kept on the server per player, so it follows the account); a toast "New handout: <title>"
+    with Open when one arrives live. Pictures open in a dialog with Download.
+  - Live: the relay carries only `{type: "handout" | "handout-gone", id}` to the DM role and the recipients' keys; pages
+    load the handout from PHP. Reloaded on reconnect and every 10 s while the relay is down (`onLoad` in `Live.watch`).
+  - Files: `includes/handouts.php` (`ho_sees()` is the one view check for JSON, pictures and the relay), `campaigns/handouts.php`,
+    `campaigns/dm.js`, `assets/js/handouts.js`, `assets/css/pages/handouts.css`. Storage in `campaigns/<id>/`: `notes/<id>.json`
+    (+ `notes/history/<id>/<n>.json`), `handouts/<id>.json`, `handouts/<id>/<image>.<ext>`, `handouts/history/<id>/<n>.json`,
+    `handouts/seen/<sub>.json`; deleting the campaign moves them with it. Checks: `handouts.test.php`, `handouts-page.mjs`.
+  - Picked while the owner slept (to confirm): recipients default to everyone; Unshare keeps the picks for re-sending;
+    a handout open on a player's screen when it's edited counts as read; pictures waiting offline live only in the open
+    page (closing it drops them; the text is kept); a character in several campaigns hears only its rolls' campaign live.
 
 ### Phase 4: Character building
 
