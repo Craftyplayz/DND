@@ -13,7 +13,8 @@ Checked but not used: Open5e "Elderberry Inn Icons" (CC0, Anaislalovi) contain o
 
 Drawn for this project, not from game-icons.net:
 
-- Race pictures (full-colour style-A portraits from the race picture sets, used as their own tile): Erina (erina), Giff (giff), Githyanki (githyanki), Githzerai (githzerai), Kender (kender), Kor (kor), Satarre (satarre), Simic Hybrid (simic-hybrid), Vedalken (vedalken).
+- Race pictures (full-colour style-A portraits from the race picture sets, used as their own tile): Simic Hybrid (simic-hybrid), Vedalken (vedalken).
+- Race symbols (flat white shapes in the game-icons style): Erina (erina), Giff (giff), Githyanki (githyanki), Githzerai (githzerai), Kender (kender), Kor (kor), Satarre (satarre).
 - Subclass symbols (flat white shapes in the game-icons style): Cleric: Ambition (cleric--ambition), Cleric: Solidarity (cleric--solidarity), Cleric: Unity (cleric--unity), Druid: Circle of the Many (druid--circle-of-the-many), Rogue: Underfoot (rogue--underfoot), Wizard: Onomancy (wizard--onomancy).
 
 ## Colours
