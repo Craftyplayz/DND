@@ -57,7 +57,13 @@ for (const name of browsers) {
         await tab('spell');
         is(`${name} spell rows start at 50`, await ev(`document.querySelectorAll('#cp-list .cp-row').length`), 50);
         const total = +(await ev(`document.querySelector('#cp-count').textContent.replace(/\\D/g, '')`));
-        for (let i = 0, n; i < 30 && (n = await ev(rowCount)) < total; i++) { await ev(`document.querySelector('#cp-more').scrollIntoView()`); await b.until(`${rowCount} > ${n}`).catch(() => { }); }
+        // after each scroll: the next batch is in and has pushed the marker under the list out of the observer's reach
+        // (600px past the window) for a frame, so the next scroll is a new crossing; scrolling again sooner never loads more
+        for (let i = 0, n; i < 30 && (n = await ev(rowCount)) < total; i++) {
+            await ev(`document.querySelector('#cp-more').scrollIntoView()`);
+            await b.until(`${rowCount} > ${n} && document.querySelector('#cp-more').getBoundingClientRect().top > innerHeight + 600`).catch(() => { });
+            await ev('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))');
+        }
         is(`${name} endless scroll reaches every spell`, await ev(`document.querySelectorAll('#cp-list .cp-row').length`), total);
         ok(`${name} extra badge`, await ev(`[...document.querySelectorAll('#cp-list .badge')].some((x) => x.textContent === 'Extra')`));
         await redraw(`(() => { const s = document.querySelector('[data-f=level]'); s.value = '3'; s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
