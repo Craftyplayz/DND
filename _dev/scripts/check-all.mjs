@@ -37,6 +37,7 @@ export const BROWSER_CHECKS = {
     'initiative-page': { ports: [8122, 8097], split: 'flag', tmp: 'dnd-fight-check', secs: 90 },
     'monster-encounters': { ports: [8123], split: true, tmp: 'dnd-encounters-check', secs: 60 },
     'maps-page': { ports: [8127, 8101], split: 'flag', tmp: 'dnd-maps-check', secs: 90 },
+    'table-page': { ports: [8128, 8102], split: 'flag', tmp: 'dnd-tv-check', secs: 120 },
     'live-page': { ports: [8118, 8098], both: true, tmp: 'dnd-live-check', secs: 45 },
     'table-log': { ports: [8120, 8099], both: true, tmp: 'dnd-table-check', secs: 70 },
     'handouts-page': { ports: [8124, 8093], split: true, tmp: 'dnd-handouts-check', secs: 60 },

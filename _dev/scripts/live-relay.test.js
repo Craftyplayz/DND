@@ -14,7 +14,9 @@ const SHIFT = +process.env.CHECK_PORT_SHIFT || 0, RELAY = 8095 + SHIFT, AUTH = 8
 // the stand-in auth: cookie "who=<key>:<role>" is in campaign "camp1"
 const auth = http.createServer((req, res) => {
     const m = /who=(\w+):(dm|player)/.exec(req.headers.cookie || '');
-    if (!m || !req.url.endsWith('?c=camp1')) { res.statusCode = 403; return res.end('{}'); }
+    const table = req.url.endsWith('?c=camp1&as=table'); // the Table view (ROADMAP 1.7): the DM's tab, as role table
+    if (!m || !(req.url.endsWith('?c=camp1') || table) || (table && m[2] !== 'dm')) { res.statusCode = 403; return res.end('{}'); }
+    if (table) return res.end(JSON.stringify({ key: 'tv', role: 'table' }));
     res.end(JSON.stringify({ key: m[1], role: m[2] }));
 });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -24,9 +26,9 @@ let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 
 // a socket that keeps everything it receives; resolves with the close code if the relay refuses it
-function open(cookie, { c = 'camp1', origin = ORIGIN } = {}) {
+function open(cookie, { c = 'camp1', origin = ORIGIN, as = false } = {}) {
     return new Promise((resolve) => {
-        const ws = new WebSocket(`ws://localhost:${RELAY}/?c=${c}`, { headers: { cookie, origin } });
+        const ws = new WebSocket(`ws://localhost:${RELAY}/?c=${c}${as ? '&as=table' : ''}`, { headers: { cookie, origin } });
         ws.got = [];
         ws.on('message', (d) => ws.got.push(JSON.parse(d)));
         ws.on('open', () => resolve(ws));
@@ -62,6 +64,16 @@ const last = (ws, type) => ws.got.filter((m) => m.type === type).pop();
         is('through Apache refused', await publish({ campaign: 'camp1', msg: { type: 'fake' } }, { 'X-Forwarded-For': '1.2.3.4' }), 404);
         await sleep(200); // kept: nothing must arrive, so there is nothing to wait for
         is('nothing arrived from outside', !!last(dm, 'fake'), false);
+        // the Table view (ROADMAP 1.7): the DM's tab joins as role table with its own key; a player can't; it never gets the DM's messages
+        is('a player cannot join as the table', await open('who=pl1:player', { as: true }), 403);
+        const tv = await open('who=dm1:dm', { as: true });
+        await publish({ campaign: 'camp1', msg: { type: 'secret3' }, to: 'dm' });
+        await publish({ campaign: 'camp1', msg: { type: 'fortv' }, to: ['tv'] });
+        await publish({ campaign: 'camp1', msg: { type: 'all3' } });
+        await wait(async () => last(tv, 'all3') && last(dm, 'all3'));
+        is("the table gets everyone's and its own messages, never the DM's", [!!last(tv, 'secret3'), !!last(tv, 'fortv'), !!last(tv, 'all3'), !!last(dm, 'secret3'), !!last(dm, 'fortv')], [false, true, true, true, false]);
+        tv.close();
+        await wait(async () => last(dm, 'presence')?.online.length === 3);
 
         await publish({ campaign: 'camp1', msg: { type: 'campaign' }, members: ['dm1', 'pl1'] });
         is('removed player dropped', await pl2.closed, 4403);
