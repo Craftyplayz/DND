@@ -59,6 +59,7 @@ do). Signed out, everything keeps working from the browser alone.
     `monster-sheet`, `accounts/monster-encounters/<sub>.json` through sheets/monster/encounters.php)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
     Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`)
+  - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js)
 - Not synced, by the user's choice: dice fairness test tallies (`dice-test-counts`).
 - How to add more: a list of things a player builds up (characters, monsters) gets per-item sync like the
   sheets (a cloud.php wrapper with its own `CL_ACCOUNTS` folder, `updated` stamped on edits only); a setting
@@ -76,8 +77,8 @@ server backups (`private/dnd/backups/<ip>/`). An update may add to a character, 
 - **Before pushing any sheet change**, prove the new code keeps everything the live code keeps:
   ```
   git worktree add --detach ../dnd-live <live commit>      # LIVE_TAG on the stack, or origin/main before your change
-  php -S 127.0.0.1:8112 -t ../dnd-live                     # the live code
-  php -S 127.0.0.1:8110 -t .                               # your change
+  php -S 127.0.0.1:8112 -t ../dnd-live ../dnd-live/_dev/router.php  # the live code (no router: /characters/<id> never opens)
+  php -S 127.0.0.1:8110 -t . _dev/router.php                        # your change
   node _dev/scripts/sheet-keeps-data.mjs http://localhost:8110 http://localhost:8112
   node _dev/scripts/sheet-keeps-data.mjs http://localhost:8110 http://localhost:8112 --firefox
   ```

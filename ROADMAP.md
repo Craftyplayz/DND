@@ -913,6 +913,11 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
   compendium but leaves existing copies.
 - Size: 4 days. Done: a homebrew spell made by the DM and shared shows in a player's spell picker. After the DM
   deletes it, the player's sheet still has it.
+- Built in stages, with a "New ..." button in each Compendium tab, Edit and Archive on the entry, always shown whatever the
+  rules switch says. Any member shares their own entries; the DM or a co-DM can take one out of the campaign; the list is
+  `accounts/campaigns/<id>/homebrew.json`. Stage 1 done: storage, sharing and house rules (`includes/homebrew.php`,
+  `compendium/homebrew.php`, `assets/js/homebrew.js`, browser key `homebrew`). Still to come: spells, items, magic items and feats;
+  monsters ("Save as homebrew" on the Monster Sheet); classes, races and backgrounds (4.6, a guided form).
 
 **5.3 Retire the D&D Beyond viewer**
 - What: when the party overview (1.5) is live, import the 6 characters from `characters.json` into their
