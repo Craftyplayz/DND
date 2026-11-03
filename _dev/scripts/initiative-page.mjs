@@ -71,10 +71,10 @@ try {
 
     // the DM starts a fight; Pat gets a notice and rolls from it
     await click(dm, '[data-fi=start]');
-    is('player sheet: the strip asks for initiative', (await until(pat, strip, (t) => t.includes('Roll initiative'))).includes('Rolling initiative'), true);
+    is('player sheet: only a prompt to roll, no order', [(await until(pat, strip, (t) => t.includes('Roll initiative'))).includes('The DM started a fight'), await pat.ev(`!document.querySelector('#hb-fight .fi-row, #hb-fight .fi-top')`)], [true, true]);
     await click(pat, '[data-fi=roll]');
     is('Lock rolled in and shows on the DM tracker', (await until(dm, panel, (t) => t.includes('Lock'))).includes('Lock'), true);
-    is('the Roll button goes once rolled', await until(pat, `!document.querySelector('[data-fi=roll]')`, Boolean), true);
+    is('the prompt goes once rolled', await until(pat, `!document.querySelector('#hb-fight')`, Boolean), true);
     const n = JSON.parse(await fight(SID.sam)).fight.n;
     is('Sam and Kit roll in', [(await api(SID.sam, { act: 'roll', id: CAMP, roll: { id: 'samroll000001', char: 'ozzy', title: 'Initiative', expr: '1d20 + 3', shown: '14 + 3', total: '17', fight: n } })).status,
         (await api(SID.kit, { act: 'roll', id: CAMP, roll: { id: 'kitroll000001', char: 'kitt', title: 'Initiative', expr: '1d20 + 1', shown: '2 + 1', total: '3', vis: 'dm', fight: n } })).status], [200, 200]);
@@ -90,29 +90,22 @@ try {
     await click(dm, `[data-fi=hide][data-fe="${ogre.id}"]`);
     await until(dm, `!!document.querySelector('#mon-fight .fi-e.hid')`, Boolean);
     await click(dm, '[data-fi=round1]');
-    is('round 1', (await until(pat, strip, (t) => t.includes('Round 1'))).includes('Round 1'), true);
-    is('the timer runs for players', await until(pat, `/\\d+:\\d\\d/.test(document.querySelector('#hb-fight .fi-time')?.textContent || '')`, Boolean), true);
+    is('round 1', (await until(dm, panel, (t) => t.includes('Round 1'))).includes('Round 1'), true);
 
-    // two rounds: Next until round 3, watching for Lock's turn on the way
-    let sawTurn = false, sawNext = false;
+    // two rounds: Next until round 3; the order and turns belong on the VTT, so Lock's sheet shows none of it
+    let sawStrip = false;
     for (let i = 0; i < 12 && !(await dm.ev(text('#mon-fight .fi-top'))).includes('Round 3'); i++) {
         await click(dm, '[data-fi=next]');
         await sleep(600);
-        const s = await pat.ev(strip);
-        if (s.includes('Your turn, Lock')) sawTurn = true;
-        if (s.includes("You're up next")) sawNext = true;
+        if (await pat.ev(`!!document.querySelector('#hb-fight')`)) sawStrip = true;
     }
     is('advanced two rounds', (await dm.ev(text('#mon-fight .fi-top'))).includes('Round 3'), true);
-    is("Lock's sheet showed Your turn and You're up next", [sawTurn, sawNext], [true, true]);
+    is("Lock's sheet showed no order, turn or round", sawStrip, false);
 
     // the DM damages the goblin from the tracker: players see Bloodied, never numbers
     await dm.ev(`(() => { const f = document.querySelector('#mon-fight .fi-hp[data-mon=gob]'); f.querySelector('input').value = '4'; f.querySelector('button[value=dmg]').click(); })()`);
     is('goblin HP saved through the account', await until(dm, `JSON.parse(localStorage.getItem('monster-sheet')).chars.gob.hp.cur`, (v) => v === 3), 3);
     is('server goblin HP', goblin().hp.cur, 3);
-    await until(pat, strip, (t) => t.includes('Bloodied'));
-    is('player sheet: goblin Bloodied', await pat.ev(`[...document.querySelectorAll('#hb-fight .fi-p')].find((li) => li.querySelector('.fi-n').textContent === 'Goblin')?.querySelector('.badge')?.textContent || ''`), 'Bloodied');
-    const ps = await pat.ev(strip);
-    is('player sheet: no numbers in the strip', [/HP|\/ ?7|59/.test(ps), ps.includes('Ogre')], [false, false]);
     for (const [who, sid] of [['Pat', SID.pat], ['Sam', SID.sam]]) {
         const j = await fight(sid);
         is(`${who}: no hidden monster, numbers or HP in the response`, [j.includes('Ogre'), j.includes('ogre'), j.includes('"hp"'), j.includes('"init"'), j.includes('"cur"')], [false, false, false, false, false]);
@@ -121,7 +114,8 @@ try {
     // a reload on any device shows the same state
     const before = JSON.parse(await fight(SID.dm)).fight;
     await go(pat, BASE + '/characters/lock');
-    is('player reload: same round and turn', (await until(pat, strip, (t) => t.includes('Round 3'))).includes('Round 3'), true);
+    await sleep(1500);
+    is('player reload: still no strip on the sheet', await pat.ev(`!document.querySelector('#hb-fight')`), true);
     await go(dm, BASE + '/sheets/monster/');
     is('DM reload: same fight', (await until(dm, panel, (t) => t.includes('Round 3'))).includes('Round 3'), true);
     const after = JSON.parse(await fight(SID.dm)).fight;
@@ -130,6 +124,7 @@ try {
     await go(pat, `${BASE}/campaigns/?c=${CAMP}`);
     const pc = await until(pat, text('#cp-fight'), (t) => t.includes('Round 3'));
     is('campaign page (player): order, round, no numbers', [pc.includes('Goblin'), /HP|AC/.test(pc), pc.includes('Ogre')], [true, false, false]);
+    is('campaign page (player): goblin Bloodied, the timer runs', [pc.includes('Bloodied'), /\d+:\d\d/.test(pc)], [true, true]);
 
     // a stale DM change is refused
     is('a change from an old copy is refused', (await api(SID.dm, { act: 'fight', id: CAMP, op: 'next', v: 1 })).error, 'This fight changed, reloaded.');

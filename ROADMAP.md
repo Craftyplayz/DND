@@ -381,11 +381,13 @@ browser only; see CLAUDE.md and "Not planned")
   roll joins only if it was rolled in the same fight. Ties: higher initiative bonus first, then a silent d20 roll-off.
   Monsters: "Add to fight" beside each one in the list, "Add all in the list" (and a picker in the panel on phones),
   each auto-rolled; the Initiative button rolls one in. Hidden monsters are never sent to players. Down monsters
-  (≤ 0 HP) stay greyed and are skipped by Next; archived or gone ones stay, marked, until removed. Players see the
-  order as portraits (no numbers, no player health, monsters as Healthy / Bloodied / Down), "You're up next", a
-  "Your turn, <name>" banner on that character's sheet and the tab title in the background; no sound. The campaign
-  page shows the same; the DM also sees numbers, player HP (read-only), monster HP and AC, and can change monster HP
-  there. While the DM is offline the controls say "Offline, changes paused"; a change from an older copy of the
+  (≤ 0 HP) stay greyed and are skipped by Next; archived or gone ones stay, marked, until removed. The order and turns
+  belong on the VTT (owner, 2026-11-03), not the character sheet: a sheet only shows "The DM started a fight. Roll
+  initiative" until that character has rolled in. Until the VTT (1.6/1.7) exists, players see the order on the
+  campaign page as portraits (no numbers, no player health, monsters as Healthy / Bloodied / Down) with the round
+  and timer; the DM also sees numbers, player HP (read-only), monster HP and AC, and can change monster HP there.
+  When the VTT is built, the order and turns ("You're up next", "Your turn") move there and the DM's controls move
+  from the Monster Sheet to the DM's VTT screen. While the DM is offline the controls say "Offline, changes paused"; a change from an older copy of the
   fight is refused with "This fight changed, reloaded".
 - Monster HP from anywhere: once changed through `sheets/monster/cloud.php?hp=`, a monster's HP only changes as
   single changes (damage and healing as amounts, typed numbers as the numbers that changed), applied in order by

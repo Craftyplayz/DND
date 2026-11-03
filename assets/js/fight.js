@@ -1,8 +1,7 @@
 // The initiative tracker (ROADMAP 1.4) for every page, on top of assets/js/live.js. The server decides what each person
 // sees (fi_view in includes/initiative.php, through campaigns/fight.php); this file only draws it and sends the DM's changes.
-//   Fight.strip(campaignId, characterId, roll)   the player sheet: a strip under the top bar while a fight runs, with the
-//                                                order as portraits, the round and time, "You're up next", a "Your turn"
-//                                                banner and, until this character has rolled, a Roll button (calls roll())
+//   Fight.strip(campaignId, characterId, roll)   the player sheet: until this character has rolled into the running fight,
+//                                                a "Roll initiative" prompt under the top bar (calls roll()); nothing else
 //   Fight.panel(el, campaignId, {controls, onHp, onChange})   the tracker: on the Monster Sheet with controls (the DM runs
 //                                                it there), on the campaign page without (players see the order; the DM
 //                                                also sees numbers and can change monster HP). onHp(monster id, op) changes
@@ -78,33 +77,28 @@ window.Fight = (() => {
 
     // ---- the player sheet's strip ----
     let stripOn = null; // {c, char, roll, w, draw}
-    const baseTitle = document.title;
     function strip(c, char, roll) {
         if (stripOn && stripOn.c === c && stripOn.char === char) { stripOn.roll = roll; return; }
-        if (stripOn) { stripOn.w.views.delete(stripOn.draw); document.getElementById('hb-fight')?.remove(); document.title = baseTitle; }
+        if (stripOn) { stripOn.w.views.delete(stripOn.draw); document.getElementById('hb-fight')?.remove(); }
         stripOn = null;
         if (!c) return;
         const s = stripOn = { c, char, roll, w: room(c) };
+        // the order and turns belong on the VTT (owner, 2026-11-03): the sheet only asks this character to roll in,
+        // and the prompt goes once it has (the server drops it from canRoll)
         s.draw = () => {
             const f = s.w.f;
             let el = document.getElementById('hb-fight');
-            if (!f) { el?.remove(); document.title = baseTitle; return; }
+            if (!f || !f.canRoll.includes(char)) { el?.remove(); return; }
             if (!el) {
                 document.getElementById('hb-bar').insertAdjacentHTML('afterend', '<div class="fi-strip" id="hb-fight" role="region" aria-label="Fight"></div>');
                 el = document.getElementById('hb-fight');
                 el.addEventListener('click', (ev) => { const b = ev.target.closest('[data-fi=roll]'); if (b) { b.disabled = true; s.roll(); } });
             }
-            const me = f.entries.find((e) => e.char === char);
-            const mine = !!me && f.turn === me.id, next = !!me && !mine && f.next === me.id;
-            el.innerHTML = head(f, next ? '<span class="badge p fi-next">You\'re up next</span>' : '') + row(f)
-                + (mine ? `<p class="fi-turn" role="status">Your turn, ${esc(me.name)}</p>` : '')
-                + (f.canRoll.includes(char) ? `<p class="fi-roll">${f.phase === 'rolling' ? 'The DM started a fight.' : 'A fight is on.'} <button type="button" class="btn small primary" data-fi="roll">Roll initiative</button></p>` : '');
-            document.title = mine && document.hidden ? `Your turn! · ${me.name}` : baseTitle;
+            el.innerHTML = `<p class="fi-roll">${f.phase === 'rolling' ? 'The DM started a fight.' : 'A fight is on.'} <button type="button" class="btn small primary" data-fi="roll">Roll initiative</button></p>`;
         };
         s.w.views.add(s.draw);
         s.draw();
     }
-    document.addEventListener('visibilitychange', () => stripOn?.draw());
 
     // ---- the tracker panel ----
     const panels = new Map(); // element -> {c, opts, w, draw}
