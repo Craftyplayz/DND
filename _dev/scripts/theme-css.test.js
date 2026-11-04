@@ -35,7 +35,8 @@ for (const f of css) {
 // every token is used somewhere besides its own definition (the /design swatches are generated from the :root block)
 const root = strip(fs.readFileSync(path.join(ROOT, 'assets/css/global.css'), 'utf8')).match(/:root\s*\{([^}]*)\}/)[1];
 const tokens = [...root.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]);
-const code = walk(ROOT, ['.css', '.js', '.php', '.html', '.mjs']).filter((f) => !f.includes(path.join('assets', 'js', 'vendor')))
+// private/ is skipped, except the archived session recordings' stylesheet, which still uses the --series colours
+const code = [...walk(ROOT, ['.css', '.js', '.php', '.html', '.mjs']), ...walk(path.join(ROOT, 'private/archive/assets/css/pages'), ['.css'])].filter((f) => !f.includes(path.join('assets', 'js', 'vendor')))
     .map((f) => strip(fs.readFileSync(f, 'utf8')).replace(/^\s*--[\w-]+\s*:[^;]*;/gm, (m) => (path.basename(f) === 'global.css' ? m.replace(/[^\n]/g, ' ') : m))).join('\n');
 for (const t of tokens) if (!new RegExp(t.replace(/-/g, '\\-') + '(?![\\w-])').test(code.replace(new RegExp('^\\s*' + t + '\\s*:', 'gm'), ''))) fail(`${t} is defined in :root but used nowhere`);
 

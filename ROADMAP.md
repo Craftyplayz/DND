@@ -537,8 +537,8 @@ section stays cards + View. The plan as first written is kept below the "Built" 
 **1.7 Table view (TV / screen share)** (built 2026-11-03 from the prototype `_dev/mockups/battlemap/table.html`; the owner's
 answers of that day are the "Built" notes, which replace the plan below where they differ)
 - Built:
-  - How it's used: the DM's PC is plugged into the TV. The DM or a co-DM presses **Open Table view** (the campaign page's Map
-    section and the map page's top bar), which opens `/campaigns/<id>/table` (`campaigns/table.php`) in a new tab of their own
+  - How it's used: the DM's PC is plugged into the TV. The DM or a co-DM presses **Open Table view** (the campaign page's header
+    and the map page's top bar), which opens `/campaigns/<id>/table` (`campaigns/table.php`) in a new tab of their own
     signed-in browser; they move that tab to the TV. No pairing, no separate login. Players get a 404 there.
   - The `table` role is real: that tab reads everything with `?as=table` (and joins the relay with `&as=table`), and
     `cp_viewer()` turns the DM's request into the stand-in viewer `CP_TABLE`, which is nobody: not a member, not a DM, owns
@@ -622,10 +622,25 @@ answers of that day are the "Built" notes, which replace the plan below where th
 **1.8 Bring live play to `/sheets/player/`** (no longer needed: there's one sheet code now, so every live-play
 change already lands in `sheets/player/`. The test copy is archived and must not be used.)
 
-**1.9 Campaign page rework** (asked for 2026-11-03; owner's answers from the interview of that day; not built yet)
-- Already built: the own URL `/campaigns/<id>` and the 301 from `/campaigns/?c=<id>`; the log shows a running session. Still
-  to do: with no session running the log shows the "outside sessions" rolls, not the last session; Past rolls is still there.
-  Today the page is one long scroll: 4,043 px for a DM on a phone, 2,763 px for a player, and an empty map takes 602 px.
+**1.9 Campaign page rework** (asked for 2026-11-03; owner's answers from the interview of that day; built 2026-11-04, on a branch until merged)
+- Built: everything below, in `campaigns/index.php`, `campaigns/campaigns.js`, `includes/tablelog.php` (`tl_page`), `campaigns/log.php` (`?page=1`, its default
+  answer unchanged). The second round of the owner's answers (2026-11-04):
+  - Rolls tab: an empty session is skipped (an accidental Start then End never hides the one before; with only empty ones, "No sessions yet"), every roll of the
+    session shows (the other logs keep their 200), and the count is each person's own, so nobody learns of others' whispers. The page scrolls, no inner box.
+    Times are 12-hour and in the viewer's own time zone, drawn in the browser (the server runs on UTC); a session left running shows its date: "since 3 Nov, 7:04 pm".
+  - Open Table view sits beside Start/End session, DM and co-DMs, every tab. The map: players see nothing until its fog is first sent (no black box), the DM
+    and co-DMs whenever it's on the table; about 70% of the screen's height on phones, one screen under its heading on desktop. A load that fails says so.
+  - Tabs: each click is a step for Back; a tab you can't have opens Overview with the address cleaned; a new tab starts at the pills if you'd scrolled past;
+    the pills don't stick, and are 44 px tall on phones. The fight dot is blue and shows as soon as a fight exists, rolling included. No toast for "Your turn".
+  - Tiles: "Level 5 Fighter / Rogue" (no race), two-line names, 200 px or wider, the dot on each of an online player's characters, the old rule for who can open
+    one (your own, or all for DMs). "Add your character" is primary for players and co-DMs, plain for the DM. No characters: a link to Build one. Only member: a line to Invite players.
+  - Handouts: the pill counts new and updated, the Overview line names new ones; a name opens that handout on its tab, a pinned title that note. Everything is listed, nothing cut.
+  - Campaign tab: one column, Rename and Delete or Leave last. The invite link, a player's rules, the title and the breadcrumb follow live. Ending a session with a fight on says so.
+  - `/transcripts/`: the archived uploader keeps working, behind the password (`/private/archive/private/transcripts/`), and the viewer (`/private/archive/transcripts/`) serves the audio with Range. `/campaigns/<id>?s=<n>` also goes to `#rolls`.
+  - Files stay on disk with no page: past sessions and rolls outside sessions, owner's choice.
+  - Checks: `campaign-tabs.mjs`, `transcripts-archive.test.php`, `tablelog.test.php`. `includes/functions.php`: `$site_page['crumb']` names a page's last breadcrumb. Check on dndtest that
+    `/transcripts/data/...` redirects there too: the local server uses `_dev/router.php`, Apache the root `.htaccess`.
+- Before: the page was one long scroll: 4,043 px for a DM on a phone, 2,763 px for a player, and an empty map took 602 px.
 - Tabs: pill tabs under the title: **Overview, Rolls, Handouts, Notes** (DM and co-DMs only), **Campaign**. They wrap to two
   rows on a phone. Links are `#rolls`, `#handouts`, `#notes`, `#campaign`; back and reload stay on the tab. A plain
   `/campaigns/<id>` always opens Overview, and no tab is remembered, so nothing needs saving to the account. One PHP page, so
