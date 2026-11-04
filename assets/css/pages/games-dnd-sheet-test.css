@@ -24,3 +24,6 @@
 .dt-panel figcaption .field { flex: 0 0 auto; width: auto; padding: 4px 8px; font-size: 13px; }
 .dt-panel figcaption span { min-width: 0; overflow-wrap: anywhere; }
 .dt-results .stabs { margin-bottom: 12px; flex-wrap: wrap; }
+
+/* this page has no footer, so the Compendium button (popup.css) gets room under the last lines */
+.page.dt { padding-bottom: calc(var(--cp-bottom, 16px) + 60px); }

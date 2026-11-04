@@ -65,14 +65,14 @@ const PAGES = [
 const SCAN = (full, taps) => `(() => {
     const out = [], de = document.documentElement, W = innerWidth;
     const name = (e) => e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\\s+/).join('.') : '');
-    const shown = (e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && !e.closest('[hidden], [inert], dialog:not([open])'); };
+    const shown = (e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && !e.closest('[hidden], [inert], dialog:not([open])') && !(e.closest('details:not([open])') && !e.closest('summary')); };
     const all = [...document.body.querySelectorAll('*')].filter(shown);
     if (de.scrollWidth > W + 1) out.push('sideways scroll ' + (de.scrollWidth - W) + ' px: ' + all.filter((e) => e.getBoundingClientRect().right > W + 1).slice(0, 4).map(name).join(' '));
     if (${full}) {
         const scroller = (e) => { for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o !== 'visible') return true; } return false; };
         for (const e of all) {
             const s = getComputedStyle(e);
-            if (/^(CANVAS|IMG|SVG|VIDEO|IFRAME|PATH|G|LINE|CIRCLE|RECT)$/i.test(e.tagName) || e.closest('svg') || e.clientWidth <= 2 || e.clientHeight <= 2 || e.closest('[class*="mp-"], [class*="mpt-"]')) continue; // the map's own pieces are map.css's (job 3.3)
+            if (/^(CANVAS|IMG|SVG|VIDEO|IFRAME|PATH|G|LINE|CIRCLE|RECT)$/i.test(e.tagName) || e.closest('svg') || e.clientWidth <= 2 || e.clientHeight <= 2 || e.matches('input:not([readonly])') /* an editable field scrolls its text as you type */ || e.closest('[class*="mp-"], [class*="mpt-"]')) continue; // the map's own pieces are map.css's (job 3.3)
             if (['hidden', 'clip'].includes(s.overflowX) && e.scrollWidth > e.clientWidth + 1) out.push('text cut sideways (' + (e.scrollWidth - e.clientWidth) + ' px): ' + name(e.parentElement) + ' > ' + name(e) + ' "' + e.textContent.trim().slice(0, 40) + '"');
             else if (['hidden', 'clip'].includes(s.overflowY) && e.scrollHeight > e.clientHeight + 1 && e.clientHeight > 0) out.push('text cut vertically (' + (e.scrollHeight - e.clientHeight) + ' px): ' + name(e) + ' "' + e.textContent.trim().slice(0, 40) + '"');
             const r = e.getBoundingClientRect();
@@ -110,7 +110,7 @@ try {
         try {
             await b.go(BASE + '/privacy/'); await b.ev(`localStorage.clear()`);
             for (const w of [375, 768, 1440]) {
-                await b.shot(w, 800);
+                await b.go('about:blank'); await b.shot(w, 800); // a blank page, so the window is 800 high and not as tall as the last page
                 let who = null;
                 for (const [label, path, as, kind = '', steps = ['']] of PAGES) {
                     if (as !== who) { who = as; await b.go(BASE + '/privacy/'); await b.ev(`document.cookie = 'dndsid=${as ? SID[as] : ''}; path=/${as ? '' : '; max-age=0'}'`); }
