@@ -31,6 +31,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
         <div class="stabs cp-tabs" id="cp-tabs" role="tablist" aria-label="Type"></div>
         <div class="bar cp-bar">
             <input class="field cp-q" type="search" id="cp-q" placeholder="Search by name (press / to jump here)" aria-label="Search the compendium" autocomplete="off">
+            <button type="button" class="btn" id="cp-books">Sources</button>
             <button type="button" class="btn cp-filter-btn" id="cp-fbtn" aria-expanded="false" aria-controls="cp-filters">Filters</button>
             <span class="muted" id="cp-count"></span>
             <button type="button" class="btn" id="cp-arch" hidden></button>
@@ -114,6 +115,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew-content.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/books.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/compendium.js')) ?>" defer></script>
 </body>
 

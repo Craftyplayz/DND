@@ -43,6 +43,7 @@ export const BROWSER_CHECKS = {
     'handouts-page': { ports: [8124, 8093], split: true, tmp: 'dnd-handouts-check', secs: 60 },
     'dm-edits': { ports: [8126, 8092], split: 'flag', tmp: 'dnd-dmedit-check', secs: 150 },
     'builder-page': { ports: [8129], split: true, tmp: 'dnd-builder-check', secs: 300 },
+    'sources-page': { ports: [8131], split: true, tmp: 'dnd-sources-check', secs: 60 },
     'homebrew-page': { ports: [8130], split: true, tmp: 'dnd-homebrew-check', secs: 40 },
     'campaign-tabs': { ports: [8131, 8103], split: true, tmp: 'dnd-tabs-check', secs: 120 },
     'encounter-builder': { ports: [8138], split: true, tmp: 'dnd-builder32-check', secs: 120 },
@@ -53,7 +54,7 @@ export const BROWSER_CHECKS = {
 // unit tests that open ports of their own (before the shift)
 const TEST_PORTS = { 'live-relay.test.js': [8095, 8096], 'monster-encounters.test.php': [8124], 'maps.test.php': [8125] };
 // in _dev/scripts but not checks: helpers, builders, and theme-diff (it compares two versions' screenshots, for CSS changes)
-const NOT_CHECKS = new Set(['browser.mjs', 'site-targets.mjs', 'check-all.mjs', 'theme-diff.mjs', 'sheet-keeps-data.mjs', 'build-srd.mjs', 'build-content.mjs']);
+const NOT_CHECKS = new Set(['browser.mjs', 'site-targets.mjs', 'check-all.mjs', 'theme-diff.mjs', 'sheet-keeps-data.mjs', 'build-srd.mjs', 'build-content.mjs', 'build-books.mjs']);
 // start-up failures that aren't the page's fault; such a job is run once more
 export const FLAKE = /BrowsingContext does no longer exist|context null|ECONNREFUSED|connection refused|did not start|socket hang up|fetch failed/i;
 

@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const HB_ONLY = ['hb', 'Homebrew only', 'tick'];
     const FILTERS = {
         spell: [['level', 'Level'], ['school', 'School'], ['cls', 'Class'], ['conc', 'Concentration', 'yn'], ['ritual', 'Ritual', 'yn'], HB_ONLY],
-        monster: [['crmin', 'Lowest CR', 'cr'], ['crmax', 'Highest CR', 'cr'], ['size', 'Size'], ['mtype', 'Type'], ['src', 'Source book'], HB_ONLY],
+        monster: [['crmin', 'Lowest CR', 'cr'], ['crmax', 'Highest CR', 'cr'], ['size', 'Size'], ['mtype', 'Type'], HB_ONLY],
         item: [['cat', 'Category'], HB_ONLY],
         magic: [['cat', 'Category'], ['rarity', 'Rarity'], HB_ONLY],
         class: [['kind', 'Show'], ['cls', 'Class'], HB_ONLY],
@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const key = (e) => e.t + ':' + e.id;
     function addEntry(e) {
         if (byKey.has(key(e))) return;
+        e.book ??= e.d?.book;
         entries.push(e); byKey.set(key(e), e);
     }
     const byName = (a, b) => a.name.localeCompare(b.name) || String(a.r || '').localeCompare(String(b.r || ''));
@@ -120,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
             sources = j.sources;
             for (const [id, name, cr, type, src, size] of j.list) {
                 const book = src === 'srd' ? SRD : (j.sources[src] || {}).title || src;
-                addEntry({ t: 'monster', id, r: src === 'srd-2024' ? '2024' : '2014', name, sub: `CR ${crText(cr)} · ${[size, type].filter(Boolean).join(' ')}`, hay: type, tags: [[book, /^srd/.test(src) ? 'g' : '']], f: { cr, size, mtype: type, src: book }, src });
+                addEntry({ t: 'monster', id, r: src === 'srd-2024' ? '2024' : '2014', name, sub: `CR ${crText(cr)} · ${[size, type].filter(Boolean).join(' ')}`, hay: type, tags: [[book, /^srd/.test(src) ? 'g' : '']], f: { cr, size, mtype: type, src: book }, src, book });
             }
         },
         rule: () => new Promise((ok, no) => {
@@ -202,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
     // entries of the other rules version are hidden (favourites and recent show everything)
-    const inRules = (e) => !e.r || S.rules === 'both' || e.r === S.rules;
+    const inRules = (e) => (!e.r || S.rules === 'both' || e.r === S.rules) && Books.allows(e.book);
     function results() {
         const t = S.tab, types = typesOf(t);
         let pool = t === 'fav' ? favs().map((k) => byKey.get(k)).filter(Boolean) : t === 'recent' ? recents().map((k) => byKey.get(k)).filter(Boolean)
@@ -308,6 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#cp-fbtn').hidden = !fl.length;
         box.hidden = !fl.length;
         drawHomebrewBar();
+        $('#cp-books').hidden = S.tab === 'rule';
+        $('#cp-books').textContent = Books.label();
     }
     function persist() {
         store.set('compendium-view', { tab: S.tab, f: S.f });
@@ -326,6 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
         store.set('compendium-rules', S.rules);
         drawTabs(); refresh(); ensure();
     });
+    $('#cp-books').addEventListener('click', () => Books.open(() => { drawTabs(); refresh(); }, { monsters: true }));
     $('#cp-q').value = S.q;
     $('#cp-q').addEventListener('input', debounce((e) => { S.q = e.target.value; refresh(); persist(); }, 80));
     $('#cp-filters').addEventListener('change', (e) => { const s = e.target.closest('[data-f]'); if (s) { S.f[s.dataset.f] = s.type === 'checkbox' ? (s.checked ? '1' : '') : s.value; refresh(); persist(); } });
@@ -514,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `<div class="cp-title"><h2>${esc(e.name)}</h2><span class="cp-tools">
             <button type="button" class="btn small" data-fav aria-pressed="${on}" aria-label="${on ? 'Remove from favourites' : 'Add to favourites'}" title="${on ? 'Remove from favourites' : 'Add to favourites'}">${STAR(on)}</button>
             <button type="button" class="btn small" data-link>Copy link</button></span></div>
-            <div class="badges">${tagsOf(e).map(tag).join('')}</div>`;
+            <div class="badges">${tagsOf(e).map(tag).join('')}</div>${e.book && e.t !== 'monster' ? `<p class="muted cp-book">Source: ${esc(e.book)}</p>` : ''}`;
     }
     let token = 0;
     async function openEntry(e) {

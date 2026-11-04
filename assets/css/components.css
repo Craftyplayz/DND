@@ -90,6 +90,9 @@
 textarea.field { min-height: 96px; line-height: 1.5; resize: vertical; }
 
 /* ---------- forms: each label wraps its text and its field, so no ids are needed ---------- */
+.books-bulk { justify-content: flex-start; margin: 8px 0; }
+.books-list { display: grid; gap: 4px; max-height: 50vh; overflow-y: auto; }
+.books-list [hidden] { display: none; }
 .form { display: grid; gap: 12px; }
 .form-card { max-width: 560px; }
 .form label { display: grid; align-content: start; gap: 4px; min-width: 0; color: var(--muted); font-size: 13px; }

@@ -202,12 +202,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return cut.map((i) => `<button type="button" class="bd-row" data-act="${act}" data-id="${esc(i.id)}"${i.id === cur ? ' aria-current="true"' : ''}>${iconFor(i.kind || kind, i.id, i.name)}
             <span class="bd-nm">${esc(i.name)}${i.sub ? `<small>${esc(i.sub)}</small>` : ''}</span>${i.id === cur ? '<span class="badge g">Selected</span>' : ''}<span class="bd-chev" aria-hidden="true">›</span></button>`).join('')
             + (shown.length > cut.length ? `<button type="button" class="btn small" data-act="more" data-k="${kind}">Show all ${shown.length}</button>` : '')
-            || '<p class="muted">Nothing matches that search.</p>';
+            || '<p class="muted">Nothing matches. Check the search and your Sources.</p>';
     }
     function picker(kind, items, cur, act, label) {
         pickers[kind] = { items, cur, act };
         const letters = [...new Set(items.map((i) => i.name[0]?.toUpperCase()).filter(Boolean))].sort();
-        return `<div class="bd-find"><input class="field" type="search" data-q="${kind}" value="${esc(view.q[kind] || '')}" placeholder="Search ${esc(label)}" aria-label="Search ${esc(label)}" autocomplete="off">
+        return `<div class="bd-find"><button type="button" class="btn small" data-act="books">${Books.label()}</button><input class="field" type="search" data-q="${kind}" value="${esc(view.q[kind] || '')}" placeholder="Search ${esc(label)}" aria-label="Search ${esc(label)}" autocomplete="off">
             ${letters.length > 8 ? `<div class="bd-az" role="group" aria-label="First letter">${letters.map((l) => `<button type="button" data-act="az" data-k="${kind}" data-v="${l}" aria-pressed="${view.az[kind] === l}">${l}</button>`).join('')}</div>` : ''}</div>
             <div class="bd-list" id="bd-list-${kind}">${rowsHtml(kind)}</div>`;
     }
@@ -288,7 +288,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---- step: class (and level), with its skills, features, improvements, spells and hit points ----
     const mark = (x, sub) => [x.hbx ? 'Homebrew' : '', sub].filter(Boolean).join(' · ');
-    const classRows = () => B.listOf(D, 'classes', rules()).map((c) => ({ id: c.id, name: c.name, sub: mark(c, `Hit die d${c.hit_die}`) }));
+    // the Sources tick list (assets/js/books.js) only narrows what's offered: what this character already has always stays
+    const offered = (e, ...cur) => Books.allows(e.book) || cur.includes(e.id);
+    const classRows = () => B.listOf(D, 'classes', rules()).filter((c) => offered(c, ...(ch.classes || []).map((k) => k.id))).map((c) => ({ id: c.id, name: c.name, sub: mark(c, `Hit die d${c.hit_die}`) }));
     STEP.class = () => {
         if (UP) return upClass();
         if (view.cls === 'list' || !D.classes[ch.classes[view.cls]?.id]) {
@@ -326,7 +328,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         out.push(`<div class="bd-sect"><h3>${only ? `What level ${only} gets` : `What a level ${lv} ${esc(cls.name.toLowerCase())} gets`}</h3><ul class="bd-unlock">${unlock.map(([l, t, pick, f]) =>
             `<li${pick ? ' class="todo"' : ''}><span class="lv">Lv ${l}</span><span>${f ? nm(t, `feature:${e.id}:${B.fid(f, l)}`, () => ({ title: t, meta: [`${cls.name} level ${l}`], html: desc(f.desc) })) : esc(t)}${pick ? ' <span class="badge">you choose</span>' : ''}</span></li>`).join('') || '<li><span>No new features at this level.</span></li>'}</ul></div>`);
         // subclass, picked at its level (level-1 subclasses right here, Q27)
-        if (lv >= subL && subs.length && (subL >= from || !e.sub)) out.push(`<div class="bd-sect"><h3>Subclass <span class="muted">level ${subL}</span></h3><div class="bd-picks" role="radiogroup" aria-label="Subclass">${subs.map((s) =>
+        if (lv >= subL && subs.length && (subL >= from || !e.sub)) out.push(`<div class="bd-sect"><h3>Subclass <span class="muted">level ${subL}</span></h3>${subs.some((s) => offered(s, e.sub)) ? '' : '<p class="muted">Your Sources hide every subclass of this class. <button type="button" class="btn small" data-act="books">Sources</button></p>'}<div class="bd-picks" role="radiogroup" aria-label="Subclass">${subs.filter((s) => offered(s, e.sub)).map((s) =>
             `<div class="bd-pick"><input type="radio" name="${P}.sub" data-b="${P}.sub" data-redraw value="${esc(s.id)}" aria-label="${esc(s.name)}"${e.sub === s.id ? ' checked' : ''}><div class="box">${iconFor('subclasses', `${e.id}--${s.id}`, s.name)}<b>${nm(s.name, 'sub:' + s.id, () => ({ title: s.name, meta: [s.subclass_flavor || ''].filter(Boolean), html: desc(s.desc) }), `[name="${P}.sub"][value="${s.id}"]`)}</b>${s.hbx || s.subclass_flavor ? `<small>${esc(mark(s, s.subclass_flavor || ''))}</small>` : ''}</div></div>`).join('')}</div>
             ${e.sub && D.subclasses[e.sub] ? `<div class="bd-desc">${desc(D.subclasses[e.sub].desc)}</div>` : ''}</div>`);
         // skills and other proficiencies: the class's own at character level 1, its multiclass ones later
@@ -349,7 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         // ability score improvements: +2 to one, +1 to two, or a feat where the rules grant one (Q78)
         if (asiL.length) {
-            const feats2 = B.listOf(D, 'feats', rules());
+            const feats2 = B.listOf(D, 'feats', rules()).filter((f) => offered(f, ...Object.values(e.asi || {}).map((a) => a.feat)));
             out.push(`<div class="bd-sect"><h3>Ability score improvements</h3>${asiL.map((l) => {
                 const a = e.asi?.[l] || {}, p = `${P}.asi.${l}`, abs = B.AB.map((x) => [x, x]);
                 return `<div class="bd-asi"><span class="lv">Level ${l}</span>${sel(p + '.k', [['', 'Choose...'], ['+2', '+2 to one score'], ['+1', '+1 to two scores'], ...(feats2.length ? [['feat', 'A feat']] : [])], `Level ${l} improvement`, a.k || '')}
@@ -370,7 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!need(['spells'])) return '<div class="bd-sect"><h3>Spells</h3><p class="hint">Loading the spells...</p></div>';
         const top = B.maxSpellLevel(e.id, lv, D), n = B.spellCounts(e.id, lv, D, scores()), was = from > 1 ? B.spellCounts(e.id, from - 1, D, scores()) : { cantrips: 0, known: 0, prepared: 0, book: 0 };
         const always = new Set(B.alwaysPrepared(e.id, e.sub, lv, D));
-        const pool = B.spellPool(e.id, e.sub, D).filter((s) => s.level !== null && s.level <= top && !always.has(s.index));
+        const pool = B.spellPool(e.id, e.sub, D).filter((s) => s.level !== null && s.level <= top && !always.has(s.index) && (Books.allows(D.spells[s.index]?.book) || arr(`${P}.spells`).includes(s.index)));
         if (!pool.length && !always.size) return `<div class="bd-sect"><h3>Spells</h3><p class="hint">No spells to pick at this level.</p></div>`;
         const picked = arr(`${P}.spells`), lvOf = (i) => D.spells[i]?.level ?? 0;
         const cant = picked.filter((i) => !lvOf(i)).length, rest = picked.length - cant;
@@ -450,10 +452,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         + (r?.ability_bonus_options ? `${r.ability_bonuses?.length ? ', ' : ''}+1 to ${r.ability_bonus_options.choose} of your choice` : '');
     STEP.race = () => {
         const r = D.races[ch.race], s = D.subraces[ch.sub];
-        if (view.race === 'list' || !r) return `<h2>Choose a race</h2><p class="hint">Races with subraces open a second list.</p>${picker('races', B.listOf(D, 'races', rules()).map((x) => ({ id: x.id, name: x.name,
+        if (view.race === 'list' || !r) return `<h2>Choose a race</h2><p class="hint">Races with subraces open a second list.</p>${picker('races', B.listOf(D, 'races', rules()).filter((x) => offered(x, ch.race)).map((x) => ({ id: x.id, name: x.name,
             sub: mark(x, [bonusText(x), x.speed ? `Speed ${x.speed} ft` : '', x.size, subsOfRace(x.id).length > 1 ? `${subsOfRace(x.id).length} subraces` : ''].filter(Boolean).join(' · ')) })), ch.race, 'race', 'races')}`;
         if (view.race === 'subs') return back('racelist', 'All races') + `<div class="bd-hero">${iconFor('races', r.id || ch.race, r.name)}<div><h2>${esc(r.name)}</h2><span class="hint">Pick a subrace</span></div></div>`
-            + picker('subraces', [...(baseRace(ch.race) ? [{ id: 'base', name: `${r.name} (no subrace)`, kind: 'races', sub: 'The race as it is' }] : []), ...subsOfRace(ch.race).map((x) => ({ id: x.id, name: x.name, kind: 'races', sub: mark(x, bonusText(r, x)) }))], ch.sub, 'sub', 'subraces');
+            + picker('subraces', [...(baseRace(ch.race) ? [{ id: 'base', name: `${r.name} (no subrace)`, kind: 'races', sub: 'The race as it is' }] : []), ...subsOfRace(ch.race).filter((x) => offered(x, ch.sub)).map((x) => ({ id: x.id, name: x.name, kind: 'races', sub: mark(x, bonusText(r, x)) }))], ch.sub, 'sub', 'subraces');
         const subs = subsOfRace(ch.race), more = subs.length > 1 || baseRace(ch.race);
         return back(more ? 'racesubs' : 'racelist', more ? 'Subraces' : 'All races')
             + `<div class="bd-hero">${iconFor('races', ch.sub || ch.race, (s || r).name)}<div><h2>${esc((s || r).name)}</h2><div class="badges"><span class="badge b">${esc(bonusText(r, s))}</span>${r.speed ? `<span class="badge">Speed ${r.speed} ft</span>` : ''}<span class="badge">${esc(r.size || '')}</span></div></div></div>
@@ -510,7 +512,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const persOptions = (bg, k) => (bg?.[k]?.from?.options || []).map((o) => o.string || o.desc).filter(Boolean);
     STEP.background = () => {
         const bg = D.backgrounds[ch.bg];
-        if (view.bg === 'list' || !ch.bg || (ch.bg !== 'custom' && !D.backgrounds[ch.bg])) return `<h2>Choose a background</h2>${picker('backgrounds', [...B.listOf(D, 'backgrounds', rules()).map((b) => ({ id: b.id, name: b.name,
+        if (view.bg === 'list' || !ch.bg || (ch.bg !== 'custom' && !D.backgrounds[ch.bg])) return `<h2>Choose a background</h2>${picker('backgrounds', [...B.listOf(D, 'backgrounds', rules()).filter((b) => offered(b, ch.bg)).map((b) => ({ id: b.id, name: b.name,
             sub: mark(b, (b.starting_proficiencies || []).map((p) => B.profKind(p, M)[1]).join(', ')) })), { id: 'custom', name: 'Custom background', sub: 'Name it, then pick two skills and two languages' }], ch.bg, 'bg', 'backgrounds')}`;
         const det = ch.details, inp = (k, label, ph = '') => `<label>${esc(label)}<input class="field" data-b="details.${k}" value="${esc(det[k] || '')}" placeholder="${esc(ph)}" autocomplete="off"></label>`;
         const ta = (k, label, rows = 2) => `<label class="bd-wide">${esc(label)}<textarea class="field" data-b="details.${k}" rows="${rows}">${esc(det[k] || '')}</textarea></label>`;
@@ -785,6 +787,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (act === 'spdel') { set(b.dataset.p, arr(b.dataset.p).filter((x) => x !== b.dataset.v)); save(); return render(); }
         if (act === 'az') { view.az[b.dataset.k] = view.az[b.dataset.k] === b.dataset.v ? '' : b.dataset.v; return render(); }
         if (act === 'more') { view.more[b.dataset.k] = true; return render(); }
+        if (act === 'books') return Books.open(render);
         // class
         if (act === 'cls') {
             const at = view.clsAt, had = ch.classes[at];

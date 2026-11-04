@@ -61,6 +61,7 @@ header('X-Robots-Tag: noindex');
     <script src="<?= h(asset('/sheets/player/rules.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew-content.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/books.js')) ?>" defer></script>
     <script src="<?= h(asset('/characters/build/builder.js')) ?>" defer></script>
 </body>
 
