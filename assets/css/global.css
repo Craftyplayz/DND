@@ -156,6 +156,16 @@ body:has(> main.page) { display: flex; flex-direction: column; min-height: 100vh
 /* ---------- phones: 44 px tap targets for the header, breadcrumbs and footer (the pages' own controls are in components.css) ---------- */
 @media (max-width: 700px) {
     .auth button { min-height: 44px; }
+    /* room under the last line for the Compendium button floating bottom right */
+    .site-footer { padding-bottom: calc(var(--cp-bottom, 16px) + 60px); }
+    /* room under the last line for the Compendium button floating bottom right */
+    .site-footer { padding-bottom: calc(var(--cp-bottom, 16px) + 60px); }
+    /* room under the last line for the Compendium button floating bottom right */
+    .site-footer { padding-bottom: calc(var(--cp-bottom, 16px) + 60px); }
+    /* room under the last line for the Compendium button floating bottom right */
+    .site-footer { padding-bottom: calc(var(--cp-bottom, 16px) + 60px); }
+    /* room under the last line for the Compendium button floating bottom right */
+    .site-footer { padding-bottom: calc(var(--cp-bottom, 16px) + 60px); }
     /* inline padding adds tap area without making the line taller */
     .crumbs a { padding: 14px 4px; }
     .site-footer .sf-links a { display: inline-flex; align-items: center; min-height: 44px; }

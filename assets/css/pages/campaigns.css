@@ -12,6 +12,7 @@
 .cp-pttable { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
 .form .cp-pttable label { font-size: 12px; }
 .form .cp-pttable .field { padding: 4px 6px; text-align: center; }
+@media (max-width: 700px) { .cp-pttable { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); } .form .cp-pttable .field { padding: 4px 2px; } }
 #cp-r-table { display: grid; gap: 12px; }
 #cp-r-table[hidden] { display: none; }
 #cp-r-table p { margin: 0; font-size: 13px; }
@@ -30,6 +31,8 @@
 .cp-new { max-width: 560px; margin-bottom: 28px; }
 .cp-link { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .cp-link .field { flex: 1 1 240px; }
+/* a textarea, so the whole link shows on a phone instead of being cut off */
+.cp-link textarea.field { min-height: 0; overflow-wrap: anywhere; resize: none; }
 .cp-cards .muted { font-size: 14px; }
 /* the table log: newest roll on top, name and roll on the left, the total on the right */
 .cp-log { display: grid; gap: 6px; margin: 0 0 28px; padding: 0; list-style: none; }

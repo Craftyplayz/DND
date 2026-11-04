@@ -73,3 +73,6 @@
 .ph-on .mon-item { min-height: 44px; width: 100%; }
 .ph-on .mon-list { grid-template-columns: minmax(0, 1fr); }
 .ph-on .mon-hit { min-height: 44px; }
+
+/* a monster's type line ("Small humanoid (goblinoid)") is longer than the player sheet's race, so its field gets room to show it (2.2) */
+.hb.mon .hb-bar .hb-race { flex: 0 1 280px; }

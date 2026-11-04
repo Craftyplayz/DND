@@ -212,7 +212,7 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
                     <h2>Invite players</h2>
                     <p class="muted">Anyone signed in who opens this link joins the campaign.</p>
                     <div class="cp-link">
-                        <input class="field mono" id="cp-link" value="<?= h($link) ?>" readonly aria-label="Join link">
+                        <textarea class="field mono" id="cp-link" rows="2" readonly aria-label="Join link"><?= h($link) ?></textarea>
                         <button type="button" class="btn small" data-act="copy">Copy link</button>
                     </div>
                     <?php if ($isOwner): ?><p><button type="button" class="btn small" data-act="code">Make a new link</button> <span class="muted">The old link stops working.</span></p><?php endif; ?>

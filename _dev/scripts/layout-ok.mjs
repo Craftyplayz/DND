@@ -15,13 +15,13 @@ const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' 
 const TMP = join(tmpdir(), 'dnd-layout-check' + (process.env.CHECK_PORT_SHIFT || '')), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ser = (o) => `a:${Object.keys(o).length}:{` + Object.entries(o).map(([k, v]) => `s:${Buffer.byteLength(k)}:"${k}";s:${Buffer.byteLength(v)}:"${v}";`).join('') + '}';
-const SID = { dm: 'layoutcheckdm00000000000000000000x', no: 'layoutcheckno00000000000000000000x' };
+const SID = { dm: 'layoutcheckdm00000000000000000000x', no: 'layoutcheckno00000000000000000000x', pl: 'layoutcheckpl00000000000000000000x' };
 const CAMP = 'bbb000000022', CODE = 'abcdef0122', J = JSON.stringify;
 const SHOTS = process.argv.includes('--shots') ? process.argv[process.argv.indexOf('--shots') + 1] : null;
 
 rmSync(TMP, { recursive: true, force: true });
 mkdirSync(SESSIONS, { recursive: true });
-for (const [who, sub, name] of [['dm', '111', 'Dee'], ['no', '444', 'Nell']]) writeFileSync(join(SESSIONS, 'sess_' + SID[who]), 'user|' + ser({ sub, email: `${who}@example.com`, name }));
+for (const [who, sub, name] of [['dm', '111', 'Dee'], ['no', '444', 'Nell'], ['pl', '555', 'Pat']]) writeFileSync(join(SESSIONS, 'sess_' + SID[who]), 'user|' + ser({ sub, email: `${who}@example.com`, name }));
 const chars = [['lock', 'Lock', 'Barbarian'], ['wiz', 'Sir Reginald Fitzwilliam-Smythe the Third', 'Wizard']];
 for (const [id, name, cls] of chars) {
     mkdirSync(join(ACCOUNTS, 'characters', id), { recursive: true });
@@ -31,8 +31,8 @@ for (const [id, name, cls] of chars) {
 mkdirSync(join(ACCOUNTS, 'monsters', '111'), { recursive: true });
 writeFileSync(join(ACCOUNTS, 'monsters', '111', 'gob.json'), J({ id: 'gob', name: 'Goblin', race: 'Small humanoid (goblinoid)', updated: 5, cr: '1', abilities: [], ac: '15', init: 'DEX', hp: { cur: 7, base: 7, temp: 0, mod: 0 } }));
 mkdirSync(join(ACCOUNTS, 'campaigns', CAMP), { recursive: true });
-writeFileSync(join(ACCOUNTS, 'campaigns', CAMP, 'campaign.json'), J({ id: CAMP, name: 'The Lost Mines of Phandelver and Beyond', dm: '111', code: CODE, created: 1, members: [
-    { sub: '111', name: 'Dee', joined: 1, characters: [{ sheet: 'player', id: 'lock' }, { sheet: 'player', id: 'wiz' }] }] }));
+writeFileSync(join(ACCOUNTS, 'campaigns', CAMP, 'campaign.json'), J({ id: CAMP, name: 'The Lost Mines of Phandelver and Beyond', dm: '111', code: CODE, created: 1, rules: { methods: ['pb', 'std'], hp: ['avg'], sp: true, weight: true, pts: Array.from({ length: 20 }, (_, i) => (i + 1) * 4), cost: [2, 3, 5, 6, 7, 9, 10, 11, 13] }, members: [
+    { sub: '111', name: 'Dee', joined: 1, characters: [{ sheet: 'player', id: 'lock' }, { sheet: 'player', id: 'wiz' }] }, { sub: '555', name: 'Pat', joined: 2, characters: [] }] }));
 // a 400 x 300 map on the table (GD loaded; a local Windows PHP may have it only as a DLL php.ini doesn't load)
 const gd = process.platform === 'win32' ? ['-d', 'extension=gd'] : [];
 execFileSync(PHP, [...gd, '-r', `require ${J(join(ROOT, 'includes/maps.php'))}; $A = ${J(ACCOUNTS)}; $c = cp_get($A, '${CAMP}');
@@ -43,17 +43,22 @@ const web = spawn(PHP, [...gd, '-S', `127.0.0.1:${WEB}`, '-t', ROOT, join(ROOT, 
 const relay = spawn(process.execPath, [join(ROOT, 'live/relay.js')], { stdio: 'ignore', env: { ...process.env, PORT: RELAY, AUTH_URL: `http://127.0.0.1:${WEB}/live/auth.php`, ORIGIN: BASE } });
 
 // [label, path, who ('' signed out), kind: '' full check, 'sheet' = sideways only (always), 'phone' = sideways only when the phone layout is on], steps to run first
+const ABIL = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map((key) => ({ key, name: key, score: 12, save: false, sb: '' }));
+const MSHEET = { cur: 'g1', chars: Object.fromEntries(['g1', 'g2'].map((id, i) => [id, { id, name: 'Goblin ' + (i + 1), race: 'Small humanoid', updated: 5, cr: '1', enc: 'e1', abilities: ABIL, ac: '15', init: 'DEX', hp: { cur: 7, base: 7, temp: 0, mod: 0 } }])), encs: [{ id: 'e1', name: 'Cave', archived: 0 }] };
 const SEARCH = `(() => { const q = document.querySelector('#cp-q'); q.value = 'fire'; q.dispatchEvent(new Event('input', { bubbles: true })); })()`;
 const STEPS = [1, 2, 3, 4, 5, 6], FOLDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const PAGES = [
     ['home', '/', ''], ['characters', '/characters/', ''], ['builder', '/characters/build/', ''], ['monster sheet', '/sheets/monster/', '', 'phone'],
     ['campaigns', '/campaigns/', ''], ['compendium', '/compendium/', ''], ['compendium search', '/compendium/', '', '', [SEARCH]],
     ['builder steps', '/characters/build/', '', '', STEPS.map((i) => `document.querySelectorAll('#bd-steplist button')[${i}]?.click()`)],
+    ['popup open', '/dice/rolls/', '', '', [`localStorage.setItem('compendium-popup', JSON.stringify({ open: true, w: 480 })); location.reload()`]],
     ['dice sets open', '/dice/', '', '', FOLDS.map((i) => `document.querySelectorAll('.dd-fbtn')[${i}].click()`)], ['dice test', '/dice/test/', ''], ['dice sets', '/dice/', ''], ['quick rolls', '/dice/rolls/', ''],
     ['credits', '/credits/', ''], ['privacy', '/privacy/', ''],
     ['characters (signed in)', '/characters/', 'dm'], ['campaigns (signed in)', '/campaigns/', 'dm'], ['monster sheet (signed in)', '/sheets/monster/', 'dm', 'phone'],
     ['player sheet', '/characters/lock', 'dm', 'sheet'],
-    ['campaign', `/campaigns/${CAMP}`, 'dm'], ['join', `/campaigns/join/${CODE}`, 'no'], ['map', `/campaigns/${CAMP}/map`, 'dm', 'sheet'], ['table view', `/campaigns/${CAMP}/table`, 'dm'],
+    ['campaign', `/campaigns/${CAMP}`, 'dm'], ['campaign rules (DM)', `/campaigns/${CAMP}#campaign`, 'dm'], ['campaign rules (player)', `/campaigns/${CAMP}#campaign`, 'pl', '', ['', `document.querySelectorAll('.cp-ptread').forEach((d) => { d.open = true; })`]],
+    ['monster sheet send', '/sheets/monster/', 'dm', 'phone', [`localStorage.setItem('monster-sheet', ${J(J(MSHEET))}); location.reload()`]],
+    ['join', `/campaigns/join/${CODE}`, 'no'], ['map', `/campaigns/${CAMP}/map`, 'dm', 'sheet'], ['table view', `/campaigns/${CAMP}/table`, 'dm'],
 ];
 
 // runs in the page: the problems found, as strings. full: also clipped text; taps: also controls under 44 px
@@ -74,6 +79,20 @@ const SCAN = (full, taps) => `(() => {
             if ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && (r.right > W + 1 || r.left < -1) && s.position !== 'fixed' && !scroller(e)) out.push('text off the screen: ' + name(e) + ' "' + e.textContent.trim().slice(0, 40) + '"');
         }
     }
+    // the Compendium button (popup.js) floats over the page: at the top and at the bottom, it must not sit on the header (scrolled to the top) or on the last lines (scrolled to the bottom)
+    const fab = document.querySelector('.cpp-fab');
+    if (${full} && fab && shown(fab)) for (const y of [0, 1e9]) {
+        scrollTo(0, y);
+        const f = fab.getBoundingClientRect();
+        for (const e of all) {
+            if (e === fab || fab.contains(e) || e.closest('.cpp, .cpp-fab') || (!y && !e.closest('header')) || e.closest('[class*="mp-"], [class*="mpt-"]')) continue;
+            // a control by its box, other text by where its words are (a wide paragraph can be centred well clear of the button)
+            const rects = e.matches('button, input, select, textarea') ? [e.getBoundingClientRect()] : [...e.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim()).flatMap((n) => { const g = document.createRange(); g.selectNodeContents(n); return [...g.getClientRects()]; });
+            if (rects.some((r) => r.right > f.left && r.left < f.right && r.bottom > f.top && r.top < f.bottom)) out.push('under the Compendium button (scrolled ' + (y ? 'to the bottom' : 'to the top') + '): ' + name(e) + ' "' + e.textContent.trim().slice(0, 30) + '"');
+        }
+    }
+    scrollTo(0, 0);
+    if (${taps}) for (const e of all.filter((e) => e.matches('input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]):not([type=range]), select, textarea') && parseFloat(getComputedStyle(e).fontSize) < 16)) out.push('field text under 16 px (iPhone zooms in): ' + name(e));
     if (${taps}) for (const e of all) {
         const box = e.matches('input[type=checkbox], input[type=radio]') ? (e.closest('label') || e) : e;
         if (!box.matches || !(e.matches('button, select, textarea, summary, [role=button], .btn, input:not([type=hidden]):not([type=file]), .sh-top, .sf-links a, .crumbs a') )) continue;
@@ -105,6 +124,7 @@ try {
                         if (SHOTS) { mkdirSync(SHOTS, { recursive: true }); writeFileSync(join(SHOTS, `${label.replace(/W+/g, '-')}-${n}-${name}-${w}.png`), await b.shot(w, 800)); }
                         for (const f of found) { bad++; console.log(`FAIL ${name} ${w} ${label}${step ? ' (step ' + n + ')' : ''} (${path}): ${f}`); }
                     }
+                    await b.ev(`localStorage.removeItem('compendium-popup'); localStorage.removeItem('monster-sheet')`); // one page's state never reaches the next
                 }
             }
         } finally { b.close(); }

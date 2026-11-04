@@ -206,4 +206,6 @@ dialog.bsheet.full { height: calc(100dvh - env(safe-area-inset-top) - 16px - var
     .page:not(.hb) :is(button, summary, select, textarea, .btn, input:not([type=checkbox], [type=radio], [type=hidden], [type=file], [type=range])) { min-height: 44px; }
     .page:not(.hb) :is(button, .btn) { min-width: 44px; }
     .page:not(.hb) :is(.check, .form label.check) { min-height: 44px; }
+    /* 16 px, or iPhone Safari zooms into the field */
+    .page:not(.hb) :is(.field, select, textarea, input:not([type=checkbox], [type=radio], [type=hidden], [type=file], [type=range])) { font-size: 16px; }
 }
