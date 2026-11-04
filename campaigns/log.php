@@ -2,6 +2,8 @@
 // The table log for pages that share rolls (assets/js/tablelog.js), for signed-in players:
 //   GET ?c=<campaign id>      -> {"session", "dm": bool, "entries": [...]}: the last 200 rolls this player may see, oldest first
 //                                (&as=table: the Table view's, ROADMAP 1.7)
+//   GET ?c=<campaign id>&page=1 -> the same with "page": what the campaign page's Rolls tab shows instead (tl_page, ROADMAP 1.9):
+//                                every roll of the running or last session, "page": {n, running, started, count} or null
 //   GET ?char=<character id>  -> {"campaigns": [{"id", "name", "dm"}]}: the campaigns one of your characters is in
 //   GET ?dm=1                 -> {"campaigns": [...]}: the campaigns you DM or co-DM (the Monster Sheet's rolls go to one of them)
 require __DIR__ . '/../includes/auth.php';
@@ -32,5 +34,9 @@ if (isset($_GET['dm'])) tl_out(200, ['campaigns' => $list(cp_mine($accounts, $su
 $c = cp_get($accounts, $_GET['c'] ?? '');
 $sub = cp_viewer($c, $user); // ?as=table: the Table view (ROADMAP 1.7) gets what players get, nothing "mine"
 if ($sub === null) tl_out(404, ['error' => 'No such campaign.']);
+if (isset($_GET['page'])) {
+    $p = tl_page($accounts, $c, $sub);
+    tl_out(200, ['session' => $c['session'] ?? null, 'dm' => cp_is_dm($c, $sub), 'entries' => $p['entries'] ?? [], 'page' => $p ? array_diff_key($p, ['entries' => 1]) : null]);
+}
 $log = tl_read($accounts, $c['id'], tl_name($c)) ?? ['entries' => []];
 tl_out(200, ['session' => $c['session'] ?? null, 'dm' => cp_is_dm($c, $sub), 'entries' => tl_tail($c, $sub, $log)]);

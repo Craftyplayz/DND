@@ -58,6 +58,20 @@ function tl_view($c, $sub, $e)
     return null; // a whisper to the DM
 }
 
+// What the campaign page's Rolls tab shows $sub (ROADMAP 1.9): the running session, or with none running the newest one holding
+// a roll they may see (an empty session started by accident never hides the one before it; rolls between sessions don't show).
+// {n, running, started, count, entries}: count and entries are theirs alone, so nobody learns of others' whispers. null: no such session.
+function tl_page($accounts, $c, $sub)
+{
+    $on = $c['session']['n'] ?? null;
+    foreach ($on !== null ? [['n' => $on]] : tl_sessions($accounts, $c['id']) as $s) {
+        $log = tl_read($accounts, $c['id'], (string)$s['n']) ?? [];
+        $entries = tl_tail($c, $sub, $log, PHP_INT_MAX);
+        if ($on !== null || $entries) return ['n' => (int)$s['n'], 'running' => $on !== null, 'started' => $log['started'] ?? null, 'count' => count($entries), 'entries' => $entries];
+    }
+    return null;
+}
+
 // the last $n entries $sub may see, oldest first
 function tl_tail($c, $sub, $log, $n = 200)
 {

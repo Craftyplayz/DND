@@ -5,6 +5,7 @@
 //       onMessage gets everything else the relay sends (presence, campaign, session, fight) and {type: "removed"}.
 //       load: what to fetch instead of the table log, on join, every 10 s while paused and when the relay is back
 //       (the fight tracker, the Monster Sheet's own room "me"). onLoad: called each of those times too (handouts, 3.4).
+//       query: added to the table log's address (the campaign page's Rolls tab asks for "&page=1", ROADMAP 1.9).
 //   Live.send(campaignId, roll) -> the roll's id. Saved through campaigns/api.php; while offline it waits in this browser,
 //       marked as an offline roll with the time it was rolled, and goes when the connection is back. Nothing is dropped.
 // The waiting rolls (localStorage "live-outbox") are only rolls on their way to the account, so they aren't synced themselves.
@@ -51,13 +52,13 @@ window.Live = (() => {
         return r.id;
     }
 
-    function watch(c, { onRolls = () => { }, onMessage = () => { }, onPaused = () => { }, load: own = null, onLoad = () => { } } = {}) {
+    function watch(c, { onRolls = () => { }, onMessage = () => { }, onPaused = () => { }, load: own = null, onLoad = () => { }, query = '' } = {}) {
         let ws = null, poll = 0, closed = false, paused = false;
         async function load() {
             onLoad();
             if (own) return own();
             try {
-                const r = await fetch('/campaigns/log.php?c=' + encodeURIComponent(c) + (as ? '&as=' + as : ''), { cache: 'no-store' });
+                const r = await fetch('/campaigns/log.php?c=' + encodeURIComponent(c) + (as ? '&as=' + as : '') + query, { cache: 'no-store' });
                 if (r.status === 404) return onMessage({ type: 'removed' });
                 if (r.ok && !closed) { const out = await r.json(); onRolls(out.entries, true, out); }
             } catch (e) { }
