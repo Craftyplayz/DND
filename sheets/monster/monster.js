@@ -290,7 +290,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function hpOp(c, op) {
         hpSeen[c.id] = hpKey(c);
         if (!cloud || !c.updated) return; // not in the account: the whole-monster save carries it
-        hpKeep([...hpQueue(), { q: uid() + uid(), id: c.id, op }]);
+        hpKeep([...hpQueue(), { q: uid() + uid(), id: c.id, op, at: Date.now() }]);
         hpFlush();
     }
     // any other HP edit (typed numbers, rests) goes as the numbers that changed
@@ -307,7 +307,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         hpBusy = true;
         for (const item of hpQueue()) {
             let r;
-            try { r = await fetch('cloud.php?hp=' + encodeURIComponent(item.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: item.q, op: item.op }) }); } catch (e) { break; }
+            try { r = await fetch('cloud.php?hp=' + encodeURIComponent(item.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: item.q, op: item.op, at: item.at, now: Date.now() }) }); } catch (e) { break; }
             if (r.status === 401) { cloudOff(); break; }
             if (r.status >= 500 || r.status === 429) break;
             hpKeep(hpQueue().filter((x) => x.q !== item.q)); // done, or turned down for good (404: not in the account; its save carries it)

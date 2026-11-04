@@ -587,6 +587,9 @@ function mp_op($accounts, $c, $sub, $body)
         $stored[$t['k']] = $keep;
         $m['tokens'] = $stored;
         if (!mp_write($accounts, $c['id'], $m)) return [500, ['error' => "Couldn't save the move."], []];
+        // the action log (ROADMAP "Stats data"): where a move ended, not each step of a drag
+        if ($placed && empty($body['drag'])) st_add($accounts, 'campaigns', $c['id'], array_filter(['t' => 'token', 'map' => $m['id'], 'k' => $t['k'], 'kind' => $t['kind'], 'char' => $t['char'] ?? null, 'mon' => $t['mon'] ?? null, 'copy' => $t['copy'] ?? null, 'name' => $t['name'] ?? null,
+            'from' => isset($before['x'], $before['y']) && !empty($before['placed']) ? [$before['x'], $before['y']] : null, 'to' => [$keep['x'], $keep['y']], 'grid' => $m['grid']['s'], 'by' => $dm ? 'dm' : 'player'], fn($v) => $v !== null));
         $t = array_merge($t, ['x' => $keep['x'] ?? null, 'y' => $keep['y'] ?? null, 'placed' => $placed && isset($keep['x'])]);
         $msg = ['type' => 'mapmove', 'm' => $m['id'], 'k' => $t['k'], 'x' => $t['x'], 'y' => $t['y'], 'placed' => $t['placed']];
         $live = [[$msg, 'dm']];
@@ -618,6 +621,7 @@ function mp_op($accounts, $c, $sub, $body)
         if (!mp_put(mp_root($accounts, $c['id']) . '/table.json', ['active' => $m['id']])) return [500, ['error' => "Couldn't put the map on the table."], []];
         $f = fi_read($accounts, $c['id']);
         mp_fight_sync($accounts, $c, $f, $f);
+        st_add($accounts, 'campaigns', $c['id'], ['t' => 'map', 'map' => $m['id'], 'name' => mb_substr((string)($m['name'] ?? ''), 0, 80)]);
         return [200, ['active' => $m['id']], [[['type' => 'map'], null]]];
     }
     if ($op === 'hide') {

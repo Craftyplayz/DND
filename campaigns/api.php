@@ -52,6 +52,7 @@ if ($act === 'roll' || $act === 'session' || $act === 'fight') {
     if ($act === 'fight') [$code, $out, $logs] = fi_op($accounts, $c, $body, $user['sub']);
     else [$code, $out] = $act === 'roll' ? tl_add($accounts, $c, $user, $body['roll'] ?? null) : tl_session($accounts, $c, !empty($body['start']));
     if ($code === 200 && $act === 'roll' && empty($out['again'])) $fight = fi_roll($accounts, $c, $user, $body['roll']);
+    if ($code === 200 && $act === 'fight') st_turn($accounts, $c, $before, fi_read($accounts, $c['id'])); // the action log (ROADMAP "Stats data")
     if ($code === 200 && ($act === 'fight' || $fight) && ($ml = mp_lock($accounts, $c['id']))) { mp_fight_sync($accounts, $c, $before, fi_read($accounts, $c['id'])); flock($ml, LOCK_UN); }
     flock($lock, LOCK_UN);
     if ($code === 200 && ($act === 'fight' || $fight)) live_publish($c['id'], ['type' => 'fight']);

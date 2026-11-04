@@ -287,6 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // signed in (data-cloud on <main>): characters are also kept in the account (cloud.php), with this browser's copy for offline use;
     // whichever copy has the newer "updated" wins. Untouched blanks (updated 0) stay in this browser.
     let cloud = 'cloud' in $('#main').dataset && !RO && !DMM;
+    // the action log (assets/js/stats.js, ROADMAP "Stats data"): only this browser's own characters, never a read-only or DM copy
+    const St = RO || DMM ? null : window.Stats;
+    if (St) { Object.values(db.chars).forEach(St.prime); St.start(() => cloud); }
     const API = '/sheets/player/'; // absolute, so /characters/<id> saves through the same files
     function cloudOff() {
         if (!cloud) return;
@@ -325,6 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const g = await fetch(API + 'cloud.php?id=' + encodeURIComponent(id));
             if (!g.ok) continue;
             db.chars[id] = normalise(await g.json());
+            St?.prime(db.chars[id]);
             got = true;
         }
         const ups = [];
@@ -394,6 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (edited && C) C.updated = Date.now();
         if (C) C.calc = { hpMax: hpMax() }; // for the DM's fight tracker (ROADMAP 1.5)
         store();
+        St?.saw(C, edited);
         if (C) { dirty.add(C.id); clearTimeout(backupTimer); backupTimer = setTimeout(flushBackups, 4000); }
     }
     // the edit is stamped straight away, so switching character before the save runs still stamps the right one
@@ -1284,6 +1289,8 @@ document.addEventListener('DOMContentLoaded', () => {
             C.hp.cur = Math.min(hpMax(), nm(C.hp.cur) + Math.max(0, nm($('#hb-heal').value)));
         }
         dlg.close();
+        St?.add(C.id, { t: 'rest', kind });
+        St?.note({ why: kind + '-rest' });
         saveNow(); draw();
         toast(kind === 'long' ? 'Long rest taken.' : 'Short rest taken.', 'ok');
     }
@@ -1775,7 +1782,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // groups [['coin', 1]] flips a coin: the card shows Heads or Tails instead of a total
     // each > 1 splits the dice into that many separate results, e.g. one per target ("4 × (1d12 + 10)"); mod covers them all
     // adv 'adv' or 'dis' (a lone d20 only): two d20s are thrown and only the higher or lower one counts
-    function rollShow(title, groups, mod = 0, each = 1, adv = '') {
+    function rollShow(title, groups, mod = 0, each = 1, adv = '', key = '') {
         const logIt = !C.archived; // decided now: an archived roll stays unlogged even if Unarchive comes before its dice land
         const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails'), thrown = adv ? [[20, 2]] : groups;
         if (adv) title += adv === 'adv' ? ' with advantage' : ' with disadvantage';
@@ -1811,7 +1818,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (DMM && logIt) dmSend([{ op: 'roll', roll: C.rolls[0], t: title }], false); // the DM rolls as the character, into its log (1.5)
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
-            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', dice, ...window.Fight?.tag(c.id, title) }));
+            const natN = nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', rollKind = window.Stats?.kind(title, key);
+            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: natN, vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', dice, kind: rollKind, ...window.Fight?.tag(c.id, title) }));
+            // not shared to a campaign: the action log is the only lasting copy (the sheet's own log keeps the last 100)
+            else if (logIt) St?.add(C.id, { t: 'roll', title, expr, shown, total: String(total), nat: natN, dice, kind: rollKind });
         };
         const quick =() => card(thrown.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
         if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return quick();
@@ -2119,6 +2129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.closest('button') || !undoSnap) return;
         const s = undoSnap;
         dropUndo(); db = JSON.parse(s.db);
+        St?.note({ undo: 1 });
         switchTo(db.chars[s.cur] || Object.values(db.chars)[0] || blank());
         toast('Restored.', 'ok');
     });
@@ -2257,6 +2268,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { before } = await r.json();
             if (C.id !== id) return;
             C = db.chars[id] = v;
+            St?.prime(v);
             store(); draw();
             if (restoreUndo) restoreUndo.drop();
             if (undo) toast('Restore undone.', 'ok');
@@ -2404,7 +2416,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const done = [];
         for (const e of [...edits].sort((a, b) => (+a.at || 0) - (+b.at || 0))) {
             const k = c === C && Array.isArray(e.path) ? hbDm.where(c, e.path) : null; // the field it changes, before the change
+            St?.prime(c);
             const r = hbDm.run(c, e, ctxOf(c));
+            // logged once, here, with when it reached the server; one an older copy is catching up on was logged where it first landed
+            if (St) { if (r.ok && !r.skip && !r.wait && !e.done) St.applied(c, { edit: e.id, at: e.got || e.at, by: e.self ? 'self' : 'dm', ...(e.op === 'hp' ? { asked: Math.abs(+e.amt) } : {}) }); else St.sync(c); }
             if (!r.skip && !r.wait) done.push([e, r, k]);
         }
         if (!done.length) return;
@@ -2439,6 +2454,7 @@ document.addEventListener('DOMContentLoaded', () => {
         c.rolls.unshift({ at: Date.now(), title: (e.self ? 'Undid ' : 'Undid DM: ') + e.t, expr: '', shown: '', total: '', dm: 1 });
         c.rolls.length = Math.min(c.rolls.length, 100);
         c.updated = Date.now();
+        St?.applied(c, { undo: 1 });
         store(); dirty.add(id); flushBackups();
         if (c === C) drawKeep();
         dmTell(id, e, `undid: ${e.t}`);
@@ -2582,11 +2598,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (amt < nm(C.hp.temp)) toast(`Temp HP doesn't stack, so you keep ${C.hp.temp}.`, 'note');
             C.hp.temp = Math.max(nm(C.hp.temp), amt);
         } else C.hp.cur = Math.min(hpMax(), nm(C.hp.cur) + amt);
+        St?.note({ asked: amt });
         saveNow();
         if (!Phone.on()) return draw();
         Phone.close();
         const c = C, sign = how === 'dmg' ? '−' : '+';
-        offerUndo(how === 'temp' ? `Temp HP ${nm(C.hp.temp)}` : `${sign}${amt} HP, now ${nm(C.hp.cur)}/${hpMax()}`, () => { c.hp = hpWas; saveNow(); draw(); });
+        offerUndo(how === 'temp' ? `Temp HP ${nm(C.hp.temp)}` : `${sign}${amt} HP, now ${nm(C.hp.cur)}/${hpMax()}`, () => { c.hp = hpWas; St?.note({ undo: 1 }); saveNow(); draw(); });
     });
     // the scroll style of hit points: scroll over the amount to change it (shift for 5 at a time); the button follows its sign
     const hpLabel = () => { const b = $('.hb-hpgo'); if (b) b.toggleAttribute('data-heal', nm($('#hb-amt').value) > 0); };
@@ -2703,11 +2720,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.k === 'heal') { C.hp.cur = Math.min(hpMax(), nm(C.hp.cur) + Math.max(0, amt)); toast(`${name}: healed ${Math.max(0, amt)} (${rolled}).`, 'ok'); }
             else if (amt <= nm(C.hp.temp)) toast(`${name}: ${amt} temp HP, but temp HP doesn't stack, so you keep ${C.hp.temp}.`, 'note');
             else { C.hp.temp = amt; toast(`${name}: ${amt} temp HP (${rolled}).`, 'ok'); }
+            St?.note({ asked: Math.max(0, amt), why: 'effect' });
             saveNow(); return draw();
         }
         if (act === 'roll2') return rollShow(b.dataset.t, b.dataset.g.split(',').map((x) => x.split('x').map(Number)), +b.dataset.m || 0, +b.dataset.x || 1, 'd20' in b.dataset ? takeAdv() : '');
-        if (act === 'roll') return rollShow(b.dataset.t, [[20, 1]], d20Mod(b), 1, takeAdv());
-        if (act === 'adv') { const t = advFor; advClose(); return t && rollShow(t.dataset.t, [[20, 1]], d20Mod(t), 1, b.dataset.a); }
+        if (act === 'roll') return rollShow(b.dataset.t, [[20, 1]], d20Mod(b), 1, takeAdv(), b.dataset.k);
+        if (act === 'adv') { const t = advFor; advClose(); return t && rollShow(t.dataset.t, [[20, 1]], d20Mod(t), 1, b.dataset.a, t.dataset.k); }
         if (act === 'rollx') return b.remove();
         if (act === 'campkeep' || act === 'campclone') return campPick(act, b.dataset.c, b);
         if (act === 'tray') { if (Phone.on()) return Phone.open('dice'); tray.open = !tray.open; return drawTray(); }
@@ -2973,7 +2991,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Phone.start(phApi);
 
     // ROADMAP 2.1: coming back to an open sheet, signed in, the account's newer copy is taken (before anything goes up from here)
-    Phone.pullOnReturn({ url: API + 'cloud.php', cloud: () => cloud, chars: () => db.chars, normalise, current: () => C, adopt: (c) => { C = c; }, off: cloudOff, store, flush: flushBackups, toast, offerUndo,
+    Phone.pullOnReturn({ url: API + 'cloud.php', cloud: () => cloud, chars: () => db.chars, normalise, current: () => C, adopt: (c) => { C = c; St?.prime(c); }, off: cloudOff, store, flush: flushBackups, toast, offerUndo,
         draw: () => { const y = scrollY; draw(); scrollTo(0, y); }, keep: (mine) => { mine.updated = Date.now(); db.chars[mine.id] = mine; C = mine; saveNow(false); draw(); } });
 
     draw();
@@ -2998,7 +3016,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (q.has('built')) toast(`${C.name || 'Your character'} is ready. Everything on the sheet can still be changed.${note ? ' ' + note : ''}`, 'ok', 8000);
             else if (up && up.id === C.id && isObj(up.before)) {
                 const lv = level();
-                offerUndo(`Levelled up to level ${lv}`, () => { const b = normalise(up.before); b.updated = Date.now(); switchTo(b); toast('Level up undone.', 'ok'); });
+                offerUndo(`Levelled up to level ${lv}`, () => { const b = normalise(up.before); b.updated = Date.now(); St?.prime(b); switchTo(b); toast('Level up undone.', 'ok'); });
             }
         }
     }

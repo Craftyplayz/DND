@@ -600,7 +600,7 @@ window.BattleMap = (() => {
         const setHidden = (t, on) => (t.fight ? window.Fight.act(c, 'hide', { e: t.fight, on }) : post({ op: 'token', k: t.k, hidden: on }));
 
         // ---- changes ----
-        const sendMoves = throttle(() => { for (const i of G?.items || []) post({ op: 'move', k: i.t.k, x: i.t.x, y: i.t.y, placed: true }, true); }, 200);
+        const sendMoves = throttle(() => { for (const i of G?.items || []) post({ op: 'move', k: i.t.k, x: i.t.x, y: i.t.y, placed: true, drag: true }, true); }, 200);
         const sendFog = throttle((op) => post({ op: 'fogpv', add: op }, true), 100); // the stroke so far, to every other screen
         const sendRuler = throttle((pts) => post({ op: 'ruler', pts }, true), 150);
         const sendTrail = throttle((tr) => { tr.sent = Date.now(); post({ op: 'trail', id: tr.id, pts: [tr.target], color: tr.c }, true); }, 80);

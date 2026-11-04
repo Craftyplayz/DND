@@ -154,6 +154,9 @@ function tl_add($accounts, $c, $user, $roll)
         'total' => tl_str($roll['total'] ?? '', 100), 'nat' => in_array($roll['nat'] ?? '', ['20', '1'], true) ? $roll['nat'] : '',
         'vis' => $vis, 'offline' => !empty($roll['offline'])];
     if ($dice = tl_dice($roll['dice'] ?? null)) $e['dice'] = $dice;
+    // for stats later (ROADMAP "Stats data"): what sort of roll, and which dice set threw it
+    if (is_string($roll['kind'] ?? null) && preg_match('/^[a-z]{1,10}$/', $roll['kind'])) $e['kind'] = $roll['kind'];
+    if ($dice && ($set = tl_dice_set($accounts, $sub, $char)['set']['key'] ?? null)) $e['set'] = tl_str($set, 80);
     $file = tl_name($c);
     $log = tl_read($accounts, $c['id'], $file) ?? ['started' => null, 'ended' => null, 'entries' => []];
     foreach ($log['entries'] as $have) if ($have['id'] === $e['id']) return [200, ['entry' => $have, 'again' => true]]; // a resend

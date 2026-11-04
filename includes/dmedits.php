@@ -442,6 +442,7 @@ function dm_send($accounts, $user, $c, $char, $edits)
         if ($self) $e->self = true;
         $e->c = $c['id'];
         $e->done = 0;
+        $e->got = dm_now(); // the server's clock, for the action log (ROADMAP "Stats data"): "at" is the DM's browser's
         $q->edits[] = $e;
         $queued[] = $e;
         $known[$id] = true;
