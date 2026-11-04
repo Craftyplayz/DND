@@ -2,7 +2,8 @@
 // Battle maps (ROADMAP 1.6) for campaign members; includes/maps.php does the work and mp_view() decides what each one gets.
 //   GET ?c=<campaign>[&m=<map>]              -> {"role", "active", "map", "maps" (DM)}: the map on the table (a DM: any map)
 //   GET ...&as=table                         -> any of the GETs as the Table view (ROADMAP 1.7, the DM and co-DMs): role "table"
-//   GET ?c=&m=&img=public&n=<n>              -> the players' copy: n the current fog.n, live.webp (players: the map on the table, this n only); an older n, the DM's old public-<n>.webp
+//   GET ?c=&m=&img=work                      -> the map's picture (players: the map on the table); every screen draws the fog over it
+//   GET ?c=&m=&img=public&n=<n>              -> an older masked copy, kept: the DM and co-DMs only
 //   GET ?c=&m=&img=work | original | thumb   -> the DM and co-DMs only
 //   GET ?c=&mons                             -> the DM's own monsters, to add to the fight or drop on the map
 //   POST ?c=&up=<upload id>&i=<n>  (application/octet-stream, 4 MB chunks in order)   the DM and co-DMs upload a picture
@@ -38,13 +39,9 @@ if (!$post && isset($_GET['img'])) {
     $dir = mp_root($accounts, $c['id']) . '/' . ($m['id'] ?? '');
     $file = match (true) {
         !$m => null,
-        $kind === 'public' => (function () use ($accounts, $c, $m, $dm, $dir) {
-            $n = (int)($_GET['n'] ?? 0);
-            // players only ever get the map on the table as it is now: an older copy may show what's fogged since
-            if (!$dm && ((mp_active($accounts, $c['id'])['id'] ?? null) !== $m['id'] || $n !== ($m['fog']['n'] ?? -1))) return null;
-            return $n === ($m['fog']['n'] ?? -1) ? "$dir/live.webp" : "$dir/public-$n.webp";
-        })(),
+        $kind === 'work' && (mp_active($accounts, $c['id'])['id'] ?? null) === $m['id'] => "$dir/work.webp",
         !$dm => null,
+        $kind === 'public' => "$dir/public-" . (int)($_GET['n'] ?? 0) . '.webp',
         $kind === 'work', $kind === 'thumb' => "$dir/$kind.webp",
         $kind === 'original' => "$dir/original.{$m['ext']}",
         default => null,

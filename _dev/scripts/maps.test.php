@@ -56,17 +56,17 @@ $is('the old draft and send are gone', [$op('111', ['op' => 'draft', 'fog' => '1
 // size from the creature type text
 $is('sizes', array_map('mp_size_of', ['Large giant', 'tiny beast', 'Gargantuan dragon', 'humanoid (goblinoid)']), ['L', 'T', 'G', 'M']);
 
-// pixels of the players' copy: [alpha 0-127 (127 clear), r, g, b]
-$pix = function ($file, $x, $y) { $im = imagecreatefromwebp($file); $v = imagecolorat($im, $x, $y); return [($v >> 24) & 0x7F, ($v >> 16) & 255, ($v >> 8) & 255, $v & 255]; };
-$fogged = fn($file, $x, $y) => $pix($file, $x, $y)[0] === 127;
-$open = fn($file, $x, $y) => $pix($file, $x, $y)[0] === 0 && $pix($file, $x, $y)[1] > 0xE0;
+// what stands in the clear, from the map's saved "sight" (every screen draws the fog itself)
+$sees = fn($file, $x, $y) => mp_sight_any(json_decode(file_get_contents(dirname($file) . '/map.json'), true), $x, $y, $x, $y);
+$fogged = fn($file, $x, $y) => !$sees($file, $x, $y);
+$open = fn($file, $x, $y) => $sees($file, $x, $y);
 
 // a new upload is clear, and not on the table until the DM says so
 $is('a new map has no fog', [mp_read($A, $c['id'], $m['id'])['fog']['ops'], $open("$dir/live.webp", 50, 150)], [[], true]);
 $is('off the table: players get no map', mp_view($A, $c, '222')['map'], null);
 $is('activate', $op('111', ['op' => 'activate'])[0], 200);
 $pv = mp_view($A, $c, '222');
-$is('players get the masked copy only', [str_contains($pv['map']['img'], 'img=public&n=1'), isset($pv['map']['fog']), isset($pv['map']['sent']), isset($pv['map']['enc'])], [true, false, false, false]);
+$is('players get the picture and the fog strokes, nothing else of the DM\'s', [str_contains($pv['map']['img'], 'img=work'), isset($pv['map']['fog']['ops']), isset($pv['map']['fog']['sight']), isset($pv['map']['sent']), isset($pv['map']['enc'])], [true, true, false, false, false]);
 $is('hide takes it off the table', [$op('111', ['op' => 'hide'])[0], mp_view($A, $c, '222')['map'], $op('111', ['op' => 'activate'])[0]], [200, null, 200]);
 
 // a map from before live fog: its sent fog (top row revealed) becomes ops, players see the same, an unsent draft stays private
@@ -121,13 +121,13 @@ foreach ([['on' => true], ['on' => 'x', 'all' => true], ['on' => true, 'poly' =>
     ['on' => true, 'shape' => 'round', 'r' => 5, 'pts' => array_fill(0, 5001, [1, 1])], ['on' => true, 'shape' => 'round', 'r' => -5, 'pts' => [[1, 1]]]] as $i => $badOp)
     $is("a bad fog op refused ($i)", $op('111', ['op' => 'fog', 'add' => $badOp])[0], 400);
 $is('cover all', $op('111', ['op' => 'fog', 'add' => ['on' => true, 'all' => true]]), [200, ['n' => 2], [[['type' => 'map'], null]]]);
-$is('all fogged: every pixel clear, nothing of the picture left', [$pix("$dir/live.webp", 50, 50)[0], $pix("$dir/live.webp", 399, 299)[0]], [127, 127]);
+$is('all fogged', [$fogged("$dir/live.webp", 50, 50), $fogged("$dir/live.webp", 399, 299)], [true, true]);
 $is('all fogged: players see the party only', $names(mp_view($A, $c, '222')), ['Lock']);
 $op('111', ['op' => 'fog', 'add' => ['on' => false, 'poly' => [[0, 0], [400, 0], [400, 100], [0, 100]]]]);
 $is('the top row revealed, the picture back', [$open("$dir/live.webp", 50, 50), $open("$dir/live.webp", 350, 50)], [true, true]);
 $is('the rest fogged', [$fogged("$dir/live.webp", 50, 150), $fogged("$dir/live.webp", 399, 299), $fogged("$dir/live.webp", 250, 250)], [true, true, true]);
-$is('fogged pixels hold no picture', array_slice($pix("$dir/live.webp", 50, 150), 1) === [255, 255, 255], false);
-$is('live.webp only: no public copies made', glob("$dir/public-*.webp"), []);
+$is('no copy of the picture per fog change', glob("$dir/public-*.webp"), []);
+$is('a stroke in progress: live for all, not saved, the DM\'s only', [$op('111', ['op' => 'fogpv', 'add' => ['on' => true, 'shape' => 'round', 'r' => 5, 'pts' => [[1, 1]]]])[2][0][0]['type'], $op('222', ['op' => 'fogpv', 'add' => ['on' => true, 'shape' => 'round', 'r' => 5, 'pts' => [[1, 1]]]])[0], count(mp_read($A, $c['id'], $m['id'])['fog']['ops'])], ['mapfog', 403, 2]);
 // strokes: a round reveal and a square cover, painted over
 $op('111', ['op' => 'fog', 'add' => ['on' => false, 'shape' => 'round', 'r' => 30, 'pts' => [[60, 250], [200, 250]]]]);
 $is('a round stroke reveals along its line', [$open("$dir/live.webp", 130, 250), $fogged("$dir/live.webp", 130, 200), $fogged("$dir/live.webp", 300, 250)], [true, true, true]);
@@ -141,10 +141,10 @@ $is('a bad list refused', $op('111', ['op' => 'fogset', 'ops' => [['on' => 1]]])
 
 $pv = mp_view($A, $c, '222');
 $n = $pv['map']['n'];
-$is('players: their copy at the current n', str_contains($pv['map']['img'], "img=public&n=$n"), true);
+$is('players: the same picture whatever the fog', str_contains($pv['map']['img'], 'img=work'), true);
 $is('players: goblin in sight, hidden ogre and fogged lair left out', $names($pv), ['Goblin', 'Lock']);
 $js = json_encode($pv);
-$is('nothing for players about the original, the fog ops, the draft or hidden things', [str_contains($js, 'original'), str_contains($js, 'work'), str_contains($js, 'draft'), str_contains($js, '"ops"'), str_contains($js, 'Ogre'), str_contains($js, 'hidden'), str_contains($js, '"111"'), str_contains($js, '"hp"')], [false, false, false, false, false, false, false, true]);
+$is('nothing for players about the original, the draft or hidden things', [str_contains($js, 'original'), str_contains($js, 'draft'), str_contains($js, 'Ogre'), str_contains($js, 'hidden'), str_contains($js, '"111"'), str_contains($js, '"hp"')], [false, false, false, false, false, true]);
 $is('HP: only on the player\'s own token', array_keys(array_filter(array_column($pv['map']['tokens'], 'hp', 'name'))), ['Lock']);
 $is('a DM sees the ops and the working copy', [count(mp_view($A, $c, '111')['map']['fog']['ops']), str_contains(mp_view($A, $c, '111')['map']['img'], 'img=work')], [2, true]);
 
@@ -314,13 +314,12 @@ else {
     $q = "/campaigns/maps.php?c={$c['id']}";
     for ($t = 0; $t < 50 && $req(null, 'GET', $q)[0] === 0; $t++) usleep(100000);
     $is('signed out: 401', $req(null, 'GET', $q)[0], 401);
-    $is('non-member: 403', [$req('eve', 'GET', $q)[0], $req('eve', 'GET', "$q&m={$m['id']}&img=public&n=$n")[0]], [403, 403]);
+    $is('non-member: 403', [$req('eve', 'GET', $q)[0], $req('eve', 'GET', "$q&m={$m['id']}&img=work")[0]], [403, 403]);
     [$code, $out] = $req('pat', 'GET', $q);
     $is('player view over HTTP', [$code, json_decode($out, true)['map']['id'] ?? null], [200, $m['id']]);
-    $is('player response: no original, work copy, draft or hidden monster', [str_contains($out, 'original'), str_contains($out, 'img=work'), str_contains($out, 'draft'), str_contains($out, 'Ogre')], [false, false, false, false]);
-    $is('player: the current copy only', [$req('pat', 'GET', "$q&m={$m['id']}&img=public&n=$n")[0], $req('pat', 'GET', "$q&m={$m['id']}&img=public&n=" . ($n - 1))[0]], [200, 403]);
-    $is('the copy served is live.webp', $req('pat', 'GET', "$q&m={$m['id']}&img=public&n=$n")[1], file_get_contents("$dir/live.webp"));
-    copy("$dir/live.webp", "$dir/public-1.webp"); // from before live fog
+    $is('player response: no original, draft or hidden monster', [str_contains($out, 'original'), str_contains($out, 'draft'), str_contains($out, 'Ogre')], [false, false, false]);
+    $is('player: the picture of the map on the table, never the original', [$req('pat', 'GET', "$q&m={$m['id']}&img=work")[0], $req('pat', 'GET', "$q&m={$m['id']}&img=original")[0]], [200, 403]);
+    copy("$dir/work.webp", "$dir/public-1.webp"); // from before live fog
     $is('an older copy: the DM only', [$req('dm', 'GET', "$q&m={$m['id']}&img=public&n=1")[0], $req('pat', 'GET', "$q&m={$m['id']}&img=public&n=1")[0]], [200, 403]);
     [$code, $out] = $req('pat', 'POST', '/campaigns/maps.php', json_encode(['c' => $c['id'], 'm' => $m['id'], 'op' => 'fog', 'add' => ['on' => false, 'all' => true]]));
     $is('a player can\'t change the fog over HTTP', $code, 403);
@@ -329,7 +328,7 @@ else {
     [$code, $out] = $req('dm', 'GET', "$q&mons");
     $wolfM = array_values(array_filter(json_decode($out, true)['monsters'], fn($x) => $x['id'] === 'wolf'))[0];
     $is('mons: what the Token Browser needs', [$wolfM['race'], $wolfM['size'], $wolfM['type'], $wolfM['hp'], $wolfM['src']], ['beast', 'M', 'beast', 7, '']);
-    $is('player: no original or work copy', [$req('pat', 'GET', "$q&m={$m['id']}&img=original")[0], $req('pat', 'GET', "$q&m={$m['id']}&img=work")[0]], [403, 403]);
+    $is('player: the picture to draw fog over, never the original', [$req('pat', 'GET', "$q&m={$m['id']}&img=original")[0], $req('pat', 'GET', "$q&m={$m['id']}&img=work")[0]], [403, 200]);
     $is('DM: the original as uploaded', $req('dm', 'GET', "$q&m={$m['id']}&img=original")[1], file_get_contents("$dir/original.png"));
     $is("player can't ask for another map", json_decode($req('pat', 'GET', "$q&m=000000000000")[1], true)['map']['id'], $m['id']);
     // uploads: DM only, in chunks, pictures only

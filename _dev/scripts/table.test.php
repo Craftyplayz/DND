@@ -96,8 +96,8 @@ $tv = [
 ];
 $json = json_encode($tv, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 foreach (['Secret Lurker' => 'the hidden monster', 'Shadow Fiend' => 'the monster on a fogged square', 'Mind Blast' => "the hidden roll's title", '"33"' => "the hidden roll's result",
-    '19 + 14' => "the hidden roll's dice", 'Steal the gem' => 'the whisper', '"27"' => "the whisper's result", 'img=work' => 'the working copy', 'img=original' => 'the original map',
-    'img=thumb' => 'the map list', '"ops"' => "the fog's ops", 'secrettrap' => 'a hidden overlay', '"enc"' => 'the encounter panel', 'Villain plans' => 'a DM note', 'mayor' => "a DM note's text", 'Unsent draft' => 'a draft handout',
+    '19 + 14' => "the hidden roll's dice", 'Steal the gem' => 'the whisper', '"27"' => "the whisper's result", 'img=original' => 'the original map',
+    'img=thumb' => 'the map list', 'secrettrap' => 'a hidden overlay', '"enc"' => 'the encounter panel', 'Villain plans' => 'a DM note', 'mayor' => "a DM note's text", 'Unsent draft' => 'a draft handout',
     'Only for Pat' => 'a one-player handout', '"222"' => "a player's Google id", '"111"' => "the DM's Google id", 'lurker' => "the hidden monster's id", $lurker => "the hidden entry's id"] as $s => $what)
     $is("the Table view never gets $what", str_contains($json, $s), false);
 // numbers: no key that carries HP, initiative or hidden flags, anywhere
@@ -118,7 +118,7 @@ $is('monsters as healthy / bloodied / down', $by($f['entries'], 'Goblin')['statu
 $is('Lock: down, death saves and conditions, no HP', array_intersect_key($by($f['entries'], 'Lock'), ['down' => 1, 'saves' => 1, 'conds' => 1]), ['down' => true, 'saves' => ['ok' => 2, 'bad' => 1], 'conds' => ['Poisoned', 'Unconscious']]);
 $is('Ozzy: up, no death saves, Prone', array_intersect_key($by($f['entries'], 'Ozzy'), ['down' => 1, 'saves' => 1, 'conds' => 1]), ['down' => false, 'saves' => null, 'conds' => ['Prone']]);
 $mv = $tv['map'];
-$is('the map: role table, no fog ops, the masked picture through as=table', [$mv['role'], isset($mv['map']['fog']), str_contains($mv['map']['img'], '&as=table&') && str_contains($mv['map']['img'], 'img=public')], ['table', false, true]);
+$is('the map: role table, the picture through as=table', [$mv['role'], str_contains($mv['map']['img'], '&as=table&') && str_contains($mv['map']['img'], 'img=work')], ['table', true]);
 $is('the map: no drawing under fog', $mv['map']['draws'], []);
 $is('the map: the party and the monsters in sight, never the hidden or the fogged one', array_column($mv['map']['tokens'], 'name'), ['Goblin', 'Lock', 'Ozzy']);
 $is('a party token says down, death saves and conditions too', array_intersect_key($by($mv['map']['tokens'], 'Lock'), ['down' => 1, 'saves' => 1, 'conds' => 1]), ['down' => true, 'saves' => ['ok' => 2, 'bad' => 1], 'conds' => ['Poisoned', 'Unconscious']]);

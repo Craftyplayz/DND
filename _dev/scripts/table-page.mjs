@@ -80,8 +80,8 @@ function listen(sid, as) {
 }
 // what may never reach the Table view, found in text: [what it is, pattern]
 const SECRETS = [['the hidden monster', /Secret Lurker|"lurker"/], ['the monster in the fog', /Shadow Fiend|"shade"/], ["the hidden roll's title", /Mind Blast/], ["the hidden roll's result", /HIDDENTOTAL41/],
-    ['the whisper', /Steal the gem|WHISPER27/], ['HP of anyone', /"hp"|"cur"|"temp"|(?<!\d)(4444|4437)(?!\d)/], ['initiative numbers', /"init"|"bonus"/], ['the fog strokes or an encounter', /"draft"|"ops"|"enc"|"poly"/], ['a hidden overlay', /hiddenover/],
-    ['the working or original map', /img=work|img=original|img=thumb/], ['a DM note', /NOTE-SECRET|"notes"/], ['a draft or one-player handout', /Unsent draft|Only for Pat/], ['hidden flags', /"hidden":/],
+    ['the whisper', /Steal the gem|WHISPER27/], ['HP of anyone', /"hp"|"cur"|"temp"|(?<!\d)(4444|4437)(?!\d)/], ['initiative numbers', /"init"|"bonus"/], ['the fog strokes or an encounter', /"draft"|"enc"/], ['a hidden overlay', /hiddenover/],
+    ['the working or original map', /img=original|img=thumb/], ['a DM note', /NOTE-SECRET|"notes"/], ['a draft or one-player handout', /Unsent draft|Only for Pat/], ['hidden flags', /"hidden":/],
     ['Google ids', /"(111|222|333)"/]];
 const leaks = (where, s) => { for (const [what, re] of SECRETS) { const m = s.match(re); if (m) { bad++; console.log(`FAIL ${where} carried ${what}: ${m[0]} in ...${s.slice(Math.max(0, m.index - 60), m.index + 60)}...`); } } };
 
@@ -114,8 +114,15 @@ try {
 
     // the map displayed: clear, then fog over the right half; the picture is asked for as the table
     await maps({ op: 'activate' });
-    is('a map displayed: the picture, asked for as the table', await until(tv, `document.querySelector('.tv-idle').hidden && (document.querySelector('.mp-img').getAttribute('src') || '')`, (s) => s && s.includes('img=public')).then((s) => s.includes('&as=table')), true);
+    is('a map displayed: the picture, asked for as the table', await until(tv, `document.querySelector('.tv-idle').hidden && (document.querySelector('.mp-img').getAttribute('src') || '')`, (s) => s && s.includes('img=work')).then((s) => s.includes('&as=table')), true);
+    const fogAt = (x, y) => `(() => { const c = document.querySelector('.mp-fog'), k = c.width / 400; return c.getContext('2d').getImageData(${x} * k, ${y} * k, 1, 1).data[3] > 128; })()`;
+    const src0 = await tv.ev(`document.querySelector('.mp-img').src`);
+    await maps({ op: 'fogpv', add: { on: true, shape: 'square', r: 40, pts: [[300, 150]] } });
+    is('a fog stroke shows on the Spectator window while it is being painted', await until(tv, fogAt(300, 150), Boolean), true);
     await maps({ op: 'fog', add: { on: true, poly: [[200, 0], [400, 0], [400, 300], [200, 300]] } });
+    is('saved: the fog stays', await until(tv, fogAt(350, 50), Boolean), true);
+    is('fog never reloads the picture', await tv.ev(`document.querySelector('.mp-img').src`), src0);
+    is('fog is the background colour, solid', await tv.ev(`getComputedStyle(document.querySelector('.mp-fog')).opacity`), '1');
     is('the picture loads', await until(tv, `document.querySelector('.mp-img').naturalWidth`, (w) => w > 0), 400);
     is('the map fills the screen, fitted', await tv.ev(`(() => { const r = document.querySelector('.mp-stage').getBoundingClientRect(); return r.width > innerWidth * .9 || r.height > innerHeight * .9; })()`), true);
 

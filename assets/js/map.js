@@ -9,7 +9,7 @@
 //   kept clear when fitting; onDraw(state): after every draw.
 //   BattleMap.tiles(f) -> the turn tracker's html for a fight, used here and by the Spectator window.
 // Coordinates are the original picture's pixels; the stage is scaled to the screen with one CSS transform. Fog is a list of strokes on
-// the DM's canvas only: players get a picture with the fogged pixels already removed by the server, and never the strokes.
+// every screen's own canvas, over one picture sent once (the owner's choice: a player could read under it).
 window.BattleMap = (() => {
     'use strict';
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -60,12 +60,12 @@ window.BattleMap = (() => {
         const part = (n) => root.querySelector(`[data-mp=${n}]`);
         const view = part('view');
         const tools = (() => { try { return JSON.parse(localStorage.getItem(TOOLKEY)) || {}; } catch (e) { return {}; } })();
-        const S = Object.assign({ fogMode: 'paint', fogShape: 'square', fogSize: 3, penMode: 'pen', penSize: 1, penColor: 0, ovType: 'square', ovColor: 0, ovPat: 1, pointMode: 'ping', pointColor: 5 }, tools, {
+        const S = Object.assign({ fogShape: 'square', fogSize: 3, penMode: 'pen', penSize: 1, penColor: 0, ovType: 'square', ovColor: 0, ovPat: 1, pointMode: 'ping', pointColor: 5 }, tools, {
             c, dm: !!opts.dm && !opts.table, full: !!opts.full && !opts.table, table: !!opts.table, me: opts.me || '', v: null, m: null, open: null, tool: 'select', k: 1, tx: 0, ty: 0, fitted: '', lines: true,
-            picks: new Set(), panel: null, pop: null, sideOn: false, endPop: false, poly: [], box: null, hover: null, newOv: null, ruler: null, rulers: {}, pings: [], trails: [], fogUndo: [], clip: null, space: false,
+            picks: new Set(), panel: null, pop: null, sideOn: false, endPop: false, poly: [], box: null, hover: null, newOv: null, ruler: null, rulers: {}, fogLive: {}, pings: [], trails: [], fogUndo: [], clip: null, space: false,
             brTab: 'mon', brQ: '', brType: '', brSize: '', brCr: '', brFilters: false, mons: null, comp: null, party: null, paused: false, failed: false, moved: false, fight: null,
         });
-        const remember = () => { const { fogMode, fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointMode, pointColor } = S; try { localStorage.setItem(TOOLKEY, JSON.stringify({ fogMode, fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointMode, pointColor })); } catch (e) { } };
+        const remember = () => { const { fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointMode, pointColor } = S; try { localStorage.setItem(TOOLKEY, JSON.stringify({ fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointMode, pointColor })); } catch (e) { } };
         // ---- the stage ----
         view.innerHTML = `<div class="mp-stage"><img class="mp-img" alt="" draggable="false"><div class="mp-under"><canvas class="mp-marks"></canvas><div class="mp-grid"></div></div><div class="mp-toks"></div>
             <canvas class="mp-fog"></canvas><svg class="mp-ruler" aria-hidden="true"></svg><div class="mp-box" hidden></div></div><p class="mp-msg muted" hidden></p>`;
@@ -90,7 +90,8 @@ window.BattleMap = (() => {
                 if (S.dm && S.open && !S.m && v.active) { S.open = null; return load(); } // the map opened was archived elsewhere
                 if (S.dm && S.full && !S.m && !S.open) { const first = (v.maps || []).find((x) => !x.archived); if (first) { S.open = first.id; return load(); } }
                 if (S.dm && S.full && !S.open && S.m) S.open = S.m.id; // off the map page, the DM always sees what's on the table
-                if (was?.id !== S.m?.id) { S.picks.clear(); S.panel = null; S.poly = []; S.fogUndo = []; S.fogKey = null; }
+                if (was?.id !== S.m?.id || was?.fog?.ops?.length !== S.m?.fog?.ops?.length) S.fogLive = {}; // a saved stroke replaces its live copy
+                if (was?.id !== S.m?.id) { S.picks.clear(); S.panel = null; S.poly = []; S.fogUndo = []; S.fogOps = null; }
                 for (const id of [...S.picks]) if (!tokOf(id) && !ovOf(id)) S.picks.delete(id);
             } catch (e) { S.failed = true; }
             draw();
@@ -129,9 +130,7 @@ window.BattleMap = (() => {
             stage.style.width = m.w + 'px'; stage.style.height = m.h + 'px';
             if (m.img && img.getAttribute('src') !== m.img) img.src = m.img;
             img.hidden = !m.img;
-            // what's fogged has no picture for players, and their grid and drawings stop at its edge (the server already left out what's under it)
-            const mask = S.dm || !m.img ? '' : `url("${m.img}")`;
-            if (under.dataset.mask !== mask) { under.dataset.mask = mask; under.style.webkitMaskImage = mask; under.style.maskImage = mask; }
+            stage.classList.toggle('mp-pl', !S.dm);
             if (S.fitted !== m.id && view.offsetWidth) { S.fitted = m.id; fit(); }
             drawFog(); drawGrid(); drawMarks(); drawToks(); drawLive(); place();
         }
@@ -145,7 +144,7 @@ window.BattleMap = (() => {
         const fogScale = (m) => Math.min(1, FOG_RES / Math.max(m.w, m.h));
         function paintFogOp(x, op, m) {
             x.globalCompositeOperation = op.on ? 'source-over' : 'destination-out';
-            x.fillStyle = x.strokeStyle = '#4a9fdc'; // the owner's screenshot: the DM sees fog as light blue
+            x.fillStyle = x.strokeStyle = fogColour();
             if (op.all) return x.fillRect(0, 0, m.w, m.h);
             if (op.poly) { x.beginPath(); op.poly.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.closePath(); return x.fill(); }
             if (op.shape === 'round') {
@@ -158,18 +157,29 @@ window.BattleMap = (() => {
             st(...P[0]);
             for (let i = 1; i < P.length; i++) { const dx = P[i][0] - P[i - 1][0], dy = P[i][1] - P[i - 1][1], n = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (op.r / 2))); for (let j = 1; j <= n; j++) st(P[i - 1][0] + (dx * j) / n, P[i - 1][1] + (dy * j) / n); }
         }
+        // the owner's screenshots: light blue for the DM, the page's own background for everyone else, so fog looks like blank space
+        function fogColour() {
+            if (S.dm) return '#4a9fdc';
+            if (S.fogBg) return S.fogBg;
+            for (let el = view; el; el = el.parentElement) { const c = getComputedStyle(el).backgroundColor; if (c && c !== 'transparent' && !/, 0\)$/.test(c)) return (S.fogBg = c); }
+            return (S.fogBg = '#000');
+        }
+        // the saved strokes live on a canvas of their own, so a stroke in progress doesn't replay them all
+        const fogBase = document.createElement('canvas');
         function drawFog(force) {
-            const m = S.m;
-            fogC.hidden = !S.dm;
-            if (!S.dm) return;
-            const key = JSON.stringify(m.fog?.ops || []) + (G?.type === 'fog' ? JSON.stringify(G.op) : '');
-            if (!force && key === S.fogKey) return;
-            S.fogKey = key;
-            const k = fogScale(m), W = Math.round(m.w * k), H = Math.round(m.h * k);
+            const m = S.m, ops = m.fog?.ops || [], k = fogScale(m), W = Math.round(m.w * k), H = Math.round(m.h * k), now = Date.now();
+            if (force || S.fogOps !== ops || S.fogN !== ops.length || fogBase.width !== W) {
+                S.fogOps = ops; S.fogN = ops.length;
+                fogBase.width = W; fogBase.height = H;
+                const x = fogBase.getContext('2d');
+                x.setTransform(k, 0, 0, k, 0, 0);
+                for (const op of ops) paintFogOp(x, op, m);
+            }
             if (fogC.width !== W || fogC.height !== H) { fogC.width = W; fogC.height = H; }
             const x = fogC.getContext('2d');
-            x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, W, H); x.setTransform(k, 0, 0, k, 0, 0);
-            for (const op of m.fog?.ops || []) paintFogOp(x, op, m);
+            x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, W, H); x.drawImage(fogBase, 0, 0);
+            x.setTransform(k, 0, 0, k, 0, 0);
+            for (const [who, l] of Object.entries(S.fogLive)) { if (now - l.at > 2500) delete S.fogLive[who]; else paintFogOp(x, l.op, m); }
             if (G?.type === 'fog') paintFogOp(x, G.op, m);
         }
         // does this spot on the map have fog on it, as the DM's canvas has it (the checks use this)
@@ -266,7 +276,7 @@ window.BattleMap = (() => {
             for (const q of S.pings) { const a = (now - q.at) / 1600; for (const f of [0, 0.35]) out.push(`<circle class="mp-ping" cx="${q.x}" cy="${q.y}" r="${r(10 + ((a + f) % 1) * 70)}" style="stroke:${COLORS[q.c] || COLORS[5]};stroke-width:${r(4)};opacity:${1 - a}"/>`); }
             if (S.dm && S.tool === 'fog' && S.hover && S.fogShape !== 'polygon') {
                 const b = (S.fogSize * m.grid.s) / 2, [hx, hy] = S.hover;
-                out.push(S.fogShape === 'round' ? `<circle class="mp-brush" cx="${hx}" cy="${hy}" r="${b}" style="stroke-width:${r(2)}"/>` : `<rect class="mp-brush" x="${hx - b}" y="${hy - b}" width="${b * 2}" height="${b * 2}" style="stroke-width:${r(2)}"/>`);
+                out.push(S.fogShape === 'round' ? `<circle class="mp-brush" cx="${hx}" cy="${hy}" r="${b}" style="stroke-width:${r(1.5)}"/>` : `<rect class="mp-brush" x="${hx - b}" y="${hy - b}" width="${b * 2}" height="${b * 2}" style="stroke-width:${r(1.5)}"/>`);
             }
             if (S.poly.length) out.push(`<polyline class="mp-polyd" style="stroke-width:${r(2)}" points="${[...S.poly, ...(S.hover ? [S.hover] : [])].map((q) => q.join(',')).join(' ')}"/><circle class="mp-polys" cx="${S.poly[0][0]}" cy="${S.poly[0][1]}" r="${r(7)}"/>`);
             const axis = (o) => { const R = o.type === 'square' ? o.len / 2 : o.len, ex = o.x + R * Math.cos(o.ang), ey = o.y + R * Math.sin(o.ang); return `<line class="mp-axis" x1="${o.x}" y1="${o.y}" x2="${ex}" y2="${ey}" style="stroke-width:${r(3)};stroke-dasharray:${r(12)} ${r(8)}"/>` + pillSvg(Math.round(o.len / m.grid.s) * 5 + ' ft', ex + r(14) * Math.cos(o.ang), ey + r(14) * Math.sin(o.ang)); };
@@ -326,9 +336,9 @@ window.BattleMap = (() => {
             o.hidden = false;
             let h = '';
             if (T === 'fog') {
-                h = `<div class="mpt-flyg">${icoBtn('fogall', '1', 'CA', 'Cover All')}${icoBtn('fogall', '0', 'RA', 'Reveal All')}<hr>${icoBtn('fogmode', 'paint', 'Pt', 'Paint fog', S.fogMode === 'paint')}${icoBtn('fogmode', 'erase', 'Er', 'Erase fog', S.fogMode === 'erase')}<hr>${icoBtn('fogshape', 'square', 'Sq', 'Square brush', S.fogShape === 'square')}${icoBtn('fogshape', 'round', 'Ro', 'Round brush', S.fogShape === 'round')}${icoBtn('fogshape', 'polygon', 'Pg', 'Polygon', S.fogShape === 'polygon')}${icoBtn('pop', 'size', 'Sz', 'Brush size', S.pop === 'size')}</div>`;
+                h = `<div class="mpt-flyg">${icoBtn('fogall', '1', 'CA', 'Cover All')}${icoBtn('fogall', '0', 'RA', 'Reveal All')}<hr>${icoBtn('fogshape', 'square', 'Sq', 'Square brush', S.fogShape === 'square')}${icoBtn('fogshape', 'round', 'Ro', 'Round brush', S.fogShape === 'round')}${icoBtn('fogshape', 'polygon', 'Pg', 'Polygon', S.fogShape === 'polygon')}${icoBtn('pop', 'size', 'Sz', 'Brush size', S.pop === 'size')}</div>`;
                 if (S.pop === 'size') h += `<div class="mpt-pop"><label>Brush size: <span data-mp="fogn">${S.fogSize}</span> squares<br><input type="range" data-mpi="fogsize" min="1" max="9" value="${S.fogSize}"></label></div>`;
-                else if (S.fogShape === 'polygon') h += '<div class="mpt-pop"><p class="mpt-hint">Click points, then click the first point or double-click to close.</p></div>';
+                else if (S.fogShape === 'polygon') h += '<div class="mpt-pop"><p class="mpt-hint">Click points, then click the first point or double-click to close. Left click reveals, right click covers.</p></div>';
             } else if (T === 'draw') {
                 h = `<div class="mpt-flyg">${icoBtn('penmode', 'pen', 'Pn', 'Pen', S.penMode === 'pen')}${icoBtn('penmode', 'erase', 'Er', 'Erase drawing', S.penMode === 'erase')}<hr>${icoBtn('pop', 'size', String(S.penSize + 1), 'Pen size', S.pop === 'size')}${colourBtn(S.penColor)}${S.dm ? `<hr>${icoBtn('cleardraw', '', 'Cl', 'Clear drawings')}` : ''}</div>`;
                 if (S.pop === 'size') h += `<div class="mpt-pop"><div class="mpt-row">${BRUSH.map((b, i) => `<button type="button" class="btn small${i === S.penSize ? ' primary' : ''}" data-mpa="pensize" data-v="${i}"${pressed(i === S.penSize)}>${i + 1}</button>`).join('')}</div></div>`;
@@ -577,6 +587,7 @@ window.BattleMap = (() => {
 
         // ---- changes ----
         const sendMoves = throttle(() => { for (const i of G?.items || []) post({ op: 'move', k: i.t.k, x: i.t.x, y: i.t.y, placed: true }, true); }, 200);
+        const sendFog = throttle((op) => post({ op: 'fogpv', add: op }, true), 100); // the stroke so far, to every other screen
         const sendRuler = throttle((pts) => post({ op: 'ruler', pts }, true), 150);
         const sendTrail = throttle((tr) => post({ op: 'trail', id: tr.id, pts: tr.pts, color: tr.c }, true), 120);
         function snap(t, x, y) {
@@ -609,7 +620,7 @@ window.BattleMap = (() => {
             const P = S.poly;
             S.poly = []; S.hover = null;
             drawLive();
-            if (P.length >= 3) fogAdd({ on: S.fogMode === 'paint', poly: P.map(round) });
+            if (P.length >= 3) fogAdd({ on: !!S.polyOn, poly: P.map(round) });
         }
         const round = (p) => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10];
         function deleteSel() {
@@ -663,14 +674,26 @@ window.BattleMap = (() => {
             });
             if (m.draws.length !== n) drawMarks();
         }
-        view.addEventListener('wheel', (e) => { if (!S.m) return; e.preventDefault(); const r = view.getBoundingClientRect(); zoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+        // with a fog brush in hand, the wheel sizes the brush (a trackpad's small steps add up to one); otherwise it zooms
+        let wheelSum = 0;
+        function brushWheel(e) {
+            wheelSum += e.deltaY;
+            if (e.deltaMode === 0 && Math.abs(wheelSum) < 60) return;
+            const n = clamp(S.fogSize + (wheelSum < 0 ? 1 : -1), 1, 9);
+            wheelSum = 0;
+            if (n === S.fogSize) return;
+            S.fogSize = n; remember(); drawOpts(); drawLive();
+        }
+        view.addEventListener('wheel', (e) => { if (!S.m) return; e.preventDefault(); if (S.dm && S.tool === 'fog' && S.fogShape !== 'polygon') { S.hover = toMap(e); return brushWheel(e); } const r = view.getBoundingClientRect(); zoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
         view.addEventListener('contextmenu', (e) => e.preventDefault());
         const ptrs = new Map();
         let G = null; // the gesture under way: {type: pan | pinch | move | box | fog | draw | erase | newov | ovsize | ovturn | trail | ruler, id, ...}
         const joint = () => { if (G?.type === 'ruler') { S.ruler.push(S.ruler[S.ruler.length - 1].slice()); drawLive(); } };
         view.addEventListener('pointerdown', (e) => {
             if (!S.m) return;
-            if (e.button === 2) { e.preventDefault(); return joint(); }
+            const fogRight = e.button === 2 && S.dm && S.tool === 'fog' && canEdit(); // the right button covers with fog, the left reveals
+            if (e.button === 2) e.preventDefault();
+            if (e.button === 2 && !fogRight) return joint();
             ptrs.set(e.pointerId, [e.clientX, e.clientY]);
             if (ptrs.size === 2) {
                 if (G?.type === 'ruler' && e.pointerType === 'touch') { G.tap = e.pointerId; return joint(); }
@@ -684,7 +707,7 @@ window.BattleMap = (() => {
             if (S.pop) { S.pop = null; drawOpts(); }
             const p = toMap(e), base = { id: e.pointerId, x: e.clientX, y: e.clientY, p, moved: false };
             if (e.button === 1 || S.space || S.tool === 'pan' || S.table) { G = { ...base, type: 'pan', tx: S.tx, ty: S.ty }; return; }
-            if (e.button !== 0) return;
+            if (e.button !== 0 && !fogRight) return;
             const T = S.tool, el = e.target.closest('.mp-tok'), t = el && tokOf(el.dataset.k);
             if (T === 'ruler') { S.ruler = [centre(p), centre(p)]; G = { ...base, type: 'ruler' }; return drawLive(); }
             if (T === 'point') {
@@ -692,8 +715,8 @@ window.BattleMap = (() => {
                 const tr = { id: uid(), pts: [round(p)], c: S.pointColor, at: Date.now() }; S.trails.push(tr); G = { ...base, type: 'trail', tr }; return drawLive();
             }
             if (canEdit() && S.dm && T === 'fog') {
-                if (S.fogShape === 'polygon') { const f = S.poly[0]; if (f && Math.hypot(p[0] - f[0], p[1] - f[1]) < 12 / S.k) return closePoly(); S.poly.push(p); return drawLive(); }
-                G = { ...base, type: 'fog', op: { on: S.fogMode === 'paint', shape: S.fogShape, r: (S.fogSize * S.m.grid.s) / 2, pts: [round(p)] } };
+                if (S.fogShape === 'polygon') { const f = S.poly[0]; if (f && Math.hypot(p[0] - f[0], p[1] - f[1]) < 12 / S.k) return closePoly(); if (!f) S.polyOn = fogRight; S.poly.push(p); return drawLive(); }
+                G = { ...base, type: 'fog', op: { on: fogRight, shape: S.fogShape, r: (S.fogSize * S.m.grid.s) / 2, pts: [round(p)] } };
                 return drawFog();
             }
             if (canEdit() && T === 'draw') {
@@ -750,7 +773,11 @@ window.BattleMap = (() => {
             if (Math.hypot(e.clientX - G.x, e.clientY - G.y) > 4) G.moved = true;
             if (G.type === 'pan') { if (G.moved) { S.moved = true; S.tx = G.tx + e.clientX - G.x; S.ty = G.ty + e.clientY - G.y; place(); drawLive(); } }
             else if (G.type === 'ruler') { S.ruler[S.ruler.length - 1] = centre(p); drawLive(); sendRuler(S.ruler); }
-            else if (G.type === 'fog') { G.op.pts.push(round(p)); drawFog(); }
+            else if (G.type === 'fog') {
+                const last = G.op.pts[G.op.pts.length - 1];
+                if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= Math.max(2, G.op.r / 4)) { G.op.pts.push(round(p)); sendFog(G.op); }
+                drawFog();
+            }
             else if (G.type === 'draw') { G.d.pts.push(round(p)); drawMarks(); }
             else if (G.type === 'erase') eraseAt(p);
             else if (G.type === 'trail') { G.tr.pts.push(round(p)); G.tr.at = Date.now(); sendTrail(G.tr); drawLive(); }
@@ -787,7 +814,7 @@ window.BattleMap = (() => {
             G = null;
             box.hidden = true;
             if (g.type === 'ruler') { S.ruler = null; if (!S.full) { S.tool = 'select'; drawBar(); } drawLive(); sendRuler(null); }
-            else if (g.type === 'fog') { if (g.op.shape === 'square' || g.op.shape === 'round') fogAdd(g.op); }
+            else if (g.type === 'fog') { g.op.pts.push(round(p)); fogAdd(g.op); }
             else if (g.type === 'draw') { S.m.draws.push(g.d); drawMarks(); const out = await post({ op: 'draw', add: g.d }); if (out) Object.assign(g.d, { id: out.id, mine: true }); else load(); }
             else if (g.type === 'erase') { if (g.del.length) post({ op: 'drawdel', ids: g.del }); }
             else if (g.type === 'newov') { const o = S.newOv; S.newOv = null; if (o.len > S.m.grid.s / 4) { S.m.overlays.push(o); S.picks = new Set([o.id]); post({ op: 'overlay', o }); drawOpts(); } drawMarks(); drawLive(); }
@@ -853,7 +880,6 @@ window.BattleMap = (() => {
                 case 'full': if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.().catch(() => { }); return;
                 case 'pop': S.pop = S.pop === v ? null : v; return drawOpts();
                 case 'fogall': return fogAdd({ on: v === '1', all: true });
-                case 'fogmode': S.fogMode = v; return P();
                 case 'fogshape': S.fogShape = v; S.poly = []; P(); return drawLive();
                 case 'penmode': S.penMode = v; return P();
                 case 'pensize': S.penSize = +v; return P();
@@ -1133,7 +1159,7 @@ window.BattleMap = (() => {
             };
         }
         function openSettings() {
-            const K = [['Select', 'V'], ['Pan', 'P'], ['Pan for a moment', 'Hold Space'], ['Tokens', 'T'], ['Fog of War', 'F'], ['Draw', 'D'], ['Overlays', 'O'], ['Ruler', 'R'], ['Point and Ping', 'X'], ['Drop tool, deselect', 'Esc'], ['Move token', 'Arrows or W A S D'], ['Remove token', 'Backspace'], ['Hide or reveal', 'Shift+H'], ['Group', 'Shift+G'], ['Lock', 'Shift+L'], ['Add to selection', 'Shift+Click'], ['Move one in a group', 'Shift+Drag'], ['Copy, paste', 'Ctrl+C, Ctrl+V'], ['Undo fog stroke', 'Ctrl+Z'], ['Ruler corner', 'Right click'], ['Zoom', 'Wheel, + and -'], ['Fit the map', '0']].filter(([, key]) => S.dm || !/^(T|F|O|Backspace|Shift\+H|Shift\+G|Shift\+L|Ctrl\+C, Ctrl\+V|Ctrl\+Z)$/.test(key));
+            const K = [['Select', 'V'], ['Pan', 'P'], ['Pan for a moment', 'Hold Space'], ['Tokens', 'T'], ['Fog of War', 'F'], ['Reveal fog, cover with fog', 'Left drag, right drag'], ['Draw', 'D'], ['Overlays', 'O'], ['Ruler', 'R'], ['Point and Ping', 'X'], ['Drop tool, deselect', 'Esc'], ['Move token', 'Arrows or W A S D'], ['Remove token', 'Backspace'], ['Hide or reveal', 'Shift+H'], ['Group', 'Shift+G'], ['Lock', 'Shift+L'], ['Add to selection', 'Shift+Click'], ['Move one in a group', 'Shift+Drag'], ['Copy, paste', 'Ctrl+C, Ctrl+V'], ['Undo fog stroke', 'Ctrl+Z'], ['Ruler corner', 'Right click'], ['Zoom', 'Wheel, + and -'], ['Fog brush size', 'Wheel, with the brush'], ['Fit the map', '0']].filter(([, key]) => S.dm || !/^(T|F|Left drag, right drag|O|Backspace|Shift\+H|Shift\+G|Shift\+L|Ctrl\+C, Ctrl\+V|Ctrl\+Z)$/.test(key));
             const o = S.m?.opts || { fx: true, ac: false };
             const d = dlg(`<h2>Settings and shortcuts</h2><div class="form" style="display:grid;gap:6px;margin:8px 0 12px"><label class="check"><input type="checkbox" data-st="grid"${S.lines ? ' checked' : ''}> Show the grid (this window only)</label>${S.dm ? `<label class="check"><input type="checkbox" data-st="fx"${o.fx ? ' checked' : ''}> Show bloodied and dead effects to players</label><label class="check"><input type="checkbox" data-st="ac"${o.ac ? ' checked' : ''}> Show AC on monster tokens to players during combat</label>` : ''}</div>
                 <div class="mpt-keys">${K.map(([a, b]) => `<div><span>${a}</span><kbd>${b}</kbd></div>`).join('')}</div><div class="actions"><button type="button" class="btn primary" data-stx>Close</button></div>`);
@@ -1165,6 +1191,7 @@ window.BattleMap = (() => {
                 if (m.pts) S.rulers[m.who] = { name: m.name, pts: m.pts, m: m.m }; else delete S.rulers[m.who];
                 return drawLive();
             }
+            if (m.type === 'mapfog' && m.m === S.m?.id && m.who !== S.me) { S.fogLive[m.who] = { op: m.op, at: Date.now() }; drawFog(); setTimeout(() => { if (S.m) drawFog(); }, 2600); return; }
             if (m.type === 'mapping' && m.m === S.m?.id && m.who !== S.me) { S.pings.push({ x: m.x, y: m.y, c: m.c, at: Date.now() }); return drawLive(); }
             if (m.type === 'maptrail' && m.m === S.m?.id && m.who !== S.me) { S.trails = S.trails.filter((x) => x.id !== m.id); S.trails.push({ id: m.id, pts: m.pts, c: m.c, at: Date.now() }); return drawLive(); }
             if (m.type === 'removed') { S.v = null; S.m = null; S.failed = true; draw(); }

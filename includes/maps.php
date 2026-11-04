@@ -5,7 +5,7 @@
 //     original.<jpg|png|webp|gif>   the upload, exactly as it came (the DM and co-DMs only)
 //     work.webp                     a working copy, longest side MP_WORK px, unmasked (the DM's view; masked copies come from it)
 //     thumb.webp                    for the DM's map list
-//     live.webp                     what players get now: fogged pixels are alpha 0 with nothing of the picture left, overwritten by every fog change
+//     live.webp                     unused since fog is drawn on each screen; kept where it exists
 //     public-<n>.webp               from before live fog: the n-th "Send to table", kept, never written any more
 //     map.json                      {"id", "name", "created", "by", "archived" (ms or 0), "ext", "w", "h" (original px),
 //                                    "grid": {"s", "ox", "oy"} (square size and offset, original px),
@@ -229,19 +229,17 @@ function mp_fog_mask($m, $W, $H)
     return [$im, $clear];
 }
 
-// live.webp and "sight" for $m's fog (the caller saves $m afterwards)
+// "sight" for $m's fog (the caller saves $m afterwards): what stands in the clear, for what players are sent. Every screen draws the
+// fog itself over the one picture (the owner's choice, 2026-11-04: a player could read what's under it, and that's accepted).
 function mp_fog_render($accounts, $cid, &$m)
 {
-    $dir = mp_root($accounts, $cid) . "/{$m['id']}";
-    if (!mp_gd('1024M') || !($im = @imagecreatefromwebp("$dir/work.webp"))) return false;
-    imagealphablending($im, false);
-    imagesavealpha($im, true);
+    if (!function_exists('imagecreatetruecolor')) return false;
     $sight = null;
     if ($m['fog']['ops']) {
-        $W = imagesx($im);
-        $H = imagesy($im);
+        $k = min(1, 800 / max($m['w'], $m['h']));
+        $W = max(1, (int)round($m['w'] * $k));
+        $H = max(1, (int)round($m['h'] * $k));
         [$mask, $clear] = mp_fog_mask($m, $W, $H);
-        imagecopy($im, $mask, 0, 0, 0, 0, $W, $H);
         $cell = max($m['w'], $m['h']) / MP_SIGHT;
         $cols = max(1, (int)ceil($m['w'] / $cell));
         $rows = max(1, (int)ceil($m['h'] / $cell));
@@ -251,8 +249,6 @@ function mp_fog_render($accounts, $cid, &$m)
             $bits .= imagecolorat($mask, min($W - 1, (int)(($c + 0.5) * $cell * $k)), min($H - 1, (int)(($r + 0.5) * $cell * $k))) === $clear ? '1' : '0';
         $sight = ['cols' => $cols, 'rows' => $rows, 'cell' => $cell, 'bits' => $bits];
     }
-    $tmp = "$dir/.live.webp." . getmypid();
-    if (!imagewebp($im, $tmp, 75) || !@rename($tmp, "$dir/live.webp")) return false;
     $m['fog']['sight'] = $sight;
     return true;
 }
@@ -460,15 +456,14 @@ function mp_view($accounts, $c, $sub, $mid = null, $role = null)
     $toks = mp_tokens($accounts, $c, $m, $f);
     $opts = fi_opts($accounts, $c['id']);
     $n = $m['fog']['n'] ?? null;
-    $pub = $n !== null ? "$base&m={$m['id']}&img=public&n=$n" : null;
     $o = ['id' => $m['id'], 'name' => $m['name'], 'w' => $m['w'], 'h' => $m['h'], 'grid' => $m['grid'], 'n' => $n, 'archived' => $m['archived'], 'opts' => $opts];
     if ($dm) {
         $enc = $m['enc'] ?? [];
         $o += ['fog' => ['n' => $n, 'ops' => $m['fog']['ops'] ?? []], 'enc' => ['ids' => $enc['ids'] ?? [], 'init' => (object)($enc['init'] ?? []), 'side' => (object)($enc['side'] ?? [])],
-            'img' => "$base&m={$m['id']}&img=work", 'original' => "$base&m={$m['id']}&img=original", 'public' => $pub, 'draws' => mp_draws_out($m['draws'] ?? [], $sub), 'overlays' => $m['overlays'] ?? []];
+            'img' => "$base&m={$m['id']}&img=work", 'original' => "$base&m={$m['id']}&img=original", 'draws' => mp_draws_out($m['draws'] ?? [], $sub), 'overlays' => $m['overlays'] ?? []];
         $o['tokens'] = array_map(fn($t) => mp_tok_out($t, $sub, true), $toks);
     } else {
-        $o += ['img' => $pub, 'draws' => mp_draws_out(mp_draws_seen($m), $sub), 'overlays' => mp_overlays_seen($m)];
+        $o += ['img' => "$base&m={$m['id']}&img=work", 'fog' => ['n' => $n, 'ops' => $m['fog']['ops'] ?? []], 'draws' => mp_draws_out(mp_draws_seen($m), $sub), 'overlays' => mp_overlays_seen($m)];
         $o['tokens'] = array_values(array_map(fn($t) => mp_tok_out($t, $sub, false, $opts),
             array_filter($toks, fn($t) => mp_player_sees($m, $t) || ($t['kind'] === 'pc' && $t['owner'] === $sub))));
     }
@@ -557,6 +552,12 @@ function mp_op($accounts, $c, $sub, $body)
         $me = $c['members'][cp_member($c, $sub)];
         return [200, ['ok' => true], [[['type' => 'ruler', 'm' => $m['id'], 'who' => live_key($c['id'], $sub), 'name' => $me['name'], 'pts' => $pts], $onTable ? null : 'dm']]];
     }
+    // a fog stroke while it's being painted: shown live on every screen, saved by "fog" when it ends
+    if ($op === 'fogpv') {
+        if (!$dm) return [403, ['error' => 'Only the DM can do that.'], []];
+        if (!($o = mp_fog_op($body['add'] ?? null))) return [400, ['error' => "That isn't a fog change."], []];
+        return [200, ['ok' => true], [[['type' => 'mapfog', 'm' => $m['id'], 'who' => live_key($c['id'], $sub), 'op' => $o], $onTable ? null : 'dm']]];
+    }
     if ($op === 'ping' || $op === 'trail') {
         if (!$onTable && !$dm) return [403, ['error' => "That map isn't on the table."], []];
         $msg = ['m' => $m['id'], 'who' => live_key($c['id'], $sub), 'c' => is_int($body['color'] ?? null) ? max(0, min(63, $body['color'])) : 0];
@@ -635,7 +636,7 @@ function mp_op($accounts, $c, $sub, $body)
         return [200, ['opts' => $o], [[['type' => 'map'], null], [['type' => 'fight'], null]]];
     }
     if ($op === 'fog' || $op === 'fogset') {
-        if (!isset($m['fog'])) return [500, ['error' => "Couldn't make the players' copy of the map."], []];
+        if (!isset($m['fog'])) return [500, ['error' => "Couldn't save the fog."], []];
         $ops = [];
         foreach ($op === 'fog' ? [$body['add'] ?? null] : (is_array($body['ops'] ?? null) ? $body['ops'] : [null]) as $x) if (!($ops[] = mp_fog_op($x))) return [400, ['error' => "That isn't a fog change."], []];
         if ($op === 'fog') $ops = !empty($ops[0]['all']) ? ($ops[0]['on'] ? $ops : []) : [...$m['fog']['ops'], $ops[0]];
