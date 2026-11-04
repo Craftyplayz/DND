@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const BASE = ['classes', 'subclasses', 'races', 'subraces', 'backgrounds', 'feats', 'languages'];
     let D = await hbContent(rules(), BASE);
     if (!D) { stepBox.innerHTML = '<h2>Couldn\x27t load the rules</h2><p>The builder needs a connection once to load the classes, races and backgrounds. Check your connection and reload the page.</p>'; return; }
+    const hbAdd = () => Homebrew.addTo(D, rules(), ch.hbc ||= {});
+    hbAdd();
     let ICONS = {};
     const versions = await hbContent.versions();
     await Promise.all([rules() === '2014' ? hbSpellNames(D) : null, hbIcons().then((x) => { ICONS = x; })]);
@@ -73,14 +75,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ---- save: rebuild the character from the picks and keep it like any character ----
     let lastSaved = 0;
     const cloudLater = debounce(() => { const c = load().chars[id]; if (c) { post('backup.php', c).catch(() => { }); if (cloud) post('cloud.php', c).catch(() => { }); } }, 1500);
+    // homebrew this character picked is copied into its picks at once (ch.hbc, id -> entry), so the source being edited or taken away changes nothing
+    function hbKeep() {
+        const kept = (ch.hbc ||= {}), add = (x) => { if (x && !kept[x.id]) kept[x.id] = x; };
+        for (const [, i] of JSON.stringify([ch.classes, ch.entry]).matchAll(/"hb-([a-z0-9]{6,40})"/g)) add((D.spells?.['hb-' + i] || D.feats?.['hb-' + i])?.hbx);
+        for (const n of ch.equip?.extra || []) add(D.hbItem?.(n));
+    }
     function built() {
+        hbKeep();
         const db = load(), prev = db.chars[id] || {};
         const c = B.build(ch, D, M);
         Object.assign(c, { id, draft: 1, updated: Date.now(), rolls: rolls.slice(0, 100), art: prev.art || '', artUrl: prev.artUrl || '' });
         return { db, c };
     }
     function save() {
-        if (UP) { try { sessionStorage.setItem('hb-up-' + UP, JSON.stringify(ch)); } catch (e) { } return; }
+        if (UP) { hbKeep(); try { sessionStorage.setItem('hb-up-' + UP, JSON.stringify(ch)); } catch (e) { } return; }
         if (!id) { id = uid(); history.replaceState(null, '', '/characters/build?id=' + id + location.hash); }
         const { db, c } = built();
         db.chars[id] = c;
@@ -341,7 +350,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return `<div class="bd-asi"><span class="lv">Level ${l}</span>${sel(p + '.k', [['', 'Choose...'], ['+2', '+2 to one score'], ['+1', '+1 to two scores'], ...(feats2.length ? [['feat', 'A feat']] : [])], `Level ${l} improvement`, a.k || '')}
                     ${a.k === '+2' ? sel(p + '.a.0', [['', 'Ability...'], ...abs], 'Ability', a.a?.[0] || '') : ''}
                     ${a.k === '+1' ? sel(p + '.a.0', [['', 'Ability...'], ...abs], 'First ability', a.a?.[0] || '') + sel(p + '.a.1', [['', 'Ability...'], ...abs], 'Second ability', a.a?.[1] || '') : ''}
-                    ${a.k === 'feat' ? sel(p + '.feat', [['', 'Feat...'], ...feats2.map((f) => [f.id, f.name])], 'Feat', a.feat || '') : ''}</div>`;
+                    ${a.k === 'feat' ? sel(p + '.feat', [['', 'Feat...'], ...feats2.map((f) => [f.id, f.name + (f.hbx ? Homebrew.SUFFIX : '')])], 'Feat', a.feat || '') : ''}</div>`;
             }).join('')}<p class="hint">Scores can't go over 20 this way.</p>${asiL.filter((l) => e.asi?.[l]?.k === 'feat' && D.feats[e.asi[l].feat]).map((l) => { const f = D.feats[e.asi[l].feat];
                 return `<div class="bd-featdesc"><h4>Level ${l}: ${nm(f.name, 'feat:' + f.name, () => featInfo(f))}</h4>${(featInfo(f).meta || []).map((m) => `<p class="hint">${esc(m)}</p>`).join('')}${desc(f.desc) || NODESC}</div>`; }).join('')}</div>`);
         }
@@ -369,7 +378,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const row = (s) => {
             const d = det(s);
             return `<div class="bd-sprow"><input type="checkbox" data-pick="${P}.spells" data-n="999" value="${esc(s.index)}" aria-label="${esc(s.name)}"${picked.includes(s.index) ? ' checked' : ''}>${nm(s.name, 'spell:' + s.index, () => spellInfo(D.spells[s.index], s.name), pkOf(s.index))}
-                <span class="bd-rm"><span class="bd-sm">${esc(d.school || '')}</span><span class="bd-sm">${esc(d.casting_time || '')}</span><span class="bd-tags">${d.ritual ? '<span class="badge">Ritual</span>' : ''}${d.concentration ? '<span class="badge">Conc.</span>' : ''}</span></span></div>`;
+                <span class="bd-rm"><span class="bd-sm">${esc(d.school || '')}</span><span class="bd-sm">${esc(d.casting_time || '')}</span><span class="bd-tags">${d.hbx ? '<span class="badge p">Homebrew</span>' : ''}${d.ritual ? '<span class="badge">Ritual</span>' : ''}${d.concentration ? '<span class="badge">Conc.</span>' : ''}</span></span></div>`;
         };
         const lvls = [...new Set(pool.map((s) => s.level))].sort((a, b) => a - b);
         const fold = (l) => {
@@ -569,7 +578,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const gold = `<p><button type="button" class="btn" data-act="goldroll">Roll ${gd ? `${gd[0]}d4${gd[1] > 1 ? ' × ' + gd[1] : ''}` : 'starting gold'}</button>
             <label class="bd-inl">Gold pieces <input class="field" type="number" min="0" data-b="equip.gold" data-num value="${esc(ch.equip.gold || 0)}" aria-label="Starting gold"></label></p>
             <p class="hint">Gold instead of the class and background equipment. Buy gear on the sheet's Inventory.</p>`;
-        const names = [...new Set([...M.GEAR.map((g) => g[0]), ...Object.values(D.equipment || {}).map((e) => e.name).filter(Boolean)])].sort();
+        const names = [...new Set([...M.GEAR.map((g) => g[0]), ...Object.values(D.equipment || {}).map((e) => e.name).filter(Boolean), ...Homebrew.of(['item', 'magic']).map((x) => x.name + Homebrew.SUFFIX)])].sort();
         return `<h2>Equipment</h2><p class="hint">Packs are unpacked into single items. Weapons become actions and armour sets your armour class.</p>
             ${gd ? `<div class="seg" role="radiogroup" aria-label="Equipment or gold"><label><input type="radio" name="eqmode" data-b="equip.mode" data-redraw value="gear"${ch.equip.mode !== 'gold' ? ' checked' : ''}><span>Starting equipment</span></label><label><input type="radio" name="eqmode" data-b="equip.mode" data-redraw value="gold"${ch.equip.mode === 'gold' ? ' checked' : ''}><span>Gold instead</span></label></div>` : ''}
             ${ch.equip.mode === 'gold' ? gold : gear}
@@ -707,7 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ch.rules = v;
             // the other rules version's classes, race and background aren't in these lists: they're cleared, with a note
             return void hbContent(v, BASE).then(async (d) => {
-                if (d) { D = d; if (v === '2014') await hbSpellNames(D); }
+                if (d) { D = d; hbAdd(); if (v === '2014') await hbSpellNames(D); }
                 const had = ch.classes.length + !!ch.race + !!ch.bg;
                 ch.classes = ch.classes.filter((e) => D.classes[e.id]?.rules === v);
                 if (D.races[ch.race]?.rules !== v) Object.assign(ch, { race: '', sub: '', raceOpts: {} });
@@ -907,4 +916,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (step === 'background') view.bg = ch.bg ? 'detail' : 'list';
     if (matchMedia('(max-width: 760px)').matches) $('#bd-stepsdet').open = false; // on a phone the steps fold under one line
     render();
+    // the account's and the campaigns' homebrew, when they differ from this browser's
+    const hbSig = () => JSON.stringify(Homebrew.all().map((x) => [x.id, x.updated]));
+    { const was = hbSig(); Homebrew.ready().then(() => { if (hbSig() !== was) { hbAdd(); render(); } }); }
 });

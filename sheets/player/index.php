@@ -52,6 +52,7 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
     <script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/handouts.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/sheet.js')) ?>" defer></script>
 </body>
 

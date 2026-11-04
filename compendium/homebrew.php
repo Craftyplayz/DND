@@ -1,6 +1,6 @@
 <?php
 // A player's homebrew in their account (includes/homebrew.php).
-//   GET                              -> {"mine": [...], "shared": [...], "shares": {id: [campaign ids]}, "camps": [{id, name, dm}]}
+//   GET                              -> {"acct": "...", "mine": [...], "shared": [...], "shares": {id: [campaign ids]}, "camps": [{id, name, dm}]}
 //   POST an entry                    -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"})
 //   POST ?act=share {id, c, on}      -> the owner shares their entry with a campaign they're in, or takes it back
 //   POST ?act=remove {c, ref}        -> the DM or a co-DM takes an entry out of their campaign

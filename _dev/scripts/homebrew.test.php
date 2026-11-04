@@ -21,7 +21,14 @@ foreach ([['id' => '../../evil'], ['id' => 'AB'], ['kind' => 'nope'], ['name' =>
     is('refused ' . json_encode($wrong), hb_save($dir, '1', $wrong + $rule('rule02', 1))[0], 400);
 }
 is('refused a non-entry', hb_save($dir, '1', 'text')[0], 400);
-is('nothing stray written', array_map('basename', glob("$dir/homebrew/1/*")), ['rule01.json']);
+is('nothing stray written', array_map('basename', glob("$dir/homebrew/1/*.json")), ['rule01.json']);
+
+// every version a save replaces is kept, and an entry only ever goes to its own account
+is('the replaced version is kept', json_decode(file_get_contents("$dir/homebrew/1/history/rule01/100.json"), true)['name'], 'Crits');
+is('marked with its account', hb_get($dir, '1', 'rule01')['acct'], hb_acct('1'));
+is("another account's entry is refused", hb_save($dir, '2', ['acct' => hb_acct('1')] + $rule('rule09', 1)), [403, ['error' => 'That entry belongs to another account.']]);
+is('and not written', file_exists("$dir/homebrew/2/rule09.json"), false);
+is('its own account may save it', hb_save($dir, '1', ['acct' => hb_acct('1')] + $rule('rule01', 300, 'New'))[0], 200);
 
 // a campaign: DM 1, co-DM 2, player 3; 4 isn't in it
 $cid = 'abcdefabcdef';

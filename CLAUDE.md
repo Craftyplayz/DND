@@ -61,7 +61,9 @@ do). Signed out, everything keeps working from the browser alone.
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
     Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`), encounter rules
     (`encounter-rules`), the Compendium's last encounter (`compendium-enc`)
-  - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js)
+  - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js); the versions a
+    save replaced are in `accounts/homebrew/<sub>/history/<id>/`. `homebrew-shared` and `homebrew-me` in the browser are only a read-only copy of what the
+    account says. A row on a sheet that came from homebrew is the sheet's own copy, with its source in `hbsrc`
 - Not synced, by the user's choice: dice fairness test tallies (`dice-test-counts`). Not synced because it only copies
   what the account holds: the last party seen of each campaign (`mon-party-seen`, for offline prep).
 - How to add more: a list of things a player builds up (characters, monsters) gets per-item sync like the

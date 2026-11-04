@@ -21,7 +21,7 @@ const CAMP = 'abcabcabcabc';
 let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 const until = async (fn, ok, ms = 10000) => { const t = Date.now(); let v; while (Date.now() - t < ms) { v = await fn(); if (ok(v)) return v; await sleep(150); } return v; };
-const web = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { stdio: 'ignore', env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS } });
+const web = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { stdio: 'ignore', env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS, DND_BACKUPS: join(TMP, 'backups'), DND_MONSTER_BACKUPS: join(TMP, 'monster-backups') } });
 await serving(BASE + '/privacy/');
 
 const J = JSON.stringify;
@@ -160,6 +160,8 @@ try {
             await clickRow(d, 'Pat rule');
             await until(() => visible(d, '[data-hb-remove]'), Boolean);
             await click(d, '[data-hb-remove]');
+            is(`${name} the DM is asked first`, await until(() => d.ev(`document.querySelector('#cp-hbask').open`), Boolean), true);
+            await click(d, '#cp-hbask-yes');
             is(`${name} DM removes it`, (await until(() => names(d), (l) => !l.includes('Pat rule'))).includes('Pat rule'), false);
             errs(d, name, 'DM');
         } finally { d.close(); }
