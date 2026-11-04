@@ -646,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function refresh() {
         const V = vars();
-        for (const el of document.querySelectorAll('.hb [data-c]')) {
+        for (const el of document.querySelectorAll('.hb [data-c]:not([data-act^="camp"])')) { // the campaign notice's buttons use data-c for a campaign id
             const r = value(el.dataset.c, V);
             if ('html' in r) el.innerHTML = r.html; else el.textContent = show(r);
             el.classList.toggle('hb-bad', !!r.err);
