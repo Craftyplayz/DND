@@ -4,7 +4,7 @@
 // hand-edit warning), the source being archived and taken out of the campaign, a reload through normalise(), and sign-in on another device. Also the name
 // suggestions on both sheets, the builder, every version kept on the server, and a shared computer (entries never go to another account).
 //   node _dev/scripts/homebrew-copies.mjs        (needs includes/config.php for sign-in)
-// Starts its own server (port 8131 + CHECK_PORT_SHIFT) with stand-in account and session folders in the temp folder, so it never touches
+// Starts its own server (port 8137 + CHECK_PORT_SHIFT) with stand-in account and session folders in the temp folder, so it never touches
 // private/dnd/accounts or private/sessions. Backups and settings sync are blocked.
 import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { launch, browsers, serving } from './browser.mjs';
 
-const ROOT = join(import.meta.dirname, '../..'), PORT = 8131 + (+process.env.CHECK_PORT_SHIFT || 0), BASE = `http://localhost:${PORT}`;
+const ROOT = join(import.meta.dirname, '../..'), PORT = 8137 + (+process.env.CHECK_PORT_SHIFT || 0), BASE = `http://localhost:${PORT}`;
 const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' : 'php');
 const TMP = join(tmpdir(), 'dnd-hbcopies-check' + (process.env.CHECK_PORT_SHIFT || '')), ACCOUNTS = join(TMP, 'accounts'), SESSIONS = join(TMP, 'sessions');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -22,7 +22,7 @@ const DM = 'hbcopiesdm0000000000000000000000000', PLAYER = 'hbcopiesplayer000000
 let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } };
 const until = async (fn, ok = Boolean, ms = 12000) => { const t = Date.now(); let v; while (Date.now() - t < ms) { v = await fn(); if (ok(v)) return v; await sleep(150); } return v; };
-const web = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { stdio: 'ignore', env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS } });
+const web = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/router.php')], { stdio: 'ignore', env: { ...process.env, DND_ACCOUNTS: ACCOUNTS, DND_SESSIONS: SESSIONS, DND_BACKUPS: join(TMP, 'backups'), DND_MONSTER_BACKUPS: join(TMP, 'monster-backups') } });
 await serving(BASE + '/privacy/');
 
 const J = JSON.stringify;
@@ -39,8 +39,8 @@ const signIn = async (b, cookie, path, keep) => {
 const search = (b, n) => b.ev(`(() => { const q = document.querySelector('#cp-q'); q.value = ${J(n)}; q.dispatchEvent(new Event('input', { bubbles: true })); })()`);
 const openRow = async (b, n) => {
     await search(b, n);
-    await until(() => b.ev(`[...document.querySelectorAll('#cp-list .cp-row')].some((r) => r.querySelector('.cp-name').textContent === ${J(n)})`));
-    await b.ev(`[...document.querySelectorAll('#cp-list .cp-row')].find((r) => r.querySelector('.cp-name').textContent === ${J(n)}).click()`);
+    // found and clicked in one step: the list redraws when the account answers
+    await until(() => b.ev(`(() => { const r = [...document.querySelectorAll('#cp-list .cp-row')].find((x) => x.querySelector('.cp-name').textContent === ${J(n)}); if (r) r.click(); return !!r; })()`));
     await until(() => b.ev(`document.querySelector('#cp-dbody h2')?.textContent === ${J(n)}`));
 };
 // fills the open form by field name; dmg is a list of [dice, type] rows
