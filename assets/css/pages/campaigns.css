@@ -10,7 +10,7 @@
 .cp-sech .btn { margin-left: auto; }
 #cp-party { margin-bottom: 28px; }
 .cp-dot { flex: none; align-self: flex-start; width: 10px; height: 10px; margin-left: auto; background: var(--ok-line); border-radius: 50%; }
-.cp-owner { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-owner { overflow-wrap: anywhere; }
 .cp-nomap { margin: 0 0 28px; }
 .cp-pinlist { margin: 0; padding: 0 0 0 20px; }
 #cp-pins { margin-bottom: 16px; }

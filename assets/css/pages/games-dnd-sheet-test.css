@@ -7,7 +7,7 @@
 @media (max-width: 760px) { .dt-panels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .dt-panel { display: grid; gap: 6px; margin: 0; min-width: 0; }
 .dt-panel iframe { width: 100%; height: clamp(180px, calc(50svh - 130px), 420px); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--sunken); }
-.dt-panel figcaption { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-panel figcaption { font-size: 13px; }
 .dt-chart { position: relative; display: grid; grid-template-columns: repeat(var(--faces, 20), minmax(0, 1fr)); align-items: end; gap: 2px; height: 220px; padding: 0 0 20px; }
 .dt-col { position: relative; display: flex; align-items: flex-end; height: 100%; min-width: 0; }
 .dt-col i { display: block; width: 100%; min-height: 1px; background: linear-gradient(var(--accent), var(--btn)); border-radius: 4px 4px 0 0; }
@@ -22,5 +22,5 @@
 .dt-amount { width: 7em; }
 .dt-panel figcaption { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .dt-panel figcaption .field { flex: 0 0 auto; width: auto; padding: 4px 8px; font-size: 13px; }
-.dt-panel figcaption span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-panel figcaption span { min-width: 0; overflow-wrap: anywhere; }
 .dt-results .stabs { margin-bottom: 12px; flex-wrap: wrap; }

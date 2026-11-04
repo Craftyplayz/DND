@@ -65,10 +65,10 @@ dialog.dlg.cp-hbw h2 { margin: 0; }
 .cp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; width: 100%; padding: 8px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: var(--radius); transition: border-color var(--fast), background var(--fast); }
 .cp-row:hover { border-color: var(--accent); }
 .cp-row.on { background: var(--accent-soft); border-color: var(--btn-line); }
-.cp-name { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.cp-name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .cp-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
-.cp-tags .badge { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cp-sub { grid-column: 1 / -1; overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.cp-tags .badge { max-width: 160px; overflow-wrap: anywhere; }
+.cp-sub { grid-column: 1 / -1; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .cp-sk { height: 52px; background: var(--card2); border-radius: var(--radius); }
 .cp-gold { background: var(--gold-bg); border-color: var(--gold-line); }
 

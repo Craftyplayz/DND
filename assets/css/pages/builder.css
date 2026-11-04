@@ -91,7 +91,7 @@
 .bd-sprow { display: grid; grid-template-columns: 18px minmax(0, 1fr) 100px 92px 120px; align-items: center; gap: 4px 10px; padding: 5px 6px; border-top: 1px solid var(--line); font-size: 14px; }
 .bd-sprow input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 .bd-rm { display: contents; }
-.bd-sm { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-sm { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
 .bd-tags { display: flex; gap: 4px; justify-content: flex-end; min-width: 0; }
 .bd-tags .badge { padding: 0 7px; font-size: 11.5px; white-space: nowrap; }
 .bd-splist > .btn { margin-top: 6px; justify-self: start; }
@@ -187,4 +187,10 @@
     .bd-ab { grid-template-columns: 44px minmax(0, 1fr); }
     .bd-ab .ctl { grid-column: 1 / -1; justify-self: stretch; }
     .bd-ab .ctl select, .bd-ab .ctl input { width: 100%; }
+}
+
+/* phones: 44 px tap targets (2.2) */
+@media (max-width: 700px) {
+    .bd-lvl span { padding: 12px 0; }
+    .bd .seg span { padding: 12px 14px; }
 }

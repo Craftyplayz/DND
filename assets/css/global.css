@@ -88,6 +88,7 @@ body {
 .site-header .sh-logo:hover img { transform: scale(1.06); scale: none; }
 
 .sh-nav { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.sh-nav { -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fl, 0px), #000 calc(100% - var(--fr, 0px)), transparent); mask-image: linear-gradient(to right, transparent, #000 var(--fl, 0px), #000 calc(100% - var(--fr, 0px)), transparent); }
 .site-header .sh-list { display: flex; align-items: stretch; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .sh-item { display: flex; align-items: stretch; }
 .site-header .sh-top {
@@ -129,7 +130,7 @@ body {
 .page > .crumbs { margin-bottom: 14px; }
 .page-title { margin: 0 0 4px; font-size: clamp(24px, 4vw, 34px); line-height: 1.2; }
 .page-lede { margin: 0 0 20px; color: var(--muted); }
-.page a { color: var(--link); text-decoration: none; }
+.page a { color: var(--link); text-decoration: none; overflow-wrap: break-word; }
 .page a:hover { text-decoration: underline; }
 /* keep the footer at the bottom of short pages */
 body:has(> main.page) { display: flex; flex-direction: column; min-height: 100vh; margin: 0; }
@@ -150,4 +151,12 @@ body:has(> main.page) { display: flex; flex-direction: column; min-height: 100vh
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
+}
+
+/* ---------- phones: 44 px tap targets for the header, breadcrumbs and footer (the pages' own controls are in components.css) ---------- */
+@media (max-width: 700px) {
+    .auth button { min-height: 44px; }
+    /* inline padding adds tap area without making the line taller */
+    .crumbs a { padding: 14px 4px; }
+    .site-footer .sf-links a { display: inline-flex; align-items: center; min-height: 44px; }
 }
