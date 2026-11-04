@@ -33,6 +33,21 @@ $is('read back', enc_read($A, '111'), [$e('a', 5, 'Cave'), $e('b', 3, 'Bridge')]
 $is('in its own folder', [is_file("$A/monster-encounters/111.json"), is_dir("$A/monsters")], [true, false]);
 $is('each account its own', enc_read($A, '222'), []);
 
+// the party (ROADMAP 3.2): kept on the encounter in the saved shape, only where there is one; Unsorted's sits beside the list, newer wins
+$party = ['camp' => 'aaaaaaaaaaaa', 'off' => ['char1'], 'levels' => '5, 4', 'at' => 7.0, 'gone' => 0.0];
+$is('party kept', enc_clean([['id' => 'p', 'updated' => 1, 'party' => $party + ['extra' => 1]]])[0]['party'], $party);
+$is('party cleaned', enc_party_clean(['camp' => '../x', 'off' => ['ok', '../no', 3], 'levels' => ['x'], 'at' => 'soon']), ['camp' => '', 'off' => ['ok'], 'levels' => '', 'at' => 0.0, 'gone' => 0.0]);
+$is('no party: the older shape', array_key_exists('party', enc_clean([['id' => 'p', 'updated' => 1, 'party' => 'nope']])[0]), false);
+$is('newer copy brings its party', enc_save($A, '333', ['encs' => [$e('a', 1), ]])[0], 200);
+$is('party saved with the encounter', enc_save($A, '333', ['encs' => [$e('a', 2, 'Cave', ['party' => $party])]])[1]['encs'][0]['party'], $party);
+$is('an older copy without one keeps it', enc_save($A, '333', ['encs' => [$e('a', 1)]])[1]['encs'][0]['party'], $party);
+$is('no Unsorted party yet: not in the answer', array_key_exists('unsorted', enc_body($A, '333')), false);
+$is('Unsorted party saved', enc_save($A, '333', ['encs' => [], 'unsorted' => ['party' => $party, 'updated' => 5]])[1]['unsorted'], ['party' => $party, 'updated' => 5.0]);
+$is('an older Unsorted party loses', enc_save($A, '333', ['encs' => [], 'unsorted' => ['party' => ['levels' => 'old'], 'updated' => 4]])[1]['unsorted']['party'], $party);
+$is('a list alone leaves it', enc_save($A, '333', ['encs' => []])[1]['unsorted']['updated'], 5.0);
+$is('a newer Unsorted party wins', enc_save($A, '333', ['encs' => [], 'unsorted' => ['party' => ['levels' => 'new'], 'updated' => 6]])[1]['unsorted']['party']['levels'], 'new');
+$is('encounters survive it all', count(enc_read($A, '333')), 1);
+
 // the endpoints, on a local server with stand-in accounts, sessions and backups
 $cfg = __DIR__ . '/../../includes/config.php';
 if (!is_file($cfg)) echo "skipped the endpoint checks: no includes/config.php for sign-in\n";
@@ -55,6 +70,23 @@ else {
         return [(int)($m[1] ?? 0), json_decode((string)$out, true)];
     };
     for ($t = 0; $t < 50 && $req('GET', '/sheets/monster/encounters.php', null, false)[0] === 0; $t++) usleep(100000);
+    // the party read (ROADMAP 3.2): the DM and co-DMs only; 404 says "gone" so the sheet can tell it from being offline
+    $write = function ($f, $x) use ($T) { @mkdir(dirname("$T/accounts/$f"), 0777, true); file_put_contents("$T/accounts/$f", json_encode($x)); };
+    foreach (['charaaaaaaa1' => [['level' => 2], ['level' => 3]], 'charaaaaaaa2' => [], 'charaaaaaaa3' => [['level' => 7]], 'charaaaaaaa4' => [['level' => 9]]] as $cid => $cl) {
+        $write("characters/$cid/character.json", ['id' => $cid, 'name' => $cid === 'charaaaaaaa2' ? '' : "N$cid", 'classes' => $cl] + ($cid === 'charaaaaaaa3' ? ['draft' => 1] : []));
+        $write("characters/$cid/meta.json", ['owner' => '222', 'created' => 1] + ($cid === 'charaaaaaaa4' ? ['archived' => 9] : []));
+    }
+    $link = fn($ids) => array_map(fn($i) => ['sheet' => 'player', 'id' => $i], $ids);
+    $write('campaigns/aaaaaaaaaaaa/campaign.json', ['id' => 'aaaaaaaaaaaa', 'name' => 'Mine', 'dm' => '111', 'members' => [['sub' => '111', 'characters' => []], ['sub' => '222', 'characters' => $link(['charaaaaaaa1', 'charaaaaaaa2', 'charaaaaaaa3', 'charaaaaaaa4', 'missingchar1'])]]]);
+    $write('campaigns/bbbbbbbbbbbb/campaign.json', ['id' => 'bbbbbbbbbbbb', 'name' => 'Theirs', 'dm' => '222', 'members' => [['sub' => '222', 'characters' => []], ['sub' => '111', 'characters' => []]]]);
+    $write('campaigns/cccccccccccc/campaign.json', ['id' => 'cccccccccccc', 'name' => 'Co-run', 'dm' => '222', 'codms' => ['111'], 'members' => [['sub' => '222', 'characters' => []], ['sub' => '111', 'characters' => []]]]);
+    $is('party: signed out', $req('GET', '/sheets/monster/party.php?c=aaaaaaaaaaaa', null, false)[0], 401);
+    $is('party: the DM gets total levels, the draft marked, no archived or missing ones', $req('GET', '/sheets/monster/party.php?c=aaaaaaaaaaaa'), [200, ['name' => 'Mine', 'chars' => [
+        ['id' => 'charaaaaaaa1', 'name' => 'Ncharaaaaaaa1', 'level' => 5, 'draft' => false], ['id' => 'charaaaaaaa2', 'name' => 'Unnamed character', 'level' => 0, 'draft' => false], ['id' => 'charaaaaaaa3', 'name' => 'Ncharaaaaaaa3', 'level' => 7, 'draft' => true]]]]);
+    $is('party: a player is turned away, as gone', $req('GET', '/sheets/monster/party.php?c=bbbbbbbbbbbb'), [404, ['error' => 'No such campaign.', 'gone' => true]]);
+    $is('party: a co-DM may read', $req('GET', '/sheets/monster/party.php?c=cccccccccccc')[0], 200);
+    $is('party: no such campaign', $req('GET', '/sheets/monster/party.php?c=dddddddddddd')[1]['gone'] ?? false, true);
+    $is('party: bad id', $req('GET', '/sheets/monster/party.php?c=../x')[0], 404);
     $is('signed out: 401', $req('GET', '/sheets/monster/encounters.php', null, false)[0], 401);
     $is('signed out: no save', $req('POST', '/sheets/monster/encounters.php', '{"encs":[]}', false)[0], 401);
     $is('empty list at first', $req('GET', '/sheets/monster/encounters.php'), [200, ['encs' => []]]);
