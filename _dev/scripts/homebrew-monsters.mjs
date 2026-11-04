@@ -56,7 +56,8 @@ const edit = async (b, fn) => {
 const dlgText = (b) => b.ev(`document.querySelector('dialog[open]')?.textContent || ''`);
 const saveDialog = async (b) => { await click(b, '[data-act=hbsave]'); await until(() => b.ev(`!!document.querySelector('#hbm-name')`)); };
 // what a request for a player's homebrew really gets, whatever the page does with it
-const answer = (b) => b.ev(`fetch('/compendium/homebrew.php').then((r) => r.text())`);
+// (again if the page reloads under it: settings sync reloads a page once when it pulls something new)
+const answer = (b) => until(() => b.ev(`fetch('/compendium/homebrew.php').then((r) => r.text()).catch(() => '')`).catch(() => ''));
 
 try {
     for (const name of browsers) {
