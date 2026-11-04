@@ -134,7 +134,7 @@ newer, and 401 when signed out.
 - Search: `monsters.json` index (SRD + Open5e). `monsters.php` proxies dnd5eapi.co and api.open5e.com,
   strips lore and images, caches 30 days, and serves the stale copy if a refresh fails. Credits are in `ogl.txt`.
 - HP, conditions, rests, an initiative roll button (no turn order), dice tray and roll log. Legendary actions
-  are imported as plain action rows, with no counters. There's no XP or difficulty.
+  are imported as plain action rows, with no counters. Each encounter shows its XP and difficulty (3.2).
 - Saving: localStorage `monster-sheet`, the Google account (`sheets/monster/cloud.php` →
   `accounts/monsters/<sub>/`, newest `updated` wins) and server backups (`monster-backups/`).
 
@@ -779,6 +779,30 @@ change already lands in `sheets/player/`. The test copy is archived and must not
   XP per creature comes from CR (SRD table). The compendium search (5.1) adds monsters straight in.
 - Size: 1.5 days. Done: unit tests for the thresholds and multiplier against the SRD tables. A 4 × level-3 party
   vs 4 goblins reads the same as working it out by hand.
+- Built (2026-11-04), owner's answers (they replace the text above where different): both rule sets, with a switch in the
+  party dialog (`encounter-rules`, default 2014, one for the whole sheet, follows the account). 2014: Easy/Medium/Hard/Deadly and
+  the multiplier, one step up for a party under 3, one down for 6 or more. 2024: Low/Moderate/High per character, no multiplier,
+  "Above High" past the top. Under the lowest band reads "Trivial", marked as this site's word. Sources: XP by CR, thresholds and
+  multipliers from the free Basic Rules (2014), numbers only; 2024 budgets from SRD 5.2.1 page 202 (CC BY 4.0, credited on the sheet).
+  CR 0 counts 10 XP; a CR that can't be read counts 0 XP and one creature, and is named; a leading number is read ("15 (lair)").
+  Archived monsters and unnamed new blanks are out, Down ones count, every monster counts (no "much weaker" rule). XP always comes
+  from the CR, nothing is saved on a monster, and working it out never stamps anything.
+  The card sits under the encounter picker in the sidebar, on every encounter, Unsorted and archived ones too; on phones one line
+  in the bar (`.mon-diffbar`, a small separate element) opens it in a dialog. Each encounter has its own party, a new one starting from
+  the last used (one that has never had a party shows the last used until edited, or the campaign the rolls go to): pick a campaign you
+  DM or co-DM, tick characters out and add typed extra levels, or just type ("5, 5, 4" or "4x5"). Campaign levels are always current:
+  read on opening, on the campaign's live update and with Refresh (level-ups send no live message), by `sheets/monster/party.php`,
+  DM and co-DMs only. Drafts aren't counted (a note says so), no class level counts as 1, above 20 as 20. Offline shows the last levels seen
+  (browser only, `mon-party-seen`, marked "Last checked"); a deleted campaign or a lost DM role turns them into typed levels with a note.
+  Saved as `party` {camp, off, levels, at, gone} on the encounter in `encs` (only once it has one; merged with the encounter, newer
+  wins), Unsorted's as `unsorted` beside the list, in the store, the account and the backups. An older image would drop saved
+  parties on its next account save (owner accepted); monsters and encounters are safe.
+  "Add monsters" on the card opens the search with a number box, CR and rules filters and the running difficulty; it stays open, fills the
+  shown encounter and leaves the open monster open. Only that button adds to the encounter: New, Duplicate, Import file and Import monster stay in
+  Unsorted. The Compendium's "Add to encounter" has an encounter picker (this browser's list, the last pick in `compendium-enc`, following
+  the account). `addMonsters(key, n, enc, open)` and `monHits()` in `monster.js` are the one way in and the search list, for homebrew monsters to reuse.
+  Numbering a monster to "<name> 1" now stamps it, so the new name reaches the account. Files: `sheets/monster/difficulty.js` (tables and
+  sums). Checks: `encounter-difficulty.test.js`, `encounter-builder.mjs`, `monster-encounters.test.php`.
 
 **3.3 DM combat tracker**
 - What: extends the initiative tracker (1.4) for the DM: legendary action and legendary resistance counters
@@ -994,7 +1018,7 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 | Merging Quick Rolls into Dice Sets | The owner keeps both pages as they are. |
 | Dice fairness tallies in the account (0.2) | The owner's choice: `dice-test-counts` stays in the browser only. |
 | Any count or size limits | The owner wants no limits anywhere; only the proxy's request size is handled, by chunking. |
-| Copying official non-SRD classes, subclasses, races, monsters or spell text | Copyright. Only SRD 5.1 / CC content, plus homebrew. |
+| Copying official non-SRD classes, subclasses, races, monsters or spell text | Copyright. Only SRD 5.1 / CC content, plus homebrew. One exception by the owner's choice (3.2): the 2014 XP thresholds and encounter multipliers aren't in SRD 5.1 as far as we know, so the Monster Sheet uses those numbers from the free Basic Rules, with no book text copied. |
 | Removing the 205 extra spells | The owner keeps them and wants them shown everywhere. Their stats are kept; the compendium and sheet show their text fetched live from wikidot, never stored. No non-SRD text is copied into the site's files, and no more is added. |
 | Guests (signed-out) in campaigns | Membership, logs and the DM view hang off the Google account. |
 | Strict rules builder that blocks choices | The owner wants "guided, then free": warnings only. |

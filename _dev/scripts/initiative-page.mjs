@@ -94,7 +94,7 @@ try {
     is('Monster Sheet: a link to run the fight on the map', (await until(dm, text('#mon-fight'), (t) => t.includes('Run it on the map'))).includes('Run it on the map'), true);
     is('sidebar: add buttons while a fight runs', await until(dm, `!!document.querySelector('[data-act=fightadd][data-id=gob]') && !!document.querySelector('[data-act=fightadd][data-id=ogre]')`, Boolean), true);
     await click(dm, '#mon-side [data-act=fightadd][data-id=gob]'); await until(dm, `!document.querySelector('[data-act=fightadd][data-id=gob]')`, Boolean); await click(dm, '#mon-side [data-act=fightadd][data-id=ogre]');
-    is('both monsters added', await until(dm, `document.querySelectorAll('#mon-side .badge').length`, (v) => v >= 2).then(async () => JSON.parse(await fight(SID.dm)).fight.entries.length), 5);
+    is('both monsters added', await until(dm, `document.querySelectorAll('#mon-side .mon-list .badge').length`, (v) => v >= 2).then(async () => JSON.parse(await fight(SID.dm)).fight.entries.length), 5);
     await go(dm, MAP);
     is('map page: all five in the order', await until(dm, `document.querySelectorAll('[data-mp=fight] .fi-e').length`, (v) => v === 5), 5);
     const dv = JSON.parse(await fight(SID.dm)).fight;

@@ -482,8 +482,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const STAR = (on) => `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1.5l1.9 4.1 4.5.5-3.3 3.1.9 4.4L8 11.3 3.99 13.6l.9-4.4L1.6 6.1l4.5-.5z" fill="${on ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
     let qty = 1;
+    // the Monster Sheet's encounters as this browser holds them, with the last one picked (compendium-enc follows the account)
+    function encOptions() {
+        let list = [];
+        try { const l = JSON.parse(localStorage.getItem('monster-sheet'))?.encs; if (Array.isArray(l)) list = l.filter((x) => x && typeof x.id === 'string' && !x.archived).sort((a, b) => a.order - b.order); } catch (x) { }
+        const last = store.get('compendium-enc', '');
+        return [['', 'Unsorted'], ...list.map((x) => [x.id, String(x.name || '').trim() || 'Unnamed encounter'])].map(([v, t]) => `<option value="${esc(v)}"${v === last ? ' selected' : ''}>${esc(t)}</option>`).join('');
+    }
     function actions(e) {
         if (e.t === 'monster') return `<div class="cp-add"><span class="cp-qty"><button type="button" class="btn small" data-qty="-1" aria-label="One fewer">&minus;</button><b id="cp-n">${qty}</b><button type="button" class="btn small" data-qty="1" aria-label="One more">+</button></span>
+            <label class="cp-enc">Encounter <select class="field" id="cp-enc">${encOptions()}</select></label>
             <button type="button" class="btn primary" data-add="enc">Add to encounter</button></div>`;
         return ['spell', 'item', 'magic', 'feat'].includes(e.t) ? '<div class="cp-add"><button type="button" class="btn primary" data-add="sheet">Add to sheet</button></div>' : '';
     }
@@ -666,8 +674,10 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#cp-dup-yes').onclick = () => { dlg('cp-dup').close(); go(); };
     }
     async function addToEncounter(e) {
-        try { await queue('mon-pending', { id: uid(), key: e.id, n: qty, name: e.name }); } catch (x) { return note("Couldn't save the request: this browser's storage is full or blocked.", 'err'); }
-        note(`${esc(e.name)}${qty > 1 ? ' ×' + qty : ''} will be on the Monster Sheet. <a href="/sheets/monster/">Open the Monster Sheet</a>`);
+        const pick = $('#cp-enc'), enc = pick?.value || '';
+        store.set('compendium-enc', enc);
+        try { await queue('mon-pending', { id: uid(), key: e.id, n: qty, name: e.name, enc }); } catch (x) { return note("Couldn't save the request: this browser's storage is full or blocked.", 'err'); }
+        note(`${esc(e.name)}${qty > 1 ? ' ×' + qty : ''} will be in ${esc(pick?.selectedOptions[0]?.textContent || 'Unsorted')} on the Monster Sheet. <a href="/sheets/monster/">Open the Monster Sheet</a>`);
     }
 
     // ---- keyboard ----

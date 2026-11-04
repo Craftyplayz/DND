@@ -18,8 +18,25 @@
 .mon-encrow .field { flex: 1 1 160px; min-width: 0; }
 .mon-encrow span { flex: 1 1 160px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mon-encarch .mon-item { width: 100%; }
+/* the encounter builder (ROADMAP 3.2): a card under the picker, on phones one line in the bar that opens it in a dialog */
+.mon-diff { display: grid; gap: 6px; margin-bottom: 12px; padding: 10px; background: var(--card2); border-radius: var(--radius); font-size: 14px; }
+.mon-diff small { color: var(--muted); font-size: 13px; }
+.mon-diff small b { color: var(--text); }
+.mon-diff .kv { margin: 0; }
+.mon-diffmsg, .mon-difftier { margin: 0; }
+.mon-diffhow, .mon-diffparty, .mon-diffnote { display: block; overflow-wrap: anywhere; }
+.mon-diffacts { display: flex; flex-wrap: wrap; gap: 6px; }
+.mon-diffbar { display: none; align-items: center; gap: 8px; min-height: 44px; padding: 8px 10px; background: var(--card2); border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+.mon-partyf { display: grid; gap: 4px; margin: 10px 0; }
+.mon-partylist { display: grid; gap: 6px; margin: 10px 0; }
+.mon-partylist label { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.mon-partyread { min-height: 1em; margin: 0; font-size: 13px; }
+/* the monster search: CR and rules filters, how many to add, and the running difficulty */
+.mon-findf { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.mon-findf label { display: grid; flex: 1 1 90px; gap: 4px; font-size: 13px; }
+.mon-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; }
 @media (min-width: 761px) { .mon .hb-pick, .mon .mon-encbar { display: none; } }
-@media (max-width: 760px) { .mon .mon-encbar { flex: 1 1 100%; } }
+@media (max-width: 760px) { .mon .mon-encbar, .mon .mon-diffbar { flex: 1 1 100%; } .mon .mon-diffbar { display: flex; } }
 @media (max-width: 760px) {
     .mon-wrap { grid-template-columns: minmax(0, 1fr); }
     .mon-side { display: none; }

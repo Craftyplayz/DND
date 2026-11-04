@@ -5,7 +5,7 @@
 //   POST {key, updated, value}  -> kept unless the saved one is newer (then 409 with {"updated"})
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
 require __DIR__ . '/includes/auth.php';
-const PF_KEYS = ['dice-choice', 'dice-sets-page', 'dice-sets-sound', 'dnd.rollMode', 'monster-table', 'monster-roll-vis', 'compendium-view', 'compendium-rules', 'compendium-favs', 'compendium-recent']; // the same list as sync.js
+const PF_KEYS = ['dice-choice', 'dice-sets-page', 'dice-sets-sound', 'dnd.rollMode', 'monster-table', 'monster-roll-vis', 'compendium-view', 'compendium-rules', 'compendium-favs', 'compendium-recent', 'compendium-enc', 'encounter-rules']; // the same list as sync.js
 const PF_MAX = 8 * 1024 * 1024; // only stops a broken client: the proxy turns away requests near 8 MB anyway
 
 function pf_out($code, $data)
@@ -19,7 +19,8 @@ function pf_out($code, $data)
 
 $user = auth_user();
 if (!$user) pf_out(401, ['error' => 'Sign in to save settings to your account.']);
-$dir = __DIR__ . '/private/dnd/accounts/prefs';
+// DND_ACCOUNTS: a stand-in folder for the local checks in _dev/scripts/, so they never touch real accounts
+$dir = (getenv('DND_ACCOUNTS') ?: __DIR__ . '/private/dnd/accounts') . '/prefs';
 $file = $dir . '/' . $user['sub'] . '.json';
 $read = function () use ($file) {
     $all = is_file($file) ? json_decode((string)file_get_contents($file), true) : null;

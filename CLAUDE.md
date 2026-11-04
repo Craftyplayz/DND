@@ -56,11 +56,14 @@ do). Signed out, everything keeps working from the browser alone.
   - player sheet characters (`hb-sheet`, a folder per character in `accounts/characters/<id>/`,
     sheets/player/cloud.php + includes/characters.php; open at /characters/<id>)
   - monster sheet monsters (`monster-sheet`, `accounts/monsters/<sub>/`) and their encounter list (`encs` in
-    `monster-sheet`, `accounts/monster-encounters/<sub>.json` through sheets/monster/encounters.php)
+    `monster-sheet`, `accounts/monster-encounters/<sub>.json` through sheets/monster/encounters.php), each with its party
+    (`party`, Unsorted's is `unsorted` beside the list)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
-    Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`)
+    Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`), encounter rules
+    (`encounter-rules`), the Compendium's last encounter (`compendium-enc`)
   - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js)
-- Not synced, by the user's choice: dice fairness test tallies (`dice-test-counts`).
+- Not synced, by the user's choice: dice fairness test tallies (`dice-test-counts`). Not synced because it only copies
+  what the account holds: the last party seen of each campaign (`mon-party-seen`, for offline prep).
 - How to add more: a list of things a player builds up (characters, monsters) gets per-item sync like the
   sheets (a cloud.php wrapper with its own `CL_ACCOUNTS` folder, `updated` stamped on edits only); a setting
   goes in the KEYS list of both sync.js and prefs.php. sync.js watches localStorage, so the page's own code

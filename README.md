@@ -8,7 +8,7 @@ Our D&D campaign tools, split out of craftyplayz.com:
   you go; `?up=<id>` is Level up (4.3). Rules in `sheets/player/build.js`, content through `sheets/player/content.js`
 - `/private/archive/characters/` the old D&D Beyond character viewer (cache still in `characters/cache/`)
 - `/sheets/player/` Homebrew character sheet with a character picker (saved in the browser under `hb-sheet`, backed up to `private/dnd/backups/`)
-- `/sheets/monster/` Monster sheet (backed up to `private/dnd/monster-backups/`)
+- `/sheets/monster/` Monster sheet, with each encounter's XP and difficulty for a campaign or typed party (backed up to `private/dnd/monster-backups/`)
 - `/compendium/` Compendium: spells, monsters, items, magic items, classes, races, backgrounds, feats and rules, 2014 and 2024 (from `sheets/player/content/`, built by `_dev/scripts/build-content.mjs`)
   - Your own house rules, saved to your account and shareable with a campaign (more kinds of homebrew are coming, ROADMAP 5.2)
   - Planned, not built yet: on any page whatsoever, the Compendium opens in a popup sidebar window for super fast referencing

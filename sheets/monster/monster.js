@@ -352,14 +352,20 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // db.encs: [{id, name, order, archived, updated}], also kept in the account (encounters.php) and backed up (backup.php?encs).
     // A monster's "enc" names its encounter; empty, or naming one that isn't in the list, it's in Unsorted (its value is kept).
     // Lists merge per encounter: the newer "updated" wins, and an encounter either copy has is never dropped.
+    // party (ROADMAP 3.2): who its difficulty is worked out for; only encounters that have had one carry it
+    const partyNorm = (p) => (isObj(p) ? { camp: typeof p.camp === 'string' ? p.camp : '', off: (Array.isArray(p.off) ? p.off : []).filter((x) => typeof x === 'string'), levels: typeof p.levels === 'string' ? p.levels : '', at: nm(p.at), gone: nm(p.gone) } : null);
     const encNorm = (list) => (Array.isArray(list) ? list : []).filter((e) => isObj(e) && typeof e.id === 'string' && e.id)
-        .map((e) => ({ id: e.id, name: typeof e.name === 'string' ? e.name : '', order: nm(e.order), archived: nm(e.archived), updated: nm(e.updated) }));
+        .map((e) => { const party = partyNorm(e.party); return { id: e.id, name: typeof e.name === 'string' ? e.name : '', order: nm(e.order), archived: nm(e.archived), updated: nm(e.updated), ...(party ? { party } : {}) }; });
+    // Unsorted isn't in the list, so its party sits beside it, merged the same way
+    const unsortedNorm = (u) => { const party = isObj(u) ? partyNorm(u.party) : null; return party ? { party, updated: nm(u.updated) } : null; };
     function encMerge(a, b) {
         const m = new Map(a.map((e) => [e.id, e]));
         for (const e of b) if (!m.has(e.id) || e.updated > m.get(e.id).updated) m.set(e.id, e);
         return [...m.values()];
     }
     db.encs = encMerge([], encNorm(db.encs));
+    db.unsorted = unsortedNorm(db.unsorted);
+    if (!db.unsorted) delete db.unsorted;
     const encOf = (id) => db.encs.find((e) => e.id === id);
     const bucket = (c) => (c.enc && encOf(c.enc) ? c.enc : '');
     const encName = (id) => (id ? encOf(id)?.name.trim() || 'Unnamed encounter' : 'Unsorted');
@@ -414,7 +420,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // the encounter list goes to the account (merged there, the merged list comes back) and to the server backups,
     // a moment after each change; signed in, every load sends this browser's list and takes the account's
     let encEdit = 0, encSent = 0; // edits made here, and the last one the account has
-    const encPost = (url, keepalive = false) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ encs: db.encs }), keepalive });
+    const encPost = (url, keepalive = false) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ encs: db.encs, ...(db.unsorted ? { unsorted: db.unsorted } : {}) }), keepalive });
     async function encSync() {
         if (!cloud) return;
         const n = encEdit;
@@ -422,10 +428,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const r = await encPost('encounters.php');
             if (r.status === 401) return cloudOff();
             if (!r.ok) return;
-            const got = encNorm((await r.json()).encs), was = JSON.stringify(db.encs);
+            const out = await r.json(), got = encNorm(out.encs), uns = unsortedNorm(out.unsorted), was = JSON.stringify([db.encs, db.unsorted]);
             db.encs = encMerge(db.encs, got);
+            if (uns && uns.updated > (db.unsorted?.updated || 0)) db.unsorted = uns;
             encSent = n;
-            if (JSON.stringify(db.encs) === was) return;
+            if (JSON.stringify([db.encs, db.unsorted]) === was) return;
             if (!shownEnc || !encOf(shownEnc)) shownEnc = bucket(C);
             store(); draw();
         } catch (e) { }
@@ -1249,15 +1256,16 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // the phone picker lists the shown encounter's monsters (and the open one, wherever it is)
     const pickOpts = () => Object.values(db.chars).filter((c) => c === C || !c.archived && bucket(c) === shownEnc).map((c) =>
         `<option value="${esc(c.id)}"${c.id === C.id ? ' selected' : ''}>${esc(c.name || 'Unnamed monster')}${clsText(c) ? ' — ' + esc(clsText(c)) : ''}</option>`).join('');
+    const DIFFBAR = () => `<button type="button" class="mon-diffbar" data-act="diffopen" aria-label="Encounter difficulty">${diffLine()}</button>`;
     // the top line: which character, who they are, and (behind Edit) the buttons to make, import, export or delete one
     function bar() {
         // an archived monster: read-only until it's unarchived (ROADMAP 0.5)
-        if (C.archived) return `${encPicker('mon-encbar')}<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
+        if (C.archived) return `${encPicker('mon-encbar')}${DIFFBAR()}<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
             <b class="hb-roname">${esc(C.name || 'Unnamed monster')}</b><span class="badge">Archived</span>
             <span class="hb-arcnote">This monster is archived.</span>
             <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>
             <button type="button" class="btn small" data-act="new">New</button>`;
-        return `${encPicker('mon-encbar')}<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
+        return `${encPicker('mon-encbar')}${DIFFBAR()}<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
             <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
             <button type="button" class="btn small" data-act="dup">Duplicate</button>
             <span class="hb-manage" id="hb-manage"${open.manage ? '' : ' hidden'}>
@@ -1803,7 +1811,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (cloud && window.Live && tableReady()) {
             try { const r = await fetch('/campaigns/log.php?' + CAMPS_Q()); if (r.ok) camps = (await r.json()).campaigns; } catch (e) { }
         }
-        tableWatch(); drawTray(); drawLog();
+        tableWatch(); drawTray(); drawLog(); drawSide();
     }
     function tableWatch() {
         // the fight in the campaign picked here (assets/js/fight.js): the DM runs it on the battle map (ROADMAP 1.6), so the panel
@@ -1910,7 +1918,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function numbered(name, enc = '') {
         const all = monsIn(enc), base = name.replace(/\s+\d+$/, '');
         if (!all.some((x) => x.name.replace(/\s+\d+$/, '') === base)) return name;
-        all.forEach((x) => { if (x.name === base) x.name = base + ' 1'; });
+        all.forEach((x) => { if (x.name === base) { x.name = base + ' 1'; x.updated = Date.now(); dirty.add(x.id); } });
         let n = 2;
         while (all.some((x) => x.name === `${base} ${n}`)) n++;
         return `${base} ${n}`;
@@ -1923,11 +1931,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const item = (c) => {
             const max = nm(c.hp.base) + nm(c.hp.mod), on = c === C;
             return `<button type="button" class="mon-item${on ? ' on' : ''}${nm(c.hp.cur) <= 0 ? ' down' : ''}" data-act="side" data-id="${esc(c.id)}"${on ? ' aria-current="true"' : ''}>
-                <b>${esc(c.name || 'Unnamed monster')}</b><small>HP ${nm(c.hp.cur)}/${max}${String(c.cr).trim() ? ' · CR ' + esc(c.cr) : ''}</small></button>`;
+                <b>${esc(c.name || 'Unnamed monster')}</b><small>HP ${nm(c.hp.cur)}/${max}${String(c.cr).trim() ? ' · CR ' + esc(c.cr) : ''}${EncDiff.crXp(c.cr) === null ? '' : ' · ' + EncDiff.crXp(c.cr).toLocaleString() + ' XP'}</small></button>`;
         };
         // archived monsters (ROADMAP 0.5) wait at the bottom, folded away, each with Unarchive
         // archived encounters (ROADMAP 3.1) wait folded at the very bottom; their monsters keep their own archived marks
-        box.innerHTML = encPicker('mon-encside') + `<h2>Monsters <span class="n">${list.length}</span></h2>`
+        box.innerHTML = encPicker('mon-encside') + `<section class="mon-diff" aria-label="Encounter difficulty">${diffHTML()}</section>` + `<h2>Monsters <span class="n">${list.length}</span></h2>`
             + (shown?.archived ? `<p class="note mon-encnote">This encounter is archived. <button type="button" class="btn small" data-act="encunarc" data-id="${esc(shown.id)}">Unarchive</button></p>` : '')
             + (list.length ? '' : '<p class="muted mon-encnote">No monsters here yet. Open one and pick Move to encounter (under Edit) to put it here.</p>')
             + `<div class="mon-list">${list.map((c) => item(c) + fightBtn(c)).join('')}</div>${fightBtn()}`
@@ -1937,6 +1945,143 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <button type="button" class="mon-item${e === shown ? ' on' : ''}" data-act="encshow" data-id="${esc(e.id)}"><b>${esc(encName(e.id))}</b><small>${monsIn(e.id).length} monster${monsIn(e.id).length === 1 ? '' : 's'}</small></button>
                 <button type="button" class="btn small" data-act="encunarc" data-id="${esc(e.id)}">Unarchive</button></div>`).join('')}</div></details>` : '');
         $('#mon-side .mon-list').classList.toggle('fi-on', !!fightNow());
+        diffOthers();
+    }
+
+    // ---- the encounter builder (ROADMAP 3.2): the sums are in difficulty.js ----
+    const encRules = () => (pref('encounter-rules') === '2024' ? '2024' : '2014');
+    const partyOwn = (id) => (id ? encOf(id)?.party : db.unsorted?.party) || null;
+    const partyLast = () => [...db.encs.map((e) => e.party), db.unsorted?.party].filter(Boolean).sort((a, b) => b.at - a.at)[0] || null;
+    // an encounter's own party, else the last one used, else the campaign the rolls go to
+    const partyOf = (id) => partyOwn(id) || partyLast() || { camp: camp()?.id || '', off: [], levels: '', at: 0, gone: 0 };
+    function partySet(id, patch) {
+        const p = { ...partyOf(id), ...patch, at: Date.now(), gone: 0 };
+        if (!id) db.unsorted = { party: p, updated: p.at };
+        else Object.assign(encOf(id), { party: p, updated: p.at });
+        encSaved();
+        drawSide();
+    }
+    // the last party seen of each campaign, so prep works offline; a copy of what the account already holds, so this browser only
+    const PARTY_SEEN = 'mon-party-seen';
+    const seenAll = () => { try { return JSON.parse(localStorage.getItem(PARTY_SEEN)) || {}; } catch (e) { return {}; } };
+    let partySeen = seenAll(), partyLive = new Set(), partyWatch = null, partyWatchId = '';
+    // the party of an encounter as the sums want it, and what to say about it
+    function partyNow(id) {
+        const p = partyOf(id), seen = p.camp ? partySeen[p.camp] : null, chars = seen?.chars || [], notes = [];
+        const counted = chars.filter((c) => !c.draft && !p.off.includes(c.id));
+        const drafts = chars.filter((c) => c.draft).length, typed = EncDiff.parseLevels(p.levels);
+        if (p.gone) notes.push('That campaign is no longer available, so these are the last levels seen.');
+        if (p.camp && !seen) notes.push(partyLive.has(p.camp) ? '' : "This campaign's party can't be read right now.");
+        if (p.camp && seen && !partyLive.has(p.camp)) notes.push(`Last checked ${new Date(seen.at).toLocaleDateString()}.${cloud ? '' : ' Sign in to refresh.'}`);
+        if (drafts) notes.push(`${drafts} unfinished character${drafts === 1 ? '' : 's'} not counted.`);
+        for (const c of counted) {
+            if (c.level < 1) notes.push(`${c.name} has no class level, so counts as level 1.`);
+            if (c.level > 20) notes.push(`${c.name} is above level 20, so counts as level 20.`);
+        }
+        const lvl = (c) => Math.min(20, Math.max(1, c.level));
+        return { p, chars, typed, levels: [...counted.map(lvl), ...typed.levels], notes: notes.filter(Boolean),
+            line: [...counted.map((c) => `${c.name} ${lvl(c)}`), ...typed.levels.map(String)].join(', ') };
+    }
+    // the sums for the shown encounter. Archived monsters and unnamed new blanks are out; Down ones stay, as this is a planning number
+    function diffNow(id = shownEnc) {
+        const mons = monsIn(id).filter((c) => !c.archived && String(c.name).trim()), party = partyNow(id);
+        const unread = mons.filter((c) => EncDiff.crXp(c.cr) === null);
+        return { party, unread, r: EncDiff.rate(encRules(), party.levels, mons.map((c) => EncDiff.crXp(c.cr) || 0)) };
+    }
+    const n0 = (x) => x.toLocaleString();
+    const tierBadge = (t) => `<span class="badge${t.cls ? ' ' + t.cls : ''}">${esc(t.label)}</span>`;
+    function diffHTML() {
+        const { party, unread, r } = diffNow(), size = party.levels.length, many = `${r.count === 1 ? '1 monster' : r.count + ' monsters'}${size && (size < 3 || size > 5) ? ', party of ' + size : ''}`;
+        const head = !r.count ? '<p class="muted mon-diffmsg">No monsters yet</p>'
+            : !party.levels.length ? '<p class="muted mon-diffmsg">Pick a party for difficulty</p>'
+                : `<p class="mon-difftier">${tierBadge(r.tier)}${r.tier.ours ? ` <small>below ${r.lowest} (this site's word)</small>` : ''}</p>`;
+        return `${head}
+            <div class="kv"><span>Total XP</span><b>${n0(r.total)}</b>${r.rules === '2014' ? `<span>Adjusted XP</span><b>${n0(r.adjusted)}</b>` : ''}</div>
+            ${r.rules === '2014' && r.count ? `<small class="mon-diffhow">${n0(r.total)} XP × ${r.mult} (${many}) = ${n0(r.adjusted)}</small>` : ''}
+            ${r.thresholds.length ? `<small class="mon-diffhow">${r.thresholds.map(([t, x]) => `${esc(t)} ${n0(x)}`).join(' · ')}</small>` : ''}
+            <small class="mon-diffparty"><b>Party</b> ${esc(party.line) || 'None yet'}</small>
+            ${party.notes.map((t) => `<small class="mon-diffnote">${esc(t)}</small>`).join('')}
+            ${unread.map((c) => `<small class="mon-diffnote">${esc(c.name)} has a CR that can't be read, so counts as 0 XP.</small>`).join('')}
+            <small class="mon-diffhow">${r.rules} rules</small>
+            <div class="mon-diffacts"><button type="button" class="btn small" data-act="diffadd">Add monsters</button><button type="button" class="btn small" data-act="diffparty">Party</button>${party.p.camp && cloud ? '<button type="button" class="btn small" data-act="diffrefresh">Refresh</button>' : ''}</div>`;
+    }
+    // the one line on phones, where the sidebar is hidden; 2.1 can move this element without touching the rest
+    function diffLine() {
+        const { party, r } = diffNow();
+        const xp = `${n0(r.rules === '2014' ? r.adjusted : r.total)} XP`;
+        return !r.count ? 'No monsters yet' : !party.levels.length ? `${xp} · Pick a party` : `${tierBadge(r.tier)} ${xp}`;
+    }
+    // what's outside the sidebar: the phone line, an open details dialog, and following the party's campaign
+    function diffOthers() {
+        const line = $('.mon-diffbar');
+        if (line) line.innerHTML = diffLine();
+        if (encMode?.kind === 'diff') $('#mon-encbody .mon-diff').innerHTML = diffHTML();
+        if (encMode?.kind === 'party') partyDlgFill();
+        if ($('#mon-dlg').open && findTo !== null) findSum();
+        partyFollow(partyOf(shownEnc).camp);
+    }
+    function partyFollow(id) {
+        if (!cloud || !window.Live) id = '';
+        if (id === partyWatchId) return;
+        partyWatch?.close();
+        partyWatchId = id;
+        partyWatch = id ? Live.watch(id, { load: () => partyLoad(id), onMessage: (m) => { if (m.type === 'campaign' || m.type === 'removed') partyLoad(id); } }) : null;
+    }
+    async function partyLoad(id) {
+        let r;
+        try { r = await fetch('party.php?c=' + encodeURIComponent(id), { cache: 'no-store' }); } catch (e) { r = null; }
+        const out = r ? await r.json().catch(() => null) : null;
+        if (r?.status === 404 && out?.gone) return partyGone(id);
+        const was = JSON.stringify([partySeen[id]?.chars, partyLive.has(id)]);
+        if (!r?.ok || !out) partyLive.delete(id);
+        else {
+            partyLive.add(id);
+            partySeen[id] = { at: Date.now(), name: String(out.name), chars: out.chars };
+            try { localStorage.setItem(PARTY_SEEN, JSON.stringify(partySeen)); } catch (e) { }
+        }
+        if (JSON.stringify([partySeen[id]?.chars, partyLive.has(id)]) !== was) drawSide();
+    }
+    // the account says this campaign can't be read any more (deleted, or no longer its DM): the last levels seen become typed ones, so nothing is lost
+    function partyGone(id) {
+        const left = [db.unsorted?.party, ...db.encs.map((e) => e.party)].filter((p) => p?.camp === id);
+        const now = Date.now();
+        for (const e of [...db.encs, ...(db.unsorted ? [db.unsorted] : [])]) {
+            const p = e.party;
+            if (p?.camp !== id) continue;
+            const seen = (partySeen[id]?.chars || []).filter((c) => !c.draft && !p.off.includes(c.id)).map((c) => Math.min(20, Math.max(1, c.level)));
+            e.party = { camp: '', off: [], levels: [...seen, ...EncDiff.parseLevels(p.levels).levels].join(', '), at: p.at, gone: 1 };
+            e.updated = now;
+        }
+        partyLive.delete(id);
+        partyFollow('');
+        if (left.length) encSaved();
+        drawSide();
+    }
+    // the party dialog: its fields stay as they are while the list of characters and the reading of the typed levels are filled in
+    function partyDlgHTML() {
+        const id = shownEnc, p = partyOf(id), pick = camps.some((x) => x.id === p.camp) ? p.camp : '';
+        const opts = [['', 'None (type the levels)'], ...camps.map((x) => [x.id, x.name]), ...(p.camp && !pick ? [[p.camp, partySeen[p.camp]?.name || 'Campaign']] : [])];
+        return `<h2>Party for ${esc(encName(id))}</h2>
+            ${cloud ? `<label class="mon-partyf">Campaign <select class="field" data-party="camp">${opts.map(([v, t]) => `<option value="${esc(v)}"${v === p.camp ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`
+                : '<p class="muted">Sign in to pick a campaign you run.</p>'}
+            <div id="mon-partychars"></div>
+            <label class="mon-partyf"><span id="mon-partylab"></span> <input class="field" data-party="levels" value="${esc(p.levels)}" placeholder="5, 5, 4 or 4x5" autocomplete="off" aria-describedby="mon-partyread"></label>
+            <p class="muted mon-partyread" id="mon-partyread"></p>
+            <label class="mon-partyf">Rules <select class="field" data-party="rules">${[['2014', '2014 rules'], ['2024', '2024 rules']].map(([v, t]) => `<option value="${v}"${v === encRules() ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+            <div class="actions"><button type="button" class="btn" data-enc="close">Close</button></div>`;
+    }
+    function partyDlgFill() {
+        const { p, chars, typed } = partyNow(shownEnc);
+        const lab = $('#mon-partylab');
+        if (!lab) return;
+        lab.textContent = p.camp ? 'Extra levels' : 'Party levels';
+        $('#mon-partychars').innerHTML = !p.camp ? '' : chars.length ? `<div class="mon-partylist">${chars.map((c) => `<label><input type="checkbox" data-party-off="${esc(c.id)}"${!c.draft && !p.off.includes(c.id) ? ' checked' : ''}${c.draft ? ' disabled' : ''}> ${esc(c.name)}, ${c.draft ? 'unfinished, not counted' : 'level ' + Math.min(20, Math.max(1, c.level))}</label>`).join('')}</div>`
+            : `<p class="muted">${partyLive.has(p.camp) ? 'No characters in this campaign yet.' : "This campaign's party can't be read right now."}</p>`;
+        const said = [];
+        if (typed.levels.length) said.push('Read as ' + typed.levels.join(', ') + '.');
+        if (typed.bad.length) said.push(`Left out ${typed.bad.join(', ')}.`);
+        if (typed.moved.length) said.push(`Levels run from 1 to 20, so ${typed.moved.join(', ')} moved to fit.`);
+        $('#mon-partyread').textContent = said.join(' ');
     }
     // ---- the fight (ROADMAP 1.4): "Add to fight" beside each monster while one runs in the picked campaign ----
     const fightNow = () => (camp() && window.Fight?.state(camp().id)) || null;
@@ -1997,7 +2142,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const names = new Set(db.encs.map((e) => e.name.trim()));
         let n = db.encs.length + 2; // Unsorted counts as the first
         while (names.has(`Encounter ${n}`)) n++;
-        const e = { id: uid(), name: `Encounter ${n}`, order: Math.max(0, ...db.encs.map((x) => x.order + 1)), archived: 0, updated: Date.now() };
+        const last = partyLast();
+        const e = { id: uid(), name: `Encounter ${n}`, order: Math.max(0, ...db.encs.map((x) => x.order + 1)), archived: 0, updated: Date.now(), ...(last ? { party: { ...last, off: [...last.off] } } : {}) };
         db.encs.push(e);
         encSaved();
         shownEnc = e.id; draw();
@@ -2040,8 +2186,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         toast(`Moved ${C.name || 'the monster'} to ${encName(target)}.`, 'ok');
     }
     const encDlg = $('#mon-encdlg');
-    let encMode = null; // {kind: 'manage'} or {kind: 'to', copy}
+    let encMode = null; // {kind: 'manage'}, {kind: 'to', copy}, {kind: 'party'} or {kind: 'diff'}
     function encDlgHTML() {
+        if (encMode.kind === 'party') return partyDlgHTML();
+        if (encMode.kind === 'diff') return `<h2>${esc(encName(shownEnc))}</h2><section class="mon-diff" aria-label="Encounter difficulty">${diffHTML()}</section><div class="actions"><button type="button" class="btn" data-enc="close">Close</button></div>`;
         const close = '<button type="button" class="btn" data-enc="close">Close</button>';
         if (encMode.kind === 'to') {
             const to = [['', 'Unsorted'], ...encsLive().map((e) => [e.id, encName(e.id)])].filter(([id]) => encMode.copy || id !== bucket(C));
@@ -2066,6 +2214,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         encMode = mode;
         $('#mon-encbody').innerHTML = encDlgHTML();
         if (!encDlg.open) encDlg.showModal();
+        if (mode.kind === 'party') partyDlgFill();
         const f = focus && encDlg.querySelector(`[data-enc-name="${focus}"]`);
         if (f) { f.focus(); f.select(); }
     }
@@ -2082,15 +2231,35 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         encDlg.querySelector(`[data-enc="${k}"][data-id="${id}"]:not(:disabled)`)?.focus();
     });
     encDlg.addEventListener('input', (e) => {
+        if (e.target.dataset.party === 'levels') return partySet(shownEnc, { levels: e.target.value });
         const en = e.target.dataset.encName && encOf(e.target.dataset.encName);
         if (!en) return;
         en.name = e.target.value; en.updated = Date.now();
         encSaved();
     });
 
-    let monIndex = null;
-    async function openFind() {
+    encDlg.addEventListener('change', (e) => {
+        const t = e.target, k = t.dataset.party;
+        if (k === 'camp') partySet(shownEnc, { camp: t.value, off: [] });
+        else if (k === 'rules') { setPref('encounter-rules', t.value); drawSide(); }
+        else if (t.dataset.partyOff) {
+            const off = new Set(partyOf(shownEnc).off);
+            off[t.checked ? 'delete' : 'add'](t.dataset.partyOff);
+            partySet(shownEnc, { off: [...off] });
+        }
+    });
+
+    let monIndex = null, findTo = null; // findTo: the encounter "Add monsters" fills; null for the plain Import monster search
+    // Import monster (under Edit) adds one to Unsorted and opens it; Add monsters (ROADMAP 3.2) stays open and fills the shown encounter
+    async function openFind(to = null) {
         open.manage = false;
+        findTo = to;
+        $('#mon-dlg h2').textContent = to === null ? 'Import a monster' : `Add monsters to ${encName(to)}`;
+        $('#mon-nwrap').hidden = to === null;
+        Object.assign($('#mon-n'), { value: 1 });
+        $('#mon-added').textContent = '';
+        if (to !== null) findSum();
+        $('#mon-sum').hidden = to === null;
         $('#mon-dlg').showModal(); $('#mon-q').focus();
         if (monIndex) return monSearch();
         try {
@@ -2101,31 +2270,53 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         } catch (err) { Object.assign($('#mon-status'), { className: 'err', textContent: "Couldn't load the monster list. Try again in a minute." }); }
     }
     const crText = (n) => ({ 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' })[n] || String(n);
-    // names that start with the search first, then names that contain it; at most 100 shown
+    const findSum = () => { $('#mon-sumline').innerHTML = diffLine(); };
+    // the search list: names that start with the search first, then names that contain it, within the CR and rules filters
+    function monHits() {
+        const q = $('#mon-q').value.trim().toLowerCase(), lo = EncDiff.crValue($('#mon-crlo').value), hi = EncDiff.crValue($('#mon-crhi').value), rules = $('#mon-rules').value;
+        const all = monIndex.list.filter((x) => (lo === null || x[2] >= lo) && (hi === null || x[2] <= hi) && (!rules || (x[4] === 'srd-2024') === (rules === '2024')));
+        return q ? [...all.filter((x) => x[1].toLowerCase().startsWith(q)), ...all.filter((x) => !x[1].toLowerCase().startsWith(q) && x[1].toLowerCase().includes(q))] : all;
+    }
+    // at most 100 shown
     function monSearch() {
-        const q = $('#mon-q').value.trim().toLowerCase(), all = monIndex.list, st = $('#mon-status');
-        const hits = q ? [...all.filter((x) => x[1].toLowerCase().startsWith(q)), ...all.filter((x) => !x[1].toLowerCase().startsWith(q) && x[1].toLowerCase().includes(q))] : all;
+        const st = $('#mon-status'), hits = monHits();
         st.className = hits.length ? 'muted' : 'note';
         st.textContent = !hits.length ? 'No monsters match that name.' : hits.length > 100 ? `${hits.length.toLocaleString()} monsters. Type to narrow them down.` : `${hits.length} monster${hits.length === 1 ? '' : 's'}`;
         $('#mon-results').innerHTML = hits.slice(0, 100).map(([key, name, cr, type, src]) => `<button type="button" class="mon-hit" data-mon="${esc(key)}">
             <b>${esc(name)}${src === 'srd-2024' ? ' <span class="badge b">2024</span>' : ''}</b><small>CR ${esc(crText(cr))} ${esc(type)} · ${esc(monIndex.sources[src]?.title || src)}</small></button>`).join('');
     }
+    // The one way monsters join an encounter: n copies of a monster-list entry into encounter enc ('' is Unsorted), each its own
+    // creature, numbered within that encounter. open: show the last one added; otherwise the open monster stays, unless it was the
+    // empty one a first visit starts with, which is replaced rather than kept. Returns the last one added; throws if it can't be fetched.
+    async function addMonsters(key, n, enc, open) {
+        if (!monIndex) monIndex = await (await fetch('monsters.json')).json();
+        const r = await fetch('monsters.php?i=' + encodeURIComponent(key)), j = await r.json();
+        if (!r.ok) throw new Error(j.error);
+        const empty = Object.keys(db.chars).length === 1 && !C.name.trim() && !C.race.trim();
+        let c;
+        for (let k = 0; k < n; k++) {
+            c = normalise(fromStatBlock(j, monIndex.sources));
+            c.enc = enc; c.name = numbered(c.name, enc); c.updated = Date.now();
+            db.chars[c.id] = c;
+            dirty.add(c.id);
+        }
+        if (empty) delete db.chars[C.id];
+        if (open || empty) switchTo(c);
+        else { store(); clearTimeout(backupTimer); backupTimer = setTimeout(flushBackups, 4000); draw(); } // not saveNow: the open monster may be archived
+        return c;
+    }
     async function takeMonster(b) {
+        const to = findTo, n = to === null ? 1 : Math.max(1, Math.floor(+$('#mon-n').value) || 1), was = b.querySelector('b').textContent;
         b.disabled = true; b.querySelector('small').textContent = 'Adding...';
         try {
-            const r = await fetch('monsters.php?i=' + encodeURIComponent(b.dataset.mon));
-            const j = await r.json();
-            if (!r.ok) throw new Error(j.error);
-            const c = normalise(fromStatBlock(j, monIndex.sources));
-            // the empty monster a first visit starts with is replaced rather than kept
-            if (Object.keys(db.chars).length === 1 && !C.name.trim() && !C.race.trim()) delete db.chars[C.id];
-            c.name = numbered(c.name); c.updated = Date.now();
-            $('#mon-dlg').close();
-            switchTo(c);
-            toast(`Added ${c.name}.`, 'ok');
+            const c = await addMonsters(b.dataset.mon, n, to === null ? '' : to, to === null);
+            if (to === null) { $('#mon-dlg').close(); return toast(`Added ${c.name}.`, 'ok'); }
+            $('#mon-added').textContent = `Added ${n > 1 ? n + ' × ' : ''}${was} to ${encName(to)}.`;
+            monSearch();
         } catch (err) { toast(err.message || "Couldn't reach the monster list. Try again in a minute.", 'err'); monSearch(); }
     }
     $('#mon-q').addEventListener('input', debounce(() => monIndex && monSearch(), 80));
+    for (const id of ['#mon-crlo', '#mon-crhi', '#mon-rules']) $(id).addEventListener('input', debounce(() => monIndex && monSearch(), 80));
     $('#mon-dlg').addEventListener('click', (e) => {
         const b = e.target.closest('[data-mon]');
         if (b) takeMonster(b);
@@ -2293,14 +2484,14 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     undoBox.addEventListener('click', (e) => {
         if (!e.target.closest('button') || !undoSnap) return;
         const s = undoSnap;
-        dropUndo(); db = Object.assign(JSON.parse(s.db), { encs: db.encs }); // the encounter list isn't part of a delete's Undo
+        dropUndo(); db = Object.assign(JSON.parse(s.db), { encs: db.encs, unsorted: db.unsorted }); // the encounter list isn't part of a delete's Undo
         switchTo(db.chars[s.cur] || Object.values(db.chars)[0] || blank());
         toast('Restored.', 'ok');
     });
 
     // what an archived monster still does: look, roll, open things, and come back
     const VIEW_ACTS = new Set(['skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
-        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions', 'fightadd', 'encshow', 'encunarc']); // fightadd: other monsters into the fight
+        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions', 'fightadd', 'encshow', 'encunarc', 'diffadd', 'diffparty', 'diffrefresh', 'diffopen']); // fightadd: other monsters into the fight
 
     // ---- events ----
     const main = $('.hb');
@@ -2616,6 +2807,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (act === 'encshow') return encShow(b.dataset.id);
         else if (act === 'encunarc') return encArchive(encOf(b.dataset.id), false);
         else if (act === 'find') return openFind();
+        else if (act === 'diffadd') { if (encDlg.open) encDlg.close(); return openFind(shownEnc); }
+        else if (act === 'diffparty') return encOpen({ kind: 'party' });
+        else if (act === 'diffrefresh') return partyLoad(partyOf(shownEnc).camp);
+        else if (act === 'diffopen') return encOpen({ kind: 'diff' });
         else if (act === 'import') return $('#hb-file').click();
         else if (act === 'export') return download((C.name || 'monster').replace(/[^\w -]+/g, '').trim() + '.json', JSON.stringify(C, null, 1));
         else if (act === 'archive') return setArchived(true);
@@ -2638,7 +2833,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     });
     $('#hb-artfile').addEventListener('change', (e) => { const file = e.target.files[0]; e.target.value = ''; if (file) loadArt(file); });
 
-    // The Compendium's "Add to encounter" leaves {id, key, n} in localStorage "mon-pending"; they are added here when the sheet opens and when
+    // The Compendium's "Add to encounter" leaves {id, key, n, enc} in localStorage "mon-pending"; they are added here when the sheet opens and when
     // one arrives while it is open. Under a lock, and a request leaves the queue only once its monsters are saved, so none is lost or added twice.
     function takePending() {
         const run = async () => {
@@ -2646,16 +2841,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             const x = read().find((y) => y && typeof y.key === 'string');
             if (!x) return;
             try {
-                if (!monIndex) monIndex = await (await fetch('monsters.json')).json();
-                const r = await fetch('monsters.php?i=' + encodeURIComponent(x.key)), j = await r.json();
-                if (!r.ok) throw new Error(j.error);
                 const n = Math.max(1, Math.floor(+x.n) || 1);
-                for (let k = 0; k < n; k++) {
-                    const c = normalise(fromStatBlock(j, monIndex.sources));
-                    if (Object.keys(db.chars).length === 1 && !C.name.trim() && !C.race.trim()) delete db.chars[C.id];
-                    c.name = numbered(c.name); c.updated = Date.now();
-                    switchTo(c);
-                }
+                await addMonsters(x.key, n, typeof x.enc === 'string' ? x.enc : '', true);
                 localStorage.setItem('mon-pending', JSON.stringify(read().filter((y) => y && y.id !== x.id)));
                 toast(`Added ${n > 1 ? n + ' x ' : ''}${x.name || 'the monster'} from the Compendium.`, 'ok');
             } catch (err) { return toast("Couldn't add the monster from the Compendium. Reload to try again.", 'err'); }

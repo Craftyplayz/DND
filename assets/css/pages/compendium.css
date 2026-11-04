@@ -48,6 +48,7 @@
 .cp-add { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
 .cp-qty { display: inline-flex; align-items: center; gap: 8px; }
 .cp-qty b { min-width: 24px; text-align: center; }
+.cp-enc { display: inline-flex; align-items: center; gap: 8px; }
 .cp-empty { margin: 0; }
 .cp-foot { margin-top: 28px; }
 .cp :where(button.cp-link) { padding: 0; background: none; border: 0; color: var(--link); text-decoration: underline; }
