@@ -1024,8 +1024,20 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 - Size: half a day, plus time with each player. Done: all 6 characters exist as homebrew sheets on their owners' accounts.
 
 **5.4 Compendium popup on every page**
-- What: on any page whatsoever, the Compendium opens in a popup sidebar window for super fast referencing.
-- Size: not sized yet. Done: from any page, the Compendium opens in the popup sidebar and an entry can be looked up.
+- What: on any page whatsoever, the Compendium opens in a popup panel for super fast referencing.
+- Decided (owner, batch 2): a panel sliding in on the same page, right side only, no side switch. It slides over the
+  sheet on a laptop and its left edge drags to resize. A floating button bottom right, raised above toasts and phone
+  tab bars (and moved up where a page has a bar there), and Ctrl+K also opens it. The menu's Compendium link stays the
+  full page. On a phone it is a full-screen overlay sliding up from the bottom with a little x top left. On a laptop
+  there is an x button, and a click anywhere off the Compendium closes it; a click on a link while it is open makes it
+  reopen on the new page at the last search and entry, a click on the page itself closes it and it stays closed.
+  Width and open state are remembered and saved to the account (new setting in the KEYS list of sync.js and
+  prefs.php); tab, filters and favourites already sync. Contents: everything except making homebrew, which opens the
+  full page; Add to sheet and Add to encounter work, with no character picker on a sheet page. On every page except
+  the Compendium page and the TV Table view. On the battle map it opens on the right and map shortcuts are off while
+  it is open. Nothing loads until the first open (unless it was left open). Design guide: this panel and button are
+  listed as the popup's pattern, and a full-screen overlay becomes the guide's default on phones.
+- Size: about 2 days (the Compendium in an embed mode inside an iframe). Done: from any page, the Compendium opens in the popup panel and an entry can be looked up.
 
 ### Phase 6: Polish
 
@@ -1092,5 +1104,5 @@ up, because of CLAUDE.md rather than an open design question:
 | 2 Phone and look | 3 | ~7 days |
 | 3 DM tools | 4 | ~8 days |
 | 4 Character building | 6 | ~18.5 days |
-| 5 Content | 4 | ~8.5 days + 5.4 (not sized yet) |
+| 5 Content | 4 | ~10.5 days |
 | 6 Polish | 2 (6.2 dropped) | ~4.5 days |
