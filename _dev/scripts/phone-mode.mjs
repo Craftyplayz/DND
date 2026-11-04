@@ -275,6 +275,7 @@ try {
             await frame(`/characters/${id}`, 375, 812);
             await click('#ph-hp'); await has('#ph-body .ph-hpnow');
             ok(`${name} archived: no Damage`, await raw(`!document.querySelector('#ph-body .ph-dmg')`)); await click('#ph-sheet [data-ph=close]'); await closed();
+            ok(`${name} archived: a strip says so, with Unarchive`, await raw(`!!document.querySelector('#ph-note [data-act=unarchive]')`));
             await click('[data-ph=menu]'); await has('#ph-body [data-act=unarchive]'); await shot('archived', 375, 812); await click('#ph-sheet [data-ph=close]'); await closed();
             const upWas = (await local()).chars[id].updated;
             await click('#ph-tabs [data-id=notes]');
@@ -288,6 +289,7 @@ try {
             writeFileSync(join(ACCOUNTS, 'characters', pub.id, 'meta.json'), JSON.stringify({ owner: '999', visibility: 'public', created: 1, campaigns: [], archived: 0 }));
             await home(); await frame(`/characters/${pub.id}`, 375, 812);
             is(`${name} public: read only`, await J(`[document.querySelector('[data-c=phname]').textContent, !!document.querySelector('#main[data-readonly]'), document.querySelector('.ph-rests') === null]`), ['Someone Else', true, true]);
+            ok(`${name} public: a strip says read only`, (await raw(`document.querySelector('#ph-note').textContent`)).includes('read only'));
             await click('#ph-hp'); await has('#ph-body .ph-hpnow'); ok(`${name} public: no Damage`, await raw(`!document.querySelector('#ph-body .ph-dmg')`)); await click('#ph-sheet [data-ph=close]'); await closed();
             await click('#ph-tabs [data-id=notes]'); is(`${name} public: tabs work`, await raw(`document.querySelector('#ph-tabs .on').dataset.id`), 'notes');
             is(`${name} public: nothing kept here`, (await local()).chars[pub.id], undefined);

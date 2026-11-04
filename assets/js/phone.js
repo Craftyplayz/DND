@@ -58,6 +58,7 @@
             <button type="button" class="ph-stat" data-ph="ac" aria-label="Armour class"><small>AC</small><b data-c="fx:ac"></b></button>
             ${h.noRoll ? '<span class="ph-stat"><small>Init</small><b data-c="fs:init"></b></span>' : '<button type="button" class="ph-stat" data-act="roll" data-k="fs:init" data-t="Initiative" aria-label="Roll initiative"><small>Init</small><b data-c="fs:init"></b></button>'}
             <button type="button" class="ph-stat" id="ph-cond" data-ph="cond" aria-label="Conditions"><small>Cond</small><b data-c="phcond"></b></button></div>`;
+        const note = A.notice(); $('#ph-note').hidden = !note; $('#ph-note').innerHTML = note;
         const cur = curTab(), ic = I;
         $('#ph-tabs').innerHTML = tabs().map(([k, t]) => `<button type="button" class="${k === cur ? 'on' : ''}" data-ph="tab" data-id="${k}"${k === cur ? ' aria-current="page"' : ''}>${svg(ic[k], 20)}<span>${t}</span></button>`).join('');
         document.documentElement.style.setProperty('--phh', $('#ph-head').offsetHeight + 'px');
@@ -116,7 +117,7 @@
 
     function start(api) {
         A = api; main = $('#main');
-        main.insertAdjacentHTML('afterbegin', '<header class="ph-head" id="ph-head"></header>');
+        main.insertAdjacentHTML('afterbegin', '<header class="ph-head" id="ph-head"></header><div class="ph-note" id="ph-note" hidden></div>');
         main.insertAdjacentHTML('beforeend', `<nav class="tabbar" id="ph-tabs" aria-label="Sheet sections"></nav>
             <dialog class="bsheet" id="ph-sheet" aria-labelledby="ph-title"><div class="bsheet-grab" data-grab aria-hidden="true"><i></i></div>
                 <div class="bsheet-top"><h2 id="ph-title"></h2><button type="button" class="ph-ico" data-ph="close" aria-label="Close">${svg(I.x)}</button></div>

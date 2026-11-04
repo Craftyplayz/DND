@@ -3175,7 +3175,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const phLock = () => { if (phRO()) for (const el of $$('#ph-body input:not([data-ph-full]), #ph-body select, #ph-body textarea')) el.disabled = true; };
     const phWho = () => [String(C.cr).trim() ? 'CR ' + C.cr : '', C.race].filter(Boolean).join(' · ') || 'Monster';
     const phRO = () => !!C.archived;
-    const phApi = { monster: true, abEdit: false, pencil: PENCIL, C: () => C, draw, refresh: () => { phLock(); refresh(); }, saveView: () => saveNow(false),
+    const phApi = { monster: true, abEdit: false, notice: () => (C.archived ? 'This monster is archived. <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>' : ''), pencil: PENCIL, C: () => C, draw, refresh: () => { phLock(); refresh(); }, saveView: () => saveNow(false),
         visible: () => C.panels.map((p, i) => [p, i]).filter(([p]) => p.on), card: phCard, parts: topParts, defaultOrder: () => blank().panels.map((p) => p.type),
         head: () => { const list = monsIn(shownEnc).filter((c) => !c.archived), i = list.indexOf(C); return { cur: nm(C.hp.cur), noRoll: !!C.view.noRoll, prev: i > 0 ? list[i - 1].id : '', next: i >= 0 && i < list.length - 1 ? list[i + 1].id : '' }; },
         map: () => (camp() ? '/campaigns/' + encodeURIComponent(camp().id) + '/map' : ''), ro: phRO,

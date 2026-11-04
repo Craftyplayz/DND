@@ -85,7 +85,7 @@ try {
     await dm.shot(375, 812);
     is('DM on a phone: phone mode, one-line strip', await dm.ev(`[document.documentElement.classList.contains('ph-on'), getComputedStyle(document.querySelector('#hb-dmbar p')).whiteSpace, getComputedStyle(document.querySelector('#ph-head')).display].join()`), 'true,nowrap,grid');
     await dm.ev(`document.querySelector('[data-ph=menu]').click(); 1`);
-    is('DM on a phone: no player tools in the menu', await until(dm, `document.querySelector('#ph-body .ph-menu') ? ['archive', 'versions', 'import', 'new'].filter((a) => document.querySelector('#ph-body [data-act=' + a + ']')).join() || 'none' : ''`, (t) => t), 'none');
+    is('DM on a phone: no player tools in the menu', await until(dm, `document.querySelector('#ph-body .ph-menu') ? ['archive', 'versions', 'import', 'new'].filter((a) => document.querySelector('#ph-body [data-act=' + a + ']')?.offsetHeight).join() || 'none' : ''`, (t) => t), 'none');
     await dm.ev(`document.querySelector('#ph-sheet [data-ph=close]').click(); 1`);
     await dm.until(`!document.querySelector('#ph-sheet').open`);
     await dm.ev(`document.querySelector('#ph-hp').click(); 1`);

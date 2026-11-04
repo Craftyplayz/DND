@@ -1173,7 +1173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${DMM ? `<a class="btn small" href="/campaigns/${esc(encodeURIComponent(DMM))}">${esc($('#main').dataset.dmCamp || 'Campaign')}</a>`
             : CHAR ? '<a class="btn small" href="/characters/">My Characters</a>' : `<select class="field hb-pick" data-act="pick" aria-label="Character">${pickOpts()}</select>`}
             ${DMM ? '' : `<button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>`}
-            <span class="hb-manage" id="hb-manage"${open.manage || Phone.on() ? '' : ' hidden'}>
+            <span class="hb-manage" id="hb-manage"${open.manage || (Phone.on() && !DMM) ? '' : ' hidden'}>
                 <button type="button" class="btn small" data-act="new">New</button>
                 <button type="button" class="btn small" data-act="import">Import</button>
                 <button type="button" class="btn small" data-act="ddb">From D&amp;D Beyond</button>
@@ -2958,7 +2958,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const phLock = () => { if (phRO()) for (const el of $$('#ph-body input:not([data-ph-full]), #ph-body select, #ph-body textarea')) el.disabled = true; };
     const phWho = () => [clsText(C), C.race].filter(Boolean).join(' · ') || 'Character';
     const phRO = () => RO || !!C.archived;
-    const phApi = { monster: false, abEdit: false, pencil: PENCIL, C: () => C, draw, refresh: () => { phLock(); refresh(); }, saveView: () => saveNow(false),
+    const phApi = { monster: false, abEdit: false, notice: () => (RO ? 'Someone else\'s character, read only.' : C.archived ? 'This character is archived. <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>' : ''), pencil: PENCIL, C: () => C, draw, refresh: () => { phLock(); refresh(); }, saveView: () => saveNow(false),
         visible: () => C.panels.map((p, i) => [p, i]).filter(([p]) => p.on && (p.type !== 'handouts' || hoOn())), card: phCard, parts: topParts, defaultOrder: () => blank().panels.map((p) => p.type),
         head: () => ({ cur: nm(C.hp.cur), noRoll: !!C.view.noRoll }), map: () => (camp() ? '/campaigns/' + encodeURIComponent(camp().id) + '/map' : ''), ro: phRO,
         hpSheet: phHpSheet, acSheet: phAcSheet, condSheet: phCondSheet, diceSheet: phDiceSheet,

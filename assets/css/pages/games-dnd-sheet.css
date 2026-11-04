@@ -538,6 +538,8 @@ dialog.hb-ver { width: min(640px, calc(100vw - 32px)); }
 .ph-on #hb-dmbar:not(.ph-open) p, .ph-on #hb-camps:not(.ph-open) p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 36px; }
 .ph-on .hb-dmbar, .ph-on .hb-camps { cursor: pointer; }
 
+.ph-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 4px 12px; background: var(--card2); border-bottom: 1px solid var(--line-strong); font-size: 14px; }
+
 /* dice button, roll card and toasts: above the tab bar, in thumb reach; inside an open sheet they sit at its foot */
 .ph-on .hb-dice { left: auto; right: 12px; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 8px); justify-items: end; z-index: 50; }
 .ph-on .hb-dicebtn { width: 56px; height: 56px; background: var(--btn); border-color: var(--btn-line); color: var(--on-btn); }
