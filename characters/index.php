@@ -23,7 +23,7 @@ if ($id !== '') {
     if ($mine || $public || $dm) $hb['inline'] = (string)file_get_contents("$accounts/characters/$id/character.json");
     $c = isset($hb['inline']) ? json_decode($hb['inline'], true) : null;
     $site_page = ['title' => ($c['name'] ?? '') !== '' ? $c['name'] : 'Character'];
-    if (!$public) header('X-Robots-Tag: noindex');
+    header('X-Robots-Tag: noindex'); // public means anyone with the link, not listed in search engines
     require SITE_ROOT . '/sheets/player/index.php';
     exit;
 }

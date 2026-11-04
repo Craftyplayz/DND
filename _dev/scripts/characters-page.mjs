@@ -97,6 +97,7 @@ for (const name of browsers) {
             is(`${name} public shows the name`, await ev(`document.querySelector('.hb-roname')?.textContent`), 'Glory');
             is(`${name} public is read-only`, await ev(`[...document.querySelectorAll('#hb-sheet input')].every((i) => i.disabled) && !document.querySelector('[data-act=custom]')`), true);
             is(`${name} public not stored`, !!(await store()).chars.pub1, false);
+            is(`${name} public stays out of search engines`, await ev(`fetch(location.href).then((r) => r.headers.get('x-robots-tag'))`), 'noindex');
             errs('/characters/pub1');
             await b.go(BASE + '/characters/priv1'); await b.until(SHEET);
             is(`${name} private stays hidden`, await ev(`document.querySelector('#hb-sheet h2')?.textContent`), 'Character not found');

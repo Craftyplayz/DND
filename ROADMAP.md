@@ -75,7 +75,6 @@ IDs are numeric (`auth_claims_ok` checks this), so named folders can't clash wit
 | `prefs/<sub>.json` | settings in the `KEYS` list of sync.js / prefs.php | exists (0.1) |
 | `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` (1.1), `sessions/` (1.3), `initiative.json` and `fights/` (1.4), `notes/` and `handouts/` (3.4) exist |
 | `homebrew/<sub>/<id>.json` | homebrew items, spells, monsters, classes, races... | Phase 4/5 |
-| `shares/<token>.json` | read-only share links | Phase 6 |
 
 New server writes copy `sheets/player/cloud.php`: JSON only, `flock` per file, 409 when the stored copy is
 newer, and 401 when signed out.
@@ -961,13 +960,7 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 - Size: 3 days. Done: in airplane mode, open the installed app, edit a character and roll dice. Back online, the
   change shows on a second device and the data check still passes.
 
-**6.2 Read-only share links**
-- What: "Share" on a character makes a link (`/share/<token>`) anyone can open without signing in. It shows a
-  read-only sheet, including art and the 205 extra spells. The owner can turn the link off or make a new one.
-  Unlimited links.
-- Storage: `accounts/shares/<token>.json` → `{sub, sheet, character id}`. The page reads the character live
-  from the owner's account, so it's always current. It never copies the character.
-- Size: 1.5 days. Done: the link works in a private window, and after revoking it gives "link turned off".
+**6.2 Read-only share links** (dropped 2026-11-04, see Not planned; the plan is in this file's git history)
 
 **6.3 User-pickable themes** (optional; the owner wants it kept possible, not built now)
 - What: a few themes built on the 2.3 variables, picked in a menu and saved to the account (prefs key `theme`).
@@ -980,6 +973,7 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 | Item | Why |
 |---|---|
 | Import sessions from The Pitboss (was 1.10) | Dropped by the owner in the 1.9 interview, with AI summaries, transcripts and recorded audio on the campaign page. Would need a new interview to come back. |
+| Read-only share links (was 6.2) | Dropped by the owner: the Public setting already gives a read-only link at `/characters/<id>`. Public pages now send noindex, so search engines don't list them. |
 | Print / PDF export | Not picked by the owner. The browser's print stays as it is. |
 | Separate accessibility pass | Not picked. Every new feature still keeps today's level: labels, keyboard use, dialogs, reduced motion. |
 | Merging Quick Rolls into Dice Sets | The owner keeps both pages as they are. |
@@ -1021,4 +1015,4 @@ up, because of CLAUDE.md rather than an open design question:
 | 3 DM tools | 4 | ~8 days |
 | 4 Character building | 6 | ~18.5 days |
 | 5 Content | 4 | ~8.5 days + 5.4 (not sized yet) |
-| 6 Polish | 3 | ~6 days |
+| 6 Polish | 2 (6.2 dropped) | ~4.5 days |
