@@ -204,7 +204,7 @@ try {
             errs('campaign rules');
             await as('pl');
             await go(BASE + '/campaigns/' + CAMP);
-            is(`${name} players see the rules`, await ev(`document.querySelector('#cp-rules p').textContent`), 'Ability scores: Standard array. Hit points: take the average.');
+            is(`${name} players see the rules`, await ev(`document.querySelector('#cp-rules p').textContent`), 'Ability scores: Standard array. Hit points: take the average. Spell points: off. Carried weight: not tracked.');
             await go(BASE + '/characters/build');
             await b.until(`document.querySelector('[data-b=camp]')`);
             await type('[data-b=name]', 'Vex');

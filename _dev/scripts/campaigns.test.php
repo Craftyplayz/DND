@@ -44,6 +44,17 @@ $is('a player can\'t set rules', cp_act($A, $pl, ['act' => 'rules', 'id' => $id,
 $is('rules need one of each', cp_act($A, $dm, ['act' => 'rules', 'id' => $id, 'methods' => [], 'hp' => ['avg']])[0], 400);
 $is('the DM sets rules (unknown ones dropped)', cp_act($A, $dm, ['act' => 'rules', 'id' => $id, 'methods' => ['std', 'x', 'roll'], 'hp' => ['avg']]), [200, ['rules' => ['methods' => ['std', 'roll'], 'hp' => ['avg']]]]);
 $is('rules read back', cp_rules(cp_get($A, $id)), ['methods' => ['std', 'roll'], 'hp' => ['avg']]);
+// what the sheets follow (ROADMAP 4.4, 4.5): off and empty until set, numbers or blanks only, kept to their length
+$blank = fn($n) => array_fill(0, $n, '');
+$is('sheet rules default to off and empty', cp_sheet_rules(cp_get($A, $id)), ['sp' => false, 'weight' => false, 'pts' => $blank(20), 'cost' => $blank(9)]);
+$is('a player can\'t set them', cp_act($A, $pl, ['act' => 'rules', 'id' => $id, 'methods' => ['std'], 'hp' => ['avg'], 'weight' => true])[0], 403);
+$is('the DM sets them', cp_act($A, $dm, ['act' => 'rules', 'id' => $id, 'methods' => ['std'], 'hp' => ['avg'], 'sp' => true, 'weight' => true, 'pts' => ['4', 'x', -1, 99999, ...$blank(30)], 'cost' => [2, '', 6]])[0], 200);
+$sr = cp_sheet_rules(cp_get($A, $id));
+$is('switches saved', [$sr['sp'], $sr['weight']], [true, true]);
+$is('the table is cleaned', array_slice($sr['pts'], 0, 5), [4, '', '', 9999, '']);
+$is('and kept to its length', [count($sr['pts']), count($sr['cost']), array_slice($sr['cost'], 0, 3)], [20, 9, [2, '', 6]]);
+$is('the builder\'s rules are untouched by them', cp_rules(cp_get($A, $id)), ['methods' => ['std'], 'hp' => ['avg']]);
+$is('saving them off clears them', cp_act($A, $dm, ['act' => 'rules', 'id' => $id, 'methods' => ['std', 'roll'], 'hp' => ['avg']])[1]['rules'], ['methods' => ['std', 'roll'], 'hp' => ['avg']]);
 
 // characters: only your own, only from the account
 $is("someone else's character refused", cp_act($A, $pl, ['act' => 'characters', 'id' => $id, 'characters' => ['oz1']])[0], 400);

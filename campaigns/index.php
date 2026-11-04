@@ -220,22 +220,36 @@ $tile = fn($k) => '<a class="hub-card" href="/campaigns/' . h($k['id']) . '"><b>
             <?php endif; ?>
 
             <?php // the DM's character rules (ROADMAP 4.2): what the character builder offers a character built for this campaign
-            $rules = cp_rules($c); $mNames = ['pb' => 'Point buy', 'std' => 'Standard array', 'roll' => '4d6 drop lowest', 'man' => 'Manual']; $hNames = ['avg' => 'Take the average', 'roll' => 'Roll the hit die']; ?>
+            $rules = cp_rules($c); $mNames = ['pb' => 'Point buy', 'std' => 'Standard array', 'roll' => '4d6 drop lowest', 'man' => 'Manual']; $hNames = ['avg' => 'Take the average', 'roll' => 'Roll the hit die']; $sheetRules = cp_sheet_rules($c); ?>
             <section class="card" id="cp-rules">
                 <h2>Character rules</h2>
                 <?php if ($isDm): ?>
                     <form class="form" id="cp-rulesf">
-                        <p class="muted">What the character builder offers when a player builds a character for this campaign.</p>
+                        <p class="muted">What the character builder offers when a player builds a character for this campaign, and the optional rules every character here follows.</p>
                         <fieldset><legend>Ability scores</legend>
                             <?php foreach ($mNames as $k => $t): ?><label class="check"><input type="checkbox" name="m" value="<?= $k ?>"<?= in_array($k, $rules['methods'], true) ? ' checked' : '' ?>> <?= h($t) ?></label><?php endforeach; ?>
                         </fieldset>
                         <fieldset><legend>Hit points after level 1</legend>
                             <?php foreach ($hNames as $k => $t): ?><label class="check"><input type="checkbox" name="hp" value="<?= $k ?>"<?= in_array($k, $rules['hp'], true) ? ' checked' : '' ?>> <?= h($t) ?></label><?php endforeach; ?>
                         </fieldset>
+                        <fieldset><legend>Spell points</legend><label class="check"><input type="checkbox" id="cp-r-sp"<?= $sheetRules['sp'] ? ' checked' : '' ?>> Use spell points instead of spell slots</label></fieldset>
+                        <div id="cp-r-table"<?= $sheetRules['sp'] ? '' : ' hidden' ?>>
+                            <p class="muted">The site doesn't come with these numbers. Type your table once. Warlock levels don't count and Pact Magic stays separate.</p>
+                            <fieldset><legend>Points by caster level</legend><div class="cp-pttable"><?php foreach ($sheetRules['pts'] as $i => $v): ?><label>Level <?= $i + 1 ?><input class="field" type="number" inputmode="numeric" min="0" max="9999" name="pts" value="<?= h($v) ?>"></label><?php endforeach; ?></div></fieldset>
+                            <fieldset><legend>Point cost by spell level</legend><div class="cp-pttable"><?php foreach ($sheetRules['cost'] as $i => $v): ?><label><?= h(['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'][$i]) ?><input class="field" type="number" inputmode="numeric" min="0" max="9999" name="cost" value="<?= h($v) ?>"></label><?php endforeach; ?></div></fieldset>
+                        </div>
+                        <fieldset><legend>Carried weight</legend><label class="check"><input type="checkbox" id="cp-r-weight"<?= $sheetRules['weight'] ? ' checked' : '' ?>> Track carried weight</label>
+                            <small class="muted">Sheets show how much each character carries, and lower their speed when it's too much.</small></fieldset>
                         <div class="actions"><button class="btn" type="submit">Save rules</button></div>
                     </form>
                 <?php else: ?>
-                    <p class="muted">Ability scores: <?= h(implode(', ', array_map(fn($k) => $mNames[$k], $rules['methods']))) ?>. Hit points: <?= h(implode(' or ', array_map(fn($k) => strtolower($hNames[$k]), $rules['hp']))) ?>.</p>
+                    <p class="muted">Ability scores: <?= h(implode(', ', array_map(fn($k) => $mNames[$k], $rules['methods']))) ?>. Hit points: <?= h(implode(' or ', array_map(fn($k) => strtolower($hNames[$k]), $rules['hp']))) ?>. Spell points: <?= $sheetRules['sp'] ? 'on' : 'off' ?>. Carried weight: <?= $sheetRules['weight'] ? 'tracked' : 'not tracked' ?>.</p>
+                    <?php if ($sheetRules['sp'] && array_filter($sheetRules['pts'], fn($v) => $v !== '')): ?>
+                        <details class="cp-ptread"><summary>Spell points table</summary>
+                            <div class="table-wrap"><table class="table"><thead><tr><th>Caster level</th><?php foreach ($sheetRules['pts'] as $i => $v): ?><th class="num"><?= $i + 1 ?></th><?php endforeach; ?></tr></thead><tbody><tr><td>Points</td><?php foreach ($sheetRules['pts'] as $v): ?><td class="num"><?= h($v) ?></td><?php endforeach; ?></tr></tbody></table></div>
+                            <div class="table-wrap"><table class="table"><thead><tr><th>Spell level</th><?php foreach (['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'] as $t): ?><th class="num"><?= $t ?></th><?php endforeach; ?></tr></thead><tbody><tr><td>Cost</td><?php foreach ($sheetRules['cost'] as $v): ?><td class="num"><?= h($v) ?></td><?php endforeach; ?></tr></tbody></table></div>
+                        </details>
+                    <?php endif; ?>
                 <?php endif; ?>
             </section>
             <?php if ($isOwner): ?>

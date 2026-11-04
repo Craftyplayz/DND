@@ -3,7 +3,8 @@
 //   {"id", "name", "dm": <google sub>, "code": <join code>, "created": <unix time>,
 //    "members": [{"sub", "name", "joined", "characters": [{"sheet": "player", "id": <character id>}]}],
 //    "codms": [<google sub>, ...] (co-DMs: members the DM promoted; missing in older campaigns, meaning none),
-//    "rules": {"methods": ["pb", "std", "roll", "man"], "hp": ["avg", "roll"]} (ROADMAP 4.2: how characters are built; missing means all allowed)}
+//    "rules": {"methods": ["pb", "std", "roll", "man"], "hp": ["avg", "roll"], (ROADMAP 4.2: how characters are built; missing means all allowed)
+//              "sp": true, "weight": true, "pts": [20], "cost": [9]} (ROADMAP 4.4, 4.5: spell points and carried weight on the sheets; only there when set)}
 // The DM is always members[0]. cp_is_dm() (DM or co-DM) and cp_is_owner() (the DM alone) are the only role checks. A campaign only links characters (My Characters, accounts/characters/<id>/); it never
 // copies or writes them, so the player's own save stays the only copy. Deleting moves the folder to campaigns/.deleted/.
 // Used by campaigns/api.php (changes), campaigns/index.php and campaigns/join/ (pages), characters/index.php (DM access).
@@ -225,6 +226,20 @@ function cp_rules($c)
     return ['methods' => $pick($r['methods'] ?? null, CP_METHODS), 'hp' => $pick($r['hp'] ?? null, CP_HP)];
 }
 
+// the rules a sheet follows (ROADMAP 4.4, 4.5): spell points with the DM's table (points by caster level 1-20, cost by spell level 1-9; a blank is ''), and carried weight
+function cp_table($have, $n)
+{
+    $have = is_array($have) ? array_values($have) : [];
+    $out = [];
+    for ($i = 0; $i < $n; $i++) { $v = $have[$i] ?? ''; $out[] = is_numeric($v) && $v >= 0 ? min(9999, (int)$v) : ''; }
+    return $out;
+}
+function cp_sheet_rules($c)
+{
+    $r = is_array($c['rules'] ?? null) ? $c['rules'] : [];
+    return ['sp' => !empty($r['sp']), 'weight' => !empty($r['weight']), 'pts' => cp_table($r['pts'] ?? null, 20), 'cost' => cp_table($r['cost'] ?? null, 9)];
+}
+
 // One change from campaigns/api.php: [http code, response]. $body is the decoded JSON {act, ...}.
 // The caller holds cp_lock().
 function cp_act($accounts, $user, $body)
@@ -309,13 +324,19 @@ function cp_act($accounts, $user, $body)
         cp_drop_codm($c, $sub);
         return $save(['left' => true]);
     }
-    // {act: "rules", methods, hp}: the DM or a co-DM sets how characters are built (at least one of each stays allowed)
+    // {act: "rules", methods, hp, sp, weight, pts, cost}: the DM or a co-DM sets how characters are built (at least one of each stays allowed)
+    // and what the sheets follow
     if ($act === 'rules') {
         if (!cp_is_dm($c, $sub)) return [403, ['error' => 'Only the DM can do that.']];
         $m = array_values(array_intersect(CP_METHODS, (array)($body['methods'] ?? [])));
         $hp = array_values(array_intersect(CP_HP, (array)($body['hp'] ?? [])));
         if (!$m || !$hp) return [400, ['error' => 'Allow at least one way to set ability scores and one way to get hit points.']];
         $c['rules'] = ['methods' => $m, 'hp' => $hp];
+        $pts = cp_table($body['pts'] ?? null, 20); $cost = cp_table($body['cost'] ?? null, 9);
+        if (!empty($body['sp'])) $c['rules']['sp'] = true;
+        if (!empty($body['weight'])) $c['rules']['weight'] = true;
+        if (array_filter($pts, fn($v) => $v !== '')) $c['rules']['pts'] = $pts;
+        if (array_filter($cost, fn($v) => $v !== '')) $c['rules']['cost'] = $cost;
         return $save(['rules' => $c['rules']]);
     }
     if (!$owner) return [403, ['error' => 'Only the DM can do that.']];
