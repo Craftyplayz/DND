@@ -761,6 +761,19 @@ change already lands in `sheets/player/`. The test copy is archived and must not
   just make it consistent.
 - Size: 2 days. Done: screenshots at 375, 768 and 1440 wide, in Chrome and Firefox, show no overflow or clipped
   text on every page in `site_pages()`.
+- Owner's answers (2026-11-04, they replace the text above where different):
+  - Pages: the 9 menu pages (/, /characters/, /characters/build/, /sheets/monster/, /campaigns/, /compendium/,
+    /dice/test/, /dice/, /dice/rolls/) plus Credits, Privacy, the campaign page, join, map and Table view. /design/
+    is left alone even though it overflows. Archived pages are out. The D&D Beyond viewer is skipped.
+  - Widths 375, 768 and 1440 only. Dark colour scheme only (the owner chose dark over "both colour schemes").
+  - Tap targets 44 px on phone widths only; laptops stay as they are. The header menu keeps scrolling sideways on
+    phones, with a fade edge showing there's more. Compendium result rows wrap the "level · school" line to two lines.
+  - The player sheet, the monster sheet's phone layout and the map are exempt: only checked for no sideways scroll.
+  - Dice Sets folds, on phone and laptop (mockup option A): each section is one row showing the current pick, tap to
+    open, opening one closes the other, same sections and order, the roll bar stays at the top. Dice set starts open;
+    the open section isn't saved.
+  - A new automatic check in `check-all` fails on sideways scroll or clipped text on every in-scope page at each
+    width, in both browsers.
 
 **2.3 Theme-ready CSS**
 - What: move colours and fonts into CSS variables in `global.css`, matching the design guide's tokens, so user
