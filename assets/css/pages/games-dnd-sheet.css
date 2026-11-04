@@ -669,6 +669,9 @@ html.ph-typing #ph-tabs, html.ph-typing .hb-dice { display: none; }
 .ph-authw .auth { display: flex; align-items: center; gap: 8px; }
 .ph-authw button { min-height: 44px; }
 .ph-full { order: 11; flex: 1 1 100%; }
+.ph-back { position: fixed; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 20; box-shadow: var(--lift); }
+.ph-back[hidden] { display: none; }
+@media print { .ph-back { display: none; } }
 .ph-foot { order: 12; flex: 1 1 100%; color: var(--muted); font-size: 13px; }
 
 /* Customise fills the phone; its Panels tab is rows */

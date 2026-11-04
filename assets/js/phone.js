@@ -103,6 +103,7 @@
     function sync() {
         const now = on();
         document.documentElement.classList.toggle('ph-on', now);
+        $('#ph-back').hidden = !(small() && fullOn());
         const side = $('#mon-side'), fight = $('#mon-fight');
         if (now && !wasOn && side) $('#ph-enc').append(...[fight, side].filter(Boolean));
         if (!now && wasOn) {
@@ -117,7 +118,8 @@
 
     function start(api) {
         A = api; main = $('#main');
-        main.insertAdjacentHTML('afterbegin', '<header class="ph-head" id="ph-head"></header><div class="ph-note" id="ph-note" hidden></div>');
+        main.insertAdjacentHTML('afterbegin', '<header class="ph-head" id="ph-head"></header><div class="ph-note" id="ph-note" hidden></div><button type="button" class="btn small ph-back" id="ph-back" hidden>Phone layout</button>');
+        $('#ph-back').addEventListener('click', () => { try { localStorage.removeItem(FULL); } catch (x) { } modeChanged(); });
         main.insertAdjacentHTML('beforeend', `<nav class="tabbar" id="ph-tabs" aria-label="Sheet sections"></nav>
             <dialog class="bsheet" id="ph-sheet" aria-labelledby="ph-title"><div class="bsheet-grab" data-grab aria-hidden="true"><i></i></div>
                 <div class="bsheet-top"><h2 id="ph-title"></h2><button type="button" class="ph-ico" data-ph="close" aria-label="Close">${svg(I.x)}</button></div>

@@ -271,7 +271,14 @@ try {
             await raw(`document.querySelector('[data-ph-full]').click(); 1`); await sleep(200);
             is(`${name} and back`, await raw(`document.documentElement.classList.contains('ph-on')`), true);
             await raw(`document.querySelector('dialog#hb-dlg').close(); 1`);
+            is(`${name} phone mode: no way-back button`, await raw(`getComputedStyle(document.querySelector('#ph-back')).display`), 'none');
+            await click('[data-ph=menu]'); await has('[data-ph-full]');
+            await raw(`document.querySelector('[data-ph-full]').click(); 1`); await sleep(200);
+            is(`${name} the full layout shows a Phone layout button, on screen`, await J(`(() => { const r = document.querySelector('#ph-back').getBoundingClientRect(); return [getComputedStyle(document.querySelector('#ph-back')).display !== 'none', r.bottom <= innerHeight, r.right <= innerWidth]; })()`), [true, true, true]);
+            await raw(`document.querySelector('#ph-back').click(); 1`); await sleep(200);
+            is(`${name} it goes back to phone mode, for good`, await J(`[document.documentElement.classList.contains('ph-on'), localStorage.getItem('sheet-full-layout')]`), [true, null]);
             await size(1280, 800); await sleep(200);
+            is(`${name} desktop: no such button`, await raw(`getComputedStyle(document.querySelector('#ph-back')).display`), 'none');
             is(`${name} desktop as before`, await J(`[document.documentElement.classList.contains('ph-on'), !!document.querySelector('.hb-tabs'), !!document.querySelector('.hb-top-abil'), getComputedStyle(document.querySelector('#ph-tabs')).display]`), [false, true, true, 'none']);
             errs('layouts');
 
