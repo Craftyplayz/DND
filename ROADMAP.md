@@ -1046,6 +1046,127 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 
 ---
 
+## Stats data
+
+The owner's plan (2026-11-04): record everything now, build a stats page later, so nothing needs guessing back. **No stats page
+exists yet.** This section says where each stat's data is and how it's formatted. Check it's still true against the code before
+building on it.
+
+### Where it's kept
+
+Everything is under `private/dnd/accounts/` (the `live-accounts` and `test-accounts` volumes, counted by `deploy.sh`), never in the
+git repo. The action log is outside the character's own folder and save, so sheets, `normalise()` and versions don't know about it.
+
+| What | Where | Format |
+|---|---|---|
+| Action log, characters | `stats/characters/<character id>/<YYYY-MM>.jsonl` | one JSON object per line, below |
+| Action log, campaigns | `stats/campaigns/<campaign id>/<YYYY-MM>.jsonl` | one JSON object per line, below |
+| Rolls shared to a campaign | `campaigns/<id>/sessions/<n>.json` (`unsorted.json` between sessions) | `{started, ended, entries: [...]}`, see `includes/tablelog.php` |
+| Fights | `campaigns/<id>/fights/<n>.json` | `{n, round, started, startedAt, ended, entries: [...]}`, see `includes/initiative.php` |
+| Character versions | `characters/<id>/history/<n>.json` | the whole character as saved, every version, with `updated` |
+| Handouts, notes, homebrew | `campaigns/<id>/` (`includes/handouts.php`), `homebrew/<sub>/<id>.json` | their own files, with times |
+| Monsters | `monsters/<sub>/<id>.json` | the Monster Sheet's save, with `cr`, `xp`, `race`, `cmp` |
+
+Deleting a campaign moves its folder to `campaigns/.deleted/`; the action log stays where it is either way.
+
+### Action log format
+
+Lines are only ever added, so a crash can't harm what's there. Every line has `t` (its type), `id` and `at` (ms since 1970, server
+time; a browser's time is corrected by how far its clock was off when it sent it). The month in the file name is UTC.
+
+**A line can appear twice (a lost answer, two tabs, a DM edit applied by two open devices), so a stats page must keep one per `id`.**
+
+Written by the sheet (`assets/js/stats.js` compares a character before and after each save, `sheets/player/stats.php` takes them,
+`includes/stats.php` writes them), in a character's file. Each also has `c`: the campaign ids it was in when it arrived, if any.
+
+| `t` | Fields | Meaning |
+|---|---|---|
+| `hp` | `d`, `td`, `cur`, `temp`, `max`, `asked` | HP changed by `d` and temp HP by `td`, now `cur` and `temp`. `asked`: the amount entered, when there was one, so wasted healing is `asked - d` |
+| `death` | `dok`, `dbad`, `ok`, `bad` | death saves changed; a rest clearing them has negative `dok`/`dbad` |
+| `use` | `what`, `name`, `lvl`, `d` | `what`: `slot`, `points`, `tracker`, `ability`, `hitdie`. `d` above 0 was spent, below 0 was got back |
+| `rest` | `kind` | `short` or `long` |
+| `coin` | `coin`, `d`, `now` | `cp` to `pp` changed by `d` |
+| `item` | `name`, `cat`, `d`, `qty` | a row's quantity changed; added and removed rows count |
+| `level` | `name`, `d`, `now` | a class's level, when changed on the sheet (the builder's level-ups are in the versions) |
+| `insp` | `on` | inspiration |
+| `exh` | `d`, `now` | exhaustion |
+| `cond` | `name`, `on` | a condition put on or taken off |
+| `roll` | `title`, `expr`, `shown`, `total`, `nat`, `kind`, `dice`, `set` | a roll **not** shared to a campaign. Shared ones are only in the session files, so add the two together and nothing counts twice |
+
+Any of these can also have:
+- `why`: `short-rest`, `long-rest` or `effect`. Leave rest healing out of "healing received" if you want.
+- `by`: `dm` or `self`, for a DM edit. Its `at` is when it reached the server, even if the player's sheet applied it days later.
+- `undo: 1`: this line takes back an earlier one. Add it in so the two cancel out, and don't count it as healing or damage of its own.
+
+Written by the server, in a campaign's file:
+
+| `t` | Fields | Meaning |
+|---|---|---|
+| `turn` | `fight`, `round`, `e`, `kind`, `name`, `char` or `mon` + `copy`, `hidden` | a turn began; `kind`: `pc`, `monster`, `plain` |
+| `mhp` | `fight`, `e`, `mon`, `copy`, `name`, `cr`, `xp`, `race`, `cmp`, `ac`, `k`, `n`, `cur0`, `temp0`, `cur`, `temp`, `max` | a monster's HP changed. `k`: `dmg`, `heal`, `temp`, `set`; `n`: the amount; `cur0` and `temp0`: before |
+| `token` | `map`, `k`, `kind`, `char` or `mon` + `copy`, `name`, `from`, `to`, `grid`, `by` | a token's move ended; `from` and `to` are map pixels, `grid` is pixels per square, `by`: `dm` or `player` |
+| `map` | `map`, `name` | a map went on the table |
+
+Monster HP is logged only while the monster is in a fight (a map copy: always). Rolls in session files also gained `kind` (`check`,
+`save`, `skill`, `tool`, `init`, `attack`, `damage`, `coin`, `other`; player sheet only, older rolls and Monster Sheet rolls have
+none, so work it out from `title`) and `set` (the dice set's key).
+
+**Secrets.** Nothing serves this data yet. A stats page must apply the rules of `tl_view` and `fi_view`: hidden rolls and whispers
+stay out of what others see (totals included), and players never get monster HP, AC, hidden monsters or other players' HP numbers.
+
+### How each stat is worked out
+
+Free items only cover what's recorded in those files. A roll not shared to a campaign before this log began is gone. `dice` on
+rolls began with the Table view (1.7), so older rolls can only give nat 20s and 1s.
+
+| Stat | From |
+|---|---|
+| Rolls, total rolled, highest, lowest, nats and gaps, biggest damage roll, most common rolls, rolls by hour, most-used weapon or skill | rolls: `total`, `nat`, `title`, `at` |
+| Dice thrown, averages, luck score, streaks, back-to-back 20s or 1s, how often advantage changed the die | rolls: `dice`; `expr` starts `2d20 keep`, and `title` ends `with advantage` or `with disadvantage` |
+| Rolls by type | rolls: `kind`, or `title` |
+| Attacks made, crits, crit misses, damage rolled by type | rolls: `title` ends `to hit` (with `nat`), or `<type> damage` |
+| Dice set stats | rolls: `set` |
+| Sessions, length, time since last, attendance (whoever rolled), hidden rolls, most active player | session files: `started`, `ended`, `sub`, `vis` |
+| Fights, rounds, longest, first to act, highest initiative, monsters run, encounters | fight files |
+| Seconds between turns | `turn` lines |
+| Damage taken, healing received and wasted, temp HP, times at 0, lowest HP, deaths (`bad` reaches 3), party members dropped | `hp`, `death` lines |
+| Rests, hit dice, slots by level, limited-use abilities, trackers, rage, ki, gold, items, inspiration, conditions received | `rest`, `use`, `coin`, `item`, `insp`, `cond` lines |
+| Level-ups and their dates, sheet edits | character versions, or `level` lines |
+| Handouts, notes, homebrew made | their files. Homebrew used by others: `hbsrc` on other players' sheets |
+| Tokens moved, maps used | `token`, `map` lines |
+
+### The turn guess
+
+The site doesn't record who hit whom, so these stats credit an HP change to **whoever's turn it was**. The raw facts are saved now;
+the guess is only made when a stat is added up, so a better method can be used later on the same data.
+
+**How it's worked out:**
+1. Take an HP loss: an `mhp` line for a monster, or a campaign character's `hp` line with `d` or `td` below 0.
+2. In that campaign's file, find the latest `turn` line with `at` at or before the loss.
+3. If that line's fight had ended by then (`ended` in `fights/<n>.json`), or there's none, nobody is credited.
+4. Otherwise credit the `turn` line's `char` or `mon`. The amount is `(cur0 + temp0) - (cur + temp)` for a monster, and `-(d + td)` for a character.
+
+Healing works the same way with a gain, crediting another character's turn. A kill is an `mhp` line with `cur0` above 0 and `cur` at 0.
+
+**It goes wrong when:** someone reacts on another's turn (opportunity attacks, Shield, counters), the DM applies damage late or
+early, damage comes from a trap or ongoing effect, or the DM moved the turn on too soon. So show these as approximate. A `set`
+line (typed numbers) is a change too, but may not be a hit, so consider leaving those out.
+
+Using it:
+- **Combat:** damage dealt, biggest hit, damage per round and fight, kills, killing blows, overkill (`n` minus `cur0 + temp0`), biggest creature (`cr`), kills by type (`race`, `cmp`), healing given.
+- **Comparisons:** top damage dealer, top healer, monster damage dealt, nemesis, favourite victim, damage by level, player against player on damage.
+- **Trophies:** Giant Slayer, One Shot (`cur0` equals `max`, `cur` is 0), Overkill, Last Stand (the killer's last `hp` line has `cur` 1), Fell On My Own Sword, Medic, 100 kills, 10,000 damage, MVP, Most Damage, Most Healing.
+
+### Not recorded (they'd need building first)
+
+- A new Cast button: spells cast, by spell, cantrips, upcasts, favourite spell, Spell Slinger.
+- New roll buttons: hit dice and death save rolls, Clutch.
+- New rules or fields: potions drunk and ammo used as such (`item` lines record the count going down, not why), revivals, XP.
+- A target and hit or miss on every attack: hits, misses, hit rate, Sharpshooter, AC stats, damage dealt by type, conditions given, concentration.
+- Advised against (tabs left open inflate the first two; the last slows the DM down): time on a sheet, time in Table view, saves forced and enemies who failed.
+
+---
+
 ## Not planned / decided against
 
 | Item | Why |

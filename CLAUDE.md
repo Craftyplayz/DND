@@ -66,7 +66,11 @@ do). Signed out, everything keeps working from the browser alone.
     account says. A row on a sheet, or a whole monster, that came from homebrew is its own copy, with its source in `hbsrc`; a built character keeps the classes, races and backgrounds it picked in `build.hbc`. A monster shared
     "DM only" must only ever leave the server for that campaign's DM and co-DMs (`hb_view` is the one place shared entries are served)
 - Not synced, by the user's choice: dice fairness test tallies (`dice-test-counts`). Not synced because it only copies
-  what the account holds: the last party seen of each campaign (`mon-party-seen`, for offline prep).
+  what the account holds: the last party seen of each campaign (`mon-party-seen`, for offline prep). Not synced because
+  it's only on its way to the account: the action log's waiting lines (`stats-outbox`).
+- The action log for future stats (`accounts/stats/`, assets/js/stats.js + includes/stats.php): where it is, its format and
+  how each stat is worked out are in ROADMAP.md "Stats data". A new thing a player can do on a sheet should show up in
+  `facts()` in stats.js, and a change to what's logged must update that section in the same change.
 - How to add more: a list of things a player builds up (characters, monsters) gets per-item sync like the
   sheets (a cloud.php wrapper with its own `CL_ACCOUNTS` folder, `updated` stamped on edits only); a setting
   goes in the KEYS list of both sync.js and prefs.php. sync.js watches localStorage, so the page's own code
