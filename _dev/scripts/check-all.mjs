@@ -47,6 +47,7 @@ export const BROWSER_CHECKS = {
     'homebrew-page': { ports: [8130], split: true, tmp: 'dnd-homebrew-check', secs: 40 },
     'campaign-tabs': { ports: [8131, 8103], split: true, tmp: 'dnd-tabs-check', secs: 120 },
     'encounter-builder': { ports: [8138], split: true, tmp: 'dnd-builder32-check', secs: 120 },
+    'send-initiative': { ports: [8145, 8105], split: true, tmp: 'dnd-send-check', secs: 60 },
     'homebrew-copies': { ports: [8137], split: true, tmp: 'dnd-hbcopies-check', secs: 120 },
     'homebrew-monsters': { ports: [8139], split: true, tmp: 'dnd-hbmonsters-check', secs: 120 },
     'homebrew-classes': { ports: [8140], split: true, tmp: 'dnd-hbclasses-check', secs: 150 },
