@@ -5,7 +5,6 @@
 .dd-land label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
 .dd-land .field { width: 5.5em; }
 .dd-out { min-width: 0; font-size: 14px; font-weight: 600; }
-.dd .sec-h { margin: 28px 0 12px; }
 .dd-sets { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
 .dd-set { display: grid; justify-items: center; gap: 4px; padding: 8px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); font: inherit; font-size: 13px; text-align: center; cursor: pointer; transition: border-color var(--fast), background var(--fast); }
 .dd-set:hover { border-color: var(--accent); }
@@ -21,8 +20,18 @@
 .dd-pick { display: grid; flex: 1 1 260px; gap: 2px; min-width: 0; padding: 0; background: none; border: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .dd-pick b { font-size: 14px; }
 .dd-pick span { color: var(--muted); font-size: 13px; }
-/* nat 1 and nat 20 sounds side by side when there's room */
-.dd-nats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 0 24px; }
+/* folded sections: one row each (name, count, the current pick), the open one shows its list below */
+.dd-fold { margin: 0 0 8px; }
+.dd .dd-fh { margin: 0; }
+.dd-fbtn { display: flex; align-items: center; gap: 8px 12px; width: 100%; min-height: 52px; padding: 8px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--fast), background var(--fast); }
+.dd-fbtn:hover { border-color: var(--accent); }
+.dd-fbtn[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--btn-line); }
+.dd-ft { flex: none; font-size: 17px; font-weight: 600; }
+.dd-ft .n { color: var(--muted); font-size: 14px; font-weight: 400; }
+.dd-val { flex: 1 1 0; min-width: 0; color: var(--muted); font-size: 13px; font-weight: 400; text-align: right; overflow-wrap: anywhere; }
+.dd-chev { flex: none; color: var(--muted); transition: transform var(--fast); }
+.dd-fbtn[aria-expanded="true"] .dd-chev { transform: rotate(90deg); }
+.dd-body { padding: 12px 0 8px; }
 .dd-natline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; font-size: 14px; }
 /* the chosen trails as layers, top first */
 .dd-layers { margin: 0 0 12px; padding: 10px 12px; background: var(--card2); border: 1px solid var(--accent); border-radius: var(--radius); }
@@ -31,7 +40,7 @@
 .dd-layhead .btn { margin-left: auto; }
 .dd-layers ol { display: grid; gap: 4px; margin: 0; padding: 0 0 0 20px; font-size: 14px; }
 .dd-layers li { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.dd-layname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-layname { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .dd-laybtn { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; background: var(--btn2); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); font: inherit; cursor: pointer; }
 .dd-laybtn:hover:not(:disabled) { border-color: var(--accent); }
 .dd-laybtn:disabled { opacity: .4; cursor: default; }

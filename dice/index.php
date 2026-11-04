@@ -69,7 +69,18 @@ $data = [
             <span class="dd-out" id="dd-out" aria-live="polite"></span>
         </div>
 
-        <h2 class="sec-h">Presets <span class="n" id="dd-pcount"></span></h2>
+        <?php
+        // a section is one row showing the current pick (dice.js fills .dd-val); the rows open one at a time
+        function dd_fold($id, $title, $count = '', $open = false)
+        {
+            echo '<section class="dd-fold"><h2 class="sec-h dd-fh"><button type="button" class="dd-fbtn" aria-expanded="' . ($open ? 'true' : 'false') . '" aria-controls="dd-f-' . $id . '">'
+                . '<span class="dd-ft">' . $title . ' ' . $count . '</span><span class="dd-val"></span><span class="dd-chev" aria-hidden="true">›</span></button></h2>'
+                . '<div class="dd-body" id="dd-f-' . $id . '"' . ($open ? '' : ' hidden') . '>';
+        }
+        $end = fn() => print('</div></section>');
+        ?>
+
+        <?php dd_fold('presets', 'Presets', '<span class="n" id="dd-pcount"></span>'); ?>
         <form class="dd-pbar" id="dd-pform">
             <label>Name <input class="field" id="dd-pname" maxlength="60" placeholder="Fire night" required></label>
             <button type="submit" class="btn">Save current as preset</button>
@@ -79,16 +90,18 @@ $data = [
             <span class="dd-out" id="dd-pmsg" aria-live="polite"></span>
         </form>
         <div class="dd-sounds" id="dd-presets"></div>
+        <?php $end(); ?>
 
-        <h2 class="sec-h">Dice set <span class="n"><?= count($sets) + count($classic) ?></span></h2>
+        <?php dd_fold('set', 'Dice set', '<span class="n">' . (count($sets) + count($classic)) . '</span>', true); ?>
         <div class="dd-sets" role="group" aria-label="Dice set">
             <?php foreach (array_merge(array_map(fn($s) => $s[0], $sets), $classic) as $k => $name): ?>
                 <button type="button" class="dd-set" data-set="<?= h($k) ?>" aria-pressed="false"><img alt="" width="96" height="96"><span><?= h($name) ?></span></button>
             <?php endforeach; ?>
         </div>
         <p class="muted dd-setline" id="dd-setline"></p>
+        <?php $end(); ?>
 
-        <h2 class="sec-h">Coin <span class="n">7</span></h2>
+        <?php dd_fold('coin', 'Coin', '<span class="n">7</span>'); ?>
         <div class="dd-sets" role="group" aria-label="Coin">
             <?php foreach (['50c' => '50 cent', 'gold-new' => 'Gold', 'gold-old' => 'Old gold', 'silver-new' => 'Silver', 'silver-old' => 'Old silver', 'copper-new' => 'Copper', 'copper-old' => 'Old copper'] as $k => $name): ?>
                 <button type="button" class="dd-set dd-coin" data-coin="<?= h($k) ?>" aria-pressed="false"><img alt="" width="96" height="96"><span><?= h($name) ?></span></button>
@@ -98,39 +111,39 @@ $data = [
             <a href="https://sketchfab.com/3d-models/fantasy-designed-coins-gold-silver-copper-71a3526b3403419f97717865afb27a41" target="_blank" rel="noopener">Fantasy Designed Coins</a>
             by <a href="https://sketchfab.com/Kigha" target="_blank" rel="noopener">Kigha</a>, licensed under
             <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a> (textures resized).</p>
+        <?php $end(); ?>
 
-        <h2 class="sec-h">Coin sound <span class="n" id="dd-csndcount"></span></h2>
+        <?php dd_fold('coinsnd', 'Coin sound', '<span class="n" id="dd-csndcount"></span>'); ?>
         <p class="muted dd-natline">How the coin sounds as it flips, bounces and settles.</p>
         <div class="dd-sounds" id="dd-coinsnd"></div>
+        <?php $end(); ?>
 
-        <h2 class="sec-h">Sound <span class="n" id="dd-scount"></span></h2>
+        <?php dd_fold('sound', 'Sound', '<span class="n" id="dd-scount"></span>'); ?>
         <div class="stabs dd-cats" id="dd-cats" role="group" aria-label="Kind of sound"></div>
         <div class="dd-sounds" id="dd-sounds"><p class="note">Loading sounds...</p></div>
+        <?php $end(); ?>
 
         <div id="dd-extras" hidden>
-            <h2 class="sec-h">Trail <span class="n" id="dd-trailcount"></span></h2>
+            <?php dd_fold('trail', 'Trail', '<span class="n" id="dd-trailcount"></span>'); ?>
             <p class="muted dd-natline">What each die leaves on the table as it rolls. Pick several to layer them.</p>
             <div class="dd-layers" id="dd-layers" hidden></div>
             <div class="dd-sounds" id="dd-trails"></div>
-            <div class="dd-nats">
-                <?php foreach ([1 => 'Nat 1 animation', 20 => 'Nat 20 animation', 'mid' => 'Other rolls animation'] as $n => $title): ?>
-                    <section>
-                        <h2 class="sec-h"><?= $title ?> <span class="n" id="dd-a<?= $n ?>count"></span></h2>
-                        <p class="muted dd-natline"><?= ['1' => 'How a d20 that lands on 1 leaves the table.', '20' => 'How a d20 that lands on 20 leaves the table.', 'mid' => 'How every other die leaves the table: a d20 on 2 to 19, and the other dice.'][$n] ?></p>
-                        <div class="dd-sounds" id="dd-anim<?= $n ?>"></div>
-                    </section>
-                <?php endforeach; ?>
-            </div>
+            <?php $end(); ?>
+            <?php foreach ([1 => 'Nat 1 animation', 20 => 'Nat 20 animation', 'mid' => 'Other rolls animation'] as $n => $title): ?>
+                <?php dd_fold('anim' . $n, $title, '<span class="n" id="dd-a' . $n . 'count"></span>'); ?>
+                <p class="muted dd-natline"><?= ['1' => 'How a d20 that lands on 1 leaves the table.', '20' => 'How a d20 that lands on 20 leaves the table.', 'mid' => 'How every other die leaves the table: a d20 on 2 to 19, and the other dice.'][$n] ?></p>
+                <div class="dd-sounds" id="dd-anim<?= $n ?>"></div>
+                <?php $end(); ?>
+            <?php endforeach; ?>
         </div>
 
-        <div class="dd-nats" id="dd-nats" hidden>
+        <div id="dd-nats" hidden>
             <?php foreach ([1 => 'Nat 1 sound', 20 => 'Nat 20 sound'] as $n => $title): ?>
-                <section>
-                    <h2 class="sec-h"><?= $title ?> <span class="n" id="dd-n<?= $n ?>count"></span></h2>
-                    <p class="muted dd-natline"><?= $n === 1 ? 'Plays when a d20 lands on 1 and blows up.' : 'Plays when a d20 lands on 20 and flares.' ?>
-                        <button type="button" class="btn small" data-try="<?= $n ?>">Try it on a d20</button></p>
-                    <div class="dd-sounds" id="dd-nat<?= $n ?>"></div>
-                </section>
+                <?php dd_fold('nat' . $n, $title, '<span class="n" id="dd-n' . $n . 'count"></span>'); ?>
+                <p class="muted dd-natline"><?= $n === 1 ? 'Plays when a d20 lands on 1 and blows up.' : 'Plays when a d20 lands on 20 and flares.' ?>
+                    <button type="button" class="btn small" data-try="<?= $n ?>">Try it on a d20</button></p>
+                <div class="dd-sounds" id="dd-nat<?= $n ?>"></div>
+                <?php $end(); ?>
             <?php endforeach; ?>
         </div>
     </main>

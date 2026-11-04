@@ -1,6 +1,25 @@
 // Dice Sets page: choose a set and a sound, roll, or land a die on a number. Data (sets, file versions) comes from index.php's #dd-data.
 // Every change is saved as the browser's dice choice (choice.js), which the Homebrew Sheet rolls with too.
 const DATA = JSON.parse(document.getElementById('dd-data').textContent);
+// ---- folded sections: each is one row showing the current pick; opening one closes the others (the open one isn't saved) ----
+// runs before anything loads, so the rows work even if a script below fails
+{
+    const folds = [...document.querySelectorAll('.dd-fold')];
+    const val = (f) => [...f.querySelectorAll('.dd-body .dd-sets [aria-pressed="true"], .dd-body .dd-pick[aria-pressed="true"]')]
+        .map((e) => (e.querySelector('b') || e.querySelector('span') || e).textContent.trim()).join(', ');
+    const draw = (f) => { f.querySelector('.dd-val').textContent = val(f); };
+    for (const f of folds) {
+        const btn = f.querySelector('.dd-fbtn'), body = f.querySelector('.dd-body');
+        btn.addEventListener('click', () => {
+            const open = body.hidden;
+            for (const o of folds) { o.querySelector('.dd-body').hidden = true; o.querySelector('.dd-fbtn').setAttribute('aria-expanded', 'false'); }
+            body.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+        });
+        // the picks are drawn by the code below (and by a set loading); the row follows them
+        new MutationObserver(() => draw(f)).observe(body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-pressed'] });
+        draw(f);
+    }
+}
 // versioned like the page's other files, so a changed choice.js isn't kept from the browser's cache
 const { saveChoice, styleFrom } = await import(DATA.choice);
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
