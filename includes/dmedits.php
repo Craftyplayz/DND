@@ -284,7 +284,7 @@ function dm_run(&$c, $e, $max = null)
     if (count($c->dmApplied) > DM_KEEP) $c->dmApplied = array_slice($c->dmApplied, -DM_KEEP);
     if ($r['ok'] && ($e->op ?? '') !== 'roll') {
         if (!is_array($c->rolls ?? null)) $c->rolls = [];
-        array_unshift($c->rolls, (object)['at' => dm_num($e->at ?? 0) ?: dm_now(), 'title' => 'DM: ' . (string)($e->t ?? ''), 'expr' => '', 'shown' => '', 'total' => '', 'dm' => 1]);
+        array_unshift($c->rolls, (object)['at' => dm_num($e->at ?? 0) ?: dm_now(), 'title' => (empty($e->self) ? 'DM: ' : '') . (string)($e->t ?? ''), 'expr' => '', 'shown' => '', 'total' => '', 'dm' => 1]);
         $c->rolls = array_slice($c->rolls, 0, 100);
     }
     return $r;
@@ -414,10 +414,11 @@ function dm_member_name($c, $sub)
 // The caller holds ch_lock() and cp_lock().
 function dm_send($accounts, $user, $c, $char, $edits)
 {
-    if (!$c || !cp_is_dm($c, $user['sub']) || !cp_has_char($c, $char)) return [403, ['error' => "You can't change this character. Only its campaign's DM and co-DMs can."], []];
     $owner = ch_meta($accounts, $char)['owner'] ?? null;
+    // the owner, from their token on the map: hit points and conditions only ("self": no "DM:" in their roll log)
+    $self = $c && $owner === $user['sub'] && cp_member($c, $user['sub']) >= 0;
+    if (!$c || !(cp_is_dm($c, $user['sub']) || $self) || !cp_has_char($c, $char)) return [403, ['error' => "You can't change this character. Only its campaign's DM and co-DMs can."], []];
     if (!$owner) return [404, ['error' => 'No such character.'], []];
-    if ($owner === $user['sub']) return [400, ['error' => "That's your own character: change it as its player."], []];
     if (!is_array($edits) || !array_is_list($edits)) return [400, ['error' => 'Send a list of edits.'], []];
     $now = dm_char($accounts, $char);
     if (!$now) return [404, ['error' => 'No such character.'], []];
@@ -428,6 +429,8 @@ function dm_send($accounts, $user, $c, $char, $edits)
     foreach ($edits as $e) {
         $id = is_object($e) && is_string($e->id ?? null) ? $e->id : '';
         if ($why = dm_check($e)) { $refused[] = ['id' => $id, 'why' => $why]; continue; }
+        if ($self && !(($e->op ?? '') === 'hp' || (($e->op ?? '') === 'tag' && ($e->path ?? null) === ['conditions']))) { $refused[] = ['id' => $id, 'why' => 'From the map you can only change hit points and conditions.']; continue; }
+        unset($e->self);
         if (isset($known[$id])) continue; // sent before (the outbox tried again)
         $r = dm_run($now, $e);
         if (!$r['ok'] && empty($r['conflict'])) {
@@ -436,6 +439,7 @@ function dm_send($accounts, $user, $c, $char, $edits)
             continue;
         }
         $e->by = cp_who($user);
+        if ($self) $e->self = true;
         $e->c = $c['id'];
         $e->done = 0;
         $q->edits[] = $e;

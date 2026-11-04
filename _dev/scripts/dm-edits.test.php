@@ -21,7 +21,7 @@ $char = function ($id, $owner, $c) use ($A) {
     file_put_contents("$A/characters/$id/character.json", json_encode(['id' => $id] + $c));
 };
 $char('lock', '333', $hero);
-$char('dmpc', '111', ['updated' => 1, 'name' => 'Brannoc', 'abilities' => [], 'hp' => ['cur' => 5, 'base' => 5, 'temp' => 0, 'mod' => 0]]);
+$char('dmpc', '111', ['updated' => 1, 'name' => 'Brannoc', 'abilities' => [], 'conditions' => [], 'hp' => ['cur' => 5, 'base' => 5, 'temp' => 0, 'mod' => 0]]);
 $char('ozzy', '444', ['updated' => 1, 'name' => 'Ozzy', 'abilities' => []]);
 $stored = md5_file("$A/characters/lock/character.json");
 $id = cp_act($A, $dm, ['act' => 'create', 'name' => 'Edits'])[1]['id'];
@@ -64,7 +64,10 @@ $send = fn($u, $char, $edits, $camp = null) => dm_send($A, $u, $camp ?? $c(), $c
 $is('a player may not', $send($pl, 'ozzy', [$E('hp', ['how' => 'dmg', 'amt' => 1])])[0], 403);
 $is('a stranger may not', $send(['sub' => '999', 'name' => 'X'], 'lock', [$E('hp', ['how' => 'dmg', 'amt' => 1])])[0], 403);
 $is('not for a character outside the campaign', $send($dm, 'ozzy', [$E('hp', ['how' => 'dmg', 'amt' => 1])])[0], 403);
-$is('never your own character', $send($dm, 'dmpc', [$E('hp', ['how' => 'dmg', 'amt' => 1])])[0], 400);
+// the owner, from their token on the map: hit points and conditions only, marked as their own
+$own = $send($dm, 'dmpc', [$h0 = $E('hp', ['how' => 'dmg', 'amt' => 1]), $t0 = $E('tag', ['path' => ['conditions'], 'value' => 'Prone', 'on' => true]), $x0 = $E('set', ['path' => ['name'], 'value' => 'New', 'was' => 'Dmpc']), $y0 = $E('tag', ['path' => ['profs', 'langs'], 'value' => 'Orc', 'on' => true])]);
+$is('your own character: HP and conditions, nothing else', [$own[0], $own[1]['queued'], array_column($own[1]['refused'], 'id')], [200, [$h0->id, $t0->id], [$x0->id, $y0->id]]);
+$is('your own: marked, and a client can\'t mark a DM\'s edit', [$own[2][0]->self ?? null, $send($co, 'dmpc', [$sx = $E('hp', ['how' => 'heal', 'amt' => 1, 'self' => true])])[2][0]->self ?? null], [true, null]);
 $is('the DM may', $send($dm, 'lock', [$h = $E('hp', ['how' => 'dmg', 'amt' => 7])])[1], ['queued' => [$h->id], 'refused' => []]);
 $is('a co-DM may', $send($co, 'lock', [$s = $E('set', ['path' => ['skills', '@Stealth', 'p'], 'value' => 1, 'was' => 0])])[1]['queued'], [$s->id]);
 $is('a co-DM may edit the DM\'s character', $send($co, 'dmpc', [$E('hp', ['how' => 'heal', 'amt' => 1])])[0], 200);

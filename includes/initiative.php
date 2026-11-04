@@ -9,8 +9,10 @@
 // An entry: {"id", "kind": "pc" | "monster" | "plain", "char" | "mon" | "name", "init" (null until rolled), "bonus",
 //   "tie" (a silent d20 roll-off between equal init and bonus), "secret" (rolled hidden or to the DM), "hidden" (monsters),
 //   "name" (monsters: the last name seen, kept if the monster goes), "ac" (monsters, from the Monster Sheet)}
+//   "auto" (a party character whose number the DM's panel gave at "begin": their first sheet roll replaces it)
+//   "copy" (a monster copy from the map: its HP lives in monster-copies.json, never in the Monster Sheet save)
 // Monster HP is never kept here: it's read from the monster save of whoever added it, "by" (the DM or a co-DM;
-// <accounts>/monsters/<by>/<id>.json; entries from before co-DMs have no "by" and use the DM's).
+// <accounts>/monsters/<by>/<id>.json; entries from before co-DMs have no "by" and use the DM's), or from its copy.
 require_once __DIR__ . '/tablelog.php';
 require_once __DIR__ . '/dmedits.php';
 
@@ -38,11 +40,62 @@ function fi_monster($accounts, $c, $monId, $by = null)
     return ch_ok_id($monId) && !preg_match('#[/\\\\.]#', $by) ? ch_json("$accounts/monsters/$by/$monId.json") : null;
 }
 
-// the fight entry for monster $monId, or null (cloud.php's ?hp=&c=: a co-DM changing the HP of the DM's monster)
+// the fight entry for monster $monId, or null (cloud.php's ?hp=&c=: a co-DM changing the HP of the DM's monster). A copy doesn't count: it never touches the save.
 function fi_entry_mon($accounts, $c, $monId)
 {
-    foreach (fi_read($accounts, $c['id'])['entries'] ?? [] as $e) if (($e['mon'] ?? null) === $monId) return $e;
+    foreach (fi_read($accounts, $c['id'])['entries'] ?? [] as $e) if (($e['mon'] ?? null) === $monId && empty($e['copy'])) return $e;
     return null;
+}
+
+// ---- monster copies (the map's Goblin A, B, C): <accounts>/campaigns/<id>/monster-copies.json
+//   {copy id: {"mon", "by", "name", "suffix", "hp": {cur, base, temp, mod}, "ac", "bonus"}}. The Monster Sheet save is never changed by a copy.
+function fi_copies($accounts, $cid)
+{
+    return ch_json("$accounts/campaigns/$cid/monster-copies.json") ?? [];
+}
+
+// one change to the copies under their own lock: $fn(&$copies) returns what to answer, or null to change nothing
+function fi_copies_change($accounts, $cid, $fn)
+{
+    $dir = "$accounts/campaigns/$cid";
+    if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) return null;
+    $lock = fopen("$dir/.copies.lock", 'c');
+    if (!$lock || !flock($lock, LOCK_EX)) return null;
+    $all = fi_copies($accounts, $cid);
+    $out = $fn($all);
+    if ($out !== null) {
+        $tmp = "$dir/monster-copies.json." . getmypid();
+        if (@file_put_contents($tmp, json_encode($all, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) === false || !@rename($tmp, "$dir/monster-copies.json")) $out = null;
+    }
+    flock($lock, LOCK_UN);
+    return $out;
+}
+
+// one HP change on a copy (fi_hp): the new HP, or null
+function fi_copy_hp($accounts, $cid, $copy, $op)
+{
+    return fi_copies_change($accounts, $cid, function (&$all) use ($copy, $op) {
+        if (!isset($all[$copy])) return null;
+        $hp = fi_hp($all[$copy]['hp'] ?? [], $op);
+        if ($hp === null) return null;
+        $all[$copy]['hp'] = $hp;
+        return $hp;
+    });
+}
+
+// the monster behind a fight entry or map token: its save, with a copy's own name and HP on top (a copy outlives the save)
+function fi_mon_of($accounts, $c, $e)
+{
+    $m = fi_monster($accounts, $c, $e['mon'] ?? '', $e['by'] ?? null);
+    $cp = !empty($e['copy']) ? fi_copies($accounts, $c['id'])[$e['copy']] ?? null : null;
+    if (!$cp) return $m;
+    return array_merge($m ?? ['id' => $e['mon'] ?? ''], ['name' => trim(($cp['name'] ?? '') . ' ' . ($cp['suffix'] ?? '')), 'hp' => $cp['hp']]);
+}
+
+// the campaign's map options: {fx: players see bloodied and dead, ac: players see monsters' AC in a fight}
+function fi_opts($accounts, $cid)
+{
+    return (ch_json("$accounts/campaigns/$cid/maps/opts.json") ?? []) + ['fx' => true, 'ac' => false];
 }
 
 function fi_num($v)
@@ -100,7 +153,7 @@ function fi_pc($accounts, $char)
 function fi_down($accounts, $c, $e)
 {
     if ($e['kind'] !== 'monster') return false;
-    $m = fi_monster($accounts, $c, $e['mon'], $e['by'] ?? null);
+    $m = fi_mon_of($accounts, $c, $e);
     return $m && fi_status($m['hp'] ?? []) === 'down';
 }
 
@@ -184,19 +237,71 @@ function fi_int($v)
     return is_numeric($v) ? (int)round((float)$v) : null;
 }
 
+// puts items in the fight: null, or why not. $auto: "begin", where the panel's numbers stand in until a sheet roll
+function fi_add_items($accounts, $c, &$f, $items, $sub, $auto = false)
+{
+    $party = fi_party($c);
+    foreach ($items as $it) {
+        $kind = $it['kind'] ?? '';
+        if ($kind === 'pc') {
+            $id = (string)($it['char'] ?? '');
+            if (!isset($party[$id])) return "That character isn't in this campaign.";
+            $f['out'] = array_values(array_diff($f['out'], [$id]));
+            foreach ($f['entries'] as $x) if (($x['char'] ?? null) === $id) continue 2;
+            fi_place($f, ['id' => fi_new_id($f), 'kind' => 'pc', 'char' => $id, 'init' => fi_int($it['init'] ?? null), 'bonus' => fi_int($it['bonus'] ?? 0) ?? 0, 'tie' => 0, 'secret' => false, 'hidden' => false] + ($auto ? ['auto' => true] : []));
+        } elseif ($kind === 'monster') {
+            $copy = isset($it['copy']) ? (string)$it['copy'] : '';
+            $cp = $copy !== '' ? fi_copies($accounts, $c['id'])[$copy] ?? null : null;
+            if ($copy !== '' && !$cp) return 'That monster copy is gone. Reload the map.';
+            $by = $cp['by'] ?? $sub;
+            $mon = $cp ? (string)$cp['mon'] : (string)($it['mon'] ?? '');
+            $m = fi_monster($accounts, $c, $mon, $by);
+            if (!$m && !$cp) return 'Save that monster to your account first (sign in on the Monster Sheet).';
+            foreach ($f['entries'] as $x) if ($cp ? ($x['copy'] ?? null) === $copy : ($x['mon'] ?? null) === $mon && empty($x['copy'])) continue 2;
+            $name = $cp ? trim(($cp['name'] ?? '') . ' ' . ($cp['suffix'] ?? '')) : (string)($m['name'] ?? '');
+            fi_place($f, ['id' => fi_new_id($f), 'kind' => 'monster', 'mon' => $mon, 'by' => $by, 'name' => mb_substr($name, 0, 80), 'init' => fi_int($it['init'] ?? null),
+                'bonus' => fi_int($it['bonus'] ?? $cp['bonus'] ?? 0) ?? 0, 'tie' => 0, 'secret' => true, 'hidden' => !empty($it['hidden']), 'ac' => fi_int($it['ac'] ?? $cp['ac'] ?? null)] + ($cp ? ['copy' => $copy] : []));
+        } elseif ($kind === 'plain') {
+            $name = cp_clean_name($it['name'] ?? '');
+            if ($name === null) return 'Give the entry a name.';
+            fi_place($f, ['id' => fi_new_id($f), 'kind' => 'plain', 'name' => $name, 'init' => fi_int($it['init'] ?? null), 'bonus' => 0, 'tie' => 0, 'secret' => false, 'hidden' => false]);
+        } else return "That can't go in a fight.";
+    }
+    return null;
+}
+
 // One DM change: [http code, response, log entries to publish]. The caller holds cp_lock() and checked it's the DM or a
 // co-DM ($sub: whose Monster Sheet added monsters come from; the DM when left out).
 //   {op: "start"} | {op: "end"} | {op: "round1"} | {op: "next"} | {op: "prev"}
-//   {op: "add", items: [{kind: "pc", char} | {kind: "monster", mon, init, bonus, ac} | {kind: "plain", name, init}]}
+//   {op: "add", items: [{kind: "pc", char} | {kind: "monster", mon, init, bonus, ac, copy?} | {kind: "plain", name, init}]}
+//   {op: "begin", items: as "add", with hidden on monsters}: the map's Start combat, a running fight at round 1 with no rolling-in
+//   {op: "copyhp", copy, hop}: one HP change on a monster copy (no v: damage adds up, whatever the DM was looking at)
 //   {op: "remove" | "init" | "move" | "hide", e: entry id, value | dir | on}
-// Every op but "start" carries v, the fight the DM was looking at.
+// Every op but "start", "begin" and "copyhp" carries v, the fight the DM was looking at.
 function fi_op($accounts, $c, $body, $sub = null)
 {
     $sub = $sub ?? $c['dm'];
     $op = (string)($body['op'] ?? '');
     $f = fi_read($accounts, $c['id']);
     $logs = [];
-    if ($op === 'start') {
+    if ($op === 'copyhp') {
+        $hp = is_string($body['copy'] ?? null) ? fi_copy_hp($accounts, $c['id'], $body['copy'], $body['hop'] ?? null) : null;
+        return $hp === null ? [400, ['error' => "That isn't a hit point change."], []] : [200, ['hp' => $hp], []];
+    }
+    if ($op === 'begin') {
+        if ($f) return [409, ['error' => 'A fight is already running.', 'stale' => true], []];
+        $items = is_array($body['items'] ?? null) ? $body['items'] : [];
+        if (!$items) return [400, ['error' => 'Nobody is in the fight yet.'], []];
+        $n = 0;
+        foreach (glob("$accounts/campaigns/{$c['id']}/fights/*.json") ?: [] as $x) $n = max($n, (int)basename($x, '.json'));
+        $now = (int)round(microtime(true) * 1000);
+        $f = ['n' => $n + 1, 'v' => 0, 'phase' => 'running', 'round' => 1, 'turn' => null, 'started' => $now, 'startedAt' => $now, 'out' => [], 'entries' => []];
+        if ($why = fi_add_items($accounts, $c, $f, $items, $sub, true)) return [400, ['error' => $why], []];
+        if (!$f['entries']) return [400, ['error' => 'Nobody is in the fight yet.'], []];
+        $first = fi_after($accounts, $c, $f, -1);
+        $f['turn'] = $f['entries'][$first ? $first[0] : 0]['id'];
+        if ($e = fi_log($accounts, $c, 'Fight started')) $logs[] = $e;
+    } elseif ($op === 'start') {
         if ($f) return [409, ['error' => 'A fight is already running.', 'stale' => true], []];
         $n = 0;
         foreach (glob("$accounts/campaigns/{$c['id']}/fights/*.json") ?: [] as $x) $n = max($n, (int)basename($x, '.json'));
@@ -228,27 +333,7 @@ function fi_op($accounts, $c, $body, $sub = null)
         if ($f['phase'] !== 'running') return [400, ['error' => 'Start round 1 first.'], []];
         fi_step($accounts, $c, $f, $op === 'next' ? 1 : -1);
     } elseif ($op === 'add') {
-        $party = fi_party($c);
-        foreach (is_array($body['items'] ?? null) ? $body['items'] : [] as $it) {
-            $kind = $it['kind'] ?? '';
-            if ($kind === 'pc') {
-                $id = (string)($it['char'] ?? '');
-                if (!isset($party[$id])) return [400, ['error' => "That character isn't in this campaign."], []];
-                $f['out'] = array_values(array_diff($f['out'], [$id]));
-                foreach ($f['entries'] as $x) if (($x['char'] ?? null) === $id) continue 2;
-                fi_place($f, ['id' => fi_new_id($f), 'kind' => 'pc', 'char' => $id, 'init' => fi_int($it['init'] ?? null), 'bonus' => 0, 'tie' => 0, 'secret' => false, 'hidden' => false]);
-            } elseif ($kind === 'monster') {
-                $m = fi_monster($accounts, $c, (string)($it['mon'] ?? ''), $sub);
-                if (!$m) return [400, ['error' => 'Save that monster to your account first (sign in on the Monster Sheet).'], []];
-                foreach ($f['entries'] as $x) if (($x['mon'] ?? null) === $m['id']) continue 2;
-                fi_place($f, ['id' => fi_new_id($f), 'kind' => 'monster', 'mon' => $m['id'], 'by' => $sub,'name' => mb_substr((string)($m['name'] ?? ''), 0, 80), 'init' => fi_int($it['init'] ?? null),
-                    'bonus' => fi_int($it['bonus'] ?? 0) ?? 0, 'tie' => 0, 'secret' => true, 'hidden' => false, 'ac' => fi_int($it['ac'] ?? null)]);
-            } elseif ($kind === 'plain') {
-                $name = cp_clean_name($it['name'] ?? '');
-                if ($name === null) return [400, ['error' => 'Give the entry a name.'], []];
-                fi_place($f, ['id' => fi_new_id($f), 'kind' => 'plain', 'name' => $name, 'init' => fi_int($it['init'] ?? null), 'bonus' => 0, 'tie' => 0, 'secret' => false, 'hidden' => false]);
-            } else return [400, ['error' => "That can't go in a fight."], []];
-        }
+        if ($why = fi_add_items($accounts, $c, $f, is_array($body['items'] ?? null) ? $body['items'] : [], $sub)) return [400, ['error' => $why], []];
     } elseif ($op === 'remove') {
         $e = $f['entries'][$at];
         if ($f['turn'] === $e['id']) {
@@ -268,7 +353,7 @@ function fi_op($accounts, $c, $body, $sub = null)
     } elseif ($op === 'hide') {
         if ($f['entries'][$at]['kind'] !== 'monster') return [400, ['error' => 'Only monsters can be hidden.'], []];
         $f['entries'][$at]['hidden'] = !empty($body['on']);
-    } elseif ($op !== 'start') return [400, ['error' => 'Unknown fight change.'], []];
+    } elseif ($op !== 'start' && $op !== 'begin') return [400, ['error' => 'Unknown fight change.'], []];
     $f['v']++;
     return fi_write($accounts, $c['id'], $f) ? [200, ['v' => $f['v']], $logs] : [500, ['error' => "Couldn't save the fight."], $logs];
 }
@@ -289,16 +374,17 @@ function fi_roll($accounts, $c, $user, $roll)
         $match = fn($x) => ($x['char'] ?? null) === $char;
         $new = ['kind' => 'pc', 'char' => $char, 'hidden' => false];
     } elseif ($dm && ($m = fi_monster($accounts, $c, (string)($roll['mon'] ?? ''), $user['sub']))) {
-        $match = fn($x) => ($x['mon'] ?? null) === $m['id'];
+        $match = fn($x) => ($x['mon'] ?? null) === $m['id'] && empty($x['copy']);
         $new = ['kind' => 'monster', 'mon' => $m['id'], 'by' => $user['sub'], 'name' => mb_substr((string)($m['name'] ?? ''), 0, 80), 'hidden' => false, 'ac' => null];
     } else return false;
     $i = -1;
     foreach ($f['entries'] as $k => $x) if ($match($x)) $i = $k;
-    if ($i >= 0 && $f['phase'] !== 'rolling' && $f['entries'][$i]['init'] !== null) return false;
+    if ($i >= 0 && $f['phase'] !== 'rolling' && $f['entries'][$i]['init'] !== null && empty($f['entries'][$i]['auto'])) return false;
     // the bonus is what the sheet added to the d20 ("1d20 + 3", "2d20 keep higher − 1")
     $bonus = preg_match('/([+\-−])\s*(\d+)\s*$/u', (string)($roll['expr'] ?? ''), $b) ? ($b[1] === '+' ? 1 : -1) * (int)$b[2] : 0;
     $e = ($i >= 0 ? $f['entries'][$i] : ['id' => fi_new_id($f)] + $new) + ['tie' => 0];
     $e = array_merge($e, ['init' => (int)$roll['total'], 'bonus' => $bonus, 'secret' => ($roll['vis'] ?? 'public') !== 'public']);
+    unset($e['auto']); // a real roll: the panel's stand-in number is gone
     fi_place($f, $e);
     return fi_write($accounts, $c['id'], $f);
 }
@@ -313,6 +399,7 @@ function fi_view($accounts, $c, $sub, $f = null)
     if (!$f) return null;
     $dm = cp_is_dm($c, $sub);
     $party = fi_party($c);
+    $fx = $dm || fi_opts($accounts, $c['id'])['fx']; // the DM's "Show bloodied and dead effects to players" off: everyone looks healthy
     $vis = [];
     foreach ($f['entries'] as $e) {
         if ($e['hidden'] && !$dm) {
@@ -329,17 +416,18 @@ function fi_view($accounts, $c, $sub, $f = null)
             if ($o['mine'] || $dm) $o['char'] = $e['char'];
             if ($dm && $ch) $o['hp'] = ['cur' => fi_num($ch->hp->cur ?? 0), 'temp' => fi_num($ch->hp->temp ?? 0), 'max' => fi_num($ch->calc->hpMax ?? 0) ?: null];
             $o += fi_pc($accounts, $e['char']) ?? [];
+            if (!$fx && isset($o['down'])) $o = array_merge($o, ['down' => false, 'saves' => null]);
         } elseif ($e['kind'] === 'monster') {
-            $m = fi_monster($accounts, $c, $e['mon'], $e['by'] ?? null);
+            $m = fi_mon_of($accounts, $c, $e);
             $o += ['name' => trim((string)($m['name'] ?? '')) !== '' ? mb_substr($m['name'], 0, 80) : ($e['name'] ?: 'Monster'),
-                'art' => fi_art((string)($m['art'] ?? '')), 'status' => $m ? fi_status($m['hp'] ?? []) : 'healthy'];
+                'art' => fi_art((string)($m['art'] ?? '')), 'status' => $m && $fx ? fi_status($m['hp'] ?? []) : 'healthy'];
             if ($dm) {
-                $o += ['mon' => $e['mon'], 'hidden' => $e['hidden'], 'ac' => $e['ac'] ?? null, 'archived' => !empty($m['archived']), 'missing' => !$m];
+                $o += ['mon' => $e['mon'], 'copy' => $e['copy'] ?? null, 'hidden' => $e['hidden'], 'ac' => $e['ac'] ?? null, 'archived' => !empty($m['archived']), 'missing' => !$m];
                 if ($m) $o['hp'] = ['cur' => fi_num($m['hp']['cur'] ?? 0), 'max' => fi_num($m['hp']['base'] ?? 0) + fi_num($m['hp']['mod'] ?? 0), 'temp' => fi_num($m['hp']['temp'] ?? 0)];
             }
         } else $o += ['name' => $e['name'], 'art' => ''];
         if ($dm) $o += ['init' => $e['init'], 'bonus' => $e['bonus'] ?? 0, 'secret' => !empty($e['secret'])];
-        elseif (!empty($o['mine'])) $o['rolled'] = $e['init'] !== null;
+        elseif (!empty($o['mine'])) $o['rolled'] = $e['init'] !== null && empty($e['auto']);
         $vis[] = $o;
     }
     $shown = fn($id) => $id !== null && in_array($id, array_column($vis, 'id'), true) ? $id : null;
@@ -349,7 +437,7 @@ function fi_view($accounts, $c, $sub, $f = null)
     $out = ['n' => $f['n'], 'v' => $f['v'], 'phase' => $f['phase'], 'round' => $f['round'], 'startedAt' => $f['startedAt'],
         'now' => (int)round(microtime(true) * 1000), 'turn' => $turn, 'next' => $next ? $shown($f['entries'][$next[0]]['id']) : null, 'entries' => $vis];
     // characters of this player that may still roll in (taken out by the DM: no)
-    $in = array_column(array_filter($f['entries'], fn($e) => $e['kind'] === 'pc' && $e['init'] !== null), 'char');
+    $in = array_column(array_filter($f['entries'], fn($e) => $e['kind'] === 'pc' && $e['init'] !== null && empty($e['auto'])), 'char');
     $out['canRoll'] = array_values(array_filter(array_keys($party, $sub, true), fn($id) => !in_array($id, $f['out'], true) && !in_array($id, $in, true)));
     $out['waiting'] = [];
     if ($f['phase'] === 'rolling') foreach ($party as $id => $owner) if (!in_array($id, $f['out'], true) && !in_array($id, $in, true) && ($card = cp_card($accounts, $id))) $out['waiting'][] = $card['name'];

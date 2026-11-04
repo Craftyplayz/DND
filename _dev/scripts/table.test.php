@@ -1,6 +1,6 @@
 <?php
 // Checks the Table view's role (ROADMAP 1.7): one campaign with every kind of secret in it (a hidden monster on its turn, monster
-// and player HP, a hidden roll, a whisper, a draft fog, a hidden token, a monster on a fogged square, the unmasked map, DM notes,
+// and player HP, a hidden roll, a whisper, the fog's ops, a hidden token, a monster on a fogged square, the unmasked map, DM notes,
 // a draft and a one-player handout) is fed through every filter as CP_TABLE, and none of it may come out. Then the requests:
 // ?as=table only for the DM and co-DMs, and every change from the table tab refused.   usage: php _dev/scripts/table.test.php
 if (!extension_loaded('gd') && !getenv('MP_TEST_GD')) {
@@ -50,7 +50,7 @@ $fi(['op' => 'hide', 'e' => $lurker, 'on' => true]);
 $fi(['op' => 'round1']);
 $is('the hidden monster has the turn', fi_read($A, $CID)['turn'], $lurker);
 
-// the map: on the table, a sent fog revealing the left half; the draft reveals everything; the fogged monster stands in the dark
+// the map: on the table, fog over the right half; the fogged monster stands in the dark
 $png = "$A/map.png";
 $im = imagecreatetruecolor(400, 300);
 imagefill($im, 0, 0, imagecolorallocate($im, 255, 255, 255));
@@ -60,9 +60,9 @@ $mo = fn($body) => mp_op($A, $c, '111', $body + ['m' => $m['id']]);
 $mo(['op' => 'grid', 's' => 100, 'ox' => 0, 'oy' => 0]);
 $mo(['op' => 'activate']);
 mp_fight_sync($A, $c, null, fi_read($A, $CID));
-$mo(['op' => 'draft', 'fog' => '110011001100']);
-$mo(['op' => 'send']);
-$mo(['op' => 'draft', 'fog' => '111111111111']);
+$mo(['op' => 'fog', 'add' => ['on' => true, 'poly' => [[200, 0], [400, 0], [400, 300], [200, 300]]]]);
+$mo(['op' => 'draw', 'add' => ['c' => 1, 's' => 1, 'pts' => [[300, 200]]]]);
+$mo(['op' => 'overlay', 'o' => ['id' => 'secrettrap', 'type' => 'circle', 'x' => 50, 'y' => 50, 'len' => 10, 'ang' => 0, 'color' => 1, 'pat' => 1, 'hidden' => true]]);
 $mo(['op' => 'drop', 'mon' => 'fogged']);
 $toks = mp_tokens($A, $c, mp_read($A, $CID, $m['id']), fi_read($A, $CID));
 $key = fn($name) => array_values(array_filter($toks, fn($t) => $t['name'] === $name))[0]['k'];
@@ -97,12 +97,13 @@ $tv = [
 $json = json_encode($tv, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 foreach (['Secret Lurker' => 'the hidden monster', 'Shadow Fiend' => 'the monster on a fogged square', 'Mind Blast' => "the hidden roll's title", '"33"' => "the hidden roll's result",
     '19 + 14' => "the hidden roll's dice", 'Steal the gem' => 'the whisper', '"27"' => "the whisper's result", 'img=work' => 'the working copy', 'img=original' => 'the original map',
-    'img=thumb' => 'the map list', '111111111111' => 'the draft fog', 'Villain plans' => 'a DM note', 'mayor' => "a DM note's text", 'Unsent draft' => 'a draft handout',
+    'img=thumb' => 'the map list', '"ops"' => "the fog's ops", 'secrettrap' => 'a hidden overlay', '"enc"' => 'the encounter panel', 'Villain plans' => 'a DM note', 'mayor' => "a DM note's text", 'Unsent draft' => 'a draft handout',
     'Only for Pat' => 'a one-player handout', '"222"' => "a player's Google id", '"111"' => "the DM's Google id", 'lurker' => "the hidden monster's id", $lurker => "the hidden entry's id"] as $s => $what)
     $is("the Table view never gets $what", str_contains($json, $s), false);
 // numbers: no key that carries HP, initiative or hidden flags, anywhere
 $keys = [];
-$walk = function ($x) use (&$walk, &$keys) { if (is_array($x)) foreach ($x as $k => $v) { if (is_string($k)) $keys[$k] = true; $walk($v); } };
+// (the map's "opts" only says whether the DM turned effects and AC on, with no numbers)
+$walk = function ($x) use (&$walk, &$keys) { if (is_array($x)) foreach ($x as $k => $v) { if ($k === 'opts') continue; if (is_string($k)) $keys[$k] = true; $walk($v); } };
 foreach ($tv as $part) $walk($part);
 foreach (['hp', 'cur', 'max', 'temp', 'init', 'bonus', 'tie', 'secret', 'hidden', 'ac', 'mon', 'by', 'owner', 'fight', 'draft', 'original', 'maps', 'party', 'to', 'table', 'notes', 'sub', 'players'] as $k)
     $is("no \"$k\" field reaches the Table view", isset($keys[$k]), false);
@@ -117,7 +118,8 @@ $is('monsters as healthy / bloodied / down', $by($f['entries'], 'Goblin')['statu
 $is('Lock: down, death saves and conditions, no HP', array_intersect_key($by($f['entries'], 'Lock'), ['down' => 1, 'saves' => 1, 'conds' => 1]), ['down' => true, 'saves' => ['ok' => 2, 'bad' => 1], 'conds' => ['Poisoned', 'Unconscious']]);
 $is('Ozzy: up, no death saves, Prone', array_intersect_key($by($f['entries'], 'Ozzy'), ['down' => 1, 'saves' => 1, 'conds' => 1]), ['down' => false, 'saves' => null, 'conds' => ['Prone']]);
 $mv = $tv['map'];
-$is('the map: role table, the sent fog, the masked picture through as=table', [$mv['role'], $mv['map']['sent']['fog'], str_contains($mv['map']['img'], '&as=table&') && str_contains($mv['map']['img'], 'img=public')], ['table', '110011001100', true]);
+$is('the map: role table, no fog ops, the masked picture through as=table', [$mv['role'], isset($mv['map']['fog']), str_contains($mv['map']['img'], '&as=table&') && str_contains($mv['map']['img'], 'img=public')], ['table', false, true]);
+$is('the map: no drawing under fog', $mv['map']['draws'], []);
 $is('the map: the party and the monsters in sight, never the hidden or the fogged one', array_column($mv['map']['tokens'], 'name'), ['Goblin', 'Lock', 'Ozzy']);
 $is('a party token says down, death saves and conditions too', array_intersect_key($by($mv['map']['tokens'], 'Lock'), ['down' => 1, 'saves' => 1, 'conds' => 1]), ['down' => true, 'saves' => ['ok' => 2, 'bad' => 1], 'conds' => ['Poisoned', 'Unconscious']]);
 $is('the log: the public roll with its dice, the hidden one as "DM rolled", no whisper', array_map(fn($e) => [$e['name'], $e['title'] ?? '-', $e['dice'] ?? null], $tv['log']),

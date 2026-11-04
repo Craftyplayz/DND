@@ -2412,7 +2412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const [e, r] of done) {
             if (e.done) continue; // an older copy catching up: it happened already
             if (!r.ok) dmTell(id, e, r.conflict ? `kept their own value for ${e.t} (${r.why})` : `'s sheet couldn't apply ${e.t}: ${r.why}`);
-            else if (e.op !== 'roll') offerUndo(`DM: ${e.t}`, () => dmUndo(id, e, r.inv));
+            else if (e.op !== 'roll') offerUndo(`${e.self ? '' : 'DM: '}${e.t}`, () => dmUndo(id, e, r.inv));
         }
         if (c === C) drawKeep(done.filter(([, r]) => r.ok).map(([e, , k]) => [k, e]));
     }
@@ -2436,7 +2436,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const c = db.chars[id];
         if (!c || c.archived) return;
         for (const op of inv) hbDm.apply(c, op, ctxOf(c));
-        c.rolls.unshift({ at: Date.now(), title: 'Undid DM: ' + e.t, expr: '', shown: '', total: '', dm: 1 });
+        c.rolls.unshift({ at: Date.now(), title: (e.self ? 'Undid ' : 'Undid DM: ') + e.t, expr: '', shown: '', total: '', dm: 1 });
         c.rolls.length = Math.min(c.rolls.length, 100);
         c.updated = Date.now();
         store(); dirty.add(id); flushBackups();

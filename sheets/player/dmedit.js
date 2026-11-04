@@ -166,7 +166,7 @@
         if (c.dmApplied.length > KEEP) c.dmApplied.splice(0, c.dmApplied.length - KEEP);
         if (r.ok && e.op !== 'roll') {
             if (!Array.isArray(c.rolls)) c.rolls = [];
-            c.rolls.unshift({ at: +e.at || Date.now(), title: 'DM: ' + String(e.t || ''), expr: '', shown: '', total: '', dm: 1 });
+            c.rolls.unshift({ at: +e.at || Date.now(), title: (e.self ? '' : 'DM: ') + String(e.t || ''), expr: '', shown: '', total: '', dm: 1 });
             c.rolls.length = Math.min(c.rolls.length, 100);
         }
         return r;

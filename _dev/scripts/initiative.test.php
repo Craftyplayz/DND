@@ -26,6 +26,47 @@ $c = ['id' => 'feed00000001', 'name' => 'Test', 'dm' => '111', 'code' => 'abcdef
     ['sub' => '222', 'name' => 'Pat', 'characters' => [['sheet' => 'player', 'id' => 'lock']]],
     ['sub' => '333', 'name' => 'Sam', 'characters' => [['sheet' => 'player', 'id' => 'ozzy'], ['sheet' => 'player', 'id' => 'rex']]]]];
 cp_put($A, $c);
+$BEGIN = function () use (&$is, $A, $c) {
+    $c2 = ['id' => 'feed00000002'] + $c;
+    @mkdir("$A/campaigns/feed00000002", 0777, true);
+    cp_put($A, $c2);
+    $cid = $c2['id'];
+    $is('begin: nobody refused', fi_op($A, $c2, ['op' => 'begin', 'items' => []])[0], 400);
+    $is('begin: a stranger refused', fi_op($A, $c2, ['op' => 'begin', 'items' => [['kind' => 'pc', 'char' => 'nope']]])[0], 400);
+    $is('begin: a gone copy refused', fi_op($A, $c2, ['op' => 'begin', 'items' => [['kind' => 'monster', 'copy' => 'nope']]])[0], 400);
+    $is('a failed begin leaves no fight', fi_read($A, $cid), null);
+    fi_copies_change($A, $cid, function (&$all) { $all['cp1'] = ['mon' => 'gob1', 'by' => '111', 'name' => 'Goblin', 'suffix' => 'A', 'hp' => ['cur' => 1, 'base' => 7, 'temp' => 0, 'mod' => 0], 'ac' => 15, 'bonus' => 2]; $all['cp2'] = ['mon' => 'gob1', 'by' => '111', 'name' => 'Goblin', 'suffix' => 'B', 'hp' => ['cur' => 0, 'base' => 7, 'temp' => 0, 'mod' => 0], 'ac' => 15, 'bonus' => 2]; return true; });
+    $save = file_get_contents("$A/monsters/111/gob1.json");
+    $r = fi_op($A, $c2, ['op' => 'begin', 'items' => [['kind' => 'monster', 'copy' => 'cp2', 'init' => 30], ['kind' => 'monster', 'copy' => 'cp1', 'init' => 20, 'hidden' => true], ['kind' => 'pc', 'char' => 'lock', 'init' => 15, 'bonus' => 1], ['kind' => 'plain', 'name' => 'Lair', 'init' => 10]]]);
+    $f = fi_read($A, $cid);
+    $is('begin: running at round 1, timer on, logged', [$r[0], $f['phase'], $f['round'], !!$f['startedAt'], count($r[2])], [200, 'running', 1, true, 1]);
+    $is('begin: a downed copy has no first turn', array_values(array_filter($f['entries'], fn($e) => $e['id'] === $f['turn']))[0]['copy'], 'cp1');
+    $is('begin: a second one refused', fi_op($A, $c2, ['op' => 'begin', 'items' => [['kind' => 'plain', 'name' => 'X', 'init' => 1]]])[0], 409);
+    $dv = fi_view($A, $c2, '111');
+    $is('copies: own name and HP for the DM', [$dv['entries'][0]['name'], $dv['entries'][0]['hp']['cur'], $dv['entries'][0]['status'], $dv['entries'][1]['status']], ['Goblin B', 0, 'down', 'bloodied']);
+    $pv = fi_view($A, $c2, '222');
+    $is('players: the hidden copy is only the DM\'s turn', [$pv['turn'], array_column($pv['entries'], 'kind')], ['dm-turn', ['monster', 'dm', 'pc', 'plain']]);
+    $is('copies leave the sheet alone', file_get_contents("$A/monsters/111/gob1.json"), $save);
+    $is('copyhp changes the copy, no v', [fi_op($A, $c2, ['op' => 'copyhp', 'copy' => 'cp1', 'hop' => ['k' => 'heal', 'n' => 6]])[0], fi_copies($A, $cid)['cp1']['hp']['cur'], fi_op($A, $c2, ['op' => 'copyhp', 'copy' => 'nope', 'hop' => ['k' => 'heal', 'n' => 6]])[0]], [200, 7, 400]);
+    $is('the sheet save still untouched', file_get_contents("$A/monsters/111/gob1.json"), $save);
+    // the panel's number stands in until the character's sheet rolls; then the usual rule
+    $is('auto: the sheet is asked to roll', $pv['canRoll'], ['lock']);
+    $is('auto: not rolled yet', array_values(array_filter($pv['entries'], fn($e) => !empty($e['mine'])))[0]['rolled'], false);
+    $rl = fn($total) => fi_roll($A, $c2, ['sub' => '222', 'name' => 'Pat'], ['title' => 'Initiative', 'char' => 'lock', 'total' => $total, 'expr' => '1d20 + 2', 'fight' => $f['n']]);
+    $is('auto: a sheet roll replaces it', [$rl(25), array_values(array_filter(fi_read($A, $cid)['entries'], fn($e) => ($e['char'] ?? '') === 'lock'))[0]['init']], [true, 25]);
+    $lockE = array_values(array_filter(fi_read($A, $cid)['entries'], fn($e) => ($e['char'] ?? '') === 'lock'))[0];
+    $is('its turn order moved, the turn stayed', [$lockE['auto'] ?? null, array_search($lockE['id'], array_column(fi_read($A, $cid)['entries'], 'id')), fi_read($A, $cid)['turn']], [null, 1, $f['turn']]);
+    $is('after that, the usual rule: a re-roll is ignored', [$rl(3), array_values(array_filter(fi_read($A, $cid)['entries'], fn($e) => ($e['char'] ?? '') === 'lock'))[0]['init']], [false, 25]);
+    $is('no longer asked', fi_view($A, $c2, '222')['canRoll'], []);
+    fi_roll($A, $c2, ['sub' => '111', 'name' => 'Dee'], ['title' => 'Initiative', 'mon' => 'gob1', 'total' => 2, 'expr' => '1d20', 'fight' => $f['n']]);
+    $is('a roll for the sheet monster doesn\'t touch a copy', count(array_filter(fi_read($A, $cid)['entries'], fn($e) => !empty($e['copy']) && $e['init'] === 2)), 0);
+    $is('a copy gives no way into the sheet save', fi_entry_mon($A, ['id' => $cid] + $c2, 'cp1'), null);
+    @mkdir("$A/campaigns/$cid/maps");
+    file_put_contents("$A/campaigns/$cid/maps/opts.json", json_encode(['fx' => false, 'ac' => false]));
+    $hid = fi_view($A, $c2, '222')['entries'];
+    $is('effects off: players see no bloodied or down', [array_column(array_filter($hid, fn($e) => $e['kind'] === 'monster'), 'status')], [array_fill(0, count(array_filter($hid, fn($e) => $e['kind'] === 'monster')), 'healthy')]);
+    $is('the DM still does', fi_view($A, $c2, '111')['entries'][array_search('Goblin B', array_column(fi_view($A, $c2, '111')['entries'], 'name'))]['status'], 'down');
+};
 $op = function ($body) use ($A, $c) { $f = fi_read($A, $c['id']); return fi_op($A, $c, $body + ['v' => $f['v'] ?? null]); };
 $roll = fn($user, $r) => fi_roll($A, $c, $user, $r + ['title' => 'Initiative', 'fight' => fi_read($A, $c['id'])['n'] ?? 0]);
 $order = fn() => array_map(fn($e) => $e['char'] ?? $e['mon'] ?? $e['name'], fi_read($A, $c['id'])['entries']);
@@ -171,6 +212,7 @@ $is('fight ended in the table log', array_column(tl_read($A, $c['id'], 'unsorted
 $op(['op' => 'start']);
 $is('the next fight is number 2', fi_read($A, $c['id'])['n'], 2);
 
+$BEGIN();
 $rm = function ($p) use (&$rm) { if (is_dir($p) && !is_link($p)) { foreach (array_diff(scandir($p), ['.', '..']) as $f) $rm("$p/$f"); rmdir($p); } else @unlink($p); };
 $rm($A);
 echo $bad ? "$bad failed\n" : "initiative ok\n";

@@ -3,6 +3,7 @@
 // (The player sheet used to share this file; characters now have a folder each, see includes/characters.php.)
 //   GET              -> {"chars": {"<id>": <updated>, ...}, "hpAt": {"<id>": <hpAt>, ...}}
 //   GET ?id=<id>     -> that character
+//   GET ?cmp=<key>   -> {"id"}: the monster the map's Token Browser saved from that Compendium key (not archived), or 404
 //   POST a character -> kept unless the saved copy has a newer "updated" (then 409 with {"updated"})
 //   POST ?hp=<id> {"op": {...}} -> {"hp", "hpAt"}: one hit point change (see below); with &c=<campaign id>, also a
 //                    monster another DM or co-DM of that campaign put in its fight
@@ -62,6 +63,13 @@ if ($method === 'GET') {
     if (isset($_GET['id'])) {
         $file = $okId($_GET['id']) ? "$dir/{$_GET['id']}.json" : '';
         $file && is_file($file) ? cl_out(200, (string)file_get_contents($file)) : cl_out(404, ['error' => 'No such character.']);
+    }
+    if (isset($_GET['cmp'])) {
+        foreach (glob("$dir/*.json") ?: [] as $f) {
+            $c = $read($f);
+            if ($c && ($c['cmp'] ?? '') === $_GET['cmp'] && empty($c['archived']) && $okId($c['id'] ?? null)) cl_out(200, ['id' => $c['id']]);
+        }
+        cl_out(404, ['error' => 'No such monster.']);
     }
     $list = $hpAt = [];
     foreach (glob("$dir/*.json") ?: [] as $f) {

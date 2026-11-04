@@ -72,6 +72,7 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
     <script src="<?= h(asset('/sheets/monster/difficulty.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/phone.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/monster/import.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/monster/monster.js')) ?>" defer></script>
 </body>
 

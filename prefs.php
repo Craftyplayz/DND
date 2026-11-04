@@ -5,7 +5,7 @@
 //   POST {key, updated, value}  -> kept unless the saved one is newer (then 409 with {"updated"})
 // The session cookie is SameSite=Lax and writes must be JSON, so other sites can't post here as the player.
 require __DIR__ . '/includes/auth.php';
-const PF_KEYS = ['dice-choice', 'dice-sets-page', 'dice-sets-sound', 'dnd.rollMode', 'monster-table', 'monster-roll-vis', 'compendium-view', 'compendium-rules', 'compendium-favs', 'compendium-recent', 'compendium-enc', 'encounter-rules', 'compendium-books', 'sheet-full-layout']; // the same list as sync.js
+const PF_KEYS = ['dice-choice', 'dice-sets-page', 'dice-sets-sound', 'dnd.rollMode', 'monster-table', 'monster-roll-vis', 'compendium-view', 'compendium-rules', 'compendium-favs', 'compendium-recent', 'compendium-enc', 'encounter-rules', 'compendium-books', 'sheet-full-layout', 'map-tools']; // the same list as sync.js
 const PF_MAX = 8 * 1024 * 1024; // only stops a broken client: the proxy turns away requests near 8 MB anyway
 
 function pf_out($code, $data)

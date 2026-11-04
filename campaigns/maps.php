@@ -2,7 +2,7 @@
 // Battle maps (ROADMAP 1.6) for campaign members; includes/maps.php does the work and mp_view() decides what each one gets.
 //   GET ?c=<campaign>[&m=<map>]              -> {"role", "active", "map", "maps" (DM)}: the map on the table (a DM: any map)
 //   GET ...&as=table                         -> any of the GETs as the Table view (ROADMAP 1.7, the DM and co-DMs): role "table"
-//   GET ?c=&m=&img=public&n=<n>              -> the players' copy of the n-th sent fog (players: the map on the table, its last send)
+//   GET ?c=&m=&img=public&n=<n>              -> the players' copy: n the current fog.n, live.webp (players: the map on the table, this n only); an older n, the DM's old public-<n>.webp
 //   GET ?c=&m=&img=work | original | thumb   -> the DM and co-DMs only
 //   GET ?c=&mons                             -> the DM's own monsters, to add to the fight or drop on the map
 //   POST ?c=&up=<upload id>&i=<n>  (application/octet-stream, 4 MB chunks in order)   the DM and co-DMs upload a picture
@@ -25,7 +25,7 @@ function mp_out($code, $data)
 $user = auth_user();
 $post = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST';
 $type = $_SERVER['CONTENT_TYPE'] ?? '';
-$body = $post && stripos($type, 'application/json') === 0 ? json_decode((string)file_get_contents('php://input', false, null, 0, 1024 * 1024), true) : null;
+$body = $post && stripos($type, 'application/json') === 0 ? json_decode((string)file_get_contents('php://input', false, null, 0, 8 * 1024 * 1024), true) : null;
 $c = $user ? cp_get($accounts, (string)($_GET['c'] ?? $body['c'] ?? '')) : null;
 // ?as=table: the Table view (ROADMAP 1.7) reads as CP_TABLE, so it gets exactly what players get (it can't post: auth.php)
 $sub = cp_viewer($c, $user);
@@ -40,9 +40,9 @@ if (!$post && isset($_GET['img'])) {
         !$m => null,
         $kind === 'public' => (function () use ($accounts, $c, $m, $dm, $dir) {
             $n = (int)($_GET['n'] ?? 0);
-            // players only ever get the map on the table as last sent: an older copy may show squares hidden since
-            if (!$dm && ((mp_active($accounts, $c['id'])['id'] ?? null) !== $m['id'] || $n !== ($m['sent']['n'] ?? -1))) return null;
-            return "$dir/public-$n.webp";
+            // players only ever get the map on the table as it is now: an older copy may show what's fogged since
+            if (!$dm && ((mp_active($accounts, $c['id'])['id'] ?? null) !== $m['id'] || $n !== ($m['fog']['n'] ?? -1))) return null;
+            return $n === ($m['fog']['n'] ?? -1) ? "$dir/live.webp" : "$dir/public-$n.webp";
         })(),
         !$dm => null,
         $kind === 'work', $kind === 'thumb' => "$dir/$kind.webp",
@@ -53,7 +53,7 @@ if (!$post && isset($_GET['img'])) {
     $ext = pathinfo($file, PATHINFO_EXTENSION);
     header('Content-Type: ' . (['jpg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif'][$ext] ?? 'image/webp'));
     header('Content-Length: ' . filesize($file));
-    // every address names one file that never changes (a new send is a new n)
+    // every address names one picture that never changes (a fog change is a new n)
     header('Cache-Control: private, max-age=31536000, immutable');
     if ($kind === 'original') header('Content-Disposition: inline; filename="' . preg_replace('/[^\w .-]/u', '', $m['name']) . ".$ext\"");
     readfile($file);
@@ -69,7 +69,10 @@ if (!$post && isset($_GET['mons'])) {
     foreach (glob("$accounts/monsters/$sub/*.json") ?: [] as $f) {
         $x = ch_json($f);
         if (!$x || !empty($x['archived']) || str_starts_with(basename($f), '_') || !isset($x['id'])) continue;
+        $race = (string)($x['race'] ?? '');
         $out[] = ['id' => $x['id'], 'name' => (string)($x['name'] ?? '') ?: 'Unnamed monster', 'enc' => $encs[$x['enc'] ?? ''] ?? '', 'cr' => (string)($x['cr'] ?? '0'),
+            'race' => $race, 'size' => mp_size_of($race), 'type' => trim(preg_replace('/\b(tiny|small|medium|large|huge|gargantuan)\b|\(.*$/i', '', $race)),
+            'hp' => fi_num($x['hp']['base'] ?? 0) + fi_num($x['hp']['mod'] ?? 0), 'xp' => $x['xp'] ?? null, 'src' => (string)($x['cmp'] ?? ''), 'art' => fi_art((string)($x['art'] ?? '')),
             'prof' => (string)($x['prof'] ?? ''), 'init' => (string)($x['init'] ?? 'DEX'), 'ac' => (string)($x['ac'] ?? '10'),
             'abilities' => array_map(fn($a) => ['key' => (string)($a['key'] ?? ''), 'score' => $a['score'] ?? 10], is_array($x['abilities'] ?? null) ? $x['abilities'] : [])];
     }
