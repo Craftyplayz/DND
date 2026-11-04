@@ -31,7 +31,8 @@ function entryFor(id, levels, sub, d) {
     e.spells = pool.slice(0, 4);
     return e;
 }
-const hash = (x) => crypto.createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
+// view.phoneTab (ROADMAP 2.1) came after the golden file: it's only the phone's last tab, nothing a build decides
+const hash = (x) => crypto.createHash('sha256').update(JSON.stringify(x, (k, v) => (k === 'phoneTab' ? undefined : v))).digest('hex').slice(0, 16);
 function sweep(d, rules) {
     const out = {}, list = (k) => B.listOf(d, k, rules).filter((x) => !x.hbx);
     const races = list('races'), bgs = list('backgrounds');
