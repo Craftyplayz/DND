@@ -936,6 +936,13 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
   "update from source" is a manual button.
 - Size: 4 days. Done: a custom class built in the creator can be picked in the builder by another campaign
   member and levelled 1→3.
+- Built (stage 4 of 5.2): New class and New subclass in the Classes tab, New race and New subrace in Races, New background: a full-screen popup in steps with Back and Next (`assets/js/homebrew-form.js`, loaded the first time it's
+  needed), which saves itself as an Unfinished entry only its owner sees (not shareable, not pickable, refused by the server too). Editing a finished entry only saves at Finish. "Start from" and "Copy to homebrew" fill it from any official entry. A class has features per level
+  (text, uses with recharge, proficiency grants, options to choose, skill and expertise picks), improvements, its subclass level, extra table columns, caster presets with an editable table, spell lists, resources (number per level, a column or a formula), (a) or (b) starting equipment with
+  item pickers, gold and multiclass rules. A race has bonuses, languages, traits, darkvision, resistances, other speeds, skill and tool grants, a skill choice and cantrips; attacks stay as text. `assets/js/homebrew-content.js` turns an entry into srd-build.json's shape for the builder, level up and the Compendium.
+  In build.js a homebrew feature or trait never acts by its name (a homebrew "Rage" is only a name; those rows carry `hbf`), and a homebrew subclass never moves an official class's pick level: an early feature arrives at the pick. `builder-official.test.js` proves official content builds exactly as before, with and without homebrew beside it.
+  A character keeps a copy of what it picked in `build.hbc` from the moment of picking, so a draft and later level ups never depend on the source. At level up, a newer version asks "Dee updated X. Use the new version?"; earlier rows never change. For a character built for a campaign the builder offers your own homebrew and that campaign's.
+  Checks: `homebrew-class.test.js` (hand-worked), `homebrew-classes.mjs` (built by one member, picked by another, levelled 1 to 3, with the class archived mid-draft).
 
 ### Phase 5: Content
 
@@ -973,7 +980,7 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 - Built in stages, with a "New ..." button in each Compendium tab, Edit and Archive on the entry, always shown whatever the
   rules switch says. Any member shares their own entries; the DM or a co-DM can take one out of the campaign; the list is
   `accounts/campaigns/<id>/homebrew.json`. Stage 1 done: storage, sharing and house rules (`includes/homebrew.php`,
-  `compendium/homebrew.php`, `assets/js/homebrew.js`, browser key `homebrew`). Still to come: classes, races and backgrounds (4.6, a guided form).
+  `compendium/homebrew.php`, `assets/js/homebrew.js`, browser key `homebrew`).
   Stage 2 done: spells, items, magic items and feats. Each has its form in its Compendium tab (fields that don't apply stay hidden; a spell has a How it rolls
   section; dice and uses are checked with the sheet's own formula parser; closing a changed form asks first), "Copy to homebrew" on any official or homebrew
   entry, and a Homebrew only filter. Saving keeps the replaced version in `homebrew/<sub>/history/<id>/<updated>.json` (no screen yet). Entries carry an account
