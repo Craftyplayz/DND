@@ -90,6 +90,7 @@
     const profBonus = (lvl) => Math.ceil(lvl / 4) + 1;
     // the class levels that give an Ability Score Improvement (fighter 6 and 14, rogue 10 too)
     function asiLevels(cls) {
+        if (cls?.hbAsi) return cls.hbAsi;
         const out = [];
         let prev = 0;
         for (const l of cls?.levels || []) {
@@ -100,7 +101,9 @@
     }
     // the level a class picks its subclass: the first level with a feature of that subclass
     function subLevel(clsId, data) {
-        const subs = Object.values(data.subclasses || {}).filter((s) => s.class === clsId || s.class?.index === clsId);
+        if (data.classes?.[clsId]?.hbSubLevel) return data.classes[clsId].hbSubLevel;
+        // a homebrew subclass never moves the level an official class picks its subclass
+        const subs = Object.values(data.subclasses || {}).filter((s) => !s.hbx && (s.class === clsId || s.class?.index === clsId));
         const lv = subs.flatMap((s) => (s.levels || []).filter((l) => l.features?.length).map((l) => l.level));
         return lv.length ? Math.min(...lv) : 3;
     }
@@ -108,12 +111,14 @@
     // the features a class (and its subclass) gets at class level n
     function featuresAt(clsId, subId, n, data) {
         const cls = data.classes?.[clsId], sub = data.subclasses?.[subId];
-        const own = (cls?.levels?.[n - 1]?.features || []).filter((f) => fkey(f) !== 'ability-score-improvement');
-        const subF = (sub?.levels || []).filter((l) => l.level === n).flatMap((l) => l.features || []);
+        const own = (cls?.levels?.[n - 1]?.features || []).filter((f) => f.hb || fkey(f) !== 'ability-score-improvement');
+        // a homebrew subclass's feature from before the class picks its subclass arrives at the pick
+        const pick = sub?.hbx ? subLevel(clsId, data) : 0;
+        const subF = (sub?.levels || []).filter((l) => (pick ? (n === pick ? l.level <= pick : n > pick && l.level === n) : l.level === n)).flatMap((l) => l.features || []);
         return [...own, ...subF];
     }
     // features where the player picks something besides the data's own options: [kind, how many]
-    const pickOf = (f) => (fkey(f) === 'expertise' ? ['expert', 2]
+    const pickOf = (f) => (f.hb ? (f.pick ? [f.pick, f.pickN] : null) : fkey(f) === 'expertise' ? ['expert', 2]
         : fkey(f) === 'bonus-proficiencies' && /\bthree skills\b/i.test(sumText(f.desc)) ? ['skill', 3] : null); // College of Lore
     // how many options a feature with choices takes (eldritch invocations: the class table's invocations known)
     function chooseN(f, cls, n, prevTaken) {
@@ -128,6 +133,7 @@
         const c = data.classes?.[clsId];
         const ab = AK(c?.spellcasting?.spellcasting_ability?.index || c?.spellcasting?.spellcasting_ability || '');
         if (!c?.spellcasting) return { ab: '', kind: 'none' };
+        if (c.hbCaster) return { ab, kind: c.hbCaster };
         // shortcut: Pact Magic is the warlock's (or a content class marked pact: true); add a data flag if another class gets it
         if (clsId === 'warlock' || c.pact) return { ab, kind: 'pact' };
         const top = c.levels?.[19]?.spellcasting || {};
@@ -158,11 +164,13 @@
     }
     // how many cantrips and spells a class takes at class level n (prepared casters: ability modifier + level, at least 1)
     const PREPARED = { cleric: 1, druid: 1, wizard: 1, paladin: 0.5 };
-    const prepares = (clsId, data) => !!PREPARED[clsId] || (data.classes?.[clsId]?.levels || []).some((l) => l.spellcasting?.prepared_spells);
+    const prepRate = (clsId, data) => PREPARED[clsId] || data.classes?.[clsId]?.hbPrep || 0;
+    const prepares = (clsId, data) => !!prepRate(clsId, data) || (data.classes?.[clsId]?.levels || []).some((l) => l.spellcasting?.prepared_spells);
     function spellCounts(clsId, n, data, scores) {
         const sc = data.classes?.[clsId]?.levels?.[n - 1]?.spellcasting || {}, k = casterOf(clsId, data);
-        const prep = +sc.prepared_spells || (PREPARED[clsId] ? Math.max(1, mod(scores?.[k.ab] || 10) + Math.floor(n * PREPARED[clsId])) : 0);
-        return { cantrips: +sc.cantrips_known || 0, known: +sc.spells_known || 0, prepared: prep, book: clsId === 'wizard' ? 6 + 2 * (n - 1) : 0 };
+        const rate = prepRate(clsId, data), bk = data.classes?.[clsId]?.hbBook;
+        const prep = +sc.prepared_spells || (rate ? Math.max(1, mod(scores?.[k.ab] || 10) + Math.floor(n * rate)) : 0);
+        return { cantrips: +sc.cantrips_known || 0, known: +sc.spells_known || 0, prepared: prep, book: clsId === 'wizard' ? 6 + 2 * (n - 1) : bk ? bk[0] + bk[1] * (n - 1) : 0 };
     }
     // the spells a class can pick: its list, plus its subclass's expanded list; [{index, name, level}]
     function spellPool(clsId, subId, data) {
@@ -290,11 +298,14 @@
         copper: ['Acid', 'DEX', '5 by 30 ft line'], gold: ['Fire', 'DEX', '15 ft cone'], green: ['Poison', 'CON', '15 ft cone'], red: ['Fire', 'DEX', '15 ft cone'], silver: ['Cold', 'CON', '15 ft cone'], white: ['Cold', 'CON', '15 ft cone'] };
     const TRAIT_RES = { 'dwarven-resilience': 'Poison', 'hellish-resistance': 'Fire' };
     const SENSES = { darkvision: 60, 'superior-darkvision': 120 };
+    const norm2 = (s) => String(s).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
     // the choices a race (and subrace) asks for: [{key, label, n, options: [[value, label]]}]
     function raceChoices(ch, data) {
         const race = data.races?.[ch.race], sub = data.subraces?.[ch.sub], out = [];
         const refs = (set) => (set?.from?.options || []).map((o) => o.item?.index || o.item || o.ability_score?.index || o.ability_score).filter(Boolean);
         if (race?.ability_bonus_options) out.push({ key: 'ab', label: `Ability score increase: +1 to ${race.ability_bonus_options.choose}`, n: race.ability_bonus_options.choose, options: refs(race.ability_bonus_options).map((a) => [AK(a), AK(a)]) });
+        for (const r of [race, sub]) if (r?.hbSkillChoice) out.push({ key: 'hbs:' + r.index, label: `${r.name}: choose ${r.hbSkillChoice.n} skill${r.hbSkillChoice.n > 1 ? 's' : ''}`, n: r.hbSkillChoice.n, options: r.hbSkillChoice.from.map((s) => ['skill-' + norm2(s), s]) });
+        for (const r of [race, sub]) if (r?.hbCantripChoice) out.push({ key: 'hbc:' + r.index, label: `${r.name}: choose ${r.hbCantripChoice.n} cantrip${r.hbCantripChoice.n > 1 ? 's' : ''}`, n: r.hbCantripChoice.n, options: r.hbCantripChoice.ids.map((p) => [p, data.spells?.[p]?.name || words(p)]) });
         for (const r of [race, sub]) if (r?.language_options) out.push({ key: 'lang', label: 'Extra language', n: r.language_options.choose, options: refs(r.language_options).map((l) => [l, langName(l)]) });
         for (const r of [race, sub]) for (const t of r?.traits || []) {
             if (t.proficiency_choices) out.push({ key: 'p:' + t.index, label: t.name, n: t.proficiency_choices.choose, options: refs(t.proficiency_choices).map((p) => [p, words(p.replace(/^skill-/, ''))]) });
@@ -312,6 +323,8 @@
         p.rows.push(Object.assign(M.ROW.list(), { name, text, src, grp, source: source || src }));
         return p.rows[p.rows.length - 1];
     };
+    // a row from a homebrew feature or trait: its counter, and hbf so its name never acts like the official thing of that name
+    const hbFeature = (row, f) => { if (row && f.hb) Object.assign(row, { hbf: 1, uses: f.uses || '', reset: f.reset || '' }); return row; };
     const panel = (c, type) => c.panels.find((p) => p.type === type);
     const applyHb = (row, part) => Object.assign(row, clone(part.row), { hbsrc: clone(part.hbsrc) });
     // a resource in Resources, made once and only ever raised
@@ -371,11 +384,12 @@
         const lvl = cls.levels?.[L.n - 1] || {};
         for (const f of featuresAt(L.cls, L.n >= subLevel(L.cls, data) ? e.sub : '', L.n, data)) {
             const fk = fkey(f), id = fid(f, L.n);
-            if (fk === 'primal-champion') for (const a of ['STR', 'CON']) { const x = c.abilities.find((y) => y.key === a); if (x) x.score = Math.min(24, +x.score + 4); }
-            if (fk === 'diamond-soul') for (const a of c.abilities) a.save = true;
-            if (fk === 'slippery-mind') giveProf(c, 'saving-throw-wis', M);
-            if (fk === 'bonus-proficiency' && /proficiency with heavy armor/i.test(sumText(f.desc))) giveProf(c, 'heavy-armor', M); // Life Domain
-            const rs = RES[fk];
+            for (const g of f.grants || []) giveProf(c, g, M);
+            if (!f.hb && fk === 'primal-champion') for (const a of ['STR', 'CON']) { const x = c.abilities.find((y) => y.key === a); if (x) x.score = Math.min(24, +x.score + 4); }
+            if (!f.hb && fk === 'diamond-soul') for (const a of c.abilities) a.save = true;
+            if (!f.hb && fk === 'slippery-mind') giveProf(c, 'saving-throw-wis', M);
+            if (!f.hb && fk === 'bonus-proficiency' && /proficiency with heavy armor/i.test(sumText(f.desc))) giveProf(c, 'heavy-armor', M); // Life Domain
+            const rs = f.hb ? null : RES[fk];
             if (rs) { const [name, max, reset, kind] = rs(lvl, L.n); tracker(c, M, name, max, reset, kind, src); }
             // options picked for this feature, each its own passive row
             const picked = (e.opts?.[id] || []).map((i) => f.choices?.options?.find((o) => o.index === i)).filter(Boolean);
@@ -383,8 +397,14 @@
             if (pk?.[0] === 'expert') for (const s of extra) { const x = c.skills.find((y) => y.name === s); if (x) x.p = 2; }
             if (pk?.[0] === 'skill') for (const s of extra) { const x = c.skills.find((y) => y.name === s); if (x && x.p < 1) x.p = 1; }
             const chose = [...picked.map((o) => o.name.replace(/^.*?: /, '')), ...extra];
-            passive(c, M, f.name, sumText(f.desc) + (chose.length ? `\n\nChosen: ${chose.join(', ')}` : ''), src, 'class');
-            for (const o of picked) passive(c, M, o.name, sumText(o.desc), src, 'class');
+            hbFeature(passive(c, M, f.name, sumText(f.desc) + (chose.length ? `\n\nChosen: ${chose.join(', ')}` : ''), src, 'class'), f);
+            for (const o of picked) hbFeature(passive(c, M, o.name, sumText(o.desc), src, 'class'), { hb: f.hb });
+        }
+        // a homebrew class's own resources: made at their level, only ever raised after that
+        for (const r of cls.resources || []) {
+            if (L.n < (+r.at || 1)) continue;
+            const max = r.maxType === 'formula' ? String(r.formula || 0) : r.maxType === 'column' ? (lvl.class_specific?.[r.column] ?? 0) : (r.values || [])[L.n - 1] ?? 0;
+            tracker(c, M, r.name, max, r.reset || 'long', r.kind === 'pips' ? 'pips' : 'count', src);
         }
         // an Ability Score Improvement at this class level: +2, +1 and +1, or a feat
         const asi = asiLevels(cls).includes(L.n) ? e.asi?.[L.n] : null;
@@ -436,7 +456,7 @@
     function applyGear(c, items, data, M) {
         const S = Object.fromEntries(c.abilities.map((a) => [a.key, +a.score])), m = (a) => mod(S[a] || 10);
         const inv = panel(c, 'items'), atk = panel(c, 'attacks');
-        const styles = (panel(c, 'list')?.rows || []).map((r) => r.name);
+        const styles = (panel(c, 'list')?.rows || []).filter((r) => !r.hbf).map((r) => r.name);
         const has = (n) => styles.some((s) => s.toLowerCase() === 'fighting style: ' + n);
         const monk = c.classes.find((k) => k.name === 'Monk'), ma = monk ? (+monk.level >= 17 ? 10 : +monk.level >= 11 ? 8 : +monk.level >= 5 ? 6 : 4) : 0;
         const profW = (w) => {
@@ -449,7 +469,7 @@
         let armour = null, shield = false;
         for (const it of items) {
             // homebrew gear: its own rows, with an action for a weapon; armour never changes the armour class here
-            const hbx = it.name && data.hbItem?.(it.name);
+            const hbx = (it.ref && data.equipment?.[it.ref]?.hbx) || (it.name && data.hbItem?.(it.name));
             if (hbx) {
                 for (const h of data.hbParts(hbx, c)) {
                     const T = panel(c, h.panel);
@@ -479,7 +499,7 @@
         }
         // AC: armour (+ shield, + Defense) or Unarmored Defense / Draconic Resilience, whichever is highest now
         const def = has('defense') ? ' + 1 [Defense]' : '', sh = shield ? ' + 2 [Shield]' : '';
-        const feats = (panel(c, 'list')?.rows || []).map((r) => r.name);
+        const feats = (panel(c, 'list')?.rows || []).filter((r) => !r.hbf).map((r) => r.name);
         const opts = [[10 + m('DEX'), '10 + DEX']];
         if (armour) {
             const [n, base, kind] = armour, dx = kind === 'light' ? m('DEX') : kind === 'medium' ? Math.min(2, m('DEX')) : 0;
@@ -503,8 +523,8 @@
     // the hit points a level after the first adds (the die's average, or the roll)
     const hpAt = (ch, at, die) => (ch.hp?.mode === 'roll' && +ch.hp?.rolls?.[at] ? +ch.hp.rolls[at] : die / 2 + 1);
     // extra hit points per level: Dwarven Toughness (every level), Draconic Resilience (each sorcerer level)
-    const hasRow = (c, name) => (panel(c, 'list')?.rows || []).some((r) => r.name === name);
-    const hpExtra = (c, clsId) => (hasRow(c, 'Dwarven Toughness') ? 1 : 0) + (clsId === 'sorcerer' && hasRow(c, 'Draconic Resilience') ? 1 : 0);
+    const hasRow = (c, name) => (panel(c, 'list')?.rows || []).some((r) => r.name === name && !r.hbf);
+    const hpExtra = (c, clsId, data, subId) => (hasRow(c, 'Dwarven Toughness') ? 1 : 0) + (clsId === 'sorcerer' && hasRow(c, 'Draconic Resilience') ? 1 : 0) + (+data?.classes?.[clsId]?.hpPerLevel || 0) + (+data?.subclasses?.[subId]?.hpPerLevel || 0);
 
     // the whole character from the builder's choices
     function build(ch, data, M) {
@@ -546,7 +566,18 @@
                 }
                 const spell = (ro['s:' + t.index] || [])[0];
                 if (spell) { text += `\n\nCantrip: ${data.spells?.[spell]?.name || words(spell)}`; addSpells(c, [spell], data, M, { source: nm }); }
-                passive(c, M, t.name, text, nm, 'race');
+                hbFeature(passive(c, M, t.name, text, nm, 'race'), t);
+            }
+            // homebrew races and subraces: what they do is in their own fields
+            for (const r of [race, sub]) {
+                if (!r?.hbx) continue;
+                if (r.hbDark) { c.passives = c.passives.filter((p) => !/darkvision/i.test(p.name)); c.passives.push(Object.assign(M.ROW.passive(), { name: 'Darkvision', f: String(r.hbDark), unit: 'ft' })); }
+                for (const x of r.hbRes || []) if (!c.res.split(', ').includes(x)) c.res = [c.res, x].filter(Boolean).join(', ');
+                for (const s of r.hbSpeeds || []) if (!c.speeds.some((v) => v.type === s.type)) c.speeds.push({ type: s.type, ft: s.ft, hover: false });
+                for (const p of r.hbProfs || []) giveProf(c, p, M);
+                for (const l of r.hbLangs || []) giveLang(c, l);
+                for (const p of ro['hbs:' + r.index] || []) giveProf(c, p, M);
+                addSpells(c, [...(r.hbCantrips || []), ...(ro['hbc:' + r.index] || [])], data, M, { source: r.name });
             }
             if (race.traits?.some((t) => t.index === 'breath-weapon')) tracker(c, M, 'Breath Weapon', 1, 'short', 'count', race.name);
             if (race.traits?.some((t) => t.index === 'relentless-endurance')) tracker(c, M, 'Relentless Endurance', 1, 'long', 'count', race.name);
@@ -575,7 +606,7 @@
         for (const L of levels(ch)) {
             const die = +data.classes?.[L.cls]?.hit_die || 8;
             applyLevel(c, L, (L.at === 1 ? die : hpAt(ch, L.at, die)), data, M);
-            c.hp.base += hpExtra(c, L.cls);
+            c.hp.base += hpExtra(c, L.cls, data, L.entry?.sub);
         }
         // spells: each class's picks, and the subclass spells a prepared caster always has
         for (const e of ch.classes || []) {
@@ -598,7 +629,7 @@
     }
     // Jack of All Trades: half proficiency on every skill without one
     function jackOfAllTrades(c) {
-        if ((panel(c, 'list')?.rows || []).some((r) => /^jack of all trades$/i.test(r.name))) for (const s of c.skills) if (!s.p) s.p = 0.5;
+        if ((panel(c, 'list')?.rows || []).some((r) => !r.hbf && /^jack of all trades$/i.test(r.name))) for (const s of c.skills) if (!s.p) s.p = 0.5;
     }
 
     // one level more on a finished character (ROADMAP 4.3). choice: {cls, entry (that class's choices for this level), hp: {mode, roll}}.
@@ -611,7 +642,7 @@
         const die = +cls.hit_die || 8, hp = choice.hp?.mode === 'roll' && +choice.hp.roll ? +choice.hp.roll : die / 2 + 1;
         if (!isObj(c.build)) c.build = {};
         applyLevel(c, { cls: choice.cls, n, at, entry: choice.entry || {} }, hp, data, M);
-        c.hp.base += hpExtra(c, choice.cls);
+        c.hp.base += hpExtra(c, choice.cls, data, choice.entry?.sub);
         addSpells(c, alwaysPrepared(choice.cls, choice.entry?.sub, n, data), data, M, { prep: true, source: data.subclasses?.[choice.entry?.sub]?.name || cls.name });
         addSpells(c, choice.entry?.spells || [], data, M, { prep: prepares(choice.cls, data), source: cls.name });
         applySlots(c, data, M);

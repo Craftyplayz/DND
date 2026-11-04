@@ -30,7 +30,8 @@ window.Homebrew = (() => {
     };
     const keepShared = () => { try { localStorage.setItem(SHARED, JSON.stringify({ acct, list: view.shared })); } catch (e) { } };
     const mine = () => Object.values(read()).filter((e) => e && (!e.acct || !me() || e.acct === me()));
-    const all = () => [...mine().filter((e) => !e.archived), ...sharedList()].filter((e) => e && typeof e.name === 'string');
+    // an unfinished entry is only its owner's, in the Compendium: it can't be picked or shared
+    const all = () => [...mine().filter((e) => !e.archived && !e.unfinished), ...sharedList()].filter((e) => e && typeof e.name === 'string');
 
     // pull what's newer, push what's newer; a failed request leaves the browser's copy to go up next time
     async function sync() {
@@ -157,14 +158,21 @@ window.Homebrew = (() => {
         return tag === null ? null : of(kinds).find((e) => e.name.trim().toLowerCase() === tag) || null;
     };
     // homebrew in the builder's data, in the content files' shape; kept is what this character already picked, which wins over the source
-    function addTo(d, rules, kept) {
+    function addTo(d, rules, kept, camp) {
+        // from scratch: this also runs again when the campaign or the rules version changes
+        for (const k of ['classes', 'subclasses', 'races', 'subraces', 'backgrounds', 'feats', 'spells', 'equipment']) for (const [id, e] of Object.entries(d[k] || {})) if (e && e.hbx) delete d[k][id];
         const put = (x) => {
+            if (window.HomebrewContent?.KINDS.includes(x.kind)) return window.HomebrewContent.add(d, window.HomebrewContent.toContent(x), rules);
+            if (x.kind === 'item' || x.kind === 'magic') (d.equipment ||= {})['hb-' + x.id] = { index: 'hb-' + x.id, name: x.name, rules, hbx: x };
             if (x.kind === 'spell') d.spells['hb-' + x.id] = { index: 'hb-' + x.id, name: x.name, level: +x.level || 0, school: str(x.school), casting_time: str(x.time), range: str(x.range), components: arr(x.comps), duration: str(x.duration),
                 concentration: !!x.conc, ritual: !!x.ritual, classes: arr(x.classes), desc: [str(x.text)], higher_level: x.higher ? [str(x.higher)] : [], rules, hbx: x };
             if (x.kind === 'feat') d.feats['hb-' + x.id] = { index: 'hb-' + x.id, name: x.name, desc: [str(x.text)], prerequisites: x.prereq ? [str(x.prereq)] : [], rules, hbx: x };
         };
-        all().forEach(put);
+        // building for a campaign: your own and that campaign's
+        all().filter((x) => !camp || !x.camps || x.camps.some((c) => c.id === camp)).forEach(put);
         Object.values(kept || {}).forEach(put);
+        // the class this character has is the one level up finds by name, even if someone's other class has that name
+        for (const x of Object.values(kept || {})) if (x.kind === 'class') for (const [id, e] of Object.entries(d.classes || {})) if (e.hbx && id !== 'hb-' + x.id && e.name === x.name) delete d.classes[id];
         d.hbParts = parts;
         d.hbItem = (name) => Object.values(kept || {}).find((x) => ['item', 'magic'].includes(x.kind) && x.name.trim().toLowerCase() + SUFFIX === str(name).trim().toLowerCase()) || named(['item', 'magic'], name);
     }

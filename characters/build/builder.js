@@ -55,8 +55,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const BASE = ['classes', 'subclasses', 'races', 'subraces', 'backgrounds', 'feats', 'languages'];
     let D = await hbContent(rules(), BASE);
     if (!D) { stepBox.innerHTML = '<h2>Couldn\x27t load the rules</h2><p>The builder needs a connection once to load the classes, races and backgrounds. Check your connection and reload the page.</p>'; return; }
-    const hbAdd = () => Homebrew.addTo(D, rules(), ch.hbc ||= {});
-    hbAdd();
     let ICONS = {};
     const versions = await hbContent.versions();
     await Promise.all([rules() === '2014' ? hbSpellNames(D) : null, hbIcons().then((x) => { ICONS = x; })]);
@@ -71,14 +69,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // the campaign this character is for: its DM's rules for ability scores and hit points
     const campOf = () => (UP ? camps.find((x) => x.mine.includes(UP)) : camps.find((x) => x.id === ch.camp)) || null;
     const allowed = (k) => campOf()?.rules?.[k] || (k === 'methods' ? ['pb', 'std', 'roll', 'man'] : ['avg', 'roll']);
+    // homebrew: your own and (for a character built for one) that campaign's. What this character already has wins over the source (ch.hbc, and the finished character's build.hbc).
+    const hbKept = () => ({ ...(UP ? C.build?.hbc : null), ...(ch.hbc ||= {}) });
+    const hbAdd = () => Homebrew.addTo(D, rules(), hbKept(), campOf()?.id || '');
+    hbAdd();
 
     // ---- save: rebuild the character from the picks and keep it like any character ----
     let lastSaved = 0;
     const cloudLater = debounce(() => { const c = load().chars[id]; if (c) { post('backup.php', c).catch(() => { }); if (cloud) post('cloud.php', c).catch(() => { }); } }, 1500);
     // homebrew this character picked is copied into its picks at once (ch.hbc, id -> entry), so the source being edited or taken away changes nothing
     function hbKeep() {
-        const kept = (ch.hbc ||= {}), add = (x) => { if (x && !kept[x.id]) kept[x.id] = x; };
-        for (const [, i] of JSON.stringify([ch.classes, ch.entry]).matchAll(/"hb-([a-z0-9]{6,40})"/g)) add((D.spells?.['hb-' + i] || D.feats?.['hb-' + i])?.hbx);
+        const kept = (ch.hbc ||= {}), have = hbKept(), add = (x) => { if (x && !have[x.id]) { kept[x.id] = x; have[x.id] = x; return true; } return false; };
+        const scan = (o) => { for (const [, i] of JSON.stringify(o ?? null).matchAll(/"hb-([a-z0-9]{6,40})"/g)) for (const k of ['classes', 'subclasses', 'races', 'subraces', 'backgrounds', 'feats', 'spells', 'equipment']) { const x = D[k]?.['hb-' + i]?.hbx; if (add(x)) scan(x); } };
+        // a class's own gear and spells, and a subclass's class, come with it
+        scan([ch.classes, ch.entry, ch.cls, ch.race, ch.sub, ch.bg, ch.equip?.picks]);
         for (const n of ch.equip?.extra || []) add(D.hbItem?.(n));
     }
     function built() {
@@ -283,7 +287,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // ---- step: class (and level), with its skills, features, improvements, spells and hit points ----
-    const classRows = () => B.listOf(D, 'classes', rules()).map((c) => ({ id: c.id, name: c.name, sub: `Hit die d${c.hit_die}` }));
+    const mark = (x, sub) => [x.hbx ? 'Homebrew' : '', sub].filter(Boolean).join(' · ');
+    const classRows = () => B.listOf(D, 'classes', rules()).map((c) => ({ id: c.id, name: c.name, sub: mark(c, `Hit die d${c.hit_die}`) }));
     STEP.class = () => {
         if (UP) return upClass();
         if (view.cls === 'list' || !D.classes[ch.classes[view.cls]?.id]) {
@@ -322,7 +327,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             `<li${pick ? ' class="todo"' : ''}><span class="lv">Lv ${l}</span><span>${f ? nm(t, `feature:${e.id}:${B.fid(f, l)}`, () => ({ title: t, meta: [`${cls.name} level ${l}`], html: desc(f.desc) })) : esc(t)}${pick ? ' <span class="badge">you choose</span>' : ''}</span></li>`).join('') || '<li><span>No new features at this level.</span></li>'}</ul></div>`);
         // subclass, picked at its level (level-1 subclasses right here, Q27)
         if (lv >= subL && subs.length && (subL >= from || !e.sub)) out.push(`<div class="bd-sect"><h3>Subclass <span class="muted">level ${subL}</span></h3><div class="bd-picks" role="radiogroup" aria-label="Subclass">${subs.map((s) =>
-            `<div class="bd-pick"><input type="radio" name="${P}.sub" data-b="${P}.sub" data-redraw value="${esc(s.id)}" aria-label="${esc(s.name)}"${e.sub === s.id ? ' checked' : ''}><div class="box">${iconFor('subclasses', `${e.id}--${s.id}`, s.name)}<b>${nm(s.name, 'sub:' + s.id, () => ({ title: s.name, meta: [s.subclass_flavor || ''].filter(Boolean), html: desc(s.desc) }), `[name="${P}.sub"][value="${s.id}"]`)}</b>${s.subclass_flavor ? `<small>${esc(s.subclass_flavor)}</small>` : ''}</div></div>`).join('')}</div>
+            `<div class="bd-pick"><input type="radio" name="${P}.sub" data-b="${P}.sub" data-redraw value="${esc(s.id)}" aria-label="${esc(s.name)}"${e.sub === s.id ? ' checked' : ''}><div class="box">${iconFor('subclasses', `${e.id}--${s.id}`, s.name)}<b>${nm(s.name, 'sub:' + s.id, () => ({ title: s.name, meta: [s.subclass_flavor || ''].filter(Boolean), html: desc(s.desc) }), `[name="${P}.sub"][value="${s.id}"]`)}</b>${s.hbx || s.subclass_flavor ? `<small>${esc(mark(s, s.subclass_flavor || ''))}</small>` : ''}</div></div>`).join('')}</div>
             ${e.sub && D.subclasses[e.sub] ? `<div class="bd-desc">${desc(D.subclasses[e.sub].desc)}</div>` : ''}</div>`);
         // skills and other proficiencies: the class's own at character level 1, its multiclass ones later
         if (from === 1) {
@@ -424,12 +429,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const cls = D.classes[ch.cls], row = C.classes.find((k) => k.name === cls.name), n = (row ? +row.level : 0) + 1;
         ch.entry.id = ch.cls;
+        const hbAsk = [cls.hbx, D.subclasses[ch.entry.sub]?.hbx].filter(Boolean).map((have) => [have, Homebrew.find(have.id)]).filter(([have, src]) => src && src.updated > have.updated && !(ch.hbAsked || {})[have.id])
+            .map(([have, src]) => `<div class="note">${esc(src.by || 'You')} updated ${esc(src.name)}. Use the new version? <button type="button" class="btn small" data-act="hbuse" data-id="${esc(src.id)}">Yes</button> <button type="button" class="btn small" data-act="hbkeep" data-id="${esc(src.id)}">Keep mine</button><br><small>What you already have stays as it is either way.</small></div>`).join('');
         // the subclass already chosen (in the builder's record), so its features come too
         if (!ch.entry.sub) ch.entry.sub = [...(C.build?.classes || []), ...(C.build?.ups || []).map((u) => u.entry)].find((x) => x?.id === ch.cls && x.sub)?.sub || '';
         const ways = allowed('hp');
         if (!ways.includes(ch.hp.mode)) ch.hp.mode = ways[0];
         const avg = cls.hit_die / 2 + 1;
-        return back('upback', 'Pick another class') + classDetail('up', n) + `<div class="bd-sect"><h3>Hit points</h3>
+        return back('upback', 'Pick another class') + hbAsk + classDetail('up', n) + `<div class="bd-sect"><h3>Hit points</h3>
             ${ways.length > 1 ? `<div class="seg" role="radiogroup" aria-label="Hit points">${ways.map((w) => `<label><input type="radio" name="hpmode" data-b="hp.mode" data-redraw value="${w}"${ch.hp.mode === w ? ' checked' : ''}><span>${w === 'avg' ? `Take the average (${avg})` : 'Roll the hit die'}</span></label>`).join('')}</div>` : `<p class="hint">Your DM's rules: ${ways[0] === 'avg' ? 'take the average' : 'roll the hit die'}.</p>`}
             ${ch.hp.mode === 'roll' ? `<p><button type="button" class="btn small" data-act="uproll">${ch.hp.roll ? 'Roll again' : `Roll the d${cls.hit_die}`}</button> ${ch.hp.roll ? `<b class="bd-big">${ch.hp.roll}</b>` : ''}</p>` : ''}
             <p class="hint">Plus your CON modifier (${sg(B.mod(scores().CON || 10))}).</p></div>`;
@@ -437,16 +444,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---- step: race (subraces replace the list, with Back) ----
     const subsOfRace = (rid) => B.listOf(D, 'subraces', rules()).filter((s) => (s.race?.index || s.race) === rid);
+    // an official race whose only subraces are homebrew can still be taken as it is
+    const baseRace = (rid) => { const s = subsOfRace(rid); return !D.races[rid]?.hbx && s.length > 0 && s.every((x) => x.hbx); };
     const bonusText = (r, s) => [...(r?.ability_bonuses || []), ...(s?.ability_bonuses || [])].map((b) => `${String(b.ability_score?.index || b.ability_score).toUpperCase()} ${sg(+b.bonus)}`).join(', ')
         + (r?.ability_bonus_options ? `${r.ability_bonuses?.length ? ', ' : ''}+1 to ${r.ability_bonus_options.choose} of your choice` : '');
     STEP.race = () => {
         const r = D.races[ch.race], s = D.subraces[ch.sub];
         if (view.race === 'list' || !r) return `<h2>Choose a race</h2><p class="hint">Races with subraces open a second list.</p>${picker('races', B.listOf(D, 'races', rules()).map((x) => ({ id: x.id, name: x.name,
-            sub: [bonusText(x), x.speed ? `Speed ${x.speed} ft` : '', x.size, subsOfRace(x.id).length > 1 ? `${subsOfRace(x.id).length} subraces` : ''].filter(Boolean).join(' · ') })), ch.race, 'race', 'races')}`;
+            sub: mark(x, [bonusText(x), x.speed ? `Speed ${x.speed} ft` : '', x.size, subsOfRace(x.id).length > 1 ? `${subsOfRace(x.id).length} subraces` : ''].filter(Boolean).join(' · ')) })), ch.race, 'race', 'races')}`;
         if (view.race === 'subs') return back('racelist', 'All races') + `<div class="bd-hero">${iconFor('races', r.id || ch.race, r.name)}<div><h2>${esc(r.name)}</h2><span class="hint">Pick a subrace</span></div></div>`
-            + picker('subraces', subsOfRace(ch.race).map((x) => ({ id: x.id, name: x.name, kind: 'races', sub: bonusText(r, x) })), ch.sub, 'sub', 'subraces');
-        const subs = subsOfRace(ch.race);
-        return back(subs.length > 1 ? 'racesubs' : 'racelist', subs.length > 1 ? 'Subraces' : 'All races')
+            + picker('subraces', [...(baseRace(ch.race) ? [{ id: 'base', name: `${r.name} (no subrace)`, kind: 'races', sub: 'The race as it is' }] : []), ...subsOfRace(ch.race).map((x) => ({ id: x.id, name: x.name, kind: 'races', sub: mark(x, bonusText(r, x)) }))], ch.sub, 'sub', 'subraces');
+        const subs = subsOfRace(ch.race), more = subs.length > 1 || baseRace(ch.race);
+        return back(more ? 'racesubs' : 'racelist', more ? 'Subraces' : 'All races')
             + `<div class="bd-hero">${iconFor('races', ch.sub || ch.race, (s || r).name)}<div><h2>${esc((s || r).name)}</h2><div class="badges"><span class="badge b">${esc(bonusText(r, s))}</span>${r.speed ? `<span class="badge">Speed ${r.speed} ft</span>` : ''}<span class="badge">${esc(r.size || '')}</span></div></div></div>
             ${desc(r.desc)}${s ? desc(s.desc) : ''}<div class="bd-desc">${[r.age, r.size_description, r.language_desc].filter(Boolean).map((p) => `<p class="muted">${esc(p)}</p>`).join('')}</div>
             <div class="bd-sect"><h3>Traits</h3><dl class="bd-traits">${[...(r.traits || []), ...(s?.traits || [])].map((t) => `<div><dt>${nm(t.name, 'trait:' + (t.index || t.name), () => ({ title: t.name, html: desc(t.desc) }))}</dt><dd>${esc((Array.isArray(t.desc) ? t.desc : [t.desc]).filter(Boolean).join(' '))}</dd></div>`).join('') || '<p class="muted">No traits listed.</p>'}</dl></div>
@@ -502,7 +511,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     STEP.background = () => {
         const bg = D.backgrounds[ch.bg];
         if (view.bg === 'list' || !ch.bg || (ch.bg !== 'custom' && !D.backgrounds[ch.bg])) return `<h2>Choose a background</h2>${picker('backgrounds', [...B.listOf(D, 'backgrounds', rules()).map((b) => ({ id: b.id, name: b.name,
-            sub: (b.starting_proficiencies || []).map((p) => B.profKind(p, M)[1]).join(', ') })), { id: 'custom', name: 'Custom background', sub: 'Name it, then pick two skills and two languages' }], ch.bg, 'bg', 'backgrounds')}`;
+            sub: mark(b, (b.starting_proficiencies || []).map((p) => B.profKind(p, M)[1]).join(', ')) })), { id: 'custom', name: 'Custom background', sub: 'Name it, then pick two skills and two languages' }], ch.bg, 'bg', 'backgrounds')}`;
         const det = ch.details, inp = (k, label, ph = '') => `<label>${esc(label)}<input class="field" data-b="details.${k}" value="${esc(det[k] || '')}" placeholder="${esc(ph)}" autocomplete="off"></label>`;
         const ta = (k, label, rows = 2) => `<label class="bd-wide">${esc(label)}<textarea class="field" data-b="details.${k}" rows="${rows}">${esc(det[k] || '')}</textarea></label>`;
         const langs = B.LANGS.filter((l) => l !== 'Common').map((l) => [l.toLowerCase().replace(/ /g, '-'), l]);
@@ -578,7 +587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const gold = `<p><button type="button" class="btn" data-act="goldroll">Roll ${gd ? `${gd[0]}d4${gd[1] > 1 ? ' × ' + gd[1] : ''}` : 'starting gold'}</button>
             <label class="bd-inl">Gold pieces <input class="field" type="number" min="0" data-b="equip.gold" data-num value="${esc(ch.equip.gold || 0)}" aria-label="Starting gold"></label></p>
             <p class="hint">Gold instead of the class and background equipment. Buy gear on the sheet's Inventory.</p>`;
-        const names = [...new Set([...M.GEAR.map((g) => g[0]), ...Object.values(D.equipment || {}).map((e) => e.name).filter(Boolean), ...Homebrew.of(['item', 'magic']).map((x) => x.name + Homebrew.SUFFIX)])].sort();
+        const names = [...new Set([...M.GEAR.map((g) => g[0]), ...Object.values(D.equipment || {}).filter((e) => !e.hbx).map((e) => e.name).filter(Boolean), ...Homebrew.of(['item', 'magic']).map((x) => x.name + Homebrew.SUFFIX)])].sort();
         return `<h2>Equipment</h2><p class="hint">Packs are unpacked into single items. Weapons become actions and armour sets your armour class.</p>
             ${gd ? `<div class="seg" role="radiogroup" aria-label="Equipment or gold"><label><input type="radio" name="eqmode" data-b="equip.mode" data-redraw value="gear"${ch.equip.mode !== 'gold' ? ' checked' : ''}><span>Starting equipment</span></label><label><input type="radio" name="eqmode" data-b="equip.mode" data-redraw value="gold"${ch.equip.mode === 'gold' ? ' checked' : ''}><span>Gold instead</span></label></div>` : ''}
             ${ch.equip.mode === 'gold' ? gold : gear}
@@ -726,7 +735,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 save(); render();
             });
         }
-        else if (path === 'camp') ch.camp = v;
+        else if (path === 'camp') { ch.camp = v; hbAdd(); }
         else set(path, v);
         save();
         if ('redraw' in el.dataset || el.tagName === 'SELECT') { const f = el.name ? `[name="${CSS.escape(el.name)}"][value="${CSS.escape(el.value)}"]` : `[data-b="${CSS.escape(path)}"]`; render(); if (!fromPanel) $(f)?.focus(); }
@@ -804,12 +813,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (act === 'race') {
             if (ch.race !== b.dataset.id) { if (Object.keys(ch.raceOpts).length) toast('The race picks were cleared.', 'note'); ch.race = b.dataset.id; ch.sub = ''; ch.raceOpts = {}; }
             const subs = subsOfRace(ch.race);
-            if (subs.length === 1) ch.sub = subs[0].id; // one subrace: picked for you (Q19)
-            view.race = subs.length > 1 && !ch.sub ? 'subs' : 'detail';
+            if (subs.length === 1 && !baseRace(ch.race)) ch.sub = subs[0].id; // one subrace: picked for you (Q19)
+            view.race = (subs.length > 1 || baseRace(ch.race)) && !ch.sub ? 'subs' : 'detail';
             save(); render(); return scrollTo(0, 0);
         }
-        if (act === 'sub') { if (ch.sub !== b.dataset.id) { ch.sub = b.dataset.id; for (const k of Object.keys(ch.raceOpts)) if (!B.raceChoices(ch, D).some((x) => x.key === k)) delete ch.raceOpts[k]; } view.race = 'detail'; save(); render(); return scrollTo(0, 0); }
+        if (act === 'sub') { const pickedSub = b.dataset.id === 'base' ? '' : b.dataset.id; if (ch.sub !== pickedSub) { ch.sub = pickedSub; for (const k of Object.keys(ch.raceOpts)) if (!B.raceChoices(ch, D).some((x) => x.key === k)) delete ch.raceOpts[k]; } view.race = 'detail'; save(); render(); return scrollTo(0, 0); }
         if (act === 'racelist') { view.race = 'list'; return render(); }
+        if (act === 'hbuse' || act === 'hbkeep') {
+            (ch.hbAsked ||= {})[b.dataset.id] = 1;
+            if (act === 'hbuse') { const src = Homebrew.find(b.dataset.id); if (src) { (ch.hbc ||= {})[src.id] = src; hbAdd(); } }
+            save(); return render();
+        }
         if (act === 'racesubs') { view.race = 'subs'; return render(); }
         // abilities
         if (act === 'method') { ch.method = b.dataset.m; save(); return render(); }
@@ -880,7 +894,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function finish(btn) {
         btn.disabled = true; btn.textContent = 'Finishing...';
         if (UP) {
+            hbKeep();
             const after = B.levelUp(C, { cls: ch.cls, entry: ch.entry, hp: { mode: ch.hp.mode, roll: ch.hp.roll } }, D, M);
+            if (Object.keys(ch.hbc || {}).length) after.build.hbc = { ...after.build.hbc, ...ch.hbc };
             after.rolls = [...(ch.rolls || []), ...(after.rolls || [])].slice(0, 100);
             after.updated = Date.now();
             after.calc = { hpMax: after.hp.base + B.mod(+after.abilities.find((a) => a.key === 'CON').score) * after.classes.reduce((t, k) => t + +k.level, 0) + (+after.hp.mod || 0) };

@@ -81,6 +81,7 @@ function hb_share($accounts, $sub, $cid, $id, $on, $dmonly = false)
     if (cp_member($c, $sub) < 0) return [403, ['error' => "You aren't in that campaign."]];
     $e = hb_get($accounts, $sub, $id);
     if (!$e) return [404, ['error' => 'Save the entry to your account first.']];
+    if ($on && !empty($e['unfinished'])) return [400, ['error' => 'Finish it before you share it.']];
     $rows = array_values(array_filter(hb_shares($accounts, $cid), fn($r) => !($r['sub'] === $sub && $r['id'] === $id)));
     if ($on) $rows[] = ['ref' => bin2hex(random_bytes(6)), 'sub' => $sub, 'id' => $id, 'at' => time()] + ($dmonly && ($e['kind'] ?? '') === 'monster' ? ['dmonly' => true] : []);
     return hb_put_shares($accounts, $cid, $rows) ? [200, ['shared' => (bool)$on]] : [500, ['error' => "Couldn't save the campaign's list."]];
@@ -115,7 +116,7 @@ function hb_view($accounts, $sub)
             $i = cp_member($c, $r['sub']);
             if ($i < 0) continue;
             $e = hb_get($accounts, $r['sub'], $r['id']);
-            if (!$e || !empty($e['archived'])) continue;
+            if (!$e || !empty($e['archived']) || !empty($e['unfinished'])) continue;
             $key = $r['sub'] . '/' . $r['id'];
             unset($e['acct']);
             $shared[$key] ??= $e + ['by' => $c['members'][$i]['name'] ?? '', 'camps' => []];
