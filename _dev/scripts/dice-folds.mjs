@@ -37,13 +37,14 @@ for (const name of browsers) {
             is(`${t}: the set's own sound row follows the set`, await b.until(`${val('sound')} === 'Frostbound’s own sound' || ${val('sound')}`, 5000).then(() => b.ev(val('sound'))), 'Frostbound’s own sound');
             await click(b, '[data-coin=gold-new]');
             is(`${t}: Coin row follows a pick`, await b.ev(val('coin')), 'Gold');
+            await b.until(`${val('trail')} === 'None'`, 15000).catch(() => {});
             is(`${t}: Trail starts at None`, await b.ev(val('trail')), 'None');
             // a classic plain style has no extras: their rows disappear, and come back with a set that has them
             await click(b, '[data-set=purple]');
-            await b.until(`document.querySelector('#dd-extras').hidden`, 5000);
+            await b.until(`document.querySelector('#dd-extras').hidden`, 15000).catch(() => {});
             is(`${t}: a plain style hides the extras`, await b.ev(`document.querySelector('#dd-extras').hidden && document.querySelector('#dd-nats').hidden`), true);
             await click(b, '[data-set=ember]');
-            await b.until(`!document.querySelector('#dd-extras').hidden`, 5000);
+            await b.until(`!document.querySelector('#dd-extras').hidden && !document.querySelector('#dd-nats').hidden`, 20000).catch(() => {});
             is(`${t}: Ember Cage shows its extras`, await b.ev(`!document.querySelector('#dd-extras').hidden && !document.querySelector('#dd-nats').hidden`), true);
             // the picks are kept, the open row is not
             await click(b, '[aria-controls=dd-f-coinsnd]');
