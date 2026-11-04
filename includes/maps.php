@@ -517,11 +517,14 @@ function mp_clamp($m, $span, $x, $y)
 }
 
 // the next letter for a copy of this monster on this map: A, B, ... Z, then 27, 28, ...
-function mp_suffix($toks, $mon)
+function mp_suffix($toks, $mon, $name = null)
 {
-    $used = [];
-    foreach ($toks as $t) if (($t['mon'] ?? null) === $mon && isset($t['suffix'])) $used[$t['suffix']] = true;
-    for ($i = 0; ; $i++) { $s = $i < 26 ? chr(65 + $i) : (string)($i + 1); if (!isset($used[$s])) return $s; }
+    // the same monster, or another on the sheet with the same name (an encounter's three goblins), so no two tokens read alike
+    $used = array_column(array_filter($toks, fn($t) => !empty($t['copy']) && (($t['mon'] ?? null) === $mon || ($name !== null && ($t['name'] ?? null) === $name))), 'suffix');
+    for ($i = 0; ; $i++) {
+        $l = $i < 26 ? chr(65 + $i) : chr(65 + (int)($i / 26) - 1) . chr(65 + $i % 26);
+        if (!in_array($l, $used, true)) return $l;
+    }
 }
 
 // One change: [http code, response, live messages [[msg, to], ...]] (to: null everyone, "dm", or a list of keys).
@@ -658,7 +661,7 @@ function mp_op($accounts, $c, $sub, $body)
         $old = !empty($from['copy']) ? fi_copies($accounts, $c['id'])[$from['copy']] ?? null : null;
         if (!$mon && !$old) return [400, ['error' => 'Save that monster to your account first (sign in on the Monster Sheet).'], []];
         $copy = bin2hex(random_bytes(6));
-        $suffix = mp_suffix($toks, $id);
+        $suffix = mp_suffix($toks, $id, mb_substr((string)($old['name'] ?? $mon['name'] ?? 'Monster'), 0, 80));
         $size = $from['size'] ?? mp_size_of($mon['race'] ?? '');
         $rec = ['mon' => $id, 'by' => $by, 'name' => mb_substr((string)($old['name'] ?? $mon['name'] ?? 'Monster'), 0, 80), 'suffix' => $suffix, 'hp' => $old['hp'] ?? fi_hp($mon['hp'] ?? [], ['k' => 'set', 'hp' => []]),
             'ac' => $old['ac'] ?? fi_int($body['ac'] ?? null), 'bonus' => $old['bonus'] ?? fi_int($body['bonus'] ?? 0) ?? 0];

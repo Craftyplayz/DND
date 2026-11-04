@@ -245,6 +245,16 @@ $fop(['op' => 'add', 'items' => [['kind' => 'monster', 'mon' => 'wolf', 'copy' =
 $wE = array_values(array_filter(fi_view($A, $c, '111')['entries'], fn($e) => ($e['copy'] ?? null) === $cpid));
 $is('one entry, with the copy\'s name and HP', [count($wE), $wE[0]['name'], $wE[0]['hp']['cur'], $wE[0]['ac']], [1, 'Wolf A', 2, 13]);
 $is('the token and entry are one', $tok(mp_view($A, $c, '111'), 'Wolf A')['fight'], $wE[0]['id']);
+// a Monster Sheet roll: every copy in the fight takes it, even after round 1, and no separate entry appears
+$before = count(fi_read($A, $c['id'])['entries']);
+$is('a sheet roll reaches the copies', fi_roll($A, $c, ['sub' => '111'], ['title' => 'Initiative', 'total' => 19, 'expr' => '1d20 + 2', 'vis' => 'hidden', 'mon' => 'wolf', 'fight' => fi_read($A, $c['id'])['n']]), true);
+$is('...with no new entry', count(fi_read($A, $c['id'])['entries']), $before);
+$is('...and their number', array_values(array_unique(array_column(array_filter(fi_read($A, $c['id'])['entries'], fn($e) => ($e['mon'] ?? '') === 'wolf' && !empty($e['copy'])), 'init'))), [19]);
+// two sheet monsters with one name (an encounter's goblins) don't both read "A"
+file_put_contents("$A/monsters/111/wolf2.json", str_replace('"wolf"', '"wolf2"', $wolfSave));
+$wd = $op('111', ['op' => 'place', 'mon' => 'wolf2', 'x' => 310, 'y' => 10])[1]['k'];
+$is('a second monster of that name takes the next letter', array_values(array_filter(mp_view($A, $c, '111')['map']['tokens'], fn($x) => $x['k'] === $wd))[0]['name'] !== 'Wolf A', true);
+$op('111', ['op' => 'remove', 'k' => $wd]);
 $is('fi_op copyhp reaches it', [fi_op($A, $c, ['op' => 'copyhp', 'copy' => $cpid, 'hop' => ['k' => 'heal', 'n' => 1]])[0], fi_view($A, $c, '111')['entries'][array_search($wE[0]['id'], array_column(fi_view($A, $c, '111')['entries'], 'id'))]['hp']['cur']], [200, 3]);
 rename("$A/monsters/111/wolf.json", "$A/monsters/111/wolf.gone");
 $is('a copy outlives the save', [$tok(mp_view($A, $c, '111'), 'Wolf A')['hp']['cur'], $op('111', ['op' => 'paste', 'k' => $wa, 'x' => 0, 'y' => 0])[0]], [3, 200]);

@@ -241,3 +241,10 @@ body:has(> main.mp) { display: flex; flex-direction: column; height: 100dvh; mar
 .mpt-panel input[type=number] { appearance: textfield; -moz-appearance: textfield; }
 .mpt-panel input[type=number]::-webkit-inner-spin-button, .mpt-panel input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .mp-brush { fill: rgb(255 255 255 / .12); stroke: var(--highlight); }
+.mpt-mv { display: inline-flex; gap: 1px; }
+.mpt-mv button { width: 20px; height: 20px; padding: 0; border-radius: 3px; color: var(--muted); font-size: 12px; line-height: 1; }
+.mpt-mv button:hover:not(:disabled) { background: var(--btn2); color: var(--text); }
+.mpt-mv button:disabled { opacity: .35; cursor: default; }
+.mpt-addent { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) 56px auto; gap: 6px; align-items: center; }
+.mpt-addent .field { box-sizing: border-box; width: 100%; min-width: 0; padding: 4px 8px; font-size: 13px; }
+.mpt-seclabel .btn { font-weight: 400; }
