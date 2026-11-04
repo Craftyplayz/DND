@@ -82,6 +82,30 @@ window.BattleMap = (() => {
 
         // ---- loading ----
         let loadN = 0;
+        // Send to initiative (3.3): /campaigns/<id>/map?send=<monster ids> from the Monster Sheet fills the displayed map's Combat
+        // Encounter, or the one the DM picks when none is displayed. Taken off the address at once, so a reload doesn't send it twice.
+        const sending = { ids: S.dm && S.full ? new URLSearchParams(location.search).get('send') : null, picked: false, asked: false };
+        if (sending.ids) history.replaceState(null, '', location.pathname);
+        async function sendGo() {
+            if (!sending.ids) return;
+            if (!S.m || (S.v.active !== S.m.id && !sending.picked)) {
+                if (sending.asked) return;
+                sending.asked = true;
+                openMaps();
+                mapsDlg.querySelector('h2').textContent = 'Pick a map for this encounter';
+                mapsDlg.addEventListener('close', () => { if (sending.ids && !sending.picked) { sending.ids = null; toast('Nothing was sent. No map was picked.'); } });
+                return;
+            }
+            const ids = sending.ids.split(',');
+            sending.ids = null;
+            if (!S.mons) await loadMons();
+            const mons = ids.map((id) => (S.mons || []).find((x) => x.id === id)).filter(Boolean).map((x) => ({ mon: x.id, ...stats(x) }));
+            const out = await post({ op: 'send', mons });
+            if (!out) return;
+            S.sideOn = true;
+            await load();
+            toast(`Added ${out.sent} to the Combat Encounter. Check them, then start the fight.`, 'ok');
+        }
         async function load() {
             const n = ++loadN; // only the newest counts: a slow older answer mustn't put back a map the DM has moved on from
             try {
@@ -93,6 +117,7 @@ window.BattleMap = (() => {
                 if (S.dm && S.open && !S.m && v.active) { S.open = null; return load(); } // the map opened was archived elsewhere
                 if (S.dm && S.full && !S.m && !S.open) { const first = (v.maps || []).find((x) => !x.archived); if (first) { S.open = first.id; return load(); } }
                 if (S.dm && S.full && !S.open && S.m) S.open = S.m.id; // off the map page, the DM always sees what's on the table
+                sendGo();
                 if (was?.id !== S.m?.id || was?.fog?.ops?.length !== S.m?.fog?.ops?.length) S.fogLive = {}; // a saved stroke replaces its live copy
                 if (was?.id !== S.m?.id) { S.picks.clear(); S.panel = null; S.poly = []; S.fogUndo = []; S.fogOps = null; }
                 for (const id of [...S.picks]) if (!tokOf(id) && !ovOf(id)) S.picks.delete(id);
@@ -453,7 +478,8 @@ window.BattleMap = (() => {
         const port = (x, label) => `<span class="mpt-port">${art(x)}<span>${esc(label || initials(x.name))}</span></span>`;
         const encOf = () => { const e = S.m?.enc; return e && Array.isArray(e.ids) ? e : { ids: [], init: {}, side: {} }; };
         const saveEnc = (e) => { S.m.enc = e; drawSide(); drawMenu(); return post({ op: 'enc', enc: e }); };
-        const baseOf = (t) => t.name.replace(/ [A-Z]$/, '');
+        // a copy's name without its letter, so all of a kind share a roll; a name of its own ("Goblin 1", "Goblin A") is its own kind
+        const baseOf = (t) => (t.suffix && t.name.endsWith(' ' + t.suffix) ? t.name.slice(0, -t.suffix.length - 1) : t.name);
         const defaultInit = (t) => 10 + (t.bonus || 0);
         const d20 = (t) => 1 + Math.floor(Math.random() * 20) + (t.bonus || 0);
         function addEnc(list) {
@@ -1075,7 +1101,7 @@ window.BattleMap = (() => {
                 const a = b.dataset.m, id = b.dataset.v;
                 if (a === 'close') return d.close();
                 if (a === 'upload') return d.querySelector('[data-mbf]').click();
-                if (a === 'open') { S.open = id; S.fitted = ''; d.close(); return load(); }
+                if (a === 'open') { sending.picked = true; S.open = id; S.fitted = ''; d.close(); return load(); }
                 if (a === 'rename') {
                     const x = S.v.maps.find((y) => y.id === id), name = await ask('Rename the map', '', 'Rename', x?.name || '');
                     if (name && (await post({ op: 'rename', m: id, name }))) await load();
@@ -1127,6 +1153,7 @@ window.BattleMap = (() => {
                 const out = await post({ op: 'upload', up: id, name: file.name.replace(/\.[^.]+$/, '') }, true);
                 if (!out) throw new Error(S.err);
                 S.open = out.map; S.fitted = ''; S.uploading = false;
+                sending.picked = true;
                 mapsDlg?.close();
                 await load();
                 toast('Map uploaded. It stays off the table until you press Display map.', 'ok');

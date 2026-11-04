@@ -824,11 +824,43 @@ change already lands in `sheets/player/`. The test copy is archived and must not
   sums). Checks: `encounter-difficulty.test.js`, `encounter-builder.mjs`, `monster-encounters.test.php`.
 
 **3.3 DM combat tracker**
-- What: extends the initiative tracker (1.4) for the DM: legendary action and legendary resistance counters
-  (reset on the monster's turn and per day), recharge rolls (5-6), concentration reminders on damage
-  (CON save DC = max(10, half the damage)), and turn-start reminders for conditions with end-of-turn saves.
-  "Send to initiative" from an encounter.
-- Size: 2.5 days. Done: a scripted fight with a legendary monster shows the counters resetting correctly over 3 rounds.
+- What: cut right down by the owner on 2026-11-04 to "Send to initiative" from a Monster Sheet encounter. The map's Initiative
+  Order panel already has initiative, turns, HP and conditions.
+- Size: 0.5 days (2.5 with everything under "Left for now"). Done: an encounter sent from the Monster Sheet fills the displayed
+  map's Combat Encounter as copies, and players see nothing new.
+- Built by this job: Send to initiative, from the owner's answers:
+  - It fills the Combat Encounter of the campaign's displayed map and opens the map; the DM checks and starts the fight there (27 a).
+  - With no map displayed, it opens the map page and asks the DM to pick one (28 a).
+  - Sent monsters are map copies with their own HP, so the prepared encounter stays at full health (29 a).
+  - "Goblin 1" and "Goblin 2" keep their names and roll initiative separately (30 b, owner overrode the recommendation).
+  - Players and the Spectator see nothing new (31 a).
+  - Add whole encounter during a running fight keeps working as it does.
+
+**Left for now (owner, 2026-11-04)**
+
+None of this is built, including the sheet's concentration field, the player banner, the Reminders block and the panel-open
+setting. The original idea: legendary action and legendary resistance counters (reset on the monster's turn and per day), recharge
+rolls (5-6), concentration reminders on damage (CON save DC = max(10, half the damage)), and reminders for conditions with
+end-of-turn saves. The owner's answers, so they needn't be re-asked:
+- Controls only in the map's Initiative Order panel; counters as an extra line on rows of monsters that have them; clickable
+  mockup first (yes).
+- Reminders: a block at the top of the panel until dismissed, plus a fading message if the panel is closed. Panel stays open after
+  a reload, saved to the DM's account. Spend boxes stay a local copy in the map's stylesheet.
+- Legendary: counts read from the stat block on joining and editable in the fight; unreadable number assumes 3; DM can add a counter
+  by hand to any monster; count only, no action list; no nudge between turns; every new fight starts full; Previous turn leaves
+  counters alone; "in lair" uses the lower number; no automatic lair entry.
+- Recharge: each ability's own number; rolled automatically at the start of that monster's turn if spent; panel only; only Recharge
+  N gets counters, not 3/Day.
+- Condition saves: optional "save at end of turn" with ability and DC when adding a condition; reminder only, a pass doesn't remove it.
+- Players and the Spectator see none of it.
+- Concentration: BOTH the DM's tick on the row and the player's own mark on their sheet, in step (20 c, a new saved sheet field in
+  `blank()`, so it needs the player-data check; owner overrode the recommendation). Any HP drop anywhere triggers the reminder
+  (21 a). Reminder is a line with a Lost concentration button, no monster Roll button (22 a). The player also gets a prompt on their
+  sheet (23 b, owner overrode the recommendation). 0 HP clears the mark and says so (24 a).
+- Sheet mark records the spell: a Concentrate button on rows of concentration spells, then "Concentrating: Bless" with End (86 a).
+  It stays until ended by the player or DM, Lost concentration, 0 HP or a long rest, even outside a fight (87 a). Changing it makes
+  no history version (88 a). Player's prompt is a banner, "Concentration save, DC 12", with Roll CON save, Lost concentration and
+  Dismiss, until they press one; Lost concentration clears the DM's mark too; shows only if their sheet is open (89 a).
 
 **3.4 DM notes and live handouts**
 - What: private campaign notes for the DM (same editor style as the sheet's Notes panel). Handouts are text
