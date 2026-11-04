@@ -19,6 +19,7 @@ window.Homebrew = (() => {
         try { localStorage.setItem(KEY, JSON.stringify(db)); mem = null; } catch (e) { if (!signedIn()) throw e; mem = db; }
     };
     const stored = (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+    // shortcut: until the first sync answers, this is the last account seen here, so the next person can see the last one's entries for a moment (never uploaded); put the mark in the page if that matters
     const me = () => (signedIn() ? acct || stored(ME) : '');
     const post = (path, body) => fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     let view = { shared: null, shares: {}, camps: [] };
