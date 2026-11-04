@@ -67,6 +67,13 @@
 .stabs button { padding: 5px 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
 .stabs button.on { background: var(--accent-soft); border-color: var(--btn-line); }
 
+/* page-level pill tabs: an item page with many areas, as #hash links */
+.ptabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 20px; }
+.page .ptabs a { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; background: var(--card2); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: 14px; text-decoration: none; }
+.page .ptabs a:hover { border-color: var(--accent); }
+.page .ptabs a.on { background: var(--accent-soft); border-color: var(--btn-line); }
+@media (max-width: 700px) { .page .ptabs a { min-height: 44px; } }
+
 /* ---------- toolbar and search field ---------- */
 .bar {
     position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
@@ -160,4 +167,14 @@ dialog.dlg .actions { display: flex; justify-content: flex-end; gap: 8px; margin
 .ch-who b { overflow: hidden; font-size: 20px; text-overflow: ellipsis; white-space: nowrap; }
 .ch-who small { color: var(--muted); font-size: 13px; }
 .ch-acts { display: flex; gap: 8px; padding: 10px 14px; background: var(--sunken); border-top: 1px solid var(--line); }
+/* the compact character tile, for a group of characters (a campaign's party): 2 per row on a phone */
+.ch-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.ch-tile, .page a.ch-tile { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); color: var(--text); text-decoration: none; }
+.page a.ch-tile:hover { background: var(--card2); }
+.ch-tile img, .ch-tile .ch-noart { flex: none; width: 48px; height: 48px; border-radius: var(--radius); object-fit: cover; background: var(--card2); }
+.ch-tile-who { display: grid; gap: 2px; min-width: 0; }
+.ch-tile-who b { display: -webkit-box; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.ch-tile-who small { color: var(--muted); font-size: 13px; }
+@media (max-width: 700px) { .ch-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 400px) { .ch-tile, .page a.ch-tile { flex-wrap: wrap; } .ch-tile-who { order: 3; flex-basis: 100%; } }
 .ch-acts .btn { flex: 1; justify-content: center; }

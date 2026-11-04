@@ -54,7 +54,7 @@ window.BattleMap = (() => {
                 const v = await r.json();
                 const was = S.m;
                 S.v = v; S.m = v.map; S.failed = false;
-                if (S.dm && !S.sel && S.m) S.sel = S.m.id;
+                if (S.dm && S.full && !S.sel && S.m) S.sel = S.m.id; // off the map page, the DM always sees what's on the table
                 if (S.dm && S.sel && !S.m && v.active) { S.sel = null; return load(); } // the map opened was archived elsewhere
                 // a draft being drawn here stays until it's saved; a new grid or another map starts from the server's
                 const same = was && S.m && was.id === S.m.id && JSON.stringify(was.grid) === JSON.stringify(S.m.grid);
@@ -98,7 +98,7 @@ window.BattleMap = (() => {
             const src = myView() ? m.img : S.dm ? m.public : m.img;
             if (src) { if (img.getAttribute('src') !== src) img.src = src; img.hidden = false; black.hidden = true; }
             else { img.removeAttribute('src'); img.hidden = true; black.hidden = false; }
-            if (S.fitted !== m.id) { S.fitted = m.id; fit(); }
+            if (S.fitted !== m.id && view.offsetWidth) { S.fitted = m.id; fit(); } // hidden (another tab of the campaign page): fitted when it shows
             drawFog(); drawGrid(); drawToks(); drawRulers(); place();
         }
         function place() {
@@ -698,7 +698,7 @@ window.BattleMap = (() => {
         }
         addEventListener('online', load);
         addEventListener('offline', draw);
-        addEventListener('resize', () => { if (S.m && !S.moved) fit(); });
+        addEventListener('resize', () => { if (S.m && !S.moved && view.offsetWidth) fit(); });
         view.addEventListener('pointerdown', () => { S.moved = true; }, { capture: true });
         const watch = window.Live?.watch(c, { load, onMessage, onPaused(p) { S.paused = p; draw(); } });
         if (!watch) load();
@@ -706,7 +706,7 @@ window.BattleMap = (() => {
         const fe = part('fight');
         if (fe && window.Fight) window.Fight.panel(fe, c, S.dm && S.full ? { controls: true, extra: fightExtra } : {});
         loadMons();
-        return { state: S, load, fit };
+        return { state: S, load, fit, draw };
     }
     return { mount };
 })();

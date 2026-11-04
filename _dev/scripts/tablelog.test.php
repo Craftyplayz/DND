@@ -75,6 +75,26 @@ $is('session 1 ended', [tl_read($A, $id, '1')['ended'] > 0, $c()['session']], [t
 tl_session($A, $c(), true);
 $is('next session is 2', $c()['session']['n'], 2);
 $is('sessions listed newest first', array_column(tl_sessions($A, $id), 'n'), [2, 1]);
+// the campaign page's Rolls tab (ROADMAP 1.9): session 2 runs, with nothing in it yet
+$pg = tl_page($A, $c(), '111');
+$is('Rolls tab: the running session, even empty', [$pg['n'], $pg['running'], $pg['count'], $pg['entries']], [2, true, 0, []]);
+tl_session($A, $c(), false);
+$pg = tl_page($A, $c(), '111');
+$is('Rolls tab: an empty session never hides the one before', [$pg['n'], $pg['running']], [1, false]);
+$is('Rolls tab: started is there', $pg['started'] > 0, true);
+tl_session($A, $c(), true);
+tl_add($A, $c(), $p1, ['id' => 'pagewhisper1', 'char' => 'lock', 'title' => 'Whisper', 'expr' => '1d20', 'shown' => '5', 'total' => '5', 'vis' => 'dm']);
+tl_session($A, $c(), false);
+$is('Rolls tab: the DM sees the session with the whisper', tl_page($A, $c(), '111')['n'], 3);
+$is('Rolls tab: the roller too', [tl_page($A, $c(), '222')['n'], tl_page($A, $c(), '222')['count']], [3, 1]);
+$is("Rolls tab: for someone who can't see it, it's as if empty, and the count can't tell", tl_page($A, $c(), '333')['n'] < 3, true);
+$many = cp_act($A, $dm, ['act' => 'create', 'name' => 'Many'])[1]['id'];
+$is('Rolls tab: no session ever', tl_page($A, cp_get($A, $many), '111'), null);
+tl_write($A, $many, 'unsorted', ['started' => null, 'ended' => null, 'entries' => [['id' => 'outside00001', 'at' => 1, 'sub' => '111', 'vis' => 'public']]]);
+$is('Rolls tab: rolls outside sessions are not a session', tl_page($A, cp_get($A, $many), '111'), null);
+tl_write($A, $many, '1', ['started' => 5, 'ended' => 6, 'entries' => array_map(fn($i) => ['id' => "many$i", 'at' => $i, 'sub' => '111', 'vis' => 'public'], range(1, 450))]);
+$is('Rolls tab: every roll, past the 200 others get', [tl_page($A, cp_get($A, $many), '111')['count'], count(tl_page($A, cp_get($A, $many), '111')['entries'])], [450, 450]);
+
 $is('bad log names refused', [tl_read($A, $id, '../x'), tl_read($A, $id, '1.json')], [null, null]);
 
 $rm = function ($p) use (&$rm) { if (is_dir($p) && !is_link($p)) { foreach (array_diff(scandir($p), ['.', '..']) as $f) $rm("$p/$f"); rmdir($p); } else @unlink($p); };

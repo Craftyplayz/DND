@@ -157,6 +157,7 @@ try {
     is("co-DM's open page: numbers, HP and the hidden ogre", [cv.includes('HP 59/59'), cv.includes('Ogre')], [true, true]);
     is('co-DM page reloaded with the co-DM view', await until(pat, `document.querySelector('#main').dataset.role`, (v) => v === 'codm'), 'codm');
     await until(pat, `document.querySelector('#cp-players .cp-on:not([hidden])') ? 1 : 0`, Boolean, 10000);
+    await api(SID.dm, { act: 'session', id: CAMP, start: true }); // the Rolls tab shows rolls of a session (ROADMAP 1.9)
     await api(SID.kit, { act: 'roll', id: CAMP, roll: { id: 'kitwhisper001', char: 'kitt', title: 'Insight', expr: '1d20', shown: '12', total: '12', vis: 'dm' } });
     is("a roll sent to the DM reaches the co-DM live", (await until(pat, text('#cp-log'), (t) => t.includes('Insight'), 8000)).includes('Insight'), true);
     const v0 = JSON.parse(await fight(SID.sam)).fight.v;
@@ -178,6 +179,7 @@ try {
     await api(SID.kit, { act: 'roll', id: CAMP, roll: { id: 'kitpublic0001', char: 'kitt', title: 'Athletics', expr: '1d20', shown: '5', total: '5' } });
     const lg = await until(pat, text('#cp-log'), (t) => t.includes('Athletics'), 8000);
     is('player again: a roll sent to the DM no longer reaches them', [lg.includes('Athletics'), lg.includes('Perception'), lg.includes('Insight')], [true, false, false]);
+    await api(SID.dm, { act: 'session', id: CAMP, start: false });
     is('player again: DM changes refused', (await api(SID.sam, { act: 'fight', id: CAMP, op: 'next', v: JSON.parse(await fight(SID.dm)).fight.v })).status, 403);
 
     // the same goblin from two Monster Sheets and the campaign page, at once
@@ -246,7 +248,7 @@ try {
     await pat.ev(`(() => { document.querySelector('#cp-chars [name=ch][value=ozzy]').checked = true; document.querySelector('#cp-chars button[type=submit]').click(); })()`);
     is('campaign page: refused with a Clone button', (await until(pat, text('#cp-ask'), (t) => t.includes('Clone character'))).includes('already in Fight Test'), true);
     await click(pat, '#cp-ask-yes');
-    const kept = await until(pat, `document.querySelectorAll('.cp-grid .ch-card').length`, (v) => v === 1);
+    const kept = await until(pat, `document.querySelectorAll('.ch-tiles .ch-tile').length`, (v) => v === 1);
     const linked = JSON.parse(readFileSync(join(ACCOUNTS, 'campaigns', CAMP2, 'campaign.json'), 'utf8')).members[1].characters.map((l) => l.id);
     const copy = linked[0] && JSON.parse(readFileSync(join(ACCOUNTS, 'characters', linked[0], 'character.json'), 'utf8'));
     is('the clone plays in the other campaign', [kept, linked.length, linked[0] !== 'ozzy', copy?.name], [1, 1, true, 'Ozzy (copy)']);

@@ -8,7 +8,8 @@
 //                                                numbers and can change monster HP), on the Monster Sheet brief (a link to the
 //                                                map; its list's "Add to fight" buttons still work). onHp(monster id, op) changes
 //                                                HP (default: sheets/monster/cloud.php?hp=); onChange(fight) after each load;
-//                                                extra() adds the page's own controls (the Monster Sheet's monster picker).
+//                                                extra() adds the page's own controls (the Monster Sheet's monster picker);
+//                                                link: markup beside the DM's heading (the campaign page's "Run the fight", ROADMAP 1.9).
 //   Fight.state(campaignId) -> the fight as last loaded, or null
 //   Fight.act(campaignId, op, extra) -> a DM change (refused with "This fight changed, reloaded" if it changed meanwhile)
 //   Fight.tag(campaignId, title, monsterId) -> what an initiative roll adds to the roll it sends ({fight, mon})
@@ -162,7 +163,7 @@ window.Fight = (() => {
         const tools = (e, i) => (ctl ? `<span class="fi-tools"><button type="button" class="btn small" data-fi="move" data-fe="${esc(e.id)}" data-dir="-1" aria-label="Move ${esc(e.name)} up"${i && !off ? '' : ' disabled'}>↑</button><button type="button" class="btn small" data-fi="move" data-fe="${esc(e.id)}" data-dir="1" aria-label="Move ${esc(e.name)} down"${i < f.entries.length - 1 && !off ? '' : ' disabled'}>↓</button>`
             + (e.kind === 'monster' ? `<button type="button" class="btn small" data-fi="hide" data-fe="${esc(e.id)}" aria-pressed="${!!e.hidden}"${dis}>${e.hidden ? 'Reveal' : 'Hide'}</button>` : '')
             + `<button type="button" class="btn small" data-fi="remove" data-fe="${esc(e.id)}"${dis}>Remove</button></span>` : '');
-        el.innerHTML = `<h2>Fight</h2>${note}${head(f)}
+        el.innerHTML = `<h2>Fight${p.opts.link || ''}</h2>${note}${head(f)}
             <ol class="fi-list">${f.entries.map((e, i) => `<li class="fi-e${e.id === f.turn ? ' on' : ''}${isDown(e) ? ' down' : ''}${e.hidden ? ' hid' : ''}"${e.id === f.turn ? ' aria-current="true"' : ''}>
                 ${num(e)}${face(e)}<span class="fi-who"><b>${esc(e.name)}</b> ${badges(e)}<small class="muted">${info(e)}</small></span>${hpForm(e)}${tools(e, i)}</li>`).join('') || '<li class="muted">Nobody yet. Players who roll initiative appear here.</li>'}</ol>
             ${ctl ? `<div class="actions fi-ctl">${f.phase === 'rolling' ? `<button type="button" class="btn primary" data-fi="round1"${f.entries.length && !off ? '' : ' disabled'}>Start round 1</button>`

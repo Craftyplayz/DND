@@ -264,7 +264,7 @@ try {
 
     // the campaign page: a Map section with the map on the table
     await go(pat, `${BASE}/campaigns/${CAMP}`);
-    is('campaign page: the map, with Lock on it', await until(pat, `!!document.querySelector('#cp-map .mp-tok')`, Boolean), true);
+    is('campaign page: the map, with Lock on it', await until(pat, `!!document.querySelector('#cp-map:not([hidden]) .mp-tok')`, Boolean), true);
     // the player sheet's top bar: a Map button
     await go(pat, `${BASE}/characters/lock`);
     is('sheet: a Map button to the map page', await until(pat, `document.querySelector('#hb-map')?.getAttribute('href') || ''`, (h) => h.includes('/map')), `/campaigns/${CAMP}/map`);

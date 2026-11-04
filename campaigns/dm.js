@@ -120,6 +120,10 @@ window.DmTools = (() => {
             $('#dm-narch').hidden = !arch.length;
             $('#dm-narch').innerHTML = `<summary>Archived (${arch.length})</summary><div class="rows">${arch.map((n) => `<div class="rowi"><span class="grow">${esc(n.title || 'Untitled note')}</span><button type="button" class="btn small" data-dm="nrestore" data-id="${esc(n.id)}">Restore</button></div>`).join('')}</div>`;
             $('#dm-ngroups').innerHTML = groups.filter(Boolean).map((g) => `<option value="${esc(g)}">`).join('');
+            // pinned notes on the Overview tab (ROADMAP 1.9): a title opens that note on the Notes tab
+            const pins = live.filter((n) => n.pinned).sort((a, b) => b.updated - a.updated), box = $('#cp-pins');
+            box.hidden = !pins.length;
+            box.innerHTML = `<h2>Pinned notes</h2><ul class="cp-pinlist">${pins.map((n) => `<li><a href="#notes" data-dm="nopen" data-id="${esc(n.id)}">${esc(n.title || 'Untitled note')}</a></li>`).join('')}</ul>`;
         }
         function drawNEdit() {
             const n = mine.notes[openN];

@@ -46,7 +46,7 @@ try {
         const errs = (where) => { if (b.errors.length) { bad++; console.log(`FAIL ${name} ${where}: ${b.errors.join(' | ').slice(0, 600)}`); } };
         const as = async (who) => { await go(BASE + '/privacy/'); await ev(who ? `document.cookie = 'dndsid=check${who}0000000000000000000000000; path=/'` : `document.cookie = 'dndsid=; path=/; max-age=0'`); };
         const text = (sel) => ev(`document.querySelector(${JSON.stringify(sel)})?.textContent.trim()`);
-        const cards = () => ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card b')].map((b) => b.textContent))`).then(JSON.parse);
+        const cards = () => ev(`JSON.stringify([...document.querySelectorAll('.ch-tiles .ch-tile b')].map((b) => b.textContent))`).then(JSON.parse);
         // every action here loads a new page (a reload or the next page); 'ask' ones open the yes/no dialog instead
         const click = async (sel, wait = 'page') => {
             await ev(`window.__old = true; document.querySelector(${JSON.stringify(sel)}).click()`);
@@ -84,7 +84,7 @@ try {
             await ev(`document.querySelector('#cp-chars [value=lock]').checked = true`);
             await click('#cp-chars .btn.primary');
             is(`${name} party of two`, await cards(), ['Brannoc', 'Lock']);
-            is(`${name} player opens only their own sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card a.btn')].map((a) => a.getAttribute('href')))`), '["/characters/lock"]');
+            is(`${name} player opens only their own sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.ch-tiles a.ch-tile')].map((a) => a.getAttribute('href')))`), '["/characters/lock"]');
             is(`${name} player has no DM tools`, await ev(`!document.querySelector('#cp-link, #cp-rename, [data-act=remove]')`), true);
             await go(link);
             is(`${name} join link again goes straight in`, await ev(`location.pathname.split('/')[2] || null`), id);
@@ -123,7 +123,7 @@ try {
             is(`${name} co-DM on their party card`, await ev(`[...document.querySelectorAll('.cp-owner')].map((x) => x.textContent).join(',')`), 'DM: Dee,Co-DM: Pat');
             await as('pl');
             await go(BASE + '/campaigns/' + id);
-            is(`${name} co-DM opens every party sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.cp-grid .ch-card a.btn')].map((a) => a.getAttribute('href')))`), '["/characters/dmpc","/characters/lock"]');
+            is(`${name} co-DM opens every party sheet`, await ev(`JSON.stringify([...document.querySelectorAll('.ch-tiles a.ch-tile')].map((a) => a.getAttribute('href')))`), '["/characters/dmpc","/characters/lock"]');
             is(`${name} co-DM: invite link and sessions, no DM-only tools`, await ev(`JSON.stringify([!!document.querySelector('#cp-link'), !!document.querySelector('[data-act=session]'), !!document.querySelector('[data-act=code], #cp-rename, [data-act=delete], [data-act=remove], [data-act=codm]'), !!document.querySelector('[data-act=leave]')])`), '[true,true,false,true]');
             await go(BASE + '/characters/dmpc');
             is(`${name} co-DM edits the DM's sheet as DM`, [await ev(`document.querySelector('[data-k=name]')?.value`), await text('#hb-dmbar b')], ['Brannoc', "Editing Dee's character as DM."]);

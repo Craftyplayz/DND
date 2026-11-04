@@ -24,7 +24,9 @@
 .mp-view.mp-off .mp-tok { cursor: default; }
 .cp-map { margin: 0 0 28px; }
 .cp-map h2 { margin-top: 0; }
-.cp-map .mp-view { height: min(60vh, 520px); }
+/* fits one screen with its heading and buttons; on phones 70%, so a thumb can still scroll the page past it */
+.cp-map .mp-view { height: calc(100vh - 150px); }
+@media (max-width: 700px) { .cp-map .mp-view { height: 70vh; } }
 .cp-map .mp-barin { margin-bottom: 8px; }
 .mp-msg { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 16px; text-align: center; }
 .mp-msg[hidden], .mp-stage[hidden] { display: none; }

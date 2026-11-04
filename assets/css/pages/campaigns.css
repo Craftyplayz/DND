@@ -1,15 +1,30 @@
-/* Campaigns (/campaigns/, a campaign page): the party's character cards (.ch-card is in components.css), the cards below and the join link. */
-.cp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; margin: 12px 0 28px; }
-.cp .ch-acts { align-items: center; }
-.cp .ch-acts .btn { flex: none; }
-.cp-owner { flex: 1; min-width: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.cp-cards { margin-top: 16px; }
+/* Campaigns (/campaigns/, a campaign page in pill tabs, ROADMAP 1.9; .ptabs and .ch-tile are in components.css). */
+.cp-titlebar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.cp-titlebar .page-title { min-width: 0; margin-bottom: 0; }
+.cp-hacts { display: flex; flex-wrap: wrap; gap: 8px; }
+.cp-badge { margin: 0 0 12px; }
+.cp-fdot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; }
+.cp-fdot[hidden], .cp-count[hidden], .cp-dot[hidden] { display: none; }
+.cp-count { min-width: 20px; padding: 0 6px; background: var(--accent-soft); border-radius: 999px; font-size: 12px; font-weight: 700; text-align: center; }
+.cp-sech { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cp-sech .btn { margin-left: auto; }
+#cp-party { margin-bottom: 28px; }
+.cp-dot { flex: none; align-self: flex-start; width: 10px; height: 10px; margin-left: auto; background: var(--ok-line); border-radius: 50%; }
+.cp-owner { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-nomap { margin: 0 0 28px; }
+.cp-pinlist { margin: 0; padding: 0 0 0 20px; }
+#cp-pins { margin-bottom: 16px; }
+#cp-newho { overflow-wrap: anywhere; }
+#cp-chardlg .form { margin: 0; }
+.cp-cards { display: grid; gap: 16px; }
+[data-panel][hidden] { display: none; }
+.cp .rowi { flex-wrap: wrap; }
 .cp-new { max-width: 560px; margin-bottom: 28px; }
 .cp-link { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .cp-link .field { flex: 1 1 240px; }
 .cp-cards .muted { font-size: 14px; }
 /* the table log: newest roll on top, name and roll on the left, the total on the right */
-.cp-log { display: grid; gap: 6px; max-height: 480px; margin: 0 0 28px; padding: 0; overflow-y: auto; list-style: none; }
+.cp-log { display: grid; gap: 6px; margin: 0 0 28px; padding: 0; list-style: none; }
 .cp-roll { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; padding: 8px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); font-size: 14px; }
 .cp-rh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .cp-rh small { margin-left: auto; color: var(--muted); font-size: 12px; }
@@ -18,4 +33,3 @@
 .cp-nat20 { background: var(--gold-bg); border-color: var(--gold-line); }
 .cp-nat1 { background: var(--danger-bg); border-color: var(--danger-line); }
 .cp-empty { padding: 8px 0; }
-.cp-past a { margin-right: 8px; }

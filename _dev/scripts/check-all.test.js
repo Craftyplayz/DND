@@ -17,7 +17,7 @@ const ok = (name, cond, got = '') => { if (!cond) { bad++; console.log(`FAIL ${n
     ok('live-page drives both browsers at once', list.some((j) => j.name === 'live-page' && j.browser === 'both'));
     ok('no --data, no sheet-keeps-data', !jobs(files).list.some((j) => j.name === 'sheet-keeps-data'));
 
-    for (const [label, opts] of [['default range', {}], ['busy ports skipped', { busy: new Set([8300, 8301, 8310, 8320, 8331]) }], ['tight range', { lo: 8200, hi: 8270 }]]) {
+    for (const [label, opts] of [['default range', {}], ['busy ports skipped', { busy: new Set([8300, 8301, 8310, 8320, 8331]) }], ['tight range', { lo: 8200, hi: 8285 }]]) {
         const p = plan(list, opts), ports = new Map(), folders = new Map();
         for (const j of p) for (const port of j.used) {
             ok(`${label}: port ${port} used once (${j.id})`, !ports.has(port), `also ${ports.get(port)}`); ports.set(port, j.id);

@@ -47,7 +47,7 @@ const logFor = (sid) => fetch(`${BASE}/campaigns/log.php?c=${CAMP}`, { headers: 
 const go = async (b, url) => { await b.go(url); for (let i = 0; i < 80 && !(await b.ev(`document.readyState === 'complete' && !!document.querySelector('main')`)); i++) await sleep(100); };
 const trayRoll = (b) => b.ev(`(async () => { const q = (s) => document.querySelector(s); if (!q('.hb-tray')) q('[data-act=tray]').click(); await new Promise((r) => setTimeout(r, 100));
     q('[data-act=die][data-n="20"]').click(); await new Promise((r) => setTimeout(r, 100)); q('[data-act=dieroll]').click(); return 1; })()`);
-const campLog = `JSON.stringify([...document.querySelectorAll('#cp-log .cp-roll')].map((li) => li.querySelector('.cp-rh').textContent.replace(/\\s+/g, ' ').replace(/\\d\\d:\\d\\d$/, '').trim()))`;
+const campLog = `JSON.stringify([...document.querySelectorAll('#cp-log .cp-roll')].map((li) => li.querySelector('.cp-rh').textContent.replace(/\\s+/g, ' ').replace(/\\d{1,2}:\\d\\d [ap]m$/, '').trim()))`;
 const lastCard = `document.querySelector('#hb-rolls .hb-rollcard')?.textContent.replace(/\\s+/g, ' ').trim() || ''`;
 
 const pat = await launch('chrome'), dm = await launch('firefox');
@@ -97,7 +97,10 @@ try {
 
     // what each person's log holds now
     await go(dm, `${BASE}/campaigns/${CAMP}`);
-    const dmLog = JSON.parse(await until(dm, campLog, (v) => JSON.parse(v).length >= 4));
+    // these went in outside any session: saved and on the sheets' Table tab, not on the campaign page's Rolls tab (ROADMAP 1.9)
+    is('Rolls tab, no session ever: none of them', [await until(dm, `document.querySelector('#cp-log .cp-empty')?.textContent || ''`, Boolean), JSON.parse(await dm.ev(campLog)).length], ['No sessions yet. Rolls show here once you start a session.', 0]);
+    const dmEntries = await logFor(SID.dm);
+    const dmLog = dmEntries.map((e) => `${e.vis === 'dm' ? 'to DM' : e.vis === 'hidden' ? 'hidden' : ''} ${e.offline ? 'offline roll' : ''}`);
     is('DM sees all four: public, hidden, to DM, offline', [dmLog.length, dmLog.some((t) => t.includes('to DM')), dmLog.some((t) => t.includes('hidden')), dmLog.some((t) => t.includes('offline roll'))], [4, true, true, true]);
     const sam = await logFor(SID.sam);
     is("Sam doesn't see Pat's roll to the DM", sam.length, 3);
@@ -106,18 +109,27 @@ try {
     is("Pat's log has the offline roll in time order", (await logFor(SID.pat)).map((e) => !!e.offline), [false, false, false, true]);
     is('no Google ids in any log', JSON.stringify(await logFor(SID.dm)).includes('"sub"'), false);
 
-    // 5. a session: rolls during it are its own; a finished session can be opened
+    // 5. a session: rolls during it are its own; when it ends the Rolls tab keeps it, and old past-session links land there
     await dm.ev(`document.querySelector('[data-act=session]').click()`);
-    is('session starts', await until(dm, `document.querySelector('#cp-sess .n')?.textContent || ''`, (t) => t.startsWith('Session 1')).then((t) => t.startsWith('Session 1')), true);
+    is('session starts', await until(dm, `document.querySelector('#cp-sbadge')?.textContent || ''`, (t) => t.startsWith('Session 1 since')).then((t) => t.startsWith('Session 1 since')), true);
     is('the log starts empty for the session', JSON.parse(await until(dm, campLog, (v) => JSON.parse(v).length === 0)).length, 0);
     await trayRoll(pat);
     is('a roll during the session shows live', JSON.parse(await until(dm, campLog, (v) => JSON.parse(v).length === 1)).length, 1);
     await dm.ev(`document.querySelector('[data-act=session]').click()`);
-    await until(dm, `document.querySelector('#cp-sess .n')?.textContent || ''`, (t) => t.startsWith('No session'));
+    is('ending asks first', await until(dm, `document.querySelector('#cp-ask').open ? document.querySelector('#cp-ask-title').textContent : ''`, Boolean), 'End session 1?');
+    await dm.ev(`document.querySelector('#cp-ask-yes').click()`);
+    await until(dm, `!document.querySelector('#cp-sbadge')`, Boolean);
+    is('the Rolls tab keeps the last session', (await until(dm, `document.querySelector('#cp-rhead').textContent`, (t) => t.startsWith('Last session: 1'))).endsWith('1 roll'), true);
+    await trayRoll(pat);
+    for (const t = Date.now(); (await logFor(SID.dm)).length < 5 && Date.now() - t < 5000;) await sleep(100);
+    await sleep(500);
+    is('a roll between sessions: saved, not on the Rolls tab, not even live', [(await logFor(SID.dm)).length, JSON.parse(await dm.ev(campLog)).length], [5, 1]);
     await go(dm, `${BASE}/campaigns/?c=${CAMP}&s=1`);
-    is('session 1 can be browsed', [await dm.ev(`document.querySelector('h1').textContent`), await dm.ev(`document.querySelectorAll('.cp-roll').length`)], ['Session 1', 1]);
-    await go(dm, `${BASE}/campaigns/?c=${CAMP}&s=unsorted`);
-    is('rolls outside sessions kept apart', await dm.ev(`document.querySelectorAll('.cp-roll').length`), 4);
+    is('a past-session link lands on the Rolls tab', [await dm.ev(`location.pathname + location.hash`), await until(dm, `document.querySelectorAll('.cp-roll').length`, (n) => n === 1), await dm.ev(`document.querySelector('[data-panel=rolls]').hidden`)], [`/campaigns/${CAMP}#rolls`, 1, false]);
+    for (const q of [`/campaigns/?c=${CAMP}&s=unsorted`, `/campaigns/${CAMP}?s=2`]) {
+        const r = await fetch(BASE + q, { redirect: 'manual', headers: { Cookie: 'dndsid=' + SID.dm } });
+        is(`${q} is a 301`, [r.status, r.headers.get('location')], [301, `/campaigns/${CAMP}#rolls`]);
+    }
 
     // the player's own Table tab
     await go(pat, BASE + '/characters/lock');

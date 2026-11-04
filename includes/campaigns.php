@@ -163,7 +163,8 @@ function cp_card($accounts, $id)
     $art = is_string($ch['art'] ?? null) && preg_match('#^(data:image/|https://)#', $ch['art']) ? $ch['art']
         : (is_string($ch['artUrl'] ?? null) && preg_match('#^/sheets/player/art\.php\?id=[\w-]+&v=[a-f0-9]{12}$#', $ch['artUrl']) ? $ch['artUrl'] : '');
     return ['name' => ($ch['name'] ?? '') !== '' ? (string)$ch['name'] : 'Unnamed character',
-        'line' => implode(' | ', array_filter(["Level $level", (string)($ch['race'] ?? ''), implode(' / ', $classes)])), 'art' => $art];
+        'line' => implode(' | ', array_filter(["Level $level", (string)($ch['race'] ?? ''), implode(' / ', $classes)])), 'art' => $art,
+        'brief' => trim("Level $level " . implode(' / ', $classes))];
 }
 
 // the campaigns this character is attached to (one at a time since 2026-11-02; older ones may still be in several)

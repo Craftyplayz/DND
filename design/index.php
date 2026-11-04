@@ -136,6 +136,13 @@ HTML],
   <button>Cantrips</button>
 </div>
 HTML],
+    'ptabs' => ['Page tabs', 'For an item page with many areas (a campaign): pills under the title as <code>#hash</code> links, so Back and reload stay on the tab and a plain address opens the first one. They wrap to two rows on a phone and are 44 px tall there. Each is a real link; the current one gets <code>.on</code> and <code>aria-current="page"</code>. A count or a dot may sit inside a pill. Nothing is remembered: the plain address always opens the first tab.', <<<'HTML'
+<nav class="ptabs" aria-label="Sections">
+  <a href="#c-ptabs" class="on" aria-current="page">Overview</a>
+  <a href="#c-ptabs">Rolls</a>
+  <a href="#c-ptabs">Handouts</a>
+</nav>
+HTML],
     'bar' => ['Toolbar and field', 'Tool and list pages get one sticky <code>.bar</code> under the title. Content pages don\'t need one.', <<<'HTML'
 <div class="bar">
   <input class="field" type="search" placeholder="Search spells..." aria-label="Search spells">
@@ -170,6 +177,11 @@ HTML],
 <div class="hub-grid">
   <a class="hub-card" href="/characters/"><b>My Characters</b><span>Your characters on a sheet you can change to fit any homebrew rules</span></a>
   <a class="hub-card" href="/sheets/monster/"><b>Monster Sheet</b><span>Editable monster stat blocks for an encounter</span></a>
+</div>
+HTML],
+    'chtile' => ['Character tile', 'A compact card for a group of characters (a campaign\'s party): 48 px art, the name (up to two lines), a muted "Level 3 Wizard" line, and the player. The whole tile is the link for those allowed to open the sheet; otherwise it\'s a plain box with no hover. Two per row on a phone, 200 px or wider columns elsewhere.', <<<'HTML'
+<div class="ch-tiles">
+  <a class="ch-tile" href="#c-chtile"><span class="ch-noart" aria-hidden="true"></span><span class="ch-tile-who"><b>Lock</b><small>Level 4 Barbarian</small><small>Pat</small></span></a>
 </div>
 HTML],
     'chcard' => ['Character card', 'One per character or monster in a list (My Characters). Art (64 px square, a plain box without art), the name, a muted "Level | Species | Class" line, then the actions in the footer: View and Archive. Nothing a player made is ever deleted: Archive never asks first; it shows a 15-second Undo toast instead, and archived cards wait in a folded "Archived (N)" section under the grid with View and Unarchive. The cards sit in a grid of 300 px or wider columns.', <<<'HTML'

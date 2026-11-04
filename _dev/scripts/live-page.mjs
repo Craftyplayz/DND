@@ -49,7 +49,7 @@ async function until(b, expr, want, ms) {
 }
 const within = (name, took, ms) => { if (typeof took !== 'number') { bad++; console.log(`FAIL ${name}: ${took}`); } else console.log(`ok   ${name}: ${took} ms` + (took > ms ? ' (slow)' : '')); };
 const api = (sid, body) => fetch(`${BASE}/campaigns/api.php`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: 'dndsid=' + sid }, body: JSON.stringify(body) }).then((r) => r.status);
-const party = `JSON.stringify([...document.querySelectorAll('#cp-head .ch-card b')].map((b) => b.textContent))`;
+const party = `JSON.stringify([...document.querySelectorAll('#cp-party .ch-tile b')].map((b) => b.textContent))`;
 const dot = (name) => `!document.querySelector('#cp-players .rowi:has(.cp-on)') ? null : [...document.querySelectorAll('#cp-players .rowi')].find((r) => r.textContent.includes(${JSON.stringify(name)}))?.querySelector('.cp-on').hidden === false`;
 
 const dm = await launch('chrome'), pl = await launch('firefox');
