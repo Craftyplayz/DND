@@ -540,6 +540,7 @@ PHP;
                     <li><b>One line under the title,</b> not a paragraph. Help text is one muted line where it's needed.</li>
                     <li><b>Text in cards, art on the page.</b> Text, tables and forms sit in <code>.card</code>s. Grids of portraits or tiles sit straight on the page under a section heading; never put a card around a grid of cards.</li>
                     <li><b>Overview first,</b> details on click (drawer, <code>&lt;details&gt;</code>, "Show all", a link to the item's own page), raw data last and collapsed.</li>
+                    <li><b>Anything with a description is clickable and opens it:</b> rule text, an effect, an item's or a spell's text.</li>
                     <li><b>Hide what's empty.</b> No empty cards, no "0 results" headings, no "coming soon" sections. One compact prompt at most.</li>
                     <li><b>Every state has a sentence:</b> loading says what's loading, errors say what failed and what to do. Never a spinner forever or a raw error object.</li>
                     <li><b>Nothing plays or flashes on load.</b> No autoplay, no popups. Dice sounds play only on a roll.</li>
