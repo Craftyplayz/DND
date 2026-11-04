@@ -958,7 +958,7 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
   `_dev/scripts/build-content.mjs`), loaded per tab and kept apart by rules version; `compendium/spells.json` and
   `items.php` stay for anything else but the Compendium no longer lists from them. New tabs: Classes (level table, features,
   subclasses that open), Races (traits, subraces), Backgrounds and Feats. A 2014 / 2024 / Both switch (default Both,
-  `compendium-rules`) follows the account. Sources aren't shown to players on the new content; monsters keep their book badge
+  `compendium-rules`) follows the account. An open entry names its book and a Sources tick list (`assets/js/books.js`, `compendium-books`, shared with the builder) narrows every tab; the books are each entry's `book` in the content files (`_dev/scripts/content/books.mjs`, added by `build-books.mjs` so nothing else in the files changes). Monsters keep their book badge
   and filter, since they aren't new content and each stat block carries its licence line. Monsters: duplicates by name keep the
   SRD, then the newest book (Tome of Beasts 2023 over 2016): 2,282 names, all 2014 rules, plus the 331 SRD 5.2 monsters as separate
   2024 entries (`s24:<slug>`, Open5e v2 turned into the v1 shape in `monsters.php`), so the switch filters monsters too and the
