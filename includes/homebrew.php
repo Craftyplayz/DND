@@ -1,6 +1,8 @@
 <?php
 // Homebrew (ROADMAP 4.6, 5.2): what a player makes in the Compendium. One file per entry, <accounts>/homebrew/<sub>/<id>.json:
-//   {"id", "kind", "name", "updated", "archived"?, ...the kind's own fields}. Players archive, nothing is ever removed.
+//   {"id", "kind", "name", "updated", "acct", "archived"?, ...the kind's own fields}. Players archive, nothing is ever removed: the version a
+// save replaces is kept in <accounts>/homebrew/<sub>/history/<id>/<its updated>.json (no screen for it yet; the admin restores by hand).
+// "acct" marks whose entry it is (hb_acct), so a browser used by two people never uploads one player's entries to the other's account.
 // Sharing: <accounts>/campaigns/<campaign id>/homebrew.json, [{"ref", "sub", "id", "at"}]. A campaign only links entries; the owner's
 // file stays the one copy, so an owner's edit reaches the campaign. A sheet keeps its own copy of what it added, so nothing here can
 // change or take away what's on a sheet. Every function takes the accounts folder, so _dev/scripts/homebrew.test.php gets its own.
@@ -12,6 +14,12 @@ const HB_MAX = 2 * 1024 * 1024; // only stops a broken client
 function hb_ok_id($id)
 {
     return is_string($id) && preg_match('/^[a-z0-9]{6,40}$/', $id);
+}
+
+// what the browser stores and compares: not the Google id, which stays on the server
+function hb_acct($sub)
+{
+    return substr(hash('sha256', 'homebrew:' . $sub), 0, 16);
 }
 
 function hb_get($accounts, $sub, $id)
@@ -31,6 +39,8 @@ function hb_save($accounts, $sub, $e)
 {
     if (!is_array($e) || !hb_ok_id($e['id'] ?? null) || !in_array($e['kind'] ?? null, HB_KINDS, true) || !is_numeric($e['updated'] ?? null)) return [400, ['error' => "That isn't a homebrew entry."]];
     if (!is_string($e['name'] ?? null) || trim($e['name']) === '') return [400, ['error' => 'Give it a name.']];
+    if (isset($e['acct']) && $e['acct'] !== hb_acct($sub)) return [403, ['error' => "That entry belongs to another account."]];
+    $e['acct'] = hb_acct($sub);
     $dir = "$accounts/homebrew/$sub";
     if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) return [500, ['error' => "Couldn't make the account folder."]];
     // one writer at a time per account, so the "newer wins" check and the write can't interleave
@@ -40,6 +50,11 @@ function hb_save($accounts, $sub, $e)
     if ($have && (float)($have['updated'] ?? 0) > (float)$e['updated']) return [409, ['updated' => (float)$have['updated']]];
     // an entry keeps its kind: favourites, links and shares all point at it
     if ($have && ($have['kind'] ?? null) !== $e['kind']) return [400, ['error' => "An entry can't change kind."]];
+    // the copy this save replaces goes to history first, so a failed copy never loses it
+    if ($have) {
+        $old = "$dir/history/{$e['id']}";
+        if ((!is_dir($old) && !@mkdir($old, 0750, true) && !is_dir($old)) || !@copy("$dir/{$e['id']}.json", $old . '/' . (float)($have['updated'] ?? 0) . '.json')) return [500, ['error' => "Couldn't keep the old version."]];
+    }
     $tmp = "$dir/.{$e['id']}." . getmypid();
     if (@file_put_contents($tmp, json_encode($e, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) === false || !@rename($tmp, "$dir/{$e['id']}.json")) return [500, ['error' => "Couldn't save it."]];
     return [200, ['updated' => (float)$e['updated']]];
@@ -99,9 +114,10 @@ function hb_view($accounts, $sub)
             $e = hb_get($accounts, $r['sub'], $r['id']);
             if (!$e || !empty($e['archived'])) continue;
             $key = $r['sub'] . '/' . $r['id'];
+            unset($e['acct']);
             $shared[$key] ??= $e + ['by' => $c['members'][$i]['name'] ?? '', 'camps' => []];
             $shared[$key]['camps'][] = ['id' => $c['id'], 'name' => $c['name'] ?? '', 'ref' => $r['ref'], 'dm' => $dm];
         }
     }
-    return ['mine' => hb_mine($accounts, $sub), 'shared' => array_values($shared), 'shares' => (object)$shares, 'camps' => $camps];
+    return ['acct' => hb_acct($sub), 'mine' => hb_mine($accounts, $sub), 'shared' => array_values($shared), 'shares' => (object)$shares, 'camps' => $camps];
 }

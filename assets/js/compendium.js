@@ -28,13 +28,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const SECTION = { sense: 'Sense', cond: 'Condition', skill: 'Skill', prop: 'Weapon property', lang: 'Language', armour: 'Armour', dmg: 'Damage type', act: 'Action', spell: 'Spellcasting rule', hp: 'Hit points' };
     const ABIL = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
     // the filters each tab has: [name, label, kind]
+    const HB_ONLY = ['hb', 'Homebrew only', 'tick'];
     const FILTERS = {
-        spell: [['level', 'Level'], ['school', 'School'], ['cls', 'Class'], ['conc', 'Concentration', 'yn'], ['ritual', 'Ritual', 'yn']],
-        monster: [['crmin', 'Lowest CR', 'cr'], ['crmax', 'Highest CR', 'cr'], ['size', 'Size'], ['mtype', 'Type'], ['src', 'Source book']],
-        item: [['cat', 'Category']],
-        magic: [['cat', 'Category'], ['rarity', 'Rarity']],
-        class: [['kind', 'Show'], ['cls', 'Class']],
-        race: [['kind', 'Show']],
+        spell: [['level', 'Level'], ['school', 'School'], ['cls', 'Class'], ['conc', 'Concentration', 'yn'], ['ritual', 'Ritual', 'yn'], HB_ONLY],
+        monster: [['crmin', 'Lowest CR', 'cr'], ['crmax', 'Highest CR', 'cr'], ['size', 'Size'], ['mtype', 'Type'], ['src', 'Source book'], HB_ONLY],
+        item: [['cat', 'Category'], HB_ONLY],
+        magic: [['cat', 'Category'], ['rarity', 'Rarity'], HB_ONLY],
+        class: [['kind', 'Show'], ['cls', 'Class'], HB_ONLY],
+        race: [['kind', 'Show'], HB_ONLY],
+        background: [HB_ONLY],
+        feat: [HB_ONLY],
+        rule: [HB_ONLY],
     };
 
     const entries = [], byKey = new Map(), texts = new Map(), failed = new Set(), loaded = new Set(), loading = new Map();
@@ -181,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function matches(e) {
         const f = S.f, v = e.f;
         if (!FILTERS[S.tab]) return true;
+        if (f.hb && !e.hb) return false;
         if (f.level !== undefined && f.level !== '' && v.level !== +f.level) return false;
         for (const k of ['school', 'mtype', 'size', 'src', 'cat', 'rarity', 'kind']) if (f[k] && v[k] !== f[k]) return false;
         if (f.cls && !(Array.isArray(v.cls) ? v.cls.includes(f.cls) : v.cls === f.cls)) return false;
@@ -246,7 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!total && busy) html += skeleton();
         else if (!total && !html) {
             const filtered = Object.values(S.f).some((v) => v !== '' && v !== undefined);
-            html += S.tab === 'fav' ? '<p class="muted">No favourites yet. Open an entry and press the star.</p>'
+            html += S.f.hb && !S.q.trim() ? `<p class="muted">No homebrew here yet.${FORMS[S.tab] ? ` Press New ${FORMS[S.tab].noun} to make one.` : ''}</p>`
+                : S.tab === 'fav' ? '<p class="muted">No favourites yet. Open an entry and press the star.</p>'
                 : S.tab === 'recent' ? '<p class="muted">Nothing opened yet.</p>'
                     : `<p class="note">Nothing found${S.q.trim() ? ` for '${esc(S.q.trim())}'` : ''}. Try fewer filters.${filtered ? ' <button type="button" class="btn small" data-clear>Clear filters</button>' : ''}</p>`;
         }
@@ -280,6 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return vals.flatMap((v) => [v, v]);
         };
         box.innerHTML = fl.map(([name, label, kind]) => {
+            if (kind === 'tick') return `<label class="check"><input type="checkbox" data-f="${name}" value="1"${S.f[name] ? ' checked' : ''}> ${label}</label>`;
             const o = opts(name, kind), cur = S.f[name] === undefined ? '' : String(S.f[name]);
             let h = '<option value="">Any</option>';
             for (let i = 0; i < o.length; i += 2) h += `<option value="${esc(o[i])}"${String(o[i]) === cur ? ' selected' : ''}>${esc(o[i + 1])}</option>`;
@@ -314,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     $('#cp-q').value = S.q;
     $('#cp-q').addEventListener('input', debounce((e) => { S.q = e.target.value; refresh(); persist(); }, 80));
-    $('#cp-filters').addEventListener('change', (e) => { const s = e.target.closest('[data-f]'); if (s) { S.f[s.dataset.f] = s.value; refresh(); persist(); } });
+    $('#cp-filters').addEventListener('change', (e) => { const s = e.target.closest('[data-f]'); if (s) { S.f[s.dataset.f] = s.type === 'checkbox' ? (s.checked ? '1' : '') : s.value; refresh(); persist(); } });
     $('#cp-fbtn').addEventListener('click', () => { const open = $('#cp-filters').classList.toggle('open'); $('#cp-fbtn').setAttribute('aria-expanded', open); });
     const clearFilters = () => { S.f = {}; drawTabs(); refresh(); persist(); };
 
@@ -522,8 +529,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeDetail() { detail.classList.remove('open'); document.body.classList.remove('cp-lock'); }
     function openFromUrl() {
         if (!want) return;
-        const e = byKey.get(want);
+        const e = byKey.get(want), [, wr, wid] = want.split(':');
         if (e) { want = ''; openEntry(e); return; }
+        // a link to homebrew: your own archived entry opens read-only; anyone else's has been taken away
+        if (wr === 'hb' && loaded.has('homebrew')) {
+            const old = Homebrew.mine().find((x) => x.id === wid);
+            want = '';
+            if (old) return readArchived(old);
+            dbody.innerHTML = '<p class="note">This isn\'t shared with you any more.</p>'; detail.classList.add('open'); document.body.classList.add('cp-lock');
+            return;
+        }
         // the entry's list hasn't come in yet (or failed): wait for the file that has it
         if (jobsOfKey(want).every((j) => loaded.has(j) || failed.has(j))) { want = ''; dbody.innerHTML = '<p class="note">That entry isn\'t in the compendium.</p>'; detail.classList.add('open'); document.body.classList.add('cp-lock'); }
     }
@@ -546,6 +561,8 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (b.dataset.add === 'enc') addToEncounter(e);
         else if (b.dataset.reopen !== undefined) openEntry(e);
         else if (b.dataset.hbEdit !== undefined) openForm(e.raw.kind, e.raw);
+        else if (b.dataset.hbCopy !== undefined) openForm(e.hb ? e.raw.kind : e.t, null, seedOf(e));
+        else if (b.dataset.unarchive) unarchive(b.dataset.unarchive);
         else if (b.dataset.hbArchive !== undefined) archive(e.raw);
         else if (b.dataset.hbRemove) removeFromCampaign(e, b.dataset.hbRemove, b.dataset.ref);
     });
@@ -629,6 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function sheetRequest(c, e) {
         const base = { id: uid(), char: c.id, name: e.name };
+        if (e.hb) return { ...base, kind: 'hb', parts: Homebrew.parts(e.raw, c) };
         if (e.t === 'spell') return { ...base, kind: 'spell', lvl: e.f.level, spell: spellDetails(e.d) };
         // a feat is a Passive abilities row (the sheet's ROW.list) with the feat's text
         if (e.t === 'feat') return { ...base, kind: 'feat', src: 'Feat', text: [prereq(e.d.prerequisites) && 'Prerequisite: ' + prereq(e.d.prerequisites), ...(e.d.desc || [])].filter(Boolean).join('\n\n') };
@@ -685,7 +703,91 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---- homebrew (assets/js/homebrew.js): your own entries and your campaigns', keyed "<type>:hb:<id>", listed whatever rules version is picked ----
     // each kind: what the New button says, the form's fields, and how an entry becomes a row in the list
+    const TEXT_HINT = 'A line starting with "- " becomes a list, and lines like "a | b" make a table.';
+    const SCHOOLS = ['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation'];
+    const DMG_TYPES = ['Acid', 'Bludgeoning', 'Cold', 'Fire', 'Force', 'Lightning', 'Necrotic', 'Piercing', 'Poison', 'Psychic', 'Radiant', 'Slashing', 'Thunder'];
+    const ABILS = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
+    const COINS = ['cp', 'sp', 'ep', 'gp', 'pp'];
+    const SPELL_FX = [['buff', 'Buff'], ['debuff', 'Debuff'], ['control', 'Control'], ['teleport', 'Teleport / movement'], ['summon', 'Summon'], ['defence', 'Defence'], ['utility', 'Utility']];
+    const WEAPON_PROPS = ['Ammunition', 'Finesse', 'Heavy', 'Light', 'Loading', 'Reach', 'Silvered', 'Thrown', 'Two-handed', 'Versatile'];
+    const ITEM_CATS = [['Weapon', 'Weapon'], ['Armor', 'Armour'], ['Ammunition', 'Ammunition'], ['Tools', 'Tools'], ['Mounts and vehicles', 'Mounts and vehicles'], ['Adventuring gear', 'Gear'], ['Consumable', 'Consumable'], ['Treasure', 'Treasure']];
+    const MAGIC_TYPES = ['Armor', 'Potion', 'Ring', 'Rod', 'Scroll', 'Staff', 'Wand', 'Weapon', 'Wondrous Item', 'Shield', 'Ammunition'];
+    // the classes a spell can be ticked for: every class any listed spell has
+    const spellClasses = () => [...new Set(entries.filter((e) => e.t === 'spell' && !e.hb).flatMap((e) => e.f.cls))].sort();
+    const itemFields = (magic) => {
+        const w = (v) => (magic ? v.type === 'Weapon' : v.cat === 'Weapon'), a = (v) => (magic ? ['Armor', 'Shield'].includes(v.type) : v.cat === 'Armor');
+        return [
+            { k: 'name', label: 'Name', need: 'Give it a name.' },
+            ...(magic ? [{ k: 'type', label: 'Type', opts: MAGIC_TYPES, other: true, dflt: 'Wondrous Item' }, { k: 'rarity', label: 'Rarity', opts: RARITY, dflt: 'Common' }, { k: 'att', label: 'Requires attunement', check: true },
+                { k: 'attreq', label: 'Attunement by (optional)', hint: 'For example "by a wizard".', when: (v) => v.att }] : [{ k: 'cat', label: 'Category', opts: ITEM_CATS, dflt: 'Adventuring gear' }]),
+            { k: 'cost', label: 'Cost (optional)', num: 0 }, { k: 'coin', label: 'Coin', opts: COINS, dflt: 'gp' }, { k: 'wt', label: 'Weight in lb (optional)', num: 0 },
+            { head: 'Weapon', when: w }, { k: 'wcat', label: 'Kind', opts: ['Simple', 'Martial'], when: w }, { k: 'wrange', label: 'Melee or ranged', opts: ['Melee', 'Ranged'], when: w },
+            { k: 'dice', label: 'Damage dice (optional)', dice: true, hint: 'For example 1d8. With dice here, adding it to a sheet also adds an action.', when: w }, { k: 'dtype', label: 'Damage type', opts: DMG_TYPES, dflt: 'Slashing', when: w },
+            { k: 'dice2', label: 'Two-handed damage dice (optional)', dice: true, when: w }, { k: 'range', label: 'Range (optional)', hint: 'For example 80/320 ft. Melee weapons are 5 ft if left empty.', when: w },
+            ...(magic ? [{ k: 'bonus', label: 'Bonus to attack and damage (optional)', num: 0, when: w }] : []),
+            { k: 'props', label: 'Properties (optional)', checks: WEAPON_PROPS, when: w },
+            { head: 'Armour', when: a }, { k: 'akind', label: 'Kind', opts: ['Light', 'Medium', 'Heavy', 'Shield'], when: a }, { k: 'ac', label: 'Armour class (optional)', num: 0, hint: "This is shown on the item. It never changes a character's armour class.", when: a },
+            { k: 'dex', label: 'Adds DEX', check: true, when: a }, { k: 'dexmax', label: 'Most DEX it adds (optional)', num: 0, when: (v) => a(v) && v.dex }, { k: 'strmin', label: 'Minimum STR (optional)', num: 0, when: a },
+            { k: 'stealth', label: 'Stealth disadvantage', check: true, when: a }, ...(magic ? [{ k: 'acbonus', label: 'Bonus to armour class (optional)', num: 0, when: a }] : []),
+            { head: 'Description' }, { k: 'other', label: 'Attributes (optional)', hint: 'Separate them with commas.' }, { k: 'text', label: 'Description (optional)', area: 6, hint: TEXT_HINT },
+        ];
+    };
+    const money = (x) => (x.cost === '' || x.cost == null ? '' : `${num(+x.cost)} ${x.coin || 'gp'}`);
+    const itemBits = (x) => kv([['Cost', money(x)], ['Weight', +x.wt ? x.wt + ' lb' : ''], ['Kind', [x.wcat, x.wrange].filter(Boolean).join(' · ')], ['Damage', x.dice ? `${x.dice} ${String(x.dtype || '').toLowerCase()}` : ''], ['Two-handed', x.dice2 || ''], ['Range', x.range],
+        ['Bonus', +x.bonus ? `+${+x.bonus} to attack and damage` : ''], ['Armour', x.akind], ['Armour class', x.ac === '' || x.ac == null ? '' : `${x.ac}${x.dex ? ' + DEX' + (x.dexmax ? ` (max ${x.dexmax})` : '') : ''}${+x.acbonus ? `, +${+x.acbonus}` : ''}`],
+        ['Strength', x.strmin ? x.strmin + '+' : ''], ['Stealth', x.stealth ? 'Disadvantage' : '']])
+        + `<div class="badges">${[...(x.props || []), ...String(x.other || '').split(',').map((s) => s.trim()).filter(Boolean)].map((p) => `<span class="badge">${esc(p)}</span>`).join('')}</div>${x.text ? textHtml(x.text) : ''}`;
+    function rollsHtml(x) {
+        const rows = [['Resolves with', x.mode === 'atk' ? 'Spell attack' : x.mode === 'save' ? `${x.save} save` : ''], ['Damage', (x.dmg || []).map((d) => `${d.dice} ${String(d.type).toLowerCase()}`).join(', ') + (x.grows ? ' (grows at levels 5, 11 and 17)' : '')],
+            ['Healing', x.heal], ['Effects', (x.fx || []).map((k) => (SPELL_FX.find(([v]) => v === k) || [k, k])[1]).join(', ')]];
+        return rows.some((r) => r[1]) ? `<h3>How it rolls</h3>${kv(rows)}` : '';
+    }
     const FORMS = {
+        spell: {
+            noun: 'spell',
+            fields: [{ k: 'name', label: 'Name', need: 'Give the spell a name.' },
+                { k: 'level', label: 'Level', opts: [[0, 'Cantrip'], ...Array.from({ length: 9 }, (_, i) => [i + 1, 'Level ' + (i + 1)])], dflt: 1 },
+                { k: 'school', label: 'School', opts: SCHOOLS, other: true, dflt: 'Evocation' },
+                { k: 'time', label: 'Casting time', opts: ['Action', 'Bonus action', 'Reaction', '1 minute', '10 minutes', '1 hour'], other: true, dflt: 'Action' },
+                { k: 'trig', label: 'Trigger (optional)', when: (v) => v.time === 'Reaction' },
+                { k: 'range', label: 'Range (optional)', hint: 'For example 60 feet.' },
+                { k: 'comps', label: 'Components (optional)', checks: ['V', 'S', 'M'] },
+                { k: 'material', label: 'Material (optional)', when: (v) => (v.comps || []).includes('M') },
+                { k: 'duration', label: 'Duration', dflt: 'Instantaneous' },
+                { k: 'conc', label: 'Concentration', check: true }, { k: 'ritual', label: 'Ritual', check: true },
+                { k: 'classes', label: 'Classes that can pick it (optional)', checks: spellClasses, hint: 'With none ticked, any spellcaster can pick it in the character builder.' },
+                { k: 'text', label: 'Description', area: 8, need: 'Write what the spell does.', hint: TEXT_HINT },
+                { k: 'higher', label: 'At higher levels (optional)', area: 3 },
+                { head: 'How it rolls' },
+                { k: 'mode', label: 'Resolves with', opts: [['none', 'None'], ['atk', 'Spell attack'], ['save', 'Save']], dflt: 'none' },
+                { k: 'save', label: 'Saving throw', opts: ABILS, dflt: 'DEX', when: (v) => v.mode === 'save' },
+                { k: 'dmg', label: 'Damage (optional)', rows: true, hint: "Dice can use the sheet's formulas: 2d6 + 3, PROF, LEVEL, CANTRIPd10." },
+                { k: 'grows', label: 'Grows at levels 5, 11 and 17', check: true, when: (v) => String(v.level) === '0' },
+                { k: 'heal', label: 'Healing dice (optional)', dice: true },
+                { k: 'fx', label: 'Effects (optional)', checks: SPELL_FX }],
+            entry: (x) => {
+                const d = { name: x.name, level: +x.level || 0, school: x.school, casting_time: x.time, range: x.range, components: x.comps || [], material: x.material, duration: x.duration, concentration: !!x.conc, ritual: !!x.ritual, classes: x.classes || [], desc: [x.text], higher_level: x.higher ? [x.higher] : [] };
+                return { t: 'spell', sub: [d.level ? 'Level ' + d.level : 'Cantrip', x.school, x.time].filter(Boolean).join(' · '), hay: x.school || '', f: { level: d.level, school: x.school, conc: d.concentration, ritual: d.ritual, cls: d.classes }, d, html: spellHtml(d) + rollsHtml(x) };
+            },
+        },
+        item: {
+            noun: 'item',
+            fields: itemFields(false),
+            entry: (x) => { const label = (ITEM_CATS.find(([v]) => v === x.cat) || [0, x.cat])[1]; return { t: 'item', sub: label, hay: label, f: { cat: x.cat }, d: {}, html: itemBits(x) }; },
+        },
+        magic: {
+            noun: 'magic item',
+            fields: itemFields(true),
+            entry: (x) => ({ t: 'magic', sub: [x.type, x.rarity].filter(Boolean).join(' · '), hay: x.type || '', tags: x.rarity ? [[x.rarity]] : [], f: { cat: x.type, rarity: x.rarity }, d: {},
+                html: `<div class="badges">${x.att ? `<span class="badge b">${esc('Requires attunement' + (x.attreq ? ' ' + x.attreq : ''))}</span>` : ''}</div>${itemBits(x)}` }),
+        },
+        feat: {
+            noun: 'feat',
+            fields: [{ k: 'name', label: 'Name', need: 'Give the feat a name.' }, { k: 'prereq', label: 'Prerequisite (optional)', hint: 'For example Strength 13+. It shows as a note and never blocks anyone.' },
+                { k: 'text', label: 'Description', area: 8, need: 'Write what the feat does.', hint: TEXT_HINT },
+                { k: 'uses', label: 'Uses (optional)', calc: true, hint: 'A number or a sheet formula, like PROF. It gives the row a counter on the sheet.' }, { k: 'reset', label: 'Uses come back on', opts: [['', 'No reset'], ['short', 'Short rest'], ['long', 'Long rest']], dflt: '', when: (v) => v.uses }],
+            entry: (x) => ({ t: 'feat', sub: x.prereq ? 'Prerequisite: ' + x.prereq : 'No prerequisite', hay: '', f: {}, d: {}, html: `${kv([['Prerequisite', x.prereq], ['Uses', x.uses ? x.uses + (x.reset ? `, back on a ${x.reset} rest` : '') : '']])}${textHtml(x.text)}` }),
+        },
         rule: {
             noun: 'rule',
             fields: [{ k: 'name', label: 'Name', need: 'Give the rule a name.' },
@@ -693,8 +795,29 @@ document.addEventListener('DOMContentLoaded', () => {
             entry: (x) => ({ t: 'rule', sub: 'House rule', hay: 'house rule', text: x.text }),
         },
     };
+    // an entry as the form's starting values, for "Copy to homebrew"
+    function seedOf(e) {
+        if (e.hb) { const { id, updated, acct, archived, by, camps, ...rest } = e.raw; return rest; }
+        const d = e.d || {}, text = (...l) => l.flatMap((x) => x || []).join('\n\n'), first = (o) => Object.values(o || {})[0] || '';
+        if (e.t === 'rule') return { name: e.name, text: Array.isArray(e.text) ? e.text.join('\n') : e.text };
+        if (e.t === 'feat') return { name: e.name, prereq: prereq(d.prerequisites), text: text(d.desc) };
+        if (e.t === 'spell') {
+            const s = spellDetails(d);
+            return { name: e.name, level: d.level, school: d.school, time: ({ '1 action': 'Action', '1 bonus action': 'Bonus action', '1 reaction': 'Reaction' })[s.casting_time] || s.casting_time, trig: s.trigger, range: d.range, comps: d.components || [], material: d.material || '', duration: d.duration,
+                conc: !!d.concentration, ritual: !!d.ritual, classes: (d.classes || []).map(nice), text: text(d.desc), higher: text(d.higher_level), mode: s.save ? 'save' : s.attack_type ? 'atk' : 'none', save: s.save || 'DEX',
+                dmg: s.damage.map((x) => ({ dice: first(x.slot || x.char), type: x.type })), grows: s.damage.some((x) => x.char), heal: first(s.heal_at_slot_level) };
+        }
+        if (e.t === 'magic') return { name: e.name, type: e.f.cat, rarity: e.f.rarity, att: !!d.attunement, attreq: typeof d.attunement === 'string' ? d.attunement.replace(/^requires attunement\s*/i, '') : '', text: text(d.desc) };
+        const props = (d.properties || []).map(name), known = (p) => WEAPON_PROPS.find((w) => w.toLowerCase().replace('-', ' ') === p.toLowerCase().replace('-', ' ')), rng = d.range || d.throw_range || {}, ac = d.armor_class || {};
+        return { name: e.name, cat: e.f.cat, cost: d.cost ? d.cost.quantity : '', coin: d.cost ? d.cost.unit : 'gp', wt: d.weight || '', wcat: /martial/i.test(d.weapon_category || (d.equipment_categories || []).join()) ? 'Martial' : 'Simple',
+            wrange: /ranged/i.test(d.weapon_range || d.category_range || (d.equipment_categories || []).join()) ? 'Ranged' : 'Melee', dice: (d.damage || {}).damage_dice || '', dtype: d.damage ? name(d.damage.damage_type) : 'Slashing', dice2: (d.two_handed_damage || {}).damage_dice || '',
+            range: rng.long ? `${rng.normal}/${rng.long} ft` : '', props: props.map(known).filter(Boolean), other: props.filter((p) => !known(p)).join(', '),
+            akind: ({ light: 'Light', medium: 'Medium', heavy: 'Heavy', shield: 'Shield' })[String(d.armor_category || '').toLowerCase()] || 'Light', ac: ac.base ?? '', dex: !!ac.dex_bonus, dexmax: ac.max_bonus || '', strmin: d.str_minimum || '', stealth: !!d.stealth_disadvantage, text: text(d.desc, d.description, d.special) };
+    }
     function hbEntry(x, shared) {
-        const made = FORMS[x.kind] && FORMS[x.kind].entry(x);
+        let made = null;
+        // a shared entry another browser made: anything odd in it costs that entry, not the page
+        try { made = FORMS[x.kind] && FORMS[x.kind].entry(x); } catch (err) { }
         if (!made) return null;
         return Object.assign({ id: 'hb:' + x.id, name: x.name, tags: [], f: {}, hb: true, raw: x, shared }, made, shared ? { sub: `${made.sub} · ${x.by}` } : {});
     }
@@ -713,40 +836,131 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#cp-arch').textContent = `Archived (${old})`;
     }
     function homebrewTools(e) {
-        if (!e.hb) return '';
+        const copy = FORMS[e.hb ? e.raw.kind : e.t] ? '<button type="button" class="btn" data-hb-copy>Copy to homebrew</button>' : '';
+        if (!e.hb) return copy ? `<div class="cp-hb">${copy}</div>` : '';
+        if (e.raw.archived) return `<div class="cp-hb"><p class="muted">Archived.</p><div class="actions"><button type="button" class="btn" data-unarchive="${esc(e.raw.id)}">Unarchive</button></div></div>`;
         if (e.shared) {
             const camps = e.raw.camps;
             return `<div class="cp-hb"><p class="muted">Shared by ${esc(e.raw.by)} in ${esc(camps.map((c) => c.name).join(', '))}.</p>
-                ${camps.filter((c) => c.dm).map((c) => `<button type="button" class="btn small" data-hb-remove="${esc(c.id)}" data-ref="${esc(c.ref)}">Remove from ${esc(c.name)}</button>`).join(' ')}</div>`;
+                <div class="actions">${copy}</div>${camps.filter((c) => c.dm).map((c) => `<button type="button" class="btn small" data-hb-remove="${esc(c.id)}" data-ref="${esc(c.ref)}">Remove from ${esc(c.name)}</button>`).join(' ')}</div>`;
         }
         const on = Homebrew.sharedWith(e.raw.id), camps = Homebrew.camps();
         const share = !Homebrew.signedIn() ? '<p class="muted">Sign in to save this to your account and share it with a campaign.</p>'
             : camps.length ? `<fieldset class="cp-hbshare"><legend>Share with</legend>${camps.map((c) => `<label class="check"><input type="checkbox" data-hb-share="${esc(c.id)}"${on.includes(c.id) ? ' checked' : ''}> ${esc(c.name)}</label>`).join('')}</fieldset>` : '';
-        return `<div class="cp-hb"><div class="actions"><button type="button" class="btn" data-hb-edit>Edit</button><button type="button" class="btn" data-hb-archive>Archive</button></div>${share}</div>`;
+        return `<div class="cp-hb"><div class="actions"><button type="button" class="btn" data-hb-edit>Edit</button><button type="button" class="btn" data-hb-archive>Archive</button>${copy}</div>${share}</div>`;
     }
     const hbDlg = $('#cp-hb'), hbForm = $('#cp-hb-form');
-    let editing = null;
-    function openForm(kind, x) {
-        const form = FORMS[kind];
-        editing = { kind, x };
+    let editing = null, dirty = false;
+    // a yes-or-no question over whatever is open: resolves true on yes
+    function ask(text, yes, no = 'Cancel') {
+        const d = dlg('cp-hbask');
+        $('#cp-hbask-t').textContent = text; $('#cp-hbask-yes').textContent = yes; $('#cp-hbask-no').textContent = no;
+        d.showModal();
+        return new Promise((ok) => {
+            const done = (v) => { $('#cp-hbask-yes').onclick = $('#cp-hbask-no').onclick = d.oncancel = null; d.close(); ok(v); };
+            $('#cp-hbask-yes').onclick = () => done(true);
+            $('#cp-hbask-no').onclick = () => done(false);
+            d.oncancel = (e) => { e.preventDefault(); done(false); };
+        });
+    }
+    const pairs = (o) => o.map((x) => (Array.isArray(x) ? x : [x, x]));
+    const options = (o, cur) => pairs(o).map(([v, t]) => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(t)}</option>`).join('');
+    const damageRow = (r = {}) => `<div class="cp-hbrow"><label>Dice<input class="field" data-dice value="${esc(r.dice || '')}" autocomplete="off"><small hidden></small></label>
+        <label>Type<select class="field" data-type>${options(DMG_TYPES, r.type)}</select></label><button type="button" class="btn small" data-rowdel>Remove</button></div>`;
+    const small = (f) => `<small${f.hint ? '' : ' hidden'}>${esc(f.hint || '')}</small>`;
+    function fieldHtml(f, v) {
+        if (f.head) return `<h3 class="cp-hbhead" data-fi>${esc(f.head)}</h3>`;
+        if (f.check) return `<label class="check" data-fi><input type="checkbox" name="${f.k}"${v ? ' checked' : ''}> ${esc(f.label)}</label>`;
+        if (f.checks) {
+            const on = Array.isArray(v) ? v.map(String) : [], o = pairs(typeof f.checks === 'function' ? f.checks() : f.checks);
+            // a class this list doesn't have stays ticked rather than being dropped
+            for (const x of on) if (!o.some(([k]) => String(k) === x)) o.push([x, x]);
+            return `<fieldset class="cp-hbchecks" data-fi><legend>${esc(f.label)}</legend>${o.map(([k, t]) => `<label class="check"><input type="checkbox" name="${f.k}" value="${esc(k)}"${on.includes(String(k)) ? ' checked' : ''}> ${esc(t)}</label>`).join('')}${small(f)}</fieldset>`;
+        }
+        if (f.rows) return `<div class="cp-hbrows" data-fi data-rows="${f.k}"><span>${esc(f.label)}</span><div data-list>${(Array.isArray(v) ? v : []).map(damageRow).join('')}</div><button type="button" class="btn small" data-rowadd>Add damage</button>${small(f)}</div>`;
+        if (f.opts) {
+            const known = pairs(f.opts).some(([k]) => String(k) === String(v)), isOther = f.other && v !== '' && v != null && !known;
+            return `<label data-fi>${esc(f.label)}<select class="field" name="${f.k}">${options(f.opts, v)}${f.other ? `<option value="Other"${isOther ? ' selected' : ''}>Other</option>` : ''}</select>
+                ${f.other ? `<input class="field cp-hbother" name="${f.k}__o" aria-label="${esc(f.label)}: other" value="${isOther ? esc(v) : ''}" autocomplete="off"${isOther ? '' : ' hidden'}>` : ''}${small(f)}</label>`;
+        }
+        if (f.area) return `<label data-fi>${esc(f.label)}<textarea class="field" name="${f.k}" rows="${f.area}">${esc(v ?? '')}</textarea>${small(f)}</label>`;
+        if (f.num !== undefined) return `<label data-fi>${esc(f.label)}<input class="field" type="number" inputmode="decimal" step="any" min="${f.num}" name="${f.k}" value="${esc(v ?? '')}">${small(f)}</label>`;
+        return `<label data-fi>${esc(f.label)}<input class="field" name="${f.k}" value="${esc(v ?? '')}" autocomplete="off">${small(f)}</label>`;
+    }
+    // what a field holds now
+    function fieldValue(f) {
+        const el = hbForm.elements[f.k];
+        if (f.check) return el.checked;
+        if (f.checks) return [...hbForm.querySelectorAll(`[name="${f.k}"]:checked`)].map((i) => i.value);
+        if (f.rows) return [...hbForm.querySelectorAll(`[data-rows="${f.k}"] .cp-hbrow`)].map((r) => ({ dice: r.querySelector('[data-dice]').value.trim(), type: r.querySelector('[data-type]').value })).filter((r) => r.dice);
+        if (f.other && el.value === 'Other') return hbForm.elements[f.k + '__o'].value.trim();
+        if (f.num !== undefined) return el.value === '' ? '' : +el.value;
+        return el.value.trim();
+    }
+    const formValues = (form) => { const v = {}; for (const f of form.fields) if (f.k) v[f.k] = fieldValue(f); return v; };
+    // fields that only apply to some answers (a weapon's damage, a reaction's trigger)
+    function showFields(form) {
+        const v = formValues(form), boxes = $('#cp-hb-fields').querySelectorAll('[data-fi]');
+        form.fields.forEach((f, i) => { boxes[i].hidden = !!f.when && !f.when(v); });
+        for (const f of form.fields) if (f.other) hbForm.elements[f.k + '__o'].hidden = hbForm.elements[f.k].value !== 'Other';
+    }
+    // syntax only: names like LEVEL or a resource's name depend on the character the row lands on
+    const ANY = new Proxy({}, { getOwnPropertyDescriptor: () => ({ value: 1, configurable: true, enumerable: true, writable: true }), get: () => 1 });
+    const formulaError = (fn, v) => { try { fn(v, ANY); return ''; } catch (err) { return `Check this: ${err.message}.`; } };
+    function nameNote(form) {
+        const el = hbForm.elements.name, v = el.value.trim().toLowerCase(), s = el.parentElement.querySelector('small');
+        const clash = v && entries.some((e) => e.t === editing.kind && e.name.trim().toLowerCase() === v && !(e.raw && editing.x && e.raw.id === editing.x.id));
+        s.textContent = clash ? `There's already a ${form.noun} called this. You can still save it.` : '';
+        s.hidden = !clash;
+    }
+    async function openForm(kind, x, seed) {
+        const form = FORMS[kind], from = x || seed || {};
+        // the spell form ticks classes from the spell lists
+        if (kind === 'spell') await Promise.all(jobsOf('spell').map(load));
+        editing = { kind, x }; dirty = !!seed;
         $('#cp-hb-t').textContent = (x ? 'Edit ' : 'New ') + form.noun;
-        $('#cp-hb-fields').innerHTML = form.fields.map((f) => `<label>${esc(f.label)}${f.area ? `<textarea class="field" name="${f.k}" rows="${f.area}"></textarea>` : `<input class="field" name="${f.k}" autocomplete="off">`}<small${f.hint ? '' : ' hidden'}>${esc(f.hint || '')}</small></label>`).join('')
+        $('#cp-hb-fields').innerHTML = form.fields.map((f) => fieldHtml(f, f.k && from[f.k] !== undefined ? from[f.k] : f.dflt)).join('')
             + (Homebrew.signedIn() ? '' : '<p class="muted">Saved in this browser. Sign in to keep it on your account.</p>');
-        for (const f of form.fields) hbForm.elements[f.k].value = x ? x[f.k] ?? '' : '';
+        showFields(form);
         $('#cp-hb-err').hidden = true;
         hbDlg.showModal();
+        if (seed) nameNote(form);
+    }
+    const closeForm = async () => { if (!dirty || await ask('Discard your changes?', 'Discard changes', 'Keep editing')) { dirty = false; hbDlg.close(); } };
+    hbForm.addEventListener('input', () => { dirty = true; });
+    hbForm.addEventListener('change', () => { dirty = true; if (editing) showFields(FORMS[editing.kind]); });
+    hbForm.addEventListener('focusout', (ev) => { if (editing && ev.target.name === 'name') nameNote(FORMS[editing.kind]); });
+    hbForm.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-hb-cancel]')) return void closeForm();
+        if (ev.target.closest('[data-rowdel]')) { ev.target.closest('.cp-hbrow').remove(); dirty = true; }
+        else if (ev.target.closest('[data-rowadd]')) { const box = ev.target.closest('[data-rows]').querySelector('[data-list]'); box.insertAdjacentHTML('beforeend', damageRow()); box.lastElementChild.querySelector('input').focus(); dirty = true; }
+    });
+    hbDlg.addEventListener('cancel', (ev) => { ev.preventDefault(); closeForm(); });
+    hbDlg.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !dlg('cp-hbask').open) { ev.preventDefault(); closeForm(); } });
+    // a field's message under it, or its hint back again
+    function mark(el, hint, msg) {
+        if (msg) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
+        const s = el.parentElement.querySelector('small');
+        if (s) { s.textContent = msg || hint || ''; s.hidden = !s.textContent; }
+        return !!msg;
     }
     hbForm.addEventListener('submit', async (ev) => {
         ev.preventDefault();
-        const form = FORMS[editing.kind], out = Object.assign({}, editing.x || { id: Homebrew.id(), kind: editing.kind });
+        const form = FORMS[editing.kind], out = Object.assign({}, editing.x || { id: Homebrew.id(), kind: editing.kind }), vals = formValues(form);
         let bad = null;
+        const check = (el, hint, msg) => { if (mark(el, hint, msg) && !bad) bad = el; };
         for (const f of form.fields) {
-            const el = hbForm.elements[f.k], v = el.value.trim(), small = el.parentElement.querySelector('small'), miss = f.need && !v;
-            el.toggleAttribute('aria-invalid', miss);
-            small.textContent = miss ? f.need : f.hint || '';
-            small.hidden = !small.textContent;
-            if (miss && !bad) bad = el;
-            out[f.k] = v;
+            if (!f.k) continue;
+            if (f.when && !f.when(vals)) { delete out[f.k]; continue; }
+            const v = fieldValue(f), el = hbForm.elements[f.k];
+            if (f.rows) for (const i of hbForm.querySelectorAll(`[data-rows="${f.k}"] [data-dice]`)) check(i, '', i.value.trim() ? formulaError(hbDice, i.value) : '');
+            else if (f.dice || f.calc) check(el, f.hint, v ? formulaError(f.dice ? hbDice : hbCalc, v) : '');
+            else if (f.need) check(el, f.hint, v ? '' : f.need);
+            else if (f.other && el.value === 'Other') check(hbForm.elements[f.k + '__o'], '', v ? '' : 'Say what it is.');
+            // a number the browser couldn't read comes back empty and invalid
+            else if (f.num !== undefined && el.validity.badInput) check(el, f.hint, 'Enter a number.');
+            else if (f.num !== undefined && el.value !== '' && +el.value < f.num) check(el, f.hint, `Enter ${f.num} or more.`);
+            out[f.k] = f.k === 'level' ? +v : v;
         }
         if (bad) return bad.focus();
         try { await Homebrew.save(out); } catch (x) {
@@ -755,28 +969,46 @@ document.addEventListener('DOMContentLoaded', () => {
             $('#cp-hb-err').hidden = false;
             return;
         }
+        dirty = false;
         hbDlg.close();
+        if (Homebrew.full()) UI.toast('Saved to your account. This browser is full, so it only has a copy for this visit.', 'note');
         showHomebrew();
         openEntry(byKey.get(`${form.entry(out).t}:hb:${out.id}`));
     });
     $('#cp-new').addEventListener('click', () => openForm(S.tab));
     async function archive(x) {
+        const camps = Homebrew.sharedWith(x.id).map((c) => (Homebrew.camps().find((k) => k.id === c) || {}).name).filter(Boolean);
+        if (camps.length && !await ask(`Archive ${x.name}? It leaves ${camps.join(', ')}. Sheets keep their copy.`, 'Archive')) return;
         try { await Homebrew.setArchived(x.id, true); } catch (err) { return note("Couldn't archive it: this browser's storage is full or blocked.", 'err'); }
         S.sel = null; closeDetail(); dbody.innerHTML = '<p class="note">Archived. Sheets that already have it keep their copy.</p>';
         showHomebrew(); persist();
     }
     $('#cp-arch').addEventListener('click', () => {
         const kinds = Object.keys(FORMS).filter((k) => k === S.tab);
-        $('#cp-hbarch-body').innerHTML = archivedOf(kinds).map((x) => `<div class="rowi"><span class="grow">${esc(x.name)}</span><button type="button" class="btn small" data-unarchive="${esc(x.id)}">Unarchive</button></div>`).join('');
+        $('#cp-hbarch-body').innerHTML = archivedOf(kinds).map((x) => `<div class="rowi"><span class="grow"><button type="button" class="cp-link" data-hb-read="${esc(x.id)}">${esc(x.name)}</button></span><button type="button" class="btn small" data-unarchive="${esc(x.id)}">Unarchive</button></div>`).join('');
         dlg('cp-hbarch').showModal();
     });
+    // an archived entry opens read-only; it isn't in the lists, only reachable from here
+    function readArchived(x) {
+        const e = hbEntry(x, false);
+        if (!e) return;
+        byKey.set(key(e), e);
+        openEntry(e);
+    }
+    async function unarchive(id) {
+        try { await Homebrew.setArchived(id, false); } catch (err) { UI.toast("Couldn't unarchive it: this browser's storage is full or blocked.", 'err'); return false; }
+        const open = S.sel && S.sel.endsWith(':hb:' + id);
+        showHomebrew();
+        if (open) openEntry(byKey.get(S.sel));
+        return true;
+    }
     $('#cp-hbarch-body').addEventListener('click', async (ev) => {
+        const r = ev.target.closest('[data-hb-read]');
+        if (r) { dlg('cp-hbarch').close(); return readArchived(Homebrew.mine().find((x) => x.id === r.dataset.hbRead)); }
         const b = ev.target.closest('[data-unarchive]');
-        if (!b) return;
-        try { await Homebrew.setArchived(b.dataset.unarchive, false); } catch (err) { return UI.toast("Couldn't unarchive it: this browser's storage is full or blocked.", 'err'); }
+        if (!b || !await unarchive(b.dataset.unarchive)) return;
         b.closest('.rowi').remove();
         if (!$('#cp-hbarch-body').children.length) dlg('cp-hbarch').close();
-        showHomebrew();
     });
     async function shareTo(e, box) {
         box.disabled = true;
@@ -787,6 +1019,8 @@ document.addEventListener('DOMContentLoaded', () => {
         box.disabled = false;
     }
     async function removeFromCampaign(e, c, ref) {
+        const camp = (e.raw.camps || []).find((x) => x.ref === ref);
+        if (!await ask(`Take ${e.name} out of ${camp ? camp.name : 'the campaign'}? Sheets keep their copy.`, 'Remove')) return;
         try { await Homebrew.removeFrom(c, ref); } catch (x) { return note("Couldn't remove it. Check your connection and try again.", 'err'); }
         showHomebrew();
         const still = byKey.get(key(e));

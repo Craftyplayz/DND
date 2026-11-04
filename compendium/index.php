@@ -84,8 +84,13 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
             <form class="form" id="cp-hb-form" novalidate>
                 <div class="form" id="cp-hb-fields"></div>
                 <p id="cp-hb-err" hidden></p>
-                <div class="actions"><button type="button" class="btn" data-close>Cancel</button><button class="btn primary">Save</button></div>
+                <div class="actions"><button type="button" class="btn" data-hb-cancel>Cancel</button><button class="btn primary">Save</button></div>
             </form>
+        </dialog>
+
+        <dialog class="dlg" id="cp-hbask" aria-labelledby="cp-hbask-t">
+            <p id="cp-hbask-t"></p>
+            <div class="actions"><button type="button" class="btn" id="cp-hbask-no"></button><button type="button" class="btn primary" id="cp-hbask-yes"></button></div>
         </dialog>
 
         <dialog class="dlg" id="cp-hbarch" aria-labelledby="cp-hbarch-t">
@@ -97,6 +102,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
 
     <?php site_footer(); ?>
     <script src="<?= h(asset('/assets/js/fuzzy.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/compendium.js')) ?>" defer></script>
 </body>
