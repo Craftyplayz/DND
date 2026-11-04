@@ -59,7 +59,7 @@ $BEGIN = function () use (&$is, $A, $c) {
     $is('after that, the usual rule: a re-roll is ignored', [$rl(3), array_values(array_filter(fi_read($A, $cid)['entries'], fn($e) => ($e['char'] ?? '') === 'lock'))[0]['init']], [false, 25]);
     $is('no longer asked', fi_view($A, $c2, '222')['canRoll'], []);
     fi_roll($A, $c2, ['sub' => '111', 'name' => 'Dee'], ['title' => 'Initiative', 'mon' => 'gob1', 'total' => 2, 'expr' => '1d20', 'fight' => $f['n']]);
-    $is('a roll for the sheet monster doesn\'t touch a copy', count(array_filter(fi_read($A, $cid)['entries'], fn($e) => !empty($e['copy']) && $e['init'] === 2)), 0);
+    $is('a roll for the sheet monster reaches its copies, in place of a separate entry', count(array_filter(fi_read($A, $cid)['entries'], fn($e) => !empty($e['copy']) && $e['init'] === 2)) > 0, true);
     $is('a copy gives no way into the sheet save', fi_entry_mon($A, ['id' => $cid] + $c2, 'cp1'), null);
     @mkdir("$A/campaigns/$cid/maps");
     file_put_contents("$A/campaigns/$cid/maps/opts.json", json_encode(['fx' => false, 'ac' => false]));

@@ -374,7 +374,14 @@ function fi_roll($accounts, $c, $user, $roll)
         $match = fn($x) => ($x['char'] ?? null) === $char;
         $new = ['kind' => 'pc', 'char' => $char, 'hidden' => false];
     } elseif ($dm && ($m = fi_monster($accounts, $c, (string)($roll['mon'] ?? ''), $user['sub']))) {
-        $match = fn($x) => ($x['mon'] ?? null) === $m['id'] && empty($x['copy']);
+        // the map's copies of this monster all take the roll, at any point in the fight, and no separate entry is added
+        $copies = array_values(array_filter($f['entries'], fn($x) => ($x['mon'] ?? null) === $m['id'] && !empty($x['copy'])));
+        if ($copies) {
+            $bonus = preg_match('/([+\-−])\s*(\d+)\s*$/u', (string)($roll['expr'] ?? ''), $b) ? ($b[1] === '+' ? 1 : -1) * (int)$b[2] : 0;
+            foreach ($copies as $e) fi_place($f, array_merge($e, ['init' => (int)$roll['total'], 'bonus' => $bonus, 'secret' => ($roll['vis'] ?? 'public') !== 'public']));
+            return fi_write($accounts, $c['id'], $f);
+        }
+        $match = fn($x) => ($x['mon'] ?? null) === $m['id'];
         $new = ['kind' => 'monster', 'mon' => $m['id'], 'by' => $user['sub'], 'name' => mb_substr((string)($m['name'] ?? ''), 0, 80), 'hidden' => false, 'ac' => null];
     } else return false;
     $i = -1;

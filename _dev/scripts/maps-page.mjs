@@ -157,7 +157,7 @@ try {
     await dm.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: 't', bubbles: true })); 1`);
     is('the Token Browser opens again after closing', await until(dm, `!!document.querySelector('.mpt-browser')`, Boolean), true);
     is('Token Browser opens on Monsters', await until(dm, text('.mpt-browserh'), (t) => t.includes('Token Browser')).then(() => until(dm, `!!document.querySelector('[data-add="mon:gob"]')`, Boolean)), true);
-    is('the Compendium is listed under your monsters', await until(dm, text('.mpt-list'), (t) => t.includes('COMPENDIUM'), 15000).then((t) => t.includes('YOUR MONSTERS')), true);
+    is('the Compendium is listed under your monsters, grouped by encounter', await until(dm, text('.mpt-list'), (t) => t.includes('COMPENDIUM'), 15000).then((t) => t.includes('UNSORTED') && t.includes('Add all (2)')), true);
     await dm.ev(`(() => { const i = document.querySelector('[data-mpi=brq]'); i.value = 'gob'; i.dispatchEvent(new Event('input', { bubbles: true })); })(); 1`);
     is('search narrows the list, keeping the field focused-safe', await until(dm, `!document.querySelector('[data-add="mon:ogre"]')`, Boolean), true);
     await dm.ev(`(() => { const i = document.querySelector('[data-mpi=brq]'); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); })(); 1`);
@@ -213,9 +213,8 @@ try {
     await click(dm, '[data-mpa=addall]');
     is('matching monsters share a row', await until(dm, text('[data-mp=side] .mpt-rows'), (t) => t.includes('x2')).then((t) => [t.includes('1 PLAYERS'), t.includes('3 ENEMIES')]), [true, true]);
     is('the encounter is saved with the map', await until(dm, '1', () => mapJson().enc?.ids?.length === 4, 5000).then(() => mapJson().enc.ids.length), 4);
-    await click(dm, '[data-mpa=auto][data-v=enemy]');
-    await until(dm, '1', () => mapJson().enc.init[key('Goblin A')] !== undefined, 5000);
-    is('copies of one monster roll one number', await until(dm, '1', () => mapJson().enc.init[key('Goblin A')] === mapJson().enc.init[key('Goblin B')], 3000).then(() => true), true);
+    is('monsters have no number until rolled', mapJson().enc.init[key('Goblin A')], undefined);
+    is('...party characters do', typeof mapJson().enc.init[lockK], 'number');
     await click(dm, '[data-mpa=start]');
     is('Start combat becomes Initiative Order', await until(dm, text('[data-mp=side] h2'), (t) => t === 'Initiative Order'), 'Initiative Order');
     const f0 = await fight(SID.dm);
@@ -230,7 +229,23 @@ try {
     is('revealed: it joins the players\' order live', await until(pat, `(${tilesOf}).includes('Ogre')`, Boolean), true);
     await mapsApi(SID.dm, { op: 'fogset', m, ops: [{ on: true, poly: [[800, 0], [1600, 0], [1600, 1200], [800, 1200]] }] });
     is('covered again: it leaves, live', await until(pat, `!(${tilesOf}).includes('Ogre')`, Boolean), true);
-    const t0 = f0.turn;
+    const gobs = f0.entries.filter((e) => e.mon === 'gob');
+    is('Start combat rolled for them, one roll for a kind', [gobs.length, gobs[0].init != null, gobs[0].init === gobs[1].init], [2, true, true]);
+    is('the list stays blank for the next fight', mapJson().enc.init[key('Goblin A')], undefined);
+    await until(dm, `!!document.querySelector('[data-fadd]')`, Boolean);
+    await dm.ev(`(() => { const f = document.querySelector('[data-fadd]'); f.name.value = 'Lair action'; f.init.value = '20'; f.requestSubmit(); })(); 1`);
+    is('an extra entry joins the order', await until(dm, text('[data-mp=side] .mpt-rows'), (t) => t.includes('Lair action')).then((t) => t.includes('Lair action')), true);
+    const lair = () => fight(SID.dm).then((f) => f.entries.findIndex((e) => e.name === 'Lair action'));
+    const at = await lair();
+    await until(dm, `!document.querySelectorAll('[data-mpa=fmove][data-dir="1"]')[${at}]?.disabled`, Boolean);
+    await dm.ev(`document.querySelectorAll('[data-mpa=fmove][data-dir="1"]')[${at}].click(); 1`);
+    let moved = -1; for (let i = 0; i < 30 && moved !== at + 1; i++) { await sleep(150); moved = await lair(); }
+    is('the down button moves it', moved, at + 1);
+    const lairId = (await fight(SID.dm)).entries.find((e) => e.name === 'Lair action').id;
+    await until(dm, `!!document.querySelector('[data-mpa=unfight][data-v="${lairId}"]')`, Boolean);
+    await dm.ev(`document.querySelector('[data-mpa=unfight][data-v="${lairId}"]').click(); 1`);
+    is('the row\'s ✕ removes it', await until(dm, text('[data-mp=side] .mpt-rows'), (t) => !t.includes('Lair action')).then((t) => t.includes('Lair action')), false);
+    const t0 = (await fight(SID.dm)).turn;
     await until(dm, `!document.querySelector('[data-mpa=next]')?.disabled`, Boolean);
     await click(dm, '[data-mpa=next]');
     is('Next moves the turn', await until(dm, '1', async () => true).then(() => until(dm, `BM.state.fight?.turn`, (v) => v && v !== t0)) !== t0, true);
@@ -296,6 +311,15 @@ try {
     await until(dm, `!!document.querySelector('[data-mpa=ptmode]')`, Boolean);
     await drag(dm, [[200, 200]]);
     is('a ping shows on the player\'s map', await until(pat, `!!document.querySelector('.mp-ping')`, Boolean), true);
+
+    // Add all: the whole Monster Sheet group at once
+    const nToks = await dm.ev('BM.state.m.tokens.filter((t) => t.placed).length');
+    await rail(dm, 'tokens');
+    await until(dm, `!!document.querySelector('[data-mpa=brtab][data-v=mon]')`, Boolean);
+    await click(dm, '[data-mpa=brtab][data-v=mon]');
+    await until(dm, `!!document.querySelector('[data-mpa=addenc]')`, Boolean);
+    await click(dm, '[data-mpa=addenc]');
+    is('Add all places every monster in the group', await until(dm, 'BM.state.m.tokens.filter((t) => t.placed).length', (n) => n === nToks + 2), nToks + 2);
 
     // Hide map: players wait again; settings hide effects
     await click(dm, '[data-mpa=hidemap]');

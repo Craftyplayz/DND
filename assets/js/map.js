@@ -361,7 +361,7 @@ window.BattleMap = (() => {
                 body = `<div class="mpt-row" style="flex-wrap:nowrap"><input class="field" data-mpi="brq" type="search" placeholder="Search monsters" aria-label="Search monsters" value="${esc(S.brQ)}"><button type="button" class="mpt-ico${S.brFilters ? ' on' : ''}" data-mpa="brfilter"${pressed(S.brFilters)} aria-label="Filters" title="Filters">${ph('Fi')}</button></div>
                     ${S.brFilters ? `<div class="mpt-row"><select class="field" data-mpi="brtype" aria-label="Creature type">${opt(S.brType, types, 'Any type')}</select><select class="field" data-mpi="brsize" aria-label="Size">${opt(S.brSize, Object.values(SIZE_NAMES), 'Any size')}</select><select class="field" data-mpi="brcr" aria-label="Challenge rating">${opt(S.brCr, crs, 'Any CR')}</select></div>` : ''}
                     <div class="mpt-list">${wait.length ? `<p class="mpt-seclabel">NOT PLACED</p>${wait.map((t) => row('tok:' + t.k, t.name, SIZE_NAMES[t.size] || '', t.art)).join('')}` : ''}
-                    ${mine.length ? `<p class="mpt-seclabel">YOUR MONSTERS</p>${mine.map((x) => row('mon:' + x.id, x.name, [SIZE_NAMES[x.size], x.type].filter(Boolean).join(' '))).join('')}` : ''}
+                    ${[...new Set(mine.map((x) => x.enc || ''))].map((g) => { const l = mine.filter((x) => (x.enc || '') === g); return `<p class="mpt-seclabel">${esc((g || 'Unsorted').toUpperCase())}<button type="button" class="btn small" data-mpa="addenc" data-v="${esc(g)}">Add all (${l.length})</button></p>${l.map((x) => row('mon:' + x.id, x.name, [SIZE_NAMES[x.size], x.type].filter(Boolean).join(' '))).join('')}`; }).join('')}
                     ${shown.length ? `<p class="mpt-seclabel">COMPENDIUM</p>${shown.map(([id, name, cr, type, , size]) => row('cmp:' + id, name, `CR ${crText(cr)} · ${[size, type].filter(Boolean).join(' ')}`)).join('')}${all.length > shown.length ? `<p class="mpt-hint">${all.length - shown.length} more. Search to narrow it down.</p>` : ''}` : ''}
                     ${!wait.length && !mine.length && !shown.length ? `<p class="mpt-hint">${S.comp ? 'No monsters match.' : 'Loading monsters...'}</p>` : ''}</div>`;
             }
@@ -405,6 +405,14 @@ window.BattleMap = (() => {
             const out = await post({ op: 'place', mon, x, y, ...(src ? stats(src) : {}) });
             if (out) { await load(); if (out.k) { S.picks = new Set([out.k]); S.panel = null; drawToks(); drawMenu(); drawSide(); } }
         }
+        // a whole Monster Sheet encounter, side by side from the middle of the view
+        async function addGroup(g) {
+            const q = S.brQ.toLowerCase(), list = (S.mons || []).filter((x) => (x.enc || '') === g && (!q || x.name.toLowerCase().includes(q)) && (!S.brType || x.type === S.brType) && (!S.brSize || SIZE_NAMES[x.size] === S.brSize) && (!S.brCr || x.cr === S.brCr));
+            const [mx, my] = viewMid(), cols = Math.ceil(Math.sqrt(list.length)), gap = S.m.grid.s * 2;
+            for (const [i, x] of list.entries()) await addToken('mon:' + x.id, [mx + (i % cols) * gap, my + Math.floor(i / cols) * gap]);
+            S.picks.clear(); S.panel = null;
+            draw();
+        }
         function drawTray() {
             const el = part('tray');
             if (!el) return;
@@ -420,13 +428,14 @@ window.BattleMap = (() => {
         const saveEnc = (e) => { S.m.enc = e; drawSide(); drawMenu(); return post({ op: 'enc', enc: e }); };
         const baseOf = (t) => t.name.replace(/ [A-Z]$/, '');
         const defaultInit = (t) => 10 + (t.bonus || 0);
+        const d20 = (t) => 1 + Math.floor(Math.random() * 20) + (t.bonus || 0);
         function addEnc(list) {
             const e = encOf();
             for (const t of list) {
                 if (e.ids.includes(t.k)) continue;
-                const twin = t.kind === 'monster' ? e.ids.find((k) => { const x = tokOf(k); return x && x.mon === t.mon; }) : null;
+                const twin = t.kind === 'monster' ? e.ids.find((k) => { const x = tokOf(k); return x && x.kind === 'monster' && baseOf(x) === baseOf(t); }) : null;
                 e.ids.push(t.k); e.side[t.k] = t.kind === 'pc' ? 'party' : 'enemy';
-                if (e.init[t.k] === undefined) e.init[t.k] = twin ? e.init[twin] : defaultInit(t);
+                if (e.init[t.k] === undefined) { if (t.kind === 'pc') e.init[t.k] = defaultInit(t); else if (twin && e.init[twin] !== undefined) e.init[t.k] = e.init[twin]; }
             }
             return saveEnc(e);
         }
@@ -453,17 +462,18 @@ window.BattleMap = (() => {
             let html;
             if (f) {
                 const at = f.entries.findIndex((e) => e.id === f.turn), tokFor = (e) => (S.m?.tokens || []).find((t) => t.fight === e.id);
-                html = `<h2>Initiative Order</h2><div class="mpt-rows">${f.entries.map((e) => {
+                html = `<h2>Initiative Order</h2><div class="mpt-rows">${f.entries.map((e, i) => {
                     const t = tokFor(e), dead = e.down || e.status === 'down';
-                    return `<div class="mpt-orow${e.id === f.turn ? ' on' : ''}${dead ? ' dead' : ''}"${e.id === f.turn ? ' aria-current="true"' : ''}>${port(e)}<div style="min-width:0"><button type="button" class="mpt-rname" data-mpa="pick" data-v="${esc(t?.k || '')}" title="Select on the map">${esc(e.name)}${e.hidden ? '<span>hidden</span>' : ''}${e.archived ? '<span>Archived</span>' : ''}${e.missing ? '<span>Monster gone</span>' : ''}</button><div class="mpt-facts">${e.ac != null ? `<span>AC: <b>${esc(e.ac)}</b></span>` : ''}<label>Initiative: <input class="field mpt-num small" type="number" inputmode="numeric" data-fe="${esc(e.id)}" value="${e.init ?? ''}" placeholder="?" aria-label="${esc(e.name)} initiative"${off}></label></div></div>${e.hp ? `<button type="button" class="mpt-hpb" data-mpa="pickhp" data-v="${esc(t?.k || '')}" data-e="${esc(e.id)}" title="Change hit points"><b>${e.hp.cur}</b> / ${e.hp.max ?? '?'}</button>` : '<span></span>'}</div>`;
+                    return `<div class="mpt-orow${e.id === f.turn ? ' on' : ''}${dead ? ' dead' : ''}"${e.id === f.turn ? ' aria-current="true"' : ''}>${port(e)}<div style="min-width:0"><button type="button" class="mpt-rname" data-mpa="pick" data-v="${esc(t?.k || '')}" title="Select on the map">${esc(e.name)}${e.hidden ? '<span>hidden</span>' : ''}${e.archived ? '<span>Archived</span>' : ''}${e.missing ? '<span>Monster gone</span>' : ''}</button><div class="mpt-facts">${e.ac != null ? `<span>AC: <b>${esc(e.ac)}</b></span>` : ''}<label>Initiative: <input class="field mpt-num small" type="number" inputmode="numeric" data-fe="${esc(e.id)}" value="${e.init ?? ''}" placeholder="?" aria-label="${esc(e.name)} initiative"${off}></label><span class="mpt-mv"><button type="button" data-mpa="fmove" data-v="${esc(e.id)}" data-dir="-1" aria-label="Move ${esc(e.name)} up" title="Move up"${i ? off : ' disabled'}>↑</button><button type="button" data-mpa="fmove" data-v="${esc(e.id)}" data-dir="1" aria-label="Move ${esc(e.name)} down" title="Move down"${i < f.entries.length - 1 ? off : ' disabled'}>↓</button><button type="button" data-mpa="unfight" data-v="${esc(e.id)}" aria-label="Remove ${esc(e.name)} from combat" title="Remove from combat"${off}>✕</button></span></div></div>${e.hp ? `<button type="button" class="mpt-hpb" data-mpa="pickhp" data-v="${esc(t?.k || '')}" data-e="${esc(e.id)}" title="Change hit points"><b>${e.hp.cur}</b> / ${e.hp.max ?? '?'}</button>` : '<span></span>'}</div>`;
                 }).join('') || '<p class="mpt-hint">Nobody yet.</p>'}</div>
+                <form class="mpt-addent" data-fadd><input class="field" name="name" placeholder="Lair action" maxlength="80" aria-label="Name of an extra entry"${off}><input class="field" name="init" type="number" inputmode="numeric" placeholder="20" aria-label="Its initiative"${off}><button class="btn small"${off}>Add entry</button></form>
                 <div class="mpt-foot">${f.phase === 'rolling' ? `<button type="button" class="btn primary grow" data-mpa="round1"${f.entries.length ? off : ' disabled'}>Start round 1</button><button type="button" class="btn" data-mpa="end"${off}>End combat</button>` : `<button type="button" class="mpt-ico" data-mpa="prev" aria-label="Previous turn" title="Previous turn"${off}>${ph('←')}</button><div class="mpt-stat">ROUND<b>${f.round}</b></div><div class="mpt-stat">TURN<b>${at + 1}</b></div><div class="mpt-stat">TIME<b data-fi-time="${f.startedAt}" data-skew="${(f.now || Date.now()) - Date.now()}">${clock(f.startedAt, (f.now || Date.now()) - Date.now())}</b></div>
                     <div class="mpt-next"><button type="button" class="btn primary" data-mpa="next"${off}>Next</button><button type="button" class="btn primary" data-mpa="endpop" aria-expanded="${S.endPop}" aria-label="More combat options" title="More combat options">▲</button></div>${S.endPop ? `<div class="mpt-endpop"><button type="button" class="btn" data-mpa="end"${off}>End combat</button></div>` : ''}`}</div>`;
             } else if (!S.m) html = '<h2>Combat Encounter</h2><p class="mpt-hint">Open a map to run an encounter.</p>';
             else {
                 const e = encOf();
-                const groups = (side) => { const by = new Map(); for (const k of e.ids) { if (e.side[k] !== side) continue; const t = tokOf(k); if (!t) continue; const key = t.kind === 'monster' && t.mon ? t.mon + '|' + e.init[k] : k; if (!by.has(key)) by.set(key, []); by.get(key).push(t); } return [...by.values()]; };
-                const row = (g) => { const t = g[0], list = g.map((x) => x.k).join(); return `<div class="mpt-crow"><input class="field mpt-num" type="number" inputmode="numeric" data-initg="${esc(list)}" value="${e.init[t.k] ?? ''}" aria-label="${esc(t.name)} initiative"${off}>${port(t)}<div style="min-width:0"><button type="button" class="mpt-rname" data-mpa="pick" data-v="${esc(t.k)}">${esc(g.length > 1 ? baseOf(t) : t.name)}${g.length > 1 ? `<span>x${g.length}</span>` : ''}${t.hidden ? '<span>hidden</span>' : ''}</button><div class="mpt-facts">${t.ac != null ? `<span>AC: <b>${esc(t.ac)}</b></span>` : ''}${t.hp ? `<span>HP: <b>${t.hp.max ?? t.hp.cur}</b></span>` : ''}<span>Initiative Bonus: <b>${sign(t.bonus || 0)}</b></span></div></div><button type="button" class="mpt-ico mpt-x" data-mpa="unenc" data-v="${esc(list)}" aria-label="Remove ${esc(t.name)}" title="Remove from the encounter">✕</button></div>`; };
+                const groups = (side) => { const by = new Map(); for (const k of e.ids) { if (e.side[k] !== side) continue; const t = tokOf(k); if (!t) continue; const key = t.kind === 'monster' ? baseOf(t) + '|' + e.init[k] : k; if (!by.has(key)) by.set(key, []); by.get(key).push(t); } return [...by.values()]; };
+                const row = (g) => { const t = g[0], list = g.map((x) => x.k).join(); return `<div class="mpt-crow"><input class="field mpt-num" type="number" inputmode="numeric" data-initg="${esc(list)}" value="${e.init[t.k] ?? ''}" placeholder="?" aria-label="${esc(t.name)} initiative"${off}>${port(t)}<div style="min-width:0"><button type="button" class="mpt-rname" data-mpa="pick" data-v="${esc(t.k)}">${esc(g.length > 1 ? baseOf(t) : t.name)}${g.length > 1 ? `<span>x${g.length}</span>` : ''}${t.hidden ? '<span>hidden</span>' : ''}</button><div class="mpt-facts">${t.ac != null ? `<span>AC: <b>${esc(t.ac)}</b></span>` : ''}${t.hp ? `<span>HP: <b>${t.hp.max ?? t.hp.cur}</b></span>` : ''}<span>Initiative Bonus: <b>${sign(t.bonus || 0)}</b></span></div></div><button type="button" class="mpt-ico mpt-x" data-mpa="unenc" data-v="${esc(list)}" aria-label="Remove ${esc(t.name)}" title="Remove from the encounter">✕</button></div>`; };
                 const P = groups('party'), E = groups('enemy'), nP = e.ids.filter((k) => e.side[k] === 'party' && tokOf(k)).length, nE = e.ids.filter((k) => e.side[k] === 'enemy' && tokOf(k)).length, spare = S.m.tokens.filter((t) => t.placed && !e.ids.includes(t.k)).length, dif = difficulty(e);
                 const sec = (n, word, side) => (n ? `<div class="mpt-seclabel">${n} ${word}<button type="button" class="btn small" data-mpa="auto" data-v="${side}"${off}>Auto initiative</button></div>` : '');
                 html = `<h2>Combat Encounter</h2>${spare ? `<div><button type="button" class="btn small" data-mpa="addall"${off}>Add all tokens (${spare})</button></div>` : ''}
@@ -474,11 +484,12 @@ window.BattleMap = (() => {
             if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; }
         }
         function startCombat() {
-            const e = encOf(), items = [];
+            const e = encOf(), items = [], rolled = {};
             for (const k of e.ids) {
                 const t = tokOf(k);
                 if (!t) continue;
-                const init = +e.init[k] || 0;
+                // no number yet: roll now, one roll for all of a kind; the list keeps it blank, so the next fight rolls again
+                const init = e.init[k] ?? (t.kind === 'pc' ? defaultInit(t) : t.kind === 'monster' ? (rolled[baseOf(t)] ??= d20(t)) : null);
                 if (t.kind === 'pc') items.push({ kind: 'pc', char: t.char, init });
                 else if (t.kind === 'monster') items.push({ kind: 'monster', mon: t.mon, by: t.by, copy: t.copy, init, bonus: t.bonus || 0, ac: t.ac, hidden: !!t.hidden });
                 else items.push({ kind: 'plain', name: t.name, init });
@@ -856,7 +867,7 @@ window.BattleMap = (() => {
                 case 'pick': if (!v) return; S.picks = new Set([v]); S.panel = null; { const x = tokOf(v); if (x?.placed) centreOn(x); } drawToks(); return drawMenu();
                 case 'pickhp': if (!v) return entryHp(S.fight?.entries.find((x) => x.id === b.dataset.e)); S.picks = new Set([v]); S.panel = 'hp'; { const x = tokOf(v); if (x?.placed) centreOn(x); } drawToks(); return drawMenu();
                 case 'addall': return addEnc(S.m.tokens.filter((x) => x.placed));
-                case 'auto': { const done = {}; for (const k of en.ids) if (en.side[k] === v) { const x = tokOf(k); if (x) { const key = x.kind === 'monster' && x.mon ? x.mon : k; done[key] ??= 1 + Math.floor(Math.random() * 20) + (x.bonus || 0); en.init[k] = done[key]; } } return saveEnc(en); }
+                case 'auto': { const done = {}; for (const k of en.ids) if (en.side[k] === v) { const x = tokOf(k); if (x) { const key = x.kind === 'monster' ? baseOf(x) : k; done[key] ??= d20(x); en.init[k] = done[key]; } } return saveEnc(en); }
                 case 'side1': en.side[v] = en.side[v] === 'party' ? 'enemy' : 'party'; return saveEnc(en);
                 case 'unenc': { const list = v.split(','); en.ids = en.ids.filter((x) => !list.includes(x)); return saveEnc(en); }
                 case 'encclear': if (await ask('Clear this encounter?', 'The tokens stay on the map.', 'Clear encounter')) saveEnc({ ids: [], init: {}, side: {} }); return;
@@ -864,7 +875,14 @@ window.BattleMap = (() => {
                 case 'next': case 'prev': case 'round1': b.disabled = true; return window.Fight.act(c, a);
                 case 'endpop': S.endPop = !S.endPop; return drawSide();
                 case 'end': S.endPop = false; drawSide(); if (await ask('End this fight?', 'The order goes back to the Combat Encounter panel. Tokens stay where they are. The order and rounds are kept in the past fights.', 'End combat')) window.Fight.act(c, 'end'); return;
-                case 'unfight': return window.Fight.act(c, 'remove', { e: v });
+                case 'unfight': {
+                    const pl = S.m?.tokens.find((x) => x.fight === v && x.kind === 'plain');
+                    await window.Fight.act(c, 'remove', { e: v });
+                    if (pl) await post({ op: 'remove', k: pl.k }, true); // an extra entry's token goes with it
+                    return load();
+                }
+                case 'fmove': b.disabled = true; return window.Fight.act(c, 'move', { e: v, dir: +b.dataset.dir });
+                case 'addenc': b.disabled = true; return addGroup(v);
                 case 'panel': S.panel = S.panel === v ? null : v; return drawMenu();
                 case 'togglehide': { const on = !t.hidden; await Promise.all(picks.filter((x) => x.kind !== 'pc').map((x) => setHidden(x, on))); return load(); }
                 case 'combat': if (S.fight) { await addToFight(picks); return load(); } S.sideOn = true; loadParty(); await addEnc(picks); return drawTop();
@@ -884,16 +902,27 @@ window.BattleMap = (() => {
             }
         });
         async function addToFight(list) {
-            const have = new Set((S.fight?.entries || []).map((e) => e.id)), en = encOf(), items = [];
+            const have = new Set((S.fight?.entries || []).map((e) => e.id)), en = encOf(), items = [], rolled = {};
             for (const t of list) {
                 if (t.fight && have.has(t.fight)) continue;
-                const init = en.init[t.k] ?? defaultInit(t);
+                // joining mid-fight: the number it was given, or its kind's in the fight or one picked already, or a roll
+                const kin = S.m.tokens.find((x) => x.kind === 'monster' && x.fight && baseOf(x) === baseOf(t) && S.fight.entries.find((e) => e.id === x.fight)?.init != null);
+                const init = en.init[t.k] ?? (t.kind === 'pc' ? defaultInit(t) : t.kind === 'monster' ? (rolled[baseOf(t)] ??= kin ? S.fight.entries.find((e) => e.id === kin.fight).init : d20(t)) : null);
                 if (t.kind === 'pc') items.push({ kind: 'pc', char: t.char, init });
                 else if (t.kind === 'monster') items.push({ kind: 'monster', mon: t.mon, by: t.by, copy: t.copy, init, bonus: t.bonus || 0, ac: t.ac });
                 else items.push({ kind: 'plain', name: t.name, init });
             }
             if (items.length) await window.Fight.act(c, 'add', { items });
         }
+        root.addEventListener('submit', async (e) => {
+            const f = e.target;
+            if (!f.matches('[data-fadd]')) return;
+            e.preventDefault();
+            const name = f.name.value.trim(), init = f.init.value;
+            if (!name) return f.name.focus();
+            document.activeElement?.blur();
+            if (await window.Fight.act(c, 'add', { items: [{ kind: 'plain', name, init: init === '' ? null : +init }] })) load();
+        });
         root.addEventListener('input', (e) => {
             const i = e.target, k = i.dataset?.mpi;
             if (k === 'brq') { S.brQ = i.value; drawOpts(); }
@@ -921,7 +950,7 @@ window.BattleMap = (() => {
             if (k === 'brtype') { S.brType = i.value; return drawOpts(); }
             if (k === 'brsize') { S.brSize = i.value; return drawOpts(); }
             if (k === 'brcr') { S.brCr = i.value; return drawOpts(); }
-            if (i.dataset?.initg) { for (const x of i.dataset.initg.split(',')) en.init[x] = parseInt(i.value, 10) || 0; i.blur(); return saveEnc(en); }
+            if (i.dataset?.initg) { for (const x of i.dataset.initg.split(',')) { if (i.value === '') delete en.init[x]; else en.init[x] = parseInt(i.value, 10) || 0; } i.blur(); return saveEnc(en); }
             if (i.dataset?.fe) { i.blur(); return window.Fight.act(c, 'init', { e: i.dataset.fe, value: i.value === '' ? null : +i.value }); }
         });
         addEventListener('keydown', (e) => {
