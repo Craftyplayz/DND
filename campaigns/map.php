@@ -27,18 +27,23 @@ if (!$c) http_response_code(404);
 <?php if ($c): ?>
     <main class="mp" id="main" data-c="<?= h($c['id']) ?>" data-me="<?= h(live_key($c['id'], $user['sub'])) ?>"<?= $isDm ? ' data-dm' : '' ?>>
         <h1 class="mp-sr">Map · <?= h($c['name']) ?></h1>
-        <div class="bar mp-bar"><a class="btn small" href="/campaigns/<?= h($c['id']) ?>"><?= h($c['name']) ?></a><span class="mp-barin" data-mp="bar"></span>
-            <?php if ($isDm): // the TV (ROADMAP 1.7): a tab of its own, to drag to the TV ?><a class="btn small" href="/campaigns/<?= h($c['id']) ?>/table" target="_blank" rel="noopener" data-act="tv">Open Table view</a><?php endif; ?><?= auth_button() ?></div>
-        <div class="mp-tools bar" data-mp="tools" hidden></div>
-        <div class="mp-wrap">
-            <div class="mp-view" data-mp="view" aria-label="Map"></div>
-            <aside class="mp-side" aria-label="<?= $isDm ? 'Fight, tokens and maps' : 'Turn order and your token' ?>">
-                <p class="note" data-mp="paused" hidden></p>
-                <section class="card cp-fight" data-mp="fight" aria-label="Fight" hidden></section>
-                <section class="card" data-mp="tok" hidden></section>
-                <section class="card" data-mp="tray" hidden></section>
-                <?php if ($isDm): ?><section class="card" data-mp="maps"></section><?php endif; ?>
-            </aside>
+        <header class="mpt-top">
+            <div class="mpt-tl"><a class="btn small" href="/campaigns/<?= h($c['id']) ?>"><?= h($c['name']) ?></a><span class="mpt-tl" data-mp="tl"></span></div>
+            <div class="mpt-tr" data-mp="tracker" aria-label="Turn order"></div>
+            <div class="mpt-tright"><span data-mp="menuPick"></span><?= auth_button() ?></div>
+        </header>
+        <div class="mpt-main">
+            <aside class="mpt-side" data-mp="side" aria-label="Combat" hidden></aside>
+            <div class="mpt-stage">
+                <div class="mp-view" data-mp="view" aria-label="Map"></div>
+                <nav class="mpt-rail" data-mp="rail" aria-label="Map tools"></nav>
+                <section class="mpt-fly" data-mp="opts" hidden></section>
+                <div class="mpt-menu" data-mp="menu" hidden></div>
+                <div class="mpt-br" data-mp="zoom"></div>
+                <p class="note mpt-paused" data-mp="paused" hidden></p>
+                <?php if (!$isDm): ?><section class="mpt-tray" data-mp="tray" hidden></section><?php endif; ?>
+                <div data-mp="fight" hidden></div>
+            </div>
         </div>
     </main>
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
@@ -46,9 +51,11 @@ if (!$c) http_response_code(404);
     <script src="<?= h(asset('/sheets/player/dmedit.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/conds.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
+    <?php if ($isDm): ?><script src="<?= h(asset('/sheets/monster/difficulty.js')) ?>" defer></script>
+    <script src="<?= h(asset('/sheets/monster/import.js')) ?>" defer></script><?php endif; ?>
     <script src="<?= h(asset('/assets/js/map.js')) ?>" defer></script>
     <script>
-        addEventListener('DOMContentLoaded', () => { const m = document.getElementById('main'); BattleMap.mount(m, m.dataset.c, { dm: 'dm' in m.dataset, me: m.dataset.me, full: true }); });
+        addEventListener('DOMContentLoaded', () => { document.body.classList.add('mp-body'); const m = document.getElementById('main'); window.BM = BattleMap.mount(m, m.dataset.c, { dm: 'dm' in m.dataset, me: m.dataset.me, full: true }); });
     </script>
 <?php else: ?>
     <?php site_header(); ?>

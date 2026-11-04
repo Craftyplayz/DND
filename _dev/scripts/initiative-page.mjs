@@ -60,7 +60,9 @@ const go = async (b, url) => { await b.go(url); for (let i = 0; i < 80 && !(awai
 const signIn = async (b, sid) => { await go(b, BASE + '/privacy/'); await b.ev(`localStorage.clear(); localStorage.setItem('hb-sheet-merged', '1'); document.cookie = 'dndsid=${sid}; path=/'`); };
 const text = (sel) => `document.querySelector('${sel}')?.textContent.replace(/\\s+/g, ' ').trim() || ''`;
 const click = (b, sel) => b.ev(`(() => { const e = document.querySelector(\`${sel}\`); if (!e) return false; e.click(); return true; })()`);
-const panel = text('[data-mp=fight]'); // the DM's controls on the map page
+const panel = text('[data-mp=side]'); // the DM's left panel on the map page
+const fop = async (op, extra = {}) => api(SID.dm, { act: 'fight', id: CAMP, op, v: JSON.parse(await fight(SID.dm)).fight?.v, ...extra });
+const openSide = (b) => until(b, `(() => { const s = document.querySelector('[data-mp=side]'); if (s && !s.hidden) return true; document.querySelector('[data-mpa=side]')?.click(); return false; })()`, Boolean);
 const MAP = `${BASE}/campaigns/${CAMP}/map`;
 const strip = text('#hb-fight');
 
@@ -76,10 +78,11 @@ try {
     is('Monster Sheet: a link to start the fight on the map', (await until(dm, text('#mon-fight'), (t) => t.includes('Start one on the map'))).includes('Start one on the map'), true);
     is('Monster Sheet: no fight controls', await dm.ev(`!document.querySelector('#mon-fight [data-fi]')`), true);
     await go(dm, MAP);
-    is('map page: the tracker offers a fight', (await until(dm, panel, (t) => t.includes('Start fight'))).includes('Start fight'), true);
+    await openSide(dm);
+    is('map page: no fight yet, the panel offers an encounter', (await until(dm, panel, (t) => t.includes('Combat Encounter'))).includes('Combat Encounter'), true);
 
     // the DM starts a fight; Pat gets a notice and rolls from it
-    await click(dm, '[data-fi=start]');
+    await fop('start');
     is('player sheet: only a prompt to roll, no order', [(await until(pat, strip, (t) => t.includes('Roll initiative'))).includes('The DM started a fight'), await pat.ev(`!document.querySelector('#hb-fight .fi-row, #hb-fight .fi-top')`)], [true, true]);
     await click(pat, '[data-fi=roll]');
     is('Lock rolled in and shows on the DM tracker', (await until(dm, panel, (t) => t.includes('Lock'))).includes('Lock'), true);
@@ -96,31 +99,34 @@ try {
     await click(dm, '#mon-side [data-act=fightadd][data-id=gob]'); await until(dm, `!document.querySelector('[data-act=fightadd][data-id=gob]')`, Boolean); await click(dm, '#mon-side [data-act=fightadd][data-id=ogre]');
     is('both monsters added', await until(dm, `document.querySelectorAll('#mon-side .mon-list .badge').length`, (v) => v >= 2).then(async () => JSON.parse(await fight(SID.dm)).fight.entries.length), 5);
     await go(dm, MAP);
-    is('map page: all five in the order', await until(dm, `document.querySelectorAll('[data-mp=fight] .fi-e').length`, (v) => v === 5), 5);
+    await openSide(dm);
+    is('map page: all five in the order', await until(dm, `document.querySelectorAll('[data-mp=side] .mpt-orow').length`, (v) => v === 5), 5);
     const dv = JSON.parse(await fight(SID.dm)).fight;
     const ogre = dv.entries.find((e) => e.mon === 'ogre');
     is('monster numbers for the DM: HP and AC', [ogre.hp, ogre.ac, dv.entries.find((e) => e.mon === 'gob').ac], [{ cur: 59, max: 59, temp: 0 }, 11, 15]);
-    await click(dm, `[data-fi=hide][data-fe="${ogre.id}"]`);
-    await until(dm, `!!document.querySelector('[data-mp=fight] .fi-e.hid')`, Boolean);
-    await click(dm, '[data-fi=round1]');
-    is('round 1', (await until(dm, panel, (t) => t.includes('Round 1'))).includes('Round 1'), true);
+    await fop('hide', { e: ogre.id, on: true });
+    await until(dm, text('[data-mp=side]'), (t) => t.includes('hidden'));
+    await click(dm, '[data-mpa=round1]');
+    is('round 1', (await until(dm, text('[data-mp=tracker] .mpt-trt'), (t) => t.includes('Round 1'))).includes('Round 1'), true);
 
     // two rounds: Next until round 3; the order and turns belong on the VTT, so Lock's sheet shows none of it
     let sawStrip = false;
-    for (let i = 0; i < 12 && !(await dm.ev(text('[data-mp=fight] .fi-top'))).includes('Round 3'); i++) {
-        // each Next moves the turn mark (.on) on the DM's tracker (the running clock left out); Lock's sheet gets the same
-        // news through the relay and must still show no strip (the old fixed wait looked after 0.6 s)
-        const turnOf = (rows, e) => `[...document.querySelectorAll('${rows}')].findIndex((x) => x.classList.contains('on')) + '|' + (${e}).replace(/\\d+:\\d\\d/g, '')`;
-        const top = await dm.ev(turnOf('[data-mp=fight] .fi-e', panel));
-        await click(dm, '[data-fi=next]');
-        await until(dm, turnOf('[data-mp=fight] .fi-e', panel), (t) => t !== top, 3000);
+    for (let i = 0; i < 12 && !(await dm.ev(text('[data-mp=tracker] .mpt-trt'))).includes('Round 3'); i++) {
+        // each Next moves the current row on the DM's panel; Lock's sheet gets the same news through the relay and must still show no strip
+        const turnOf = `document.querySelector('[data-mp=side] .mpt-orow.on .mpt-rname')?.textContent`;
+        const top = await dm.ev(turnOf);
+        await until(dm, `document.querySelector('[data-mpa=next]')?.disabled === false`, Boolean, 3000);
+        await click(dm, '[data-mpa=next]');
+        await until(dm, turnOf, (t) => t !== top, 3000);
         if (await until(pat, `!!document.querySelector('#hb-fight')`, Boolean, 600)) sawStrip = true;
     }
-    is('advanced two rounds', (await dm.ev(text('[data-mp=fight] .fi-top'))).includes('Round 3'), true);
+    is('advanced two rounds', (await dm.ev(text('[data-mp=tracker] .mpt-trt'))).includes('Round 3'), true);
     is("Lock's sheet showed no order, turn or round", sawStrip, false);
 
     // the DM damages the goblin from the tracker: players see Bloodied, never numbers
-    await dm.ev(`(() => { const f = document.querySelector('[data-mp=fight] .fi-hp[data-mon=gob]'); f.querySelector('input').value = '4'; f.querySelector('button[value=dmg]').click(); })()`);
+    await dm.ev(`[...document.querySelectorAll('[data-mp=side] .mpt-orow')].find((li) => li.textContent.includes('Goblin')).querySelector('[data-mpa=pickhp]').click(); 1`);
+    await until(dm, `!!document.querySelector('dialog[open] [data-hn]')`, Boolean);
+    await dm.ev(`document.querySelector('dialog[open] [data-hn]').value = '4'; document.querySelector('dialog[open] [data-h=dmg]').click(); 1`);
     is('goblin HP saved through the account', await until(dm, '1', () => goblin().hp.cur === 3), 1);
     is('server goblin HP', goblin().hp.cur, 3);
     for (const [who, sid] of [['Pat', SID.pat], ['Sam', SID.sam]]) {
@@ -134,7 +140,7 @@ try {
     // watched for as long as the old sleep gave the sheet to load the fight: no strip may show up in that time
     is('player reload: still no strip on the sheet', await until(pat, `!!document.querySelector('#hb-fight')`, Boolean, 1500), false);
     await go(dm, MAP);
-    is('DM reload: same fight', (await until(dm, panel, (t) => t.includes('Round 3'))).includes('Round 3'), true);
+    is('DM reload: same fight', (await until(dm, text('[data-mp=tracker] .mpt-trt'), (t) => t.includes('Round 3'))).includes('Round 3'), true);
     const after = JSON.parse(await fight(SID.dm)).fight;
     is('state unchanged by reloads', [after.round, after.turn, after.entries.length], [before.round, before.turn, before.entries.length]);
     // the campaign page: the player sees the order, the DM numbers
@@ -214,27 +220,30 @@ try {
     await go(dm, BASE + '/sheets/monster/');
     await until(dm, `!!document.querySelector('[data-act=side][data-id=gob]')`, Boolean);
     // archiving a monster that's in the fight (ROADMAP 0.5): it stays, marked Archived, until the DM removes it
-    const gobRow = `[...document.querySelectorAll('[data-mp=fight] .fi-e')].find((li) => li.textContent.includes('Goblin'))`;
+    const gobRow = `[...document.querySelectorAll('[data-mp=side] .mpt-orow')].find((li) => li.textContent.includes('Goblin'))`;
     while (Date.now() <= goblin().updated) await sleep(100); // the stale save above is stamped a second ahead
     await click(dm, '[data-act=side][data-id=gob]');
     await until(dm, `!!document.querySelector('[data-act=manage]')`, Boolean);
     await click(dm, '[data-act=manage]'); await click(dm, '[data-act=archive]');
     await until(dm, '1', () => { try { return !!goblin().archived; } catch { return false; } });
     await go(dm, MAP);
+    await openSide(dm);
     is('archived goblin stays in the fight, marked', await until(dm, `${gobRow}?.textContent.includes('Archived') || false`, Boolean), true);
     is('server: goblin archived, HP kept', [!!goblin().archived, goblin().hp.cur], [true, 3]);
-    await dm.ev(`${gobRow}.querySelector('[data-fi=remove]').click()`);
+    await fop('remove', { e: JSON.parse(await fight(SID.dm)).fight.entries.find((e) => e.mon === 'gob').id });
     is('the DM removes the archived goblin', await until(dm, `!${gobRow}`, Boolean), true);
     is('removed from the fight', JSON.parse(await fight(SID.dm)).fight.entries.some((e) => e.mon === 'gob'), false);
     // the DM's connection drops: the controls pause
-    await dm.ev(`(() => { const f = window.fetch; window.fetch = (u, o) => (window.cut && String(u).includes('fight.php') ? Promise.reject(new TypeError('offline')) : f(u, o)); window.cut = true; return Fight.load('${CAMP}').then(() => 1); })()`);
-    is('offline: controls paused', [(await dm.ev(panel)).includes('Offline, changes paused'), await dm.ev(`document.querySelector('[data-fi=next]').disabled`)], [true, true]);
-    await dm.ev(`window.cut = false; Fight.load('${CAMP}').then(() => 1)`);
-    is('back online: controls back', await until(dm, `document.querySelector('[data-fi=next]')?.disabled === false`, Boolean), true);
-    await click(dm, '[data-fi=end]');
-    is('end asks first', await until(dm, `!!document.querySelector('#fi-ask[open]')`, Boolean), true);
-    await click(dm, '#fi-ask button[value=yes]');
-    is('fight ended and kept', await until(dm, panel, (t) => t.includes('Start fight')).then(() => existsSync(join(ACCOUNTS, 'campaigns', CAMP, 'fights', '1.json'))), true);
+    await dm.ev(`(() => { const f = window.fetch; window.fetch = (u, o) => (window.cut && /fight\.php|maps\.php/.test(String(u)) ? Promise.reject(new TypeError('offline')) : f(u, o)); window.cut = true; return Promise.all([Fight.load('${CAMP}'), BM.load()]).then(() => 1); })()`);
+    is('offline: controls paused', [(await dm.ev(text('[data-mp=paused]'))).includes('Offline, changes paused'), await dm.ev(`document.querySelector('[data-mpa=next]').disabled`)], [true, true]);
+    await dm.ev(`window.cut = false; Promise.all([Fight.load('${CAMP}'), BM.load()]).then(() => 1)`);
+    is('back online: controls back', await until(dm, `document.querySelector('[data-mpa=next]')?.disabled === false`, Boolean), true);
+    await click(dm, '[data-mpa=endpop]');
+    await until(dm, `!!document.querySelector('.mpt-endpop [data-mpa=end]')`, Boolean);
+    await click(dm, '.mpt-endpop [data-mpa=end]');
+    is('end asks first', await until(dm, `!!document.querySelector('dialog[open] [value=yes]')`, Boolean), true);
+    await click(dm, 'dialog[open] [value=yes]');
+    is('fight ended and kept', await until(dm, panel, (t) => t.includes('Combat Encounter')).then(() => existsSync(join(ACCOUNTS, 'campaigns', CAMP, 'fights', '1.json'))), true);
     is('table log: started and ended only', JSON.parse(await (await fetch(`${BASE}/campaigns/log.php?c=${CAMP}`, { headers: { Cookie: 'dndsid=' + SID.sam } })).text()).entries.filter((e) => e.name === 'DM').map((e) => e.title), ['Fight started', 'Fight ended']);
 
     // one campaign per character: Ozzy is in two campaigns from before the rule; Sam's sheet asks which to keep

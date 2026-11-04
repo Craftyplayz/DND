@@ -1,5 +1,5 @@
 <?php
-// The Table view (ROADMAP 1.7) at /campaigns/<id>/table (campaigns/.htaccess, _dev/router.php): the DM opens it from the
+// The Table view, now a plain Spectator window (the map and the turn tracker; ROADMAP 1.7, battle map rework) at /campaigns/<id>/table (campaigns/.htaccess, _dev/router.php): the DM opens it from the
 // campaign page or the map page in a new tab of their own browser and moves that tab to the TV. It reads everything as the
 // table (CP_TABLE, ?as=table on every request and on the live socket), so it gets exactly what a player with no characters
 // gets and the server refuses any change from it (includes/auth.php). assets/js/table.js draws it; there are no controls.
@@ -47,18 +47,16 @@ if (!$ok) http_response_code(404);
 
 <body class="tv-body">
 <?php if ($ok): ?>
-    <main class="tv" id="main" data-c="<?= h($c['id']) ?>" data-ver="<?= h(tv_ver()) ?>" data-dice="<?= h(asset('/dice/dice3d.js')) ?>" data-choice="<?= h(asset('/dice/choice.js')) ?>">
+    <main class="tv" id="main" data-c="<?= h($c['id']) ?>" data-ver="<?= h(tv_ver()) ?>">
         <h1 class="mp-sr">Table · <?= h($c['name']) ?></h1>
         <div class="tv-map"><div class="mp-view" data-mp="view" aria-label="Map"></div></div>
         <section class="tv-idle" aria-label="The party" hidden>
             <h2 class="tv-name"><?= h($c['name']) ?></h2>
             <ul class="tv-party"><?php foreach (tv_party($accounts, $c) as $p): ?><li><span class="fi-face"><?php if ($p['art']): ?><img src="<?= h($p['art']) ?>" alt="" referrerpolicy="no-referrer" onerror="this.remove()"><?php endif; ?><span aria-hidden="true"><?= h(implode('', array_map(fn($w) => mb_strtoupper(mb_substr($w, 0, 1)), array_slice(preg_split('/\s+/', trim($p['name'])), 0, 2)))) ?></span></span><b><?= h($p['name']) ?></b></li><?php endforeach; ?></ul>
         </section>
-        <section class="tv-strip" aria-label="Turn order" hidden></section>
-        <ol class="tv-log" aria-label="Dice rolls" aria-live="polite"></ol>
-        <section class="tv-ho" aria-label="Handout" hidden></section>
+        <div class="mpt-tr" data-mp="tracker" aria-label="Turn order"></div>
         <p class="tv-badge" role="status" hidden>Reconnecting...</p>
-        <button type="button" class="tv-full">Click to go full screen<small>F goes in and out of full screen. + and - zoom the map, 0 fits it.</small></button>
+        <div class="mpt-br" data-mp="zoom"></div>
         <div data-mp="fight" hidden></div>
     </main>
     <script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script>

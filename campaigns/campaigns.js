@@ -126,11 +126,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tab !== 'overview') { history.pushState(null, '', location.pathname); show('overview'); }
     });
 
-    // ---- the map on the table: it only starts when Overview first shows (ROADMAP 1.9). Players get nothing until its fog has been sent.
+    // ---- the map on the table: it only starts when Overview first shows (ROADMAP 1.9). Players get nothing until the DM displays a map.
     const mapEl = $('#cp-map'), noMap = $('#cp-nomap');
     let mapOn = false;
     function mapDrawn(S) {
-        const on = S.failed || (S.dm ? !!S.m : !!S.m?.sent);
+        const on = S.failed || !!S.m;
         if (noMap) noMap.hidden = on;
         if (on === mapOn) return;
         mapOn = on;

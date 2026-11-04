@@ -200,18 +200,14 @@ try {
             await go(pl, page);
             is(`${name} players never get the note`, await pl.ev(`document.documentElement.outerHTML.includes('Baron')`), false);
 
-            // the map: nothing for a player until its fog has been sent; the DM gets it when it's on the table
+            // the map: everyone gets it once the DM displays it
             const mapId = 'aaaaaaaaaaaa', mapDir = join(ACCOUNTS, 'campaigns', CAMP, 'maps'), grid = { s: 50, ox: 0, oy: 0 }, stored = { id: mapId, name: 'Cave', created: 1, by: '111', archived: 0, ext: 'png', w: 400, h: 300, ww: 400, wh: 300, grid, draft: '0'.repeat(48), sent: null, tokens: {} };
             mkdirSync(join(mapDir, mapId), { recursive: true });
             writeFileSync(join(mapDir, mapId, 'map.json'), J(stored));
             writeFileSync(join(mapDir, 'table.json'), J({ active: mapId }));
             await go(dm, page); await go(pl, page);
             is(`${name} DM: the map on the table, not the line`, [await until(dm, seen('#cp-map .mp-view')), await dm.ev(seen('#cp-nomap'))], [true, false]);
-            await until(pl, `!!window.BattleMap`); await sleep(1000);
-            is(`${name} player: nothing until its fog is sent`, await pl.ev(seen('#cp-map')), false);
-            writeFileSync(join(mapDir, mapId, 'map.json'), J({ ...stored, sent: { n: 1, grid, fog: '1'.repeat(48), at: 1 } }));
-            await go(pl, page);
-            is(`${name} player: the map once it's sent`, await until(pl, seen('#cp-map .mp-view')), true);
+            is(`${name} player: the map once it's displayed`, await until(pl, seen('#cp-map .mp-view')), true);
             is(`${name} it's fitted to its box`, await until(pl, `document.querySelector('#cp-map .mp-stage')?.style.transform || ''`, (t) => t.includes('scale')).then((t) => t.includes('scale')), true);
             await pl.shot(375, 800); await click(pl, '#cp-tabs [data-tab=overview]');
             is(`${name} phone: map about 70% of the height, 2 tiles a row`, [await pl.ev(`Math.abs(document.querySelector('#cp-map .mp-view').offsetHeight - innerHeight * 0.7) <= 2`), await pl.ev(`getComputedStyle(document.querySelector('.ch-tiles')).gridTemplateColumns.split(' ').length`)], [true, 2]);

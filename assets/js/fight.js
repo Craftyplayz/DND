@@ -153,7 +153,7 @@ window.Fight = (() => {
             return;
         }
         // players' HP changes go to their sheets as DM edits (ROADMAP 1.5, sheets/player/dmedit.js)
-        const hpForm = (e) => (e.kind === 'monster' && !e.missing ? `<form class="fi-hp" data-mon="${esc(e.mon)}"><input class="field" inputmode="decimal" aria-label="Amount for ${esc(e.name)}" placeholder="5"${dis}><button class="btn small" value="dmg"${dis}>Damage</button><button class="btn small" value="heal"${dis}>Heal</button></form>`
+        const hpForm = (e) => (e.kind === 'monster' && !e.missing ? `<form class="fi-hp" data-mon="${esc(e.mon)}"${e.copy ? ` data-copy="${esc(e.copy)}"` : ''}><input class="field" inputmode="decimal" aria-label="Amount for ${esc(e.name)}" placeholder="5"${dis}><button class="btn small" value="dmg"${dis}>Damage</button><button class="btn small" value="heal"${dis}>Heal</button></form>`
             : e.kind === 'pc' && e.hp && e.char && window.hbDm?.send ? `<form class="fi-hp" data-char="${esc(e.char)}"><input class="field" inputmode="decimal" aria-label="Amount for ${esc(e.name)}" placeholder="5"${dis}><button class="btn small" value="dmg"${dis}>Damage</button><button class="btn small" value="heal"${dis}>Heal</button><button class="btn small" value="temp"${dis}>Temp</button></form>` : '');
         const info = (e) => (e.kind === 'monster' ? (e.hp ? `HP ${e.hp.cur}/${e.hp.max}${e.hp.temp ? ` +${e.hp.temp} temp` : ''}` : '') + (e.ac != null ? ` · AC ${e.ac}` : '')
             : e.kind === 'pc' && e.hp ? `HP ${e.hp.cur}${e.hp.max ? '/' + e.hp.max : ''}${e.hp.temp ? ` +${e.hp.temp} temp` : ''}` : '');
@@ -204,6 +204,8 @@ window.Fight = (() => {
                     await window.hbDm.send(c, form.dataset.char, [{ op: 'hp', how: k, amt: n, t: k === 'dmg' ? `−${n} HP` : k === 'heal' ? `+${n} HP` : `${n} temp HP` }]);
                     return p()?.w.load();
                 }
+                // a copy made on the map keeps its own HP; the Monster Sheet's save never changes for it
+                if (form.dataset.copy) return act(c, 'copyhp', { copy: form.dataset.copy, hop: { k: k === 'heal' ? 'heal' : 'dmg', n } });
                 return (p().opts.onHp || hpPost)(form.dataset.mon, { k: k === 'heal' ? 'heal' : 'dmg', n }, c);
             }
             const kind = form.dataset.fiAdd;

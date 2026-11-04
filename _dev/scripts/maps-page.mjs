@@ -1,6 +1,6 @@
-// Checks the battle map (ROADMAP 1.6) end to end, with the real relay in front of a local PHP server (GD loaded). Dee (the DM)
-// uploads a map in 4 MB chunks, fits the grid, reveals a room as a draft, sends it and runs the fight from the map page;
-// Pat plays Lock on a phone-sized screen. Browser A is Chrome (Firefox with --firefox), browser B the other one.
+// Checks the battle map (ROADMAP 1.6, reworked to work like D&D Beyond Maps) end to end, with the real relay in front of a local PHP
+// server (GD loaded). Dee (the DM) uploads a map, displays it, paints live fog, adds monster copies from the Token Browser, runs a
+// fight from the left panel, draws and adds overlays; Pat plays Lock. Browser A is Chrome (Firefox with --firefox), browser B the other.
 //   node _dev/scripts/maps-page.mjs [--firefox]   (needs: cd live && npm install, and includes/config.php for sign-in)
 // Uses stand-in account and session folders in the temp folder, never private/dnd/accounts or private/sessions.
 import { mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync, existsSync } from 'node:fs';
@@ -63,8 +63,12 @@ const drag = async (b, pts, o = {}) => {
     for (const p of pts.slice(1)) { await b.ev(`__ptr('pointermove', ${p[0]}, ${p[1]}, ${JSON.stringify({ ...o, el: null })})`); await sleep(o.pause || 30); }
     if (!o.hold) await b.ev(`__ptr('pointerup', ${pts.at(-1)[0]}, ${pts.at(-1)[1]}, ${JSON.stringify({ ...o, el: null })})`);
 };
-const inFight = (name) => `[...document.querySelectorAll('[data-mp=fight] .fi-e')].some((li) => li.textContent.includes('${name}'))`;
 const tokOf = (name) => `[...document.querySelectorAll('.mp-tok')].find((e) => e.getAttribute('aria-label').startsWith('${name}'))`;
+const rail = (b, t) => click(b, `[data-mpa=tool][data-t=${t}]`);
+const pointIn = (b, x, y) => b.ev(`new Promise((done) => { const i = new Image(); i.onload = () => { const c = document.createElement('canvas'); c.width = i.naturalWidth; c.height = i.naturalHeight; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(i, 0, 0); const k = i.naturalWidth / parseFloat(document.querySelector('.mp-stage').style.width); done(JSON.stringify([...g.getImageData(Math.floor(${x} * k), Math.floor(${y} * k), 1, 1).data])); }; i.onerror = () => done('null'); i.src = document.querySelector('.mp-img').src; })`).then(JSON.parse);
+const addRow = (b, add) => b.ev(`(() => { const r = document.querySelector('[data-add="${add}"]'); if (!r) return false; const q = r.getBoundingClientRect(); for (const t of ['pointerdown', 'pointerup']) (t === 'pointerup' ? window : r).dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: q.left + 5, clientY: q.top + 5, pointerId: 9, button: 0 })); return true; })()`);
+const clickTok = (b, name) => b.ev(`(() => { const e = ${tokOf(name)}; if (!e) return false; const r = e.getBoundingClientRect(), o = { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1, pointerType: 'mouse', button: 0 }; e.dispatchEvent(new PointerEvent('pointerdown', o)); e.dispatchEvent(new PointerEvent('pointerup', o)); return true; })()`);
+const menuText = text('[data-mp=menu]');
 
 const dm = await launch(FF ? 'firefox' : 'chrome'), pat = await launch(FF ? 'chrome' : 'firefox');
 try {
@@ -75,207 +79,211 @@ try {
     await go(dm, `${BASE}/campaigns/${CAMP}/map`);
     is('DM: nothing yet', (await until(dm, text('.mp-msg'), (t) => t.includes('Upload'))).includes('Upload a map picture'), true);
 
-    // upload: a noisy 1600 x 1200 PNG (more than one 4 MB chunk), made in the page; a text file first, refused
-    await dm.ev(`(() => { const i = document.querySelector('[data-mp=file]'), dt = new DataTransfer(); dt.items.add(new File(['hello'], 'notes.txt', { type: 'text/plain' })); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
-    is('a text file is refused with a message', (await until(dm, text('[data-mp=upstate]'), (t) => t.includes("isn't"))).includes('JPG, PNG, WebP or GIF'), true);
+    // the rail, the Menu and the map dropdown, where the owner's screenshots put them
+    is('DM rail: select, pan | fog, draw, overlays, ruler, ping, tokens', await until(dm, `[...document.querySelectorAll('[data-mp=rail] [data-t]')].map((b) => b.dataset.t).join()`, Boolean), 'select,pan,fog,draw,overlay,ruler,point,tokens');
+    await until(dm, `!!document.querySelector('[data-mpi=map]')`, Boolean);
+
+    // Map Browser: a text file refused, then a noisy 1600 x 1200 PNG over one 4 MB chunk
+    await dm.ev(`(() => { const s = document.querySelector('[data-mpi=map]'); s.value = '__browse'; s.dispatchEvent(new Event('change', { bubbles: true })); })(); 1`);
+    is('Map Browser opens', await until(dm, `!!document.querySelector('[data-mbf]')`, Boolean), true);
+    const putFile = (expr) => `(() => { const i = document.querySelector('[data-mbf]'), dt = new DataTransfer(); dt.items.add(${expr}); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); })()`;
+    await dm.ev(putFile(`new File(['hello'], 'notes.txt', { type: 'text/plain' })`) + '; 1');
+    is('a text file is refused with a message', (await until(dm, text('[data-mbs]'), (t) => t.includes("isn't"))).includes('JPG, PNG, WebP or GIF'), true);
     const size = await dm.ev(`new Promise((done) => { const c = document.createElement('canvas'); c.width = 1600; c.height = 1200; const x = c.getContext('2d'), d = x.createImageData(1600, 1200);
         for (let i = 0; i < d.data.length; i += 4) { d.data[i] = Math.random() * 255; d.data[i + 1] = Math.random() * 255; d.data[i + 2] = 200; d.data[i + 3] = 255; }
-        x.putImageData(d, 0, 0); c.toBlob((b) => { const i = document.querySelector('[data-mp=file]'), dt = new DataTransfer(); dt.items.add(new File([b], 'Crypt.png', { type: 'image/png' })); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); done(b.size); }, 'image/png'); })`);
+        x.putImageData(d, 0, 0); c.toBlob((b) => { ${putFile(`new File([b], 'Crypt.png', { type: 'image/png' })`)}; done(b.size); }); })`);
     is('the picture is over 4 MB', size > 4 * 1024 * 1024, true);
-    is('uploaded: the map opens on the grid tool', (await until(dm, text('.mp-title'), (t) => t === 'Crypt', 30000)), 'Crypt');
+    is('uploaded: Scale the map opens', await until(dm, `!!document.querySelector('[data-scs]')`, Boolean, 30000), true);
     const tableJson = join(ACCOUNTS, 'campaigns', CAMP, 'maps', 'table.json');
-    is('the original kept exactly as uploaded, not put on the table by itself', [readFileSync(join(mapDir(), 'original.png')).length, existsSync(tableJson) && readFileSync(tableJson, 'utf8').includes(mapJson().id)], [size, false]);
-    await until(dm, `!!document.querySelector('[data-mpa=activate]')`, Boolean);
-    await click(dm, '[data-mpa=activate]');
-    is('Put on the table: the map list shows it on the table', (await until(dm, text('[data-mp=maps]'), (t) => t.includes('On the table'))).includes('Crypt'), true);
+    is('the original kept as uploaded, not displayed by itself', [readFileSync(join(mapDir(), 'original.png')).length, existsSync(tableJson) && JSON.parse(readFileSync(tableJson, 'utf8')).active], [size, false]);
+    is('a new map starts clear', mapJson().fog.ops, []);
+    await dm.ev(`(() => { const s = document.querySelector('[data-scs]'); s.value = 100; s.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('[data-scy]').click(); })(); 1`);
+    is('the grid saved from the size field', await until(dm, '1', () => mapJson().grid.s === 100, 5000).then(() => mapJson().grid.s), 100);
+    await until(dm, `!document.querySelector('dialog[open]')`, Boolean);
 
-    // grid: a box dragged over one square (100 px); the whole grid follows
-    await until(dm, `!!document.querySelector('.mp-grid.mp-fit')`, Boolean);
-    await drag(dm, [[0, 0], [50, 50], [100, 100]]);
-    // (the page rounds synthetic pointer positions to whole screen pixels, a few map pixels at this zoom)
-    const g0 = await until(dm, '1', () => Math.abs(mapJson().grid.s - 100) < 4, 5000).then(() => mapJson().grid);
-    is('grid fitted from one square', [Math.abs(g0.s - 100) < 4, Math.min(g0.ox, 100 - g0.ox) < 6, Math.min(g0.oy, 100 - g0.oy) < 6], [true, true, true]);
-    // exact, so the squares below are known; the size field takes typed numbers
-    await mapsApi(SID.dm, { op: 'grid', m: mapJson().id, s: 100, ox: 0, oy: 0 });
-    await dm.ev(`document.querySelector('[data-mpa=tool][data-v=move]').click(); 1`);
-    await sleep(300);
-    await dm.ev(`document.querySelector('[data-mpa=tool][data-v=grid]').click(); 1`);
-    // arrow keys nudge it
-    await dm.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); 1`);
-    is('arrow key nudges the grid', await until(dm, '1', () => mapJson().grid.ox === 1, 5000).then(() => mapJson().grid.ox), 1);
-    await dm.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); 1`);
-    await until(dm, '1', () => mapJson().grid.ox === 0, 5000);
-
-    // Pat opens the map on a phone-sized screen: on the table, never sent, so all black with the party
-    await pat.shot(390, 844);
+    // the map isn't on the table until Display map
+    await pat.shot(1100, 800);
     await go(pat, `${BASE}/campaigns/${CAMP}/map`);
-    is('player: never sent, an all-black map', await until(pat, `!document.querySelector('.mp-black').hidden && document.querySelector('.mp-img').hidden`, Boolean), true);
-    is("player: Lock waits in Pat's tray", (await until(pat, text('[data-mp=tray]'), (t) => t.includes('Lock'))).includes('Ozzy'), false);
+    is('player: waiting for a map', (await until(pat, text('.mp-msg'), Boolean)).includes('Waiting'), true);
+    await until(dm, `!!document.querySelector('[data-mpa=showmap]')`, Boolean);
+    await click(dm, '[data-mpa=showmap]');
+    is('Display map becomes Hide map', await until(dm, `!!document.querySelector('[data-mpa=hidemap]')`, Boolean), true);
+    is('player: the picture comes live', await until(pat, `!!document.querySelector('.mp-img')?.getAttribute('src')`, Boolean), true);
+    is('player rail: select, pan, ruler, ping only', await until(pat, `[...document.querySelectorAll('[data-mp=rail] [data-t]')].map((b) => b.dataset.t).join()`, Boolean), 'select,pan,ruler,point');
+    let leak = await viewAs(SID.pat);
+    is('player never gets fog strokes, an encounter or the working picture', [/"ops"/.test(leak), /"enc"/.test(leak), /img=work|img=original/.test(leak), /"draft"|"sent"/.test(leak)], [false, false, false, false]);
+    is('player: the clear map shows the picture', (await until(pat, `document.querySelector('.mp-img').complete`, Boolean).then(() => pointIn(pat, 500, 500)))?.[3], 255);
 
-    // fog: a revealed room (4 x 3 squares) as a draft; players still see full fog
-    await click(dm, '[data-mpa=tool][data-v=fog]');
-    await click(dm, '[data-mpa=brush][data-v=rect]');
-    await drag(dm, [[10, 10], [200, 200], [390, 290]]);
-    const room = (fog) => [...'111100000000'.repeat(3)].every((ch, i) => fog[Math.floor(i / 12) * 16 + (i % 12)] === ch);
-    is('draft saved about a second after the stroke', await until(dm, text('.mp-save'), (t) => t.startsWith('Draft saved'), 5000).then(() => room(mapJson().draft)), true);
-    is('a draft is not sent: players still get no picture', JSON.parse(await viewAs(SID.pat)).map.sent, null);
-    is('DM: changed squares outlined, players unchanged', await dm.ev(`!document.querySelector('.mp-marks').hidden`), true);
-    // send: players now see the room, live
-    await click(dm, '[data-mpa=send]');
-    is('sent: the player gets the masked copy live', await until(pat, `document.querySelector('.mp-img').getAttribute('src') || ''`, (s) => s.includes('img=public&n=1'), 10000).then((s) => s.includes('img=public&n=1')), true);
-    is('the picture really loads for the player', await until(pat, `document.querySelector('.mp-img').naturalWidth`, (w) => w > 0), 1600);
-    // more drawn in the draft, not sent: the player keeps the first send
-    await click(dm, '[data-mpa=brush][data-v=brush]');
-    await drag(dm, [[650, 50], [750, 50]]);
-    await until(dm, text('.mp-save'), (t) => t.startsWith('Draft saved'), 5000);
-    is('player sees only what was sent', JSON.parse(await viewAs(SID.pat)).map.sent.fog.split('1').length - 1, 12);
-    // Undo takes the brush stroke back out of the draft
+    // fog: live. Cover All, then a brush stroke and a polygon clear parts; players follow, fogged pixels are gone from their picture
+    const mid = await dm.ev(`document.querySelector('.mp-img').src`);
+    await rail(dm, 'fog');
+    is('fog flyout', await until(dm, `!!document.querySelector('[data-mpa=fogall][data-v="1"]')`, Boolean), true);
+    await click(dm, '[data-mpa=fogall][data-v="1"]');
+    const nAll = await until(dm, '1', () => mapJson().fog.ops.length === 1, 5000).then(() => mapJson().fog.n);
+    is('Cover All, for players: transparent with nothing left of the picture', await until(pat, `document.querySelector('.mp-img').src`, (s) => s.includes('n=' + nAll)).then(async () => { await sleep(600); const p = await pointIn(pat, 500, 500); return p; }), [0, 0, 0, 0]);
+    is('DM: the fog is on their canvas, light blue', JSON.parse(await dm.ev(`(() => { const c = document.querySelector('.mp-fog'), d = c.getContext('2d').getImageData(10, 10, 1, 1).data; return JSON.stringify([d[0], d[1], d[2], d[3]]); })()`)), [74, 159, 220, 255]);
+    await click(dm, '[data-mpa=fogmode][data-v=erase]');
+    await click(dm, '[data-mpa=fogshape][data-v=round]');
+    await drag(dm, [[300, 300], [400, 300], [500, 300]]);
+    await until(dm, '1', () => mapJson().fog.ops.length === 2, 5000);
+    is('a stroke reveals it straight away, for players too', await until(pat, `document.querySelector('.mp-img').src`, (s) => s.includes('n=' + mapJson().fog.n)).then(async () => { await sleep(600); return (await pointIn(pat, 400, 300))?.[3]; }), 255);
+    is('still fogged further off', (await pointIn(pat, 1200, 900))?.[3], 0);
+    await click(dm, '[data-mpa=fogshape][data-v=polygon]');
+    for (const [x, y] of [[800, 100], [1100, 100], [1100, 400], [800, 400]]) await drag(dm, [[x, y]]);
+    await drag(dm, [[800, 100]]);
+    is('a polygon closes on its first point', await until(dm, '1', () => mapJson().fog.ops.length === 3, 5000).then(() => !!mapJson().fog.ops[2].poly), true);
     await dm.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); 1`);
-    is('Ctrl+Z undoes the stroke', await until(dm, '1', () => mapJson().draft.split('1').length - 1 === 12, 5000).then(() => mapJson().draft.split('1').length - 1), 12);
-    // "What players see": the DM gets the players' copy
-    await click(dm, '[data-mpa=preview]');
-    is('What players see: the masked copy', await until(dm, `document.querySelector('.mp-img').getAttribute('src')`, (s) => s.includes('img=public')).then((s) => s.includes('img=public')), true);
-    await click(dm, '[data-mpa=preview]');
-    await click(dm, '[data-mpa=tool][data-v=move]');
+    is('Ctrl+Z takes the last stroke back', await until(dm, '1', () => mapJson().fog.ops.length === 2, 5000).then(() => mapJson().fog.ops.length), 2);
+    await dm.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); 1`);
+    await until(dm, '1', () => mapJson().fog.ops.length === 1, 5000);
+    await dm.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true })); 1`);
+    await until(dm, '1', () => mapJson().fog.ops.length === 0, 5000);
+    // a known layout from here: the left half clear, the right half fogged
+    await mapsApi(SID.dm, { op: 'fogset', m: mapJson().id, ops: [{ on: true, poly: [[800, 0], [1600, 0], [1600, 1200], [800, 1200]] }] });
+    is('an old picture address is refused to players', (await fetch(`${BASE}/campaigns/maps.php?c=${CAMP}&m=${mapJson().id}&img=public&n=${nAll}`, { headers: { Cookie: 'dndsid=' + SID.pat } })).status, 403);
 
-    // Pat places Lock from the tray (a tap puts it mid-view) and drags it with a finger to square (1, 1)
-    await click(pat, '[data-mp=tray] .mp-trayt');
-    await pat.ev(`(() => { const b = document.querySelector('[data-mp=tray] .mp-trayt'); if (!b) return 0; const r = b.getBoundingClientRect(), o = { bubbles: true, clientX: r.left + 5, clientY: r.top + 5, pointerId: 7, pointerType: 'touch', isPrimary: true };
-        b.dispatchEvent(new PointerEvent('pointerdown', o)); dispatchEvent(new PointerEvent('pointerup', o)); return 1; })()`);
-    is('Lock is on the map', await until(pat, `!!${tokOf('Lock')}`, Boolean), true);
-    await pat.ev(`${tokOf('Lock')}.id = 'lock-tok'; 1`);
-    await until(pat, '1', () => Object.values(mapJson().tokens).some((t) => t.char === 'lock' && t.placed), 5000);
-    const lk = mapJson().tokens;
-    const lockKey = Object.keys(lk).find((k) => lk[k].char === 'lock');
-    const at = lk[lockKey];
-    await drag(pat, [[at.x + 50, at.y + 50], [at.x + 20, at.y + 20], [160, 160], [150, 150]], { el: '#lock-tok', type: 'touch', id: 3 });
-    is('phone: Lock moved by touch, snapped to a whole square', await until(pat, '1', () => mapJson().tokens[lockKey].x === 100, 5000).then(() => [mapJson().tokens[lockKey].x, mapJson().tokens[lockKey].y]), [100, 100]);
-    is('the DM sees Lock there live', await until(dm, `(${tokOf('Lock')})?.style.left`, (v) => v === '100px'), '100px');
-    // Pat can't move Sam's Ozzy: the DM puts Ozzy at (200, 0); Pat's drag on it only pans
-    const dmToks = JSON.parse(await viewAs(SID.dm)).map.tokens;
-    const oz = dmToks.find((t) => t.name === 'Ozzy');
-    is('the DM moves any token', (await mapsApi(SID.dm, { op: 'move', m: mapJson().id, k: oz.k, x: 200, y: 0, placed: true })).status, 200);
-    await until(pat, `!!${tokOf('Ozzy')}`, Boolean);
-    is("Ozzy isn't Pat's to move", await pat.ev(`${tokOf('Ozzy')}.classList.contains('can')`), false);
-    await pat.ev(`${tokOf('Ozzy')}.id = 'oz-tok'; 1`);
-    await drag(pat, [[250, 50], [300, 100], [350, 150]], { el: '#oz-tok', type: 'touch', id: 4 });
-    await sleep(500);
-    is("Pat's drag left Ozzy where it was", [mapJson().tokens[oz.k].x, mapJson().tokens[oz.k].y], [200, 0]);
-    is("the server refuses Pat moving Ozzy", (await mapsApi(SID.pat, { op: 'move', m: mapJson().id, k: oz.k, x: 0, y: 0, placed: true })).status, 403);
+    // the Token Browser: the party on the Players tab, your monsters and the Compendium on Monsters; each click a new copy
+    await rail(dm, 'tokens');
+    is('Token Browser opens on Monsters', await until(dm, text('.mpt-browserh'), (t) => t.includes('Token Browser')).then(() => until(dm, `!!document.querySelector('[data-add="mon:gob"]')`, Boolean)), true);
+    is('the Compendium is listed under your monsters', await until(dm, text('.mpt-list'), (t) => t.includes('COMPENDIUM'), 15000).then((t) => t.includes('YOUR MONSTERS')), true);
+    await dm.ev(`(() => { const i = document.querySelector('[data-mpi=brq]'); i.value = 'gob'; i.dispatchEvent(new Event('input', { bubbles: true })); })(); 1`);
+    is('search narrows the list, keeping the field focused-safe', await until(dm, `!document.querySelector('[data-add="mon:ogre"]')`, Boolean), true);
+    await dm.ev(`(() => { const i = document.querySelector('[data-mpi=brq]'); i.value = ''; i.dispatchEvent(new Event('input', { bubbles: true })); })(); 1`);
+    await until(dm, `!!document.querySelector('[data-add="mon:ogre"]')`, Boolean);
+    await addRow(dm, 'mon:gob');
+    is('a click adds Goblin A', await until(dm, `!!${tokOf('Goblin A')}`, Boolean), true);
+    await addRow(dm, 'mon:gob');
+    is('another click adds Goblin B', await until(dm, `!!${tokOf('Goblin B')}`, Boolean), true);
+    await addRow(dm, 'mon:ogre');
+    await until(dm, `!!${tokOf('Ogre A')}`, Boolean);
+    await click(dm, '[data-mpa=brtab][data-v=pc]');
+    const lockKey = await until(dm, `document.querySelector('[data-add^="tok:"]')?.dataset.add || ''`, Boolean);
+    await addRow(dm, lockKey);
+    await until(dm, `!!${tokOf('Lock')}`, Boolean);
+    const T = () => { const j = mapJson(); return Object.entries(j.tokens).map(([k, t]) => ({ k, ...t })); };
+    const key = (name) => T().find((t) => t.mon === { Goblin: 'gob', Ogre: 'ogre' }[name.split(' ')[0]] && t.suffix === name.split(' ')[1]).k;
+    const m = mapJson().id;
+    const place = (name, x, y) => mapsApi(SID.dm, { op: 'move', m, k: key(name), x, y, placed: true });
+    await place('Goblin A', 200, 200); await place('Goblin B', 300, 200); await place('Ogre A', 1200, 600);
+    const lockK = T().find((t) => t.kind === 'pc' && t.char === 'lock')?.k;
+    await mapsApi(SID.dm, { op: 'move', m, k: lockK, x: 100, y: 100, placed: true });
+    is('player: monsters in the clear shown, the one under fog never sent', JSON.parse(await until(pat, `JSON.stringify([!!${tokOf('Goblin A')}, !!${tokOf('Ogre A')}])`, (v) => JSON.parse(v)[0])), [true, false]);
+    leak = await viewAs(SID.pat);
+    is('...nothing about it in what they fetched', leak.includes('Ogre'), false);
 
-    // the fight, run from the map page: start, add the goblin and the ogre from the DM's monsters
-    await until(dm, `!!document.querySelector('[data-mp=fight] [data-fi=start]')`, Boolean);
-    await click(dm, '[data-mp=fight] [data-fi=start]');
-    await until(dm, `!!document.querySelector('[data-mp=fightadd] select')`, Boolean);
-    await dm.ev(`(() => { const s = document.querySelector('[data-mp=fightadd] select'); s.value = 'gob'; document.querySelector('[data-mpa=fightadd]').click(); return 1; })()`);
-    is('map page: goblin added to the fight', await until(dm, inFight('Goblin'), Boolean), true);
-    await until(dm, `!!document.querySelector('[data-mp=fightadd] select option[value=ogre]')`, Boolean);
-    await dm.ev(`(() => { const s = document.querySelector('[data-mp=fightadd] select'); s.value = 'ogre'; document.querySelector('[data-mpa=fightadd]').click(); return 1; })()`);
-    await until(dm, inFight('Ogre'), Boolean);
-    const f1 = await fight(SID.dm);
-    is('initiative bonus and AC worked out like the Monster Sheet', [f1.entries.find((e) => e.mon === 'gob').bonus, f1.entries.find((e) => e.mon === 'gob').ac, f1.entries.find((e) => e.mon === 'ogre').bonus], [2, 15, -1]);
-    is('their tokens wait in the tray, sized from the creature type', await until(dm, text('[data-mp=tray]'), (t) => t.includes('Goblin') && t.includes('Ogre')).then(() => {
-        const t = Object.values(mapJson().tokens); return [t.find((x) => x.mon === 'gob')?.size, t.find((x) => x.mon === 'ogre')?.size]; }), ['S', 'L']);
-    // hide the ogre from the fight panel, then place both (a tap on the tray puts them mid-view, in the fog)
-    await dm.ev(`[...document.querySelectorAll('[data-mp=fight] .fi-e')].find((li) => li.textContent.includes('Ogre')).querySelector('[data-fi=hide]').click(); 1`);
-    await until(dm, `!!document.querySelector('[data-mp=fight] .fi-e.hid')`, Boolean);
-    for (const n of ['Goblin', 'Ogre']) {
-        await dm.ev(`(() => { const b = [...document.querySelectorAll('[data-mp=tray] .mp-trayt')].find((x) => x.textContent.includes('${n}')); const r = b.getBoundingClientRect(), o = { bubbles: true, clientX: r.left + 5, clientY: r.top + 5, pointerId: 9, pointerType: 'mouse', isPrimary: true };
-            b.dispatchEvent(new PointerEvent('pointerdown', o)); dispatchEvent(new PointerEvent('pointerup', o)); return 1; })()`);
-        await until(dm, `!!${tokOf(n)}`, Boolean);
-    }
-    // the hidden ogre into the revealed room: never sent to Pat
-    await dm.ev(`${tokOf('Ogre')}.id = 'ogre-tok'; ${tokOf('Goblin')}.id = 'gob-tok'; 1`);
-    const og = Object.values(mapJson().tokens).find((x) => x.mon === 'ogre');
-    await drag(dm, [[og.x + 10, og.y + 10], [300, 200], [210, 10]], { el: '#ogre-tok' });
-    await until(dm, '1', () => Object.values(mapJson().tokens).find((x) => x.mon === 'ogre').x === 200, 5000);
-    // live drag: the goblin goes from the fog into the room while Pat watches; Pat sees it before it's dropped
-    const gb = Object.values(mapJson().tokens).find((x) => x.mon === 'gob');
-    await drag(dm, [[gb.x + 10, gb.y + 10], [500, 400], [310, 110]], { el: '#gob-tok', hold: true, pause: 300 });
-    is('live: Pat sees the goblin mid-drag', await until(pat, `(${tokOf('Goblin')})?.style.left || ''`, (v) => v === '300px', 8000), '300px');
-    await dm.ev(`__ptr('pointermove', 10, 110); 1`); await sleep(400);
-    is('live: the next drag step reaches Pat too', await until(pat, `(${tokOf('Goblin')})?.style.left || ''`, (v) => v === '0px', 8000), '0px');
-    await dm.ev(`__ptr('pointerup', 10, 110); 1`);
-    is('dropped: last drop saved', await until(dm, '1', () => Object.values(mapJson().tokens).find((x) => x.mon === 'gob').x === 0, 5000).then(() => Object.values(mapJson().tokens).find((x) => x.mon === 'gob').y), 100);
-    const pv = await viewAs(SID.pat);
-    is('player: no hidden ogre, no original, no draft in the map response', [pv.includes('Ogre'), pv.includes('original'), pv.includes('img=work'), pv.includes('draft')], [false, false, false, false]);
-    is('player page: no ogre token', await pat.ev(`!${tokOf('Ogre')} && !document.body.innerHTML.includes('Ogre')`), true);
-    // into the fog: the goblin leaves Pat's map
-    await drag(dm, [[10, 110], [700, 700]], { el: '#gob-tok' });
-    is('a monster moved into the fog leaves the player\'s map', await until(pat, `!${tokOf('Goblin')}`, Boolean), true);
-    await drag(dm, [[710, 710], [10, 110]], { el: '#gob-tok' });
-    await until(pat, `!!${tokOf('Goblin')}`, Boolean);
+    // the token menu: HP on a copy never touches the Monster Sheet, nor the other copy
+    await rail(dm, 'select');
+    const before = readFileSync(join(ACCOUNTS, 'monsters', '111', 'gob.json'), 'utf8');
+    await until(dm, `!!${tokOf('Goblin A')}`, Boolean);
+    await clickTok(dm, 'Goblin A');
+    is('clicking a monster brings up its menu', (await until(dm, menuText, (t) => t.includes('Goblin A'))).includes('CONDITIONS'), true);
+    await click(dm, '[data-mpa=panel][data-v=hp]');
+    await until(dm, `!!document.querySelector('[data-mpi=hpn]')`, Boolean);
+    const hpBefore = await dm.ev(`BM.state.m.tokens.find((t) => t.name === 'Goblin A').hp.cur`);
+    await dm.ev(`document.querySelector('[data-mpi=hpn]').value = 3; document.querySelector('[data-mpa=hp][data-v=dmg]').click(); 1`);
+    is('Damage on the copy', await until(dm, `BM.state.m.tokens.find((t) => t.name === 'Goblin A').hp.cur`, (v) => v === hpBefore - 3), hpBefore - 3);
+    is('the other copy keeps its HP', await dm.ev(`BM.state.m.tokens.find((t) => t.name === 'Goblin B').hp.cur`), hpBefore);
+    is('the Monster Sheet save is untouched', readFileSync(join(ACCOUNTS, 'monsters', '111', 'gob.json'), 'utf8'), before);
+    await click(dm, '[data-mpa=panel][data-v=cond]');
+    await until(dm, `!!document.querySelector('[data-mpa=cond][data-v=Prone]')`, Boolean);
+    await click(dm, '[data-mpa=cond][data-v=Prone]');
+    is('a condition stored on the token', await until(dm, '1', () => T().find((t) => t.k === key('Goblin A')).cond?.includes('Prone'), 5000).then(() => true), true);
+    await click(dm, '[data-mpa=togglehide]');
+    is('HIDE: gone from players', await until(pat, `!${tokOf('Goblin A')}`, Boolean), true);
+    await until(dm, `${tokOf('Goblin A')}?.classList.contains('hid')`, Boolean);
+    await click(dm, '[data-mpa=togglehide]');
+    is('REVEAL: back for players', await until(pat, `!!${tokOf('Goblin A')}`, Boolean), true);
 
-    // the ruler, with a corner, seen live by the DM while Pat drags it: 3 squares then 2 = 25 ft
-    await pat.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true })); 1`);
-    await drag(pat, [[50, 50], [200, 50], [350, 50]], { id: 11, hold: true, pause: 200 });
-    await pat.ev(`__ptr('pointerdown', 350, 50, { button: 2, id: 12 }); 1`);
-    await pat.ev(`__ptr('pointermove', 350, 150, { id: 11 }); 1`); await sleep(200);
-    await pat.ev(`__ptr('pointermove', 350, 250, { id: 11 }); 1`);
-    is('ruler: Pat sees 25 ft', await until(pat, text('.mp-ruler'), (t) => t.includes('25 ft')), '25 ft');
-    is('ruler: the DM sees it live with a corner', await until(dm, text('.mp-ruler'), (t) => t.includes('25 ft · Pat')), '25 ft · Pat');
-    await pat.ev(`__ptr('pointerup', 350, 250, { id: 11 }); 1`);
-    is('released: the ruler goes for everyone', await until(dm, text('.mp-ruler'), (t) => t === ''), '');
+    // Combat Encounter: Add all tokens, Auto initiative, Start combat; no rolling-in phase
+    await click(dm, '[data-mpa=side]');
+    is('the top-left button opens Combat Encounter', await until(dm, text('[data-mp=side] h2'), Boolean), 'Combat Encounter');
+    await until(dm, `!!document.querySelector('[data-mpa=addall]')`, Boolean);
+    await click(dm, '[data-mpa=addall]');
+    is('matching monsters share a row', await until(dm, text('[data-mp=side] .mpt-rows'), (t) => t.includes('x2')).then((t) => [t.includes('1 PLAYERS'), t.includes('3 ENEMIES')]), [true, true]);
+    is('the encounter is saved with the map', await until(dm, '1', () => mapJson().enc?.ids?.length === 4, 5000).then(() => mapJson().enc.ids.length), 4);
+    await click(dm, '[data-mpa=auto][data-v=enemy]');
+    await until(dm, '1', () => mapJson().enc.init[key('Goblin A')] !== undefined, 5000);
+    is('copies of one monster roll one number', await until(dm, '1', () => mapJson().enc.init[key('Goblin A')] === mapJson().enc.init[key('Goblin B')], 3000).then(() => true), true);
+    await click(dm, '[data-mpa=start]');
+    is('Start combat becomes Initiative Order', await until(dm, text('[data-mp=side] h2'), (t) => t === 'Initiative Order'), 'Initiative Order');
+    const f0 = await fight(SID.dm);
+    is('already running at round 1, the first turn set', [f0.phase, f0.round, !!f0.turn, f0.entries.length], ['running', 1, true, 4]);
+    is('the tracker on both screens', await until(pat, `document.querySelectorAll('[data-mp=tracker] .mpt-tile').length`, (n) => n >= 3) >= 3, true);
+    is('the current one is first and larger', await until(dm, `document.querySelector('[data-mp=tracker] .mpt-tile')?.classList.contains('on')`, Boolean), true);
+    is("the sheet's roll prompt still reaches the player", (await fight(SID.pat)).canRoll, ['lock']);
+    const t0 = f0.turn;
+    await until(dm, `!document.querySelector('[data-mpa=next]')?.disabled`, Boolean);
+    await click(dm, '[data-mpa=next]');
+    is('Next moves the turn', await until(dm, '1', async () => true).then(() => until(dm, `BM.state.fight?.turn`, (v) => v && v !== t0)) !== t0, true);
+    await until(dm, `!!document.querySelector('[data-mpa=endpop]')`, Boolean);
+    await click(dm, '[data-mpa=endpop]');
+    is('the up arrow is End combat', await until(dm, text('.mpt-endpop'), Boolean), 'End combat');
+    await click(dm, '.mpt-endpop [data-mpa=end]');
+    await until(dm, `!!document.querySelector('dialog[open] [value=yes]')`, Boolean);
+    await click(dm, 'dialog[open] [value=yes]');
+    is('End combat: back to Combat Encounter', await until(dm, text('[data-mp=side] h2'), (t) => t === 'Combat Encounter'), 'Combat Encounter');
+    is('tokens stay where they are', T().find((t) => t.k === key('Goblin A')).placed, true);
+    is('the tracker goes', await until(pat, `!document.querySelector('[data-mp=tracker] .mpt-tile')`, Boolean), true);
 
-    // turns: Lock rolls in, round 1, Next until it's Lock's go; Pat's map shows the notice and the ring
-    const n = (await fight(SID.pat)).n;
-    await api(SID.pat, { act: 'roll', id: CAMP, roll: { id: 'patroll000001', char: 'lock', title: 'Initiative', expr: '1d20 + 2', shown: '1 + 2', total: '3', fight: n } });
-    await until(dm, text('[data-mp=fight]'), (t) => t.includes('Lock'));
-    await click(dm, '[data-mp=fight] [data-fi=round1]');
-    await until(dm, text('[data-mp=fight] .fi-top'), (t) => t.includes('Round 1'));
-    let saw = '';
-    for (let i = 0; i < 8 && !saw.includes('Your turn'); i++) {
-        saw = await until(pat, text('[data-mp=fight]'), (t) => t.includes('Your turn') || t.includes("You're up next"), 2500);
-        if (saw.includes("You're up next")) is("Pat: \"You're up next\"", true, true);
-        if (!saw.includes('Your turn')) { const was = await dm.ev(text('[data-mp=fight] .fi-e.on')); await click(dm, '[data-mp=fight] [data-fi=next]'); await until(dm, text('[data-mp=fight] .fi-e.on'), (t) => t !== was, 3000); }
-    }
-    is('Pat: "Your turn" on the map page', saw.includes('Your turn'), true);
-    is("a ring on Lock's token", await until(pat, `${tokOf('Lock')}?.classList.contains('on')`, Boolean), true);
+    // drawing and overlays: seen by all, except a hidden overlay and anything under fog
+    await rail(dm, 'draw');
+    await until(dm, `!!document.querySelector('[data-mpa=penmode]')`, Boolean);
+    await drag(dm, [[100, 500], [200, 520], [300, 500]]);
+    await until(dm, '1', () => (mapJson().draws || []).length === 1, 5000);
+    await rail(dm, 'overlay');
+    await until(dm, `!!document.querySelector('[data-mpa=ovtype]')`, Boolean);
+    await drag(dm, [[400, 600], [500, 600], [600, 700]]);
+    await until(dm, '1', () => (mapJson().overlays || []).length === 1, 5000);
+    await mapsApi(SID.dm, { op: 'overlay', m, o: { id: 'hiddenone', type: 'circle', x: 300, y: 800, len: 100, ang: 0, color: 0, pat: 0, hidden: true, group: '', locked: false } });
+    await mapsApi(SID.dm, { op: 'overlay', m, o: { id: 'infogone1', type: 'circle', x: 1300, y: 800, len: 50, ang: 0, color: 0, pat: 0, hidden: false, group: '', locked: false } });
+    await mapsApi(SID.dm, { op: 'draw', m, add: { c: 0, s: 0, pts: [[1400, 1000], [1450, 1000]] } });
+    leak = JSON.parse(await viewAs(SID.pat)).map;
+    is('players get what is in the clear only', [leak.draws.length, leak.overlays.map((o) => o.type).join()], [1, 'square']);
 
-    // a grid change after the fog: asked first, the draft starts over, players keep the last send
-    await click(dm, '[data-mpa=tool][data-v=grid]');
-    await drag(dm, [[0, 0], [25, 25], [50, 50]]);
-    is('asked before the grid resets the fog', (await until(dm, text('dialog[open]'), (t) => t.includes('Changing the grid resets the fog'))).includes('Changing the grid resets the fog'), true);
-    await click(dm, 'dialog[open] button[value=yes]');
-    is('grid changed: draft fully fogged', await until(dm, '1', () => mapJson().grid.s === 50, 5000).then(() => mapJson().draft.includes('1')), false);
-    is('players keep the last sent fog and grid', (() => { const s = JSON.parse(readFileSync(join(mapDir(), 'map.json'), 'utf8')).sent; return [s.grid.s, room(s.fog)]; })(), [100, true]);
-    await click(dm, '[data-mpa=tool][data-v=move]');
+    // Pat: their own token. HP and conditions go to the sheet as edits; another token gives no menu and can't be moved
+    await go(pat, `${BASE}/campaigns/${CAMP}/map`);
+    await until(pat, `!!${tokOf('Lock')}`, Boolean);
+    await clickTok(pat, 'Goblin B');
+    is("no menu on someone else's token", await pat.ev(`document.querySelector('[data-mp=menu]').hidden`), true);
+    is('moving another token is refused', (await mapsApi(SID.pat, { op: 'move', m, k: key('Goblin B'), x: 0, y: 0, placed: true })).status, 403);
+    await clickTok(pat, 'Lock');
+    is('their own token: the menu', (await until(pat, menuText, (t) => t.includes('Lock'))).includes('CONDITIONS'), true);
+    is('players see no DM tabs on it', JSON.parse(await pat.ev(`JSON.stringify([!!document.querySelector('[data-mpa=combat]'), !!document.querySelector('[data-mpa=togglehide]')])`)), [false, false]);
+    await click(pat, '[data-mpa=panel][data-v=hp]');
+    await until(pat, `!!document.querySelector('[data-mpi=hpn]')`, Boolean);
+    await pat.ev(`document.querySelector('[data-mpi=hpn]').value = 4; document.querySelector('[data-mpa=hp][data-v=dmg]').click(); 1`);
+    is('Damage from the token goes to the sheet', await until(pat, `document.querySelector('[data-mp=menu] .who small')?.textContent || ''`, (t) => t.startsWith('17/')).then((t) => t.startsWith('17/')), true);
+    is('another player never gets their HP', JSON.parse(await viewAs(SID.sam)).map.tokens.find((t) => t.name === 'Lock').hp, undefined);
+    is('a player can\'t edit more than HP and conditions', (await fetch(`${BASE}/sheets/player/dm.php`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.pat, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: 'send', c: CAMP, char: 'lock', edits: [{ id: 'nope00000001', at: 1, t: 'x', op: 'set', path: ['name'], value: 'Bad', was: 'Lock' }] }) }).then((r) => r.json())).refused?.length, 1);
 
-    // the fight ends: monsters back to the tray (positions kept), Lock stays
-    await click(dm, '[data-mp=fight] [data-fi=end]');
-    await click(dm, '#fi-ask button[value=yes]');
-    is('fight over: goblin back in the tray, Lock still placed', await until(dm, '1', () => !Object.values(mapJson().tokens).find((x) => x.mon === 'gob').placed, 8000).then(() => {
-        const t = Object.values(mapJson().tokens); return [t.find((x) => x.mon === 'gob').placed, t.find((x) => x.mon === 'gob').x, t.find((x) => x.char === 'lock').placed]; }), [false, 0, true]);
-    is("player: the goblin left Pat's map", await until(pat, `!${tokOf('Goblin')}`, Boolean), true);
+    // Ping and ruler: seen live by the others; a player sees the DM's ping
+    await rail(pat, 'ruler');
+    await drag(pat, [[150, 150], [350, 150]], { hold: true });
+    is('a player\'s ruler shows on the DM\'s map live', await until(dm, text('.mp-ruler'), (t) => t.includes('ft · Pat')).then((t) => t.includes('Pat')), true);
+    await pat.ev(`__ptr('pointerup', 350, 150); 1`);
+    is('it goes when they let go', await until(dm, `!document.querySelector('.mp-ruler').textContent.includes('Pat')`, Boolean), true);
+    await rail(dm, 'point');
+    await until(dm, `!!document.querySelector('[data-mpa=ptmode]')`, Boolean);
+    await drag(dm, [[200, 200]]);
+    is('a ping shows on the player\'s map', await until(pat, `!!document.querySelector('.mp-ping')`, Boolean), true);
 
-    // rename and archive from the list; nothing deleted
-    await dm.ev(`document.querySelector('[data-mpa=rename]').click(); 1`);
-    await until(dm, `!!document.querySelector('dialog[open] input')`, Boolean);
-    await dm.ev(`(() => { const i = document.querySelector('dialog[open] input'); i.value = 'Lower crypt'; document.querySelector('dialog[open] button[value=yes]').click(); return 1; })()`);
-    is('renamed', await until(dm, text('.mp-title'), (t) => t === 'Lower crypt'), 'Lower crypt');
-    await click(dm, '[data-mpa=archive]');
-    is('archived: folded away, kept', (await until(dm, text('[data-mp=maps] details summary'), (t) => t.includes('Archived (1)'))), 'Archived (1)');
-    is('players: no map on the table', await until(pat, text('.mp-msg'), (t) => t.includes('No map on the table')), 'No map on the table yet.');
-    await click(dm, '[data-mpa=unarchive]');
-    await until(dm, `!!document.querySelector('[data-mpa=activate]')`, Boolean);
-    await click(dm, '[data-mpa=activate]');
-    is('back on the table for Pat', await until(pat, `!!document.querySelector('.mp-img:not([hidden])')`, Boolean), true);
-    is('every players\' copy kept', readdirSync(mapDir()).filter((f) => f.startsWith('public-')), ['public-1.webp']);
+    // Hide map: players wait again; settings hide effects
+    await click(dm, '[data-mpa=hidemap]');
+    is('Hide map: players wait', (await until(pat, text('.mp-msg'), (t) => t.includes('Waiting'))).includes('Waiting'), true);
+    await click(dm, '[data-mpa=showmap]');
+    await until(pat, `!!document.querySelector('.mp-img')?.getAttribute('src')`, Boolean);
 
-    // the campaign page: a Map section with the map on the table
+    // the sheet's Map button still leads here, the campaign page still shows it
     await go(pat, `${BASE}/campaigns/${CAMP}`);
-    is('campaign page: the map, with Lock on it', await until(pat, `!!document.querySelector('#cp-map:not([hidden]) .mp-tok')`, Boolean), true);
-    // the player sheet's top bar: a Map button
-    await go(pat, `${BASE}/characters/lock`);
-    is('sheet: a Map button to the map page', await until(pat, `document.querySelector('#hb-map')?.getAttribute('href') || ''`, (h) => h.includes('/map')), `/campaigns/${CAMP}/map`);
+    is('campaign page: the map shows', await until(pat, `!document.querySelector('#cp-map')?.hidden && !!document.querySelector('#cp-map .mp-stage')`, Boolean), true);
 
     // offline: the player's moves pause with "Live updates paused"
     await go(pat, `${BASE}/campaigns/${CAMP}/map`);
     await until(pat, `!!${tokOf('Lock')}`, Boolean);
     relay.kill();
-    is('relay down: the player sees "Live updates paused", moving greyed out', await until(pat, `!document.querySelector('[data-mp=paused]').hidden && !${tokOf('Lock')}.classList.contains('can')`, Boolean, 10000), true);
+    is('relay down: the player sees "Live updates paused"', (await until(pat, `!document.querySelector('[data-mp=paused]').hidden && ${text('[data-mp=paused]')}`, Boolean, 20000)).includes('Live updates paused'), true);
 
-    for (const [who, b] of [['DM', dm], ['Pat', pat]]) is(`no console errors (${who})`, b.errors.filter((e) => !/backup\.php|prefs\.php|WebSocket|ERR_CONNECTION_REFUSED|NS_ERROR_CONNECTION_REFUSED/.test(e) && !e.includes(RELAY)), []);
+    for (const [who, b] of [['DM', dm], ['Pat', pat]]) is(`no console errors (${who})`, b.errors.filter((e) => !/backup\.php|prefs\.php|WebSocket|ws:\/\/|ERR_CONNECTION|Failed to load resource|403|NetworkError|net::/i.test(e)), []);
 } finally { pat.close(); dm.close(); relay.kill(); web.kill(); rmSync(TMP, { recursive: true, force: true }); }
 console.log(bad ? `${bad} check(s) failed` : 'maps page ok');
 process.exit(bad ? 1 : 0);

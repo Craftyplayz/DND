@@ -1,9 +1,7 @@
-// Checks the Table view (ROADMAP 1.7) end to end, with the real relay in front of a local PHP server (GD loaded). Dee (the DM)
-// opens /campaigns/<id>/table in browser A (Chrome; Firefox with --firefox), as the DM does before moving the tab to the TV.
-// Pat plays Lock in browser B (the other one), where Dee later opens the campaign page too. Dee runs the game through the API:
-// a map put on the table, a fight with a hidden monster, damage, a draft fog, hidden and fogged tokens, a hidden roll, a
-// whisper, DM notes and handouts. The Table view must follow every public change live and never receive a secret: everything
-// it fetched and every WebSocket frame its role gets are searched for them. Then the relay goes away and comes back.
+// Checks the Spectator window (ROADMAP 1.7, battle map rework) end to end, with the real relay in front of a local PHP server (GD
+// loaded). Dee (the DM) opens /campaigns/<id>/table in browser A (Chrome; Firefox with --firefox), as the DM does before moving the tab
+// to the TV; Pat plays Lock in browser B. Dee runs the game through the API. It must follow every public change live and never receive
+// a secret: everything it fetched and every WebSocket frame its role gets are searched for them. Then the relay goes away and comes back.
 //   node _dev/scripts/table-page.mjs [--firefox]   (needs: cd live && npm install, and includes/config.php for sign-in)
 // Uses stand-in account and session folders in the temp folder, never private/dnd/accounts or private/sessions.
 import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
@@ -68,7 +66,7 @@ const fightOp = async (op, extra = {}) => api(SID.dm, { act: 'fight', op, v: (aw
 const go = async (b, url) => { await b.go(url); for (let i = 0; i < 80 && !(await b.ev(`document.readyState === 'complete' && !!document.querySelector('main')`)); i++) await sleep(100); };
 const signIn = async (b, sid) => { await b.go(BASE + '/privacy/'); await b.ev(`localStorage.clear(); document.cookie = 'dndsid=${sid}; path=/'`); };
 const text = (sel) => `document.querySelector('${sel}')?.textContent.replace(/\\s+/g, ' ').trim() || ''`;
-const cards = `[...document.querySelectorAll('.tv-card')].map((c) => c.className.replace('tv-card ', '') + ':' + (c.querySelector('.tv-n')?.textContent || c.textContent.trim()))`;
+const cards = `[...document.querySelectorAll('[data-mp=tracker] .mpt-tile')].map((c) => c.className.replace(/mpt-tile ?/, '') + ':' + c.title)`;
 const untilCards = async (b, ok, ms = 10000) => JSON.parse(await until(b, `JSON.stringify(${cards})`, (v) => v && ok(JSON.parse(v)), ms));
 
 // sockets of our own beside the page: one as the table (the frames the Table view gets) and one as the DM (proof the secrets went out)
@@ -82,7 +80,7 @@ function listen(sid, as) {
 }
 // what may never reach the Table view, found in text: [what it is, pattern]
 const SECRETS = [['the hidden monster', /Secret Lurker|"lurker"/], ['the monster in the fog', /Shadow Fiend|"shade"/], ["the hidden roll's title", /Mind Blast/], ["the hidden roll's result", /HIDDENTOTAL41/],
-    ['the whisper', /Steal the gem|WHISPER27/], ['HP of anyone', /"hp"|"cur"|"temp"|(?<!\d)(4444|4437)(?!\d)/], ['initiative numbers', /"init"|"bonus"/], ['the draft fog', /"draft"|111111111111/],
+    ['the whisper', /Steal the gem|WHISPER27/], ['HP of anyone', /"hp"|"cur"|"temp"|(?<!\d)(4444|4437)(?!\d)/], ['initiative numbers', /"init"|"bonus"/], ['the fog strokes or an encounter', /"draft"|"ops"|"enc"|"poly"/], ['a hidden overlay', /hiddenover/],
     ['the working or original map', /img=work|img=original|img=thumb/], ['a DM note', /NOTE-SECRET|"notes"/], ['a draft or one-player handout', /Unsent draft|Only for Pat/], ['hidden flags', /"hidden":/],
     ['Google ids', /"(111|222|333)"/]];
 const leaks = (where, s) => { for (const [what, re] of SECRETS) { const m = s.match(re); if (m) { bad++; console.log(`FAIL ${where} carried ${what}: ${m[0]} in ...${s.slice(Math.max(0, m.index - 60), m.index + 60)}...`); } } };
@@ -106,7 +104,6 @@ try {
     // the Table view with nothing on the table: the campaign's name and party
     await go(tv, `${BASE}/campaigns/${CAMP}/table`);
     is('nothing on the table: the campaign and its party', await until(tv, `!document.querySelector('.tv-idle').hidden && ${text('.tv-idle')}`, (t) => t && t.includes('Lock')), 'Table Test LLockOOzzy');
-    is('the one-time full screen prompt', await tv.ev(`!document.querySelector('.tv-full').hidden`), true);
     if (process.env.TV_SHOT) writeFileSync(process.env.TV_SHOT + '-idle.png', await tv.shot(1280, 720));
     is('the page carries the table role for the live socket', await tv.ev(`Live.as`), 'table');
     // nothing the tab sends is taken: a change straight from the page is refused, and Live.send sends nothing
@@ -114,147 +111,95 @@ try {
     is('a map change from the table tab is refused', await tv.ev(`fetch('/campaigns/maps.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ c: '${CAMP}', m: '${MAP}', op: 'activate' }) }).then((r) => r.status)`), 403);
     is('Live.send from the table tab sends nothing', await tv.ev(`Live.send('${CAMP}', { title: 'x' }) === null && localStorage.getItem('live-outbox') === null`), true);
     is('the session is still not running', JSON.parse(readFileSync(join(ACCOUNTS, 'campaigns', CAMP, 'campaign.json'), 'utf8')).session ?? null, null);
-    await tv.ev(`document.querySelector('.tv-full').click(); 1`);
-    is('the prompt goes once clicked', await tv.ev(`document.querySelector('.tv-full').hidden`), true);
 
-    // the map goes on the table: never sent, so a black rectangle, then the sent fog (left half)
+    // the map displayed: clear, then fog over the right half; the picture is asked for as the table
     await maps({ op: 'activate' });
-    is('a map on the table, never sent: black, like players', await until(tv, `document.querySelector('.tv-idle').hidden && !document.querySelector('.mp-black').hidden`, Boolean), true);
-    await maps({ op: 'draft', fog: '110011001100' });
-    await maps({ op: 'send' });
-    is('sent: the masked copy, asked for as the table', await until(tv, `document.querySelector('.mp-img').getAttribute('src') || ''`, (s) => s.includes('img=public')).then((s) => [s.includes('&as=table&'), s.includes('n=1')]), [true, true]);
+    is('a map displayed: the picture, asked for as the table', await until(tv, `document.querySelector('.tv-idle').hidden && (document.querySelector('.mp-img').getAttribute('src') || '')`, (s) => s && s.includes('img=public')).then((s) => s.includes('&as=table')), true);
+    await maps({ op: 'fog', add: { on: true, poly: [[200, 0], [400, 0], [400, 300], [200, 300]] } });
     is('the picture loads', await until(tv, `document.querySelector('.mp-img').naturalWidth`, (w) => w > 0), 400);
     is('the map fills the screen, fitted', await tv.ev(`(() => { const r = document.querySelector('.mp-stage').getBoundingClientRect(); return r.width > innerWidth * .9 || r.height > innerHeight * .9; })()`), true);
+
     // keys: + zooms, 0 fits again
-    const w0 = await tv.ev(`document.querySelector('.mp-stage').getBoundingClientRect().width`);
+    const scale = `document.querySelector('.mp-stage').style.transform`;
+    const s0 = await tv.ev(scale);
     await tv.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true })); 1`);
-    is('+ zooms in', await tv.ev(`document.querySelector('.mp-stage').getBoundingClientRect().width`) > w0 * 1.1, true);
+    is('+ zooms', await until(tv, scale, (s) => s !== s0) !== s0, true);
     await tv.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: '0', bubbles: true })); 1`);
-    is('0 fits again', Math.round(await tv.ev(`document.querySelector('.mp-stage').getBoundingClientRect().width`)), Math.round(w0));
+    is('0 fits again', await until(tv, scale, (s) => s === s0), s0);
+
     // the party on the map: names always shown, under the tokens
     const tok = (name) => `[...document.querySelectorAll('.mp-tok')].find((e) => e.getAttribute('aria-label').startsWith('${name}'))`;
-    const dmMap = await get(SID.dm, `/campaigns/maps.php?c=${CAMP}`).then((r) => r.json());
-    const key = (name) => dmMap.map.tokens.find((t) => t.name === name).k;
-    await maps({ op: 'move', k: key('Lock'), x: 0, y: 0, placed: true });
-    await maps({ op: 'move', k: key('Ozzy'), x: 100, y: 100, placed: true });
-    is('party tokens live, names showing below them', await until(tv, `(() => { const t = ${tok('Ozzy')}; if (!t) return ''; const n = t.querySelector('.mp-name'); return getComputedStyle(n).display + ':' + (n.getBoundingClientRect().top >= t.getBoundingClientRect().bottom - 2); })()`, (v) => v === 'block:true'), 'block:true');
-    // a player's ruler shows live, and goes when they let go
+    const dmMap = () => get(SID.dm, `/campaigns/maps.php?c=${CAMP}`).then((r) => r.json());
+    const key = async (name) => (await dmMap()).map.tokens.find((t) => t.name === name).k;
+    await maps({ op: 'move', k: await key('Lock'), x: 0, y: 0, placed: true });
+    await maps({ op: 'move', k: await key('Ozzy'), x: 100, y: 100, placed: true });
+    is('party tokens live, names showing', await until(tv, `(() => { const t = ${tok('Ozzy')}; return t ? getComputedStyle(t.querySelector('.mp-name')).display : ''; })()`, Boolean), 'block');
     await post(SID.pat, '/campaigns/maps.php', { c: CAMP, m: MAP, op: 'ruler', pts: [[50, 50], [250, 50]] });
     is("a player's ruler, live", await until(tv, text('.mp-ruler text'), Boolean), '10 ft · Pat');
     await post(SID.pat, '/campaigns/maps.php', { c: CAMP, m: MAP, op: 'ruler', pts: null });
     is('the ruler goes', await until(tv, `!document.querySelector('.mp-ruler polyline')`, Boolean), true);
+    await post(SID.pat, '/campaigns/maps.php', { c: CAMP, m: MAP, op: 'ping', x: 50, y: 50, color: 5 });
+    is("a player's ping, live", await until(tv, `!!document.querySelector('.mp-ping')`, Boolean), true);
 
-    // the fight: two monsters (the Lurker hidden), Pat rolls in, Ozzy waits
-    await fightOp('start');
-    await fightOp('add', { items: [{ kind: 'monster', mon: 'lurker', init: 25, bonus: 3, ac: 17 }, { kind: 'monster', mon: 'gob', init: 10, bonus: 2, ac: 15 }] });
-    const lurker = (await dmFight()).entries.find((e) => e.mon === 'lurker').id;
-    await fightOp('hide', { e: lurker, on: true });
-    is('rolling in: the order on top with who is still to roll', (await until(tv, text('.tv-strip'), (t) => t.includes('Waiting for: Lock, Ozzy'))).includes('Rolling initiative'), true);
-    is('the strip leaves the hidden monster out', await untilCards(tv, (c) => c.length === 1), ['monster:Goblin']);
+    // the fight: straight to round 1, the Lurker hidden, a sheet's roll moves Lock
+    await fightOp('begin', { items: [{ kind: 'monster', mon: 'lurker', init: 25, bonus: 3, ac: 17, hidden: true }, { kind: 'monster', mon: 'gob', init: 10, bonus: 2, ac: 15 }, { kind: 'pc', char: 'lock', init: 5 }, { kind: 'pc', char: 'ozzy', init: 4 }] });
+    is("the hidden monster's turn: a DM's turn card, first and larger", await untilCards(tv, (c) => c[0] === "on dmturn:DM's turn"), ["on dmturn:DM's turn", ':Goblin', ':Lock', ':Ozzy']);
     const n = (await dmFight()).n;
     await api(SID.pat, { act: 'roll', roll: { id: 'init-lock-0001', char: 'lock', title: 'Initiative', expr: '1d20 + 2', shown: '13 + 2', total: '15', nat: '', vis: 'public', fight: n, dice: [[20, [13]]] } });
-    is('Lock rolled in: only Ozzy is waited for', await until(tv, text('.tv-wait'), (t) => t === 'Waiting for: Ozzy'), 'Waiting for: Ozzy');
-    await fightOp('add', { items: [{ kind: 'pc', char: 'ozzy', init: 5 }] });
-    await fightOp('round1');
-    is("the hidden monster's turn: a DM's turn card, current, Lock next", await untilCards(tv, (c) => c[0]?.startsWith('dm now')), ['dm now:DM\'s turn', 'pc next:Lock', 'monster:Goblin', 'pc:Ozzy']);
-    is('round 1 on the strip', await tv.ev(text('.tv-round')), 'Round 1');
-    // players see the DM's turn too, on the map page's fight panel
+    is("a sheet's roll moves Lock up the order", await untilCards(tv, (c) => c[1] === ':Lock'), ["on dmturn:DM's turn", ':Lock', ':Goblin', ':Ozzy']);
+    is('round 1 on the tracker', (await tv.ev(text('.mpt-trt'))).startsWith('Round 1'), true);
     await go(pat, `${BASE}/campaigns/${CAMP}/map`);
-    is("Pat's map: the DM's turn card", await until(pat, text('[data-mp=fight] .fi-p.on'), (t) => t.includes("DM's turn")), "DMDM's turn");
-    is("Pat's map: You're up next", await until(pat, text('.fi-you'), Boolean), "You're up next");
+    is("Pat's map: the DM's turn card", await until(pat, text('[data-mp=tracker] .mpt-tile.on'), Boolean), "DM's turn");
     await fightOp('next');
-    is('next turn: the order turns round, Lock first and bigger', await untilCards(tv, (c) => c[0] === 'pc now:Lock'), ['pc now:Lock', 'monster next:Goblin', 'pc:Ozzy']);
-    is('the order slides along', await tv.ev(`document.querySelector('.tv-cards').classList.contains('slide')`), true);
-    is('no initiative numbers anywhere on the TV', await tv.ev(`/\\b(25|15|10)\\b/.test(document.querySelector('.tv-strip').textContent)`), false);
+    is('next turn: the order turns round, Lock first', await untilCards(tv, (c) => c[0] === 'on:Lock'), ['on:Lock', ':Goblin', ':Ozzy']);
+    is('no initiative numbers on the TV', await tv.ev(`[...document.querySelectorAll('.mpt-tile')].some((t) => /\\b(25|15|10)\\b/.test(t.textContent))`), false);
 
     // damage: the goblin bloodied (a red edge), never a number
+    await maps({ op: 'move', k: await key('Goblin'), x: 0, y: 100, placed: true });
     await post(SID.dm, `/sheets/monster/cloud.php?hp=gob&c=${CAMP}`, { op: { k: 'dmg', n: 4000 } });
-    is('the goblin is bloodied on the strip', (await untilCards(tv, (c) => c.includes('monster next bloodied:Goblin'))).includes('monster next bloodied:Goblin'), true);
+    is('the goblin token is bloodied', await until(tv, `${tok('Goblin')}?.classList.contains('bloodied')`, Boolean), true);
 
-    // Lock goes down with Poisoned: down, death-save ticks and the condition icon, on the strip and on the token, for everyone
+    // Lock at 0 HP with conditions: the same dead look as a monster, condition icons on the token; no death-save ticks any more
     const lock = JSON.parse(readFileSync(charFile('lock'), 'utf8'));
     Object.assign(lock, { updated: Date.now(), hp: { ...lock.hp, cur: 0 }, conditions: ['Poisoned', 'My Own Curse'], panels: [{ id: 'p1', type: 'combat', ok: 1, bad: 2 }] });
     is('Pat saves Lock at 0 HP', (await post(SID.pat, '/sheets/player/cloud.php', lock)).status, 200);
-    is('the TV: Lock down with 1 success and 2 failures, Poisoned', await until(tv, `(() => { const c = document.querySelector('.tv-card.pc.down'); return c && [c.querySelectorAll('.cond-saves .cs-ok.on').length, c.querySelectorAll('.cond-saves .cs-bad.on').length,
-        [...c.querySelectorAll('.cond-ic title')].map((t) => t.textContent).join()].join(':'); })()`, Boolean), '1:2:Poisoned,My Own Curse');
-    is('the TV token: down, its conditions as icons', await until(tv, `(() => { const t = ${tok('Lock')}; return t && t.classList.contains('down') && t.querySelectorAll('.cond-ic').length; })()`, (v) => v === 2), 2);
-    is("Pat's map token shows them too", await until(pat, `(() => { const t = ${tok('Lock')}; return t && t.classList.contains('down') && !!t.querySelector('.cond-saves') && t.querySelectorAll('.cond-ic').length; })()`, (v) => v === 2), 2);
-    is("a player's own condition gets its first letter", await tv.ev(`[...document.querySelectorAll('.tv-card .cond-ic')].find((s) => s.querySelector('title').textContent === 'My Own Curse')?.querySelector('text')?.textContent`), 'M');
+    is('the TV token: down, its conditions as icons, no ticks', await until(tv, `(() => { const t = ${tok('Lock')}; return t && t.classList.contains('down') && !t.querySelector('.cond-saves') && t.querySelectorAll('.cond-ic').length; })()`, (v) => v === 2), 2);
+    is('the tile: dead', await until(tv, `document.querySelector('[data-mp=tracker] .mpt-tile.dead')?.title`, Boolean), 'Lock');
 
-    // the DM's secrets: a draft fog, the hidden Lurker on a revealed square, the Shadow Fiend in the fog, a hidden roll, a whisper,
-    // a note, a draft and a one-player handout
-    await maps({ op: 'draft', fog: '111111111111' });
-    await maps({ op: 'move', k: (await get(SID.dm, `/campaigns/maps.php?c=${CAMP}`).then((r) => r.json())).map.tokens.find((t) => t.name === 'Goblin').k, x: 0, y: 100, placed: true });
-    const lk = (await get(SID.dm, `/campaigns/maps.php?c=${CAMP}`).then((r) => r.json())).map.tokens.find((t) => t.name === 'Secret Lurker').k;
-    await maps({ op: 'move', k: lk, x: 100, y: 0, placed: true });
-    await maps({ op: 'drop', mon: 'shade' });
-    const sh = (await get(SID.dm, `/campaigns/maps.php?c=${CAMP}`).then((r) => r.json())).map.tokens.find((t) => t.name === 'Shadow Fiend').k;
-    await maps({ op: 'move', k: sh, x: 300, y: 200, placed: true });
-    await maps({ op: 'move', k: sh, x: 200, y: 200, placed: true });
+    // the DM's secrets: fog strokes, the hidden Lurker in the clear, the Shadow Fiend under fog, a hidden roll, a whisper, a note, handouts
+    await maps({ op: 'move', k: await key('Secret Lurker'), x: 100, y: 0, placed: true });
+    const placed = await maps({ op: 'place', mon: 'shade', x: 300, y: 200 });
+    is('the Shadow Fiend placed in the fog', placed.status, 200);
+    await maps({ op: 'overlay', o: { id: 'hiddenover', type: 'circle', x: 50, y: 50, len: 40, ang: 0, color: 0, pat: 0, hidden: true, group: '', locked: false } });
     await api(SID.dm, { act: 'roll', roll: { id: 'hid-roll-0001', name: 'Secret Lurker', title: 'Mind Blast', expr: '1d20 + 14', shown: '19 + 14', total: 'HIDDENTOTAL41', vis: 'hidden', dice: [[20, [19]]] } });
     await api(SID.sam, { act: 'roll', roll: { id: 'whisper-0001', char: 'ozzy', title: 'Steal the gem', expr: '1d20', shown: '17', total: 'WHISPER27', vis: 'dm' } });
-    await api(SID.pat, { act: 'roll', roll: { id: 'pub-roll-0001', char: 'lock', title: 'Death save', expr: '1d20', shown: '20', total: '20', nat: '20', vis: 'public', dice: [[20, [20]]] } });
     await post(SID.dm, '/campaigns/handouts.php', { c: CAMP, act: 'note', note: { id: 'note0001', title: 'Plans', body: 'NOTE-SECRET', updated: 5 } });
     await hand({ act: 'save', handout: { id: 'draft001', title: 'Unsent draft', updated: 1 } });
     await hand({ act: 'save', handout: { id: 'onlypat1', title: 'Only for Pat', updated: 1 } });
     await hand({ act: 'send', id: 'onlypat1', to: ['222'] });
-    is('the TV: the goblin moved in sight, the hidden and the fogged ones never there', await until(tv, `[...document.querySelectorAll('.mp-tok')].map((t) => t.getAttribute('aria-label').split(',')[0]).sort().join()`, (v) => v === 'Goblin,Lock,Ozzy'), 'Goblin,Lock,Ozzy');
-    is('the log: the nat 20 marked, the hidden roll only as "DM rolled", no whisper', await until(tv, `[...document.querySelectorAll('.tv-roll')].map((l) => l.className.replace('tv-roll', '').trim() + '|' + l.textContent.replace(/\\s+/g, ' ').trim()).join(' / ')`,
-        (v) => v.includes('Death save')), '|DM Fight started / |Lock Initiative 1513 + 2 / |DM rolled / nat20|Lock Death save 2020');
-    // 3D dice for the public roll, if this browser has WebGL (the log line is all without it)
-    const gl = await tv.ev(`(() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; } })()`);
-    is('the public roll is thrown in 3D (WebGL: ' + gl + ')', gl ? await until(tv, `!!document.getElementById('hb-throw')`, Boolean, 20000) : true, true);
-    // ...landing on the number that was rolled (the throw resolves once the dice stop)
-    if (gl) is('the 3D dice land on the real numbers', await until(tv, `JSON.stringify(TableView.state().landed)`, (v) => v && v.includes('pub-roll'), 20000), JSON.stringify({ id: 'pub-roll-0001', dice: [[20, [20]]] }));
-    if (process.env.TV_SHOT) writeFileSync(process.env.TV_SHOT + '-map.png', await tv.shot(1280, 720));
-
-    // handouts: the DM's "Show on TV now" button on the campaign page (Dee in browser B), then edits and Take off TV
-    await hand({ act: 'save', handout: { id: 'tvhand01', title: 'The old map', text: 'Torn at one corner', updated: 1 } });
-    await hand({ act: 'send', id: 'tvhand01', to: 'everyone' });
-    await signIn(pat, SID.dm);
-    await go(pat, `${BASE}/campaigns/${CAMP}/map`);
-    is('the map page has Open Table view in its top bar, for the DM', await until(pat, `document.querySelector('.mp-bar [data-act=tv]')?.getAttribute('href')`, Boolean), `/campaigns/${CAMP}/table`);
-    await go(pat, `${BASE}/campaigns/${CAMP}`);
-    is('the DM has an Open Table view button, to a new tab', await until(pat, `document.querySelector('[data-act=tv]')?.getAttribute('target')`, Boolean), '_blank');
-    await until(pat, `!!document.querySelector('[data-dm=hopen][data-id=onlypat1]')`, Boolean);
-    await pat.ev(`document.querySelector('[data-dm=hopen][data-id=onlypat1]').click(); 1`);
-    is('no TV button on a handout sent to some players', await until(pat, `!!document.querySelector('[data-dm=hsend]') && !document.querySelector('[data-dm=htv]')`, Boolean), true);
-    is('the old Table view switch is gone', await pat.ev(`!!document.querySelector('[data-hf=table]')`), false);
-    await pat.ev(`document.querySelector('[data-dm=hopen][data-id=tvhand01]').click(); 1`);
-    await until(pat, `document.querySelector('[data-dm=htv]')?.textContent === 'Show on TV now'`, Boolean);
-    await pat.ev(`document.querySelector('[data-dm=htv]').click(); 1`);
-    is('Show on TV now: the handout over the map', await until(tv, `!document.querySelector('.tv-ho').hidden && ${text('.tv-ho')}`, Boolean), 'The old mapTorn at one corner');
-    is('the text alone, big', await tv.ev(`document.querySelector('.tv-ho').classList.contains('tv-hotext-only')`), true);
-    if (process.env.TV_SHOT) writeFileSync(process.env.TV_SHOT + '-handout.png', await tv.shot(1280, 720));
-    is("the DM's list marks it On TV, the button says Take off TV", await until(pat, `document.querySelector('[data-dm=htv]')?.textContent + '|' + ${text('[data-dm=hopen][data-id=tvhand01]')}`, (v) => v.startsWith('Take')), 'Take off TV|The old map SentOn TV');
-    await hand({ act: 'save', handout: { id: 'tvhand01', title: 'The old map', text: 'Torn at two corners', updated: Date.now() + 5000 } });
-    is('an edit follows live', await until(tv, text('.tv-hotext'), (t) => t.includes('two')), 'Torn at two corners');
-    await pat.ev(`document.querySelector('[data-dm=htv]').click(); 1`);
-    is('Take off TV: the map again', await until(tv, `document.querySelector('.tv-ho').hidden`, Boolean), true);
-    await hand({ act: 'tv', id: 'tvhand01', on: true });
-    await until(tv, `!document.querySelector('.tv-ho').hidden`, Boolean);
-    await hand({ act: 'unshare', id: 'tvhand01' });
-    is('unshared: off the TV', await until(tv, `document.querySelector('.tv-ho').hidden`, Boolean), true);
+    await sleep(800);
+    is('the TV has only the tokens it may have', await tv.ev(`[...document.querySelectorAll('.mp-tok')].map((e) => e.getAttribute('aria-label').split(',')[0]).sort().join()`), 'Goblin,Lock,Ozzy');
+    is('no rolls, dice or handouts on the Spectator window', JSON.parse(await tv.ev(`JSON.stringify([!!document.querySelector('.tv-log'), !!document.querySelector('.tv-ho')])`)), [false, false]);
 
     // everything the Table view fetched went as the table, and none of it holds a secret
     const urls = JSON.parse(await tv.ev(`JSON.stringify(performance.getEntriesByType('resource').map((e) => e.name))`));
     const mine = urls.filter((u) => /\/campaigns\/(fight|maps|log|handouts)\.php\?/.test(u)); // (not the refused POSTs above)
-    is('it fetched its fight, map, log and handout', ['fight', 'maps', 'log', 'handouts'].every((p) => mine.some((u) => u.includes(`/${p}.php`))), true);
+    is('it fetched its fight and map', ['fight', 'maps'].every((p) => mine.some((u) => u.includes(`/${p}.php`))), true);
     is('every one of them as the table', mine.filter((u) => !u.includes('as=table')), []);
     for (const u of [...new Set(mine)]) leaks(u.replace(BASE, ''), await get(SID.dm, u.replace(BASE, '')).then((r) => (/img=/.test(u) ? '' : r.text())));
     leaks('the TV page', await tv.ev(`document.documentElement.outerHTML`));
     leaks('the WebSocket frames the table gets', tableWs.got.join('\n'));
-    is('the DM socket did get the secrets (the check sees them)', ['Mind Blast', 'WHISPER27', '"draft":true', 'Secret Lurker'].map((s) => dmWs.got.some((f) => f.includes(s))), [true, true, true, true]);
-    is('the table socket got the live updates', ['"type":"fight"', '"type":"status"', '"type":"tv"', 'DM rolled' && '"vis":"hidden"', 'Death save'].map((s) => tableWs.got.some((f) => f.includes(s))), [true, true, true, true, true]);
+    is('the DM socket did get the secrets (the check sees them)', ['Mind Blast', 'WHISPER27'].map((s) => dmWs.got.some((f) => f.includes(s))), [true, true]);
+    is('the table socket got the live updates', ['"type":"fight"', '"type":"status"', '"type":"map"'].map((x) => tableWs.got.some((f) => f.includes(x))), [true, true, true]);
 
     // the relay goes away: "Reconnecting...", the same screen kept, and everything back when it returns
-    const before = await tv.ev(`JSON.stringify([${cards}, document.querySelector('.mp-img').getAttribute('src'), document.querySelectorAll('.tv-roll').length])`);
+    const before = await tv.ev(`JSON.stringify([${cards}, document.querySelector('.mp-img').getAttribute('src')])`);
     await tv.ev(`window.__still = 1`);
     relay.kill();
     is('relay gone: Reconnecting...', await until(tv, `!document.querySelector('.tv-badge').hidden && ${text('.tv-badge')}`, Boolean), 'Reconnecting...');
-    is('the screen stays as it was', await tv.ev(`JSON.stringify([${cards}, document.querySelector('.mp-img').getAttribute('src'), document.querySelectorAll('.tv-roll').length])`), before);
+    is('the screen stays as it was', await tv.ev(`JSON.stringify([${cards}, document.querySelector('.mp-img').getAttribute('src')])`), before);
     await fightOp('next'); // a change while the relay is down: the 10 s check picks it up
-    is('while down, changes still come every 10 s', (await untilCards(tv, (c) => c[0] === 'monster now bloodied:Goblin', 15000))?.[0], 'monster now bloodied:Goblin');
+    is('while down, changes still come every 10 s', (await untilCards(tv, (c) => c[0] === 'on:Goblin', 15000))?.[0], 'on:Goblin');
     await startRelay();
     is('relay back: the badge goes', await until(tv, `document.querySelector('.tv-badge').hidden`, Boolean, 15000), true);
     is('no reload when nothing changed', await tv.ev(`window.__still === 1`), true);
@@ -265,13 +210,13 @@ try {
     relay.kill();
     await until(tv, `!document.querySelector('.tv-badge').hidden`, Boolean);
     await startRelay();
-    is('a new version: the tab reloads itself', await until(tv, `window.__still === undefined && document.readyState === 'complete' && !!document.querySelector('.tv-card')`, Boolean, 20000), true);
-    is('after the reload: the same fight', await untilCards(tv, (c) => c[0] === 'monster now bloodied:Goblin'), ['monster now bloodied:Goblin', 'pc next:Ozzy', 'pc down:Lock']);
+    is('a new version: the tab reloads itself', await until(tv, `window.__still === undefined && document.readyState === 'complete' && !!document.querySelector('[data-mp=tracker] .mpt-tile')`, Boolean, 20000), true);
+    is('after the reload: the same fight', (await untilCards(tv, (c) => c[0] === 'on:Goblin'))[0], 'on:Goblin');
     // (the refused changes above, and the relay going away and the reload cutting its socket)
     is('no console errors on the Table view', tv.errors.filter((e) => !/403|Forbidden|WebSocket|ERR_CONNECTION_REFUSED|NS_ERROR_CONNECTION_REFUSED|can.t establish a connection|interrupted while the page was loading/i.test(e)), []);
     // the end: the fight ends and the map comes off: the party screen again
     await fightOp('end');
-    is('no fight: no strip', await until(tv, `document.querySelector('.tv-strip').hidden`, Boolean), true);
+    is('no fight: no tracker', await until(tv, `!document.querySelector('[data-mp=tracker] .mpt-tile')`, Boolean), true);
     await maps({ op: 'archive', on: true });
     is('no map on the table: the party screen', await until(tv, `!document.querySelector('.tv-idle').hidden`, Boolean), true);
 } catch (e) {

@@ -156,7 +156,7 @@ window.DmTools = (() => {
             const list = Object.keys({ ...srv, ...mine.handouts }).map(merged).sort((a, b) => b.updated - a.updated);
             const live = list.filter((h) => !h.archived), arch = list.filter((h) => h.archived);
             $('#dm-hlist').innerHTML = live.length ? live.map((h) => `<button type="button" data-dm="hopen" data-id="${esc(h.id)}" aria-pressed="${h.id === openH}"><span>${esc(h.title || 'Untitled handout')}</span>
-                <span class="badge${h.to ? ' g' : ''}">${h.to ? 'Sent' : 'Draft'}</span>${h.tv ? '<span class="badge b">On TV</span>' : ''}</button>`).join('') : '<p class="muted">No handouts yet. Make one with New handout.</p>';
+                <span class="badge${h.to ? ' g' : ''}">${h.to ? 'Sent' : 'Draft'}</span></button>`).join('') : '<p class="muted">No handouts yet. Make one with New handout.</p>';
             $('#dm-harch').hidden = !arch.length;
             $('#dm-harch').innerHTML = `<summary>Archived (${arch.length})</summary><div class="rows">${arch.map((h) => `<div class="rowi"><span class="grow">${esc(h.title || 'Untitled handout')}</span><button type="button" class="btn small" data-dm="hrestore" data-id="${esc(h.id)}">Restore</button></div>`).join('')}</div>`;
         }
@@ -171,8 +171,7 @@ window.DmTools = (() => {
                 <fieldset class="dm-to"><legend>Who gets it</legend>
                     <label class="check"><input type="checkbox" data-to="everyone"${to === 'everyone' ? ' checked' : ''}> Everyone, and players who join later</label>
                     ${players.map((p) => `<label class="check"><input type="checkbox" data-to="${esc(p.sub)}"${to === 'everyone' || to.includes(p.sub) ? ' checked' : ''}${to === 'everyone' ? ' disabled' : ''}> ${esc(p.name)}</label>`).join('') || '<p class="muted">No players have joined yet.</p>'}</fieldset>
-                <div class="actions"><button type="button" class="btn primary" data-dm="hsend">${h.to ? 'Update players' : 'Send'}</button>${h.to ? '<button type="button" class="btn" data-dm="hunshare">Unshare</button>' : ''}<button type="button" class="btn" data-dm="harc">Archive</button>
-                    ${h.to === 'everyone' ? `<button type="button" class="btn" data-dm="htv" aria-pressed="${!!h.tv}">${h.tv ? 'Take off TV' : 'Show on TV now'}</button>` : ''}</div>
+                <div class="actions"><button type="button" class="btn primary" data-dm="hsend">${h.to ? 'Update players' : 'Send'}</button>${h.to ? '<button type="button" class="btn" data-dm="hunshare">Unshare</button>' : ''}<button type="button" class="btn" data-dm="harc">Archive</button></div>
                 <p class="muted dm-state" id="dm-hstate"></p>`;
             drawUp();
         }
@@ -269,11 +268,6 @@ window.DmTools = (() => {
             else if (a === 'hunshare') {
                 const was = merged(openH).to; // ticked again, so sending it back goes to the same players
                 if (await act({ act: 'unshare' }, b)) { pickTo[openH] = was; toast('Unshared. It\'s a draft again.', 'ok'); drawH(); drawHEdit(); }
-            }
-            // the Table view (1.7): this handout full screen on the TV, in place of any other; it must have gone to everyone
-            else if (a === 'htv') {
-                const on = !merged(openH).tv;
-                if (await act({ act: 'tv', on }, b)) { toast(on ? 'On the TV now.' : 'Taken off the TV.', 'ok'); drawH(); drawHEdit(); refresh(); }
             }
             else if (a === 'harc') { if (await act({ act: 'archive' }, b)) { openH = ''; drawH(); drawHEdit(); } }
             else if (a === 'hrestore') { openH = id; if (await act({ act: 'restore' }, b)) { drawH(); drawHEdit(); } }
