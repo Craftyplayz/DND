@@ -77,7 +77,7 @@ try {
             // character's "hoPanel" (ROADMAP 3.4, false until the character is in a campaign while signed in, never here)
             // and (ROADMAP 1.5) "dmApplied", the DM edits applied (none here), and "calc", the sheet's worked-out max HP
             // and (ROADMAP 4.2) "draft" (0: not in the builder) and "build" (the builder's picks; {} for one it didn't make)
-            const added = key === 'monster-sheet' ? ['enc'] : ['hoPanel', 'dmApplied', 'calc', 'draft', 'build'];
+            const added = key === 'monster-sheet' ? ['enc', 'hbsrc'] : ['hoPanel', 'dmApplied', 'calc', 'draft', 'build'];
             if (OLD && before[c.id] && after[c.id]) for (const k of Object.keys(after[c.id])) if (!(k in before[c.id]) && !added.includes(k)) miss.push(`${k}: added`);
             if (key !== 'monster-sheet' && after[c.id]) {
                 const a = after[c.id], nm = (x) => parseFloat(x) || 0, con = a.abilities.find((x) => String(x.key).toLowerCase() === 'con');
