@@ -325,9 +325,15 @@ try {
     await pat.ev(`__ptr('pointerup', 350, 150); 1`);
     is('it goes when they let go', await until(dm, `!document.querySelector('.mp-ruler').textContent.includes('Pat')`, Boolean), true);
     await rail(dm, 'point');
-    await until(dm, `!!document.querySelector('[data-mpa=ptmode]')`, Boolean);
-    await drag(dm, [[200, 200]]);
-    is('a ping shows on the player\'s map', await until(pat, `!!document.querySelector('.mp-ping')`, Boolean), true);
+    await until(dm, `!!document.querySelector('[data-mp=opts] [data-mpa=pop][data-v=colour]')`, Boolean);
+    is('Ping is gone: one Point tool', await dm.ev(`!document.querySelector('[data-mpa=ptmode]')`), true);
+    await drag(dm, [[200, 200], [300, 200], [400, 200]], { hold: true, pause: 40 });
+    is('the pointer shows on the player\'s map', await until(pat, `!!document.querySelector('.mp-point')`, Boolean), true);
+    is('it follows slightly behind the cursor', await dm.ev(`(() => { const t = BM.state.trails[0]; return t.head[0] < t.target[0] + 0.01 && t.target[0] > 300; })()`), true);
+    await sleep(800);
+    is('held still, it stays for the player', await pat.ev(`!!document.querySelector('.mp-point')`), true);
+    await dm.ev(`__ptr('pointerup', 400, 200); 1`);
+    is('let go, it fades away', await until(pat, `!document.querySelector('.mp-point')`, Boolean), true);
 
     // Add all: the whole Monster Sheet group at once
     const nToks = await dm.ev('BM.state.m.tokens.filter((t) => t.placed).length');

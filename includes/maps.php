@@ -558,17 +558,12 @@ function mp_op($accounts, $c, $sub, $body)
         if (!($o = mp_fog_op($body['add'] ?? null))) return [400, ['error' => "That isn't a fog change."], []];
         return [200, ['ok' => true], [[['type' => 'mapfog', 'm' => $m['id'], 'who' => live_key($c['id'], $sub), 'op' => $o], $onTable ? null : 'dm']]];
     }
-    if ($op === 'ping' || $op === 'trail') {
+    if ($op === 'trail') {
         if (!$onTable && !$dm) return [403, ['error' => "That map isn't on the table."], []];
         $msg = ['m' => $m['id'], 'who' => live_key($c['id'], $sub), 'c' => is_int($body['color'] ?? null) ? max(0, min(63, $body['color'])) : 0];
-        if ($op === 'ping') {
-            if (!is_numeric($body['x'] ?? null) || !is_numeric($body['y'] ?? null)) return [400, ['error' => 'Where?'], []];
-            $msg += ['type' => 'mapping', 'x' => round((float)$body['x'], 1), 'y' => round((float)$body['y'], 1)];
-        } else {
-            $pts = mp_pts($body['pts'] ?? null);
-            if (!$pts || !preg_match('/^[\w-]{1,40}$/', (string)($body['id'] ?? ''))) return [400, ['error' => "That isn't a trail."], []];
-            $msg += ['type' => 'maptrail', 'id' => (string)$body['id'], 'pts' => $pts];
-        }
+        $pts = mp_pts($body['pts'] ?? null);
+        if (!$pts || !preg_match('/^[\w-]{1,40}$/', (string)($body['id'] ?? ''))) return [400, ['error' => "That isn't a trail."], []];
+        $msg += ['type' => 'maptrail', 'id' => (string)$body['id'], 'pts' => $pts];
         return [200, ['ok' => true], [[$msg, $onTable ? null : 'dm']]];
     }
     if ($op === 'move') {

@@ -176,8 +176,6 @@ $op('111', ['op' => 'drawdel', 'ids' => [$dmLine]]);
 
 // pings and trails: for everyone, relayed, never saved
 $before = file_get_contents("$dir/map.json");
-[$code, , $live] = $op('222', ['op' => 'ping', 'x' => 10, 'y' => 20, 'color' => 3]);
-$is('a player pings', [$code, $live[0][0]['type'], $live[0][0]['x'], $live[0][1]], [200, 'mapping', 10.0, null]);
 [$code, , $live] = $op('222', ['op' => 'trail', 'id' => 't1', 'pts' => [[1, 2], [3, 4]], 'color' => 1]);
 $is('a player points', [$code, $live[0][0]['type'], $live[0][0]['pts']], [200, 'maptrail', [[1.0, 2.0], [3.0, 4.0]]]);
 $is('neither is saved', file_get_contents("$dir/map.json"), $before);

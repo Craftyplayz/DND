@@ -75,10 +75,10 @@ body:has(> main.mp) { display: flex; flex-direction: column; height: 100dvh; mar
 .cp-map .mp-tok:hover .mp-name, .cp-map .mp-tok:focus-visible .mp-name, .cp-map .mp-tok.show .mp-name { display: block; }
 .mp-tok.ringed .mp-face { border: calc(3px / var(--k, 1)) solid var(--ring); }
 .mp-ac { position: absolute; top: -14%; left: 50%; z-index: 1; display: grid; place-items: center; width: 34cqw; height: 34cqw; background: var(--sunken); border: 1px solid var(--line-strong); border-radius: 3px 3px 50% 50%; color: var(--text-hi); font-size: 18cqw; font-weight: 600; transform: translateX(-50%); pointer-events: none; }
-.mp-trail, .mp-polyd { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.mp-polyd, .mp-trail { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .mp-polyd { stroke: var(--highlight); }
 .mp-polys { fill: var(--highlight); }
-.mp-ping { fill: none; }
+.mp-ruler circle.mp-point { stroke: none; }
 .mp-axis { stroke: rgb(255 255 255 / .7); }
 .mp-hsize { fill: var(--accent); }
 .mp-hturn { fill: var(--highlight); }

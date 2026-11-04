@@ -24,7 +24,7 @@ window.BattleMap = (() => {
     const FOG_RES = 2048, MARK_RES = 3000; // canvases never go over this many pixels on their longest side
     const TOOLKEY = 'map-tools'; // the DM's and players' tool choices (follows the account: sync.js)
     const TOOLS_A = [['select', 'V', 'Select'], ['pan', 'P', 'Pan']];
-    const TOOLS_B = [['fog', 'F', 'Fog of War'], ['draw', 'D', 'Draw'], ['overlay', 'O', 'Overlays'], ['ruler', 'R', 'Ruler'], ['point', 'X', 'Point and Ping'], ['tokens', 'T', 'Tokens']];
+    const TOOLS_B = [['fog', 'F', 'Fog of War'], ['draw', 'D', 'Draw'], ['overlay', 'O', 'Overlays'], ['ruler', 'R', 'Ruler'], ['point', 'X', 'Point'], ['tokens', 'T', 'Tokens']];
     const TOOLS = [...TOOLS_A, ...TOOLS_B];
     const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -38,7 +38,7 @@ window.BattleMap = (() => {
     const throttle = (fn, ms) => { let t = 0, last = null; const run = () => { t = 0; fn(...last); }; return (...a) => { last = a; if (!t) t = setTimeout(run, ms); }; };
     const ph = (s) => `<span class="mpt-ph" aria-hidden="true">${esc(s)}</span>`;
     // a button's icon by the names in map-icons.js; a button's own words map onto them
-    const ICON_OF = { 'Add Square Overlay': 'Square overlay', 'Add Circle Overlay': 'Circle overlay', 'Add Cone Overlay': 'Cone overlay', 'Add Line Overlay': 'Line overlay', 'Reveal overlay': 'Hide overlay', COMBAT: 'Combat', HIDE: 'Hide', REVEAL: 'Hide', RING: 'Ring', SIZE: 'Size', MORE: 'More' };
+    const ICON_OF = { Point: 'Point and Ping', 'Add Square Overlay': 'Square overlay', 'Add Circle Overlay': 'Circle overlay', 'Add Cone Overlay': 'Cone overlay', 'Add Line Overlay': 'Line overlay', 'Reveal overlay': 'Hide overlay', COMBAT: 'Combat', HIDE: 'Hide', REVEAL: 'Hide', RING: 'Ring', SIZE: 'Size', MORE: 'More' };
     const ic = (name, fallback = '') => { const svg = window.MapIcons?.get(ICON_OF[name] || name); return svg ? `<span class="mpt-ph" aria-hidden="true">${svg}</span>` : ph(fallback || name[0]); };
     const art = (x) => (x.art ? `<img src="${esc(x.art)}" alt="" referrerpolicy="no-referrer" draggable="false" onerror="this.remove()">` : '');
     const clock = (at, skew) => { const s = Math.max(0, Math.floor((Date.now() + skew - at) / 1000)); return (Math.floor(s / 3600) ? `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}` : Math.floor(s / 60)) + ':' + String(s % 60).padStart(2, '0'); };
@@ -60,12 +60,12 @@ window.BattleMap = (() => {
         const part = (n) => root.querySelector(`[data-mp=${n}]`);
         const view = part('view');
         const tools = (() => { try { return JSON.parse(localStorage.getItem(TOOLKEY)) || {}; } catch (e) { return {}; } })();
-        const S = Object.assign({ fogShape: 'square', fogSize: 3, penMode: 'pen', penSize: 1, penColor: 0, ovType: 'square', ovColor: 0, ovPat: 1, pointMode: 'ping', pointColor: 5 }, tools, {
+        const S = Object.assign({ fogShape: 'square', fogSize: 3, penMode: 'pen', penSize: 1, penColor: 0, ovType: 'square', ovColor: 0, ovPat: 1, pointColor: 5 }, tools, {
             c, dm: !!opts.dm && !opts.table, full: !!opts.full && !opts.table, table: !!opts.table, me: opts.me || '', v: null, m: null, open: null, tool: 'select', k: 1, tx: 0, ty: 0, fitted: '', lines: true,
-            picks: new Set(), panel: null, pop: null, sideOn: false, endPop: false, poly: [], box: null, hover: null, newOv: null, ruler: null, rulers: {}, fogLive: {}, pings: [], trails: [], fogUndo: [], clip: null, space: false,
+            picks: new Set(), panel: null, pop: null, sideOn: false, endPop: false, poly: [], box: null, hover: null, newOv: null, ruler: null, rulers: {}, fogLive: {}, trails: [], fogUndo: [], clip: null, space: false,
             brTab: 'mon', brQ: '', brType: '', brSize: '', brCr: '', brFilters: false, mons: null, comp: null, party: null, paused: false, failed: false, moved: false, fight: null,
         });
-        const remember = () => { const { fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointMode, pointColor } = S; try { localStorage.setItem(TOOLKEY, JSON.stringify({ fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointMode, pointColor })); } catch (e) { } };
+        const remember = () => { const { fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointColor } = S; try { localStorage.setItem(TOOLKEY, JSON.stringify({ fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointColor })); } catch (e) { } };
         // ---- the stage ----
         view.innerHTML = `<div class="mp-stage"><img class="mp-img" alt="" draggable="false"><div class="mp-under"><canvas class="mp-marks"></canvas><div class="mp-grid"></div></div><div class="mp-toks"></div>
             <canvas class="mp-fog"></canvas><svg class="mp-ruler" aria-hidden="true"></svg><div class="mp-box" hidden></div></div><p class="mp-msg muted" hidden></p>`;
@@ -81,11 +81,14 @@ window.BattleMap = (() => {
         const allowed = (t) => S.dm || ['select', 'pan', 'draw', 'ruler', 'point'].includes(t);
 
         // ---- loading ----
+        let loadN = 0;
         async function load() {
+            const n = ++loadN; // only the newest counts: a slow older answer mustn't put back a map the DM has moved on from
             try {
                 const r = await fetch('/campaigns/maps.php?c=' + encodeURIComponent(c) + (S.dm && S.open ? '&m=' + encodeURIComponent(S.open) : '') + (S.table ? '&as=table' : ''), { cache: 'no-store' });
                 if (!r.ok) throw new Error(r.status);
                 const v = await r.json(), was = S.m;
+                if (n !== loadN) return;
                 S.v = v; S.m = v.map; S.failed = false;
                 if (S.dm && S.open && !S.m && v.active) { S.open = null; return load(); } // the map opened was archived elsewhere
                 if (S.dm && S.full && !S.m && !S.open) { const first = (v.maps || []).find((x) => !x.archived); if (first) { S.open = first.id; return load(); } }
@@ -264,16 +267,27 @@ window.BattleMap = (() => {
             if (!m) return;
             svg.setAttribute('viewBox', `0 0 ${m.w} ${m.h}`); svg.setAttribute('width', m.w); svg.setAttribute('height', m.h);
             const now = Date.now(), out = [], r = (n) => n / S.k;
-            S.trails = S.trails.filter((t) => now - t.at < 2000);
-            S.pings = S.pings.filter((p) => now - p.at < 1600);
+            const dt = Math.min(100, now - (S.liveAt || now));
+            S.liveAt = now;
+            for (const t of S.trails) {
+                const f = 1 - Math.exp(-dt / 70); // how far it closes on the cursor this frame: slightly behind, never far
+                t.head = [t.head[0] + (t.target[0] - t.head[0]) * f, t.head[1] + (t.target[1] - t.head[1]) * f];
+                t.tail.push([t.head[0], t.head[1], now]);
+                t.tail = t.tail.filter((a) => now - a[2] < 500);
+                if (t.mine && t.live && now - (t.sent || 0) > 500) { t.sent = now; sendTrail(t); } // still held: the others keep showing it
+            }
+            S.trails = S.trails.filter((t) => t.live || now - t.at < 1300);
             const list = [...Object.values(S.rulers), ...(S.ruler ? [{ name: '', pts: S.ruler, mine: true }] : [])].filter((x) => x.m === undefined || x.m === m.id);
             for (const u of list) {
                 if (u.pts.length < 2) continue;
                 const e = u.pts[u.pts.length - 1], label = `${feet(u.pts)} ft${u.name ? ' · ' + u.name : ''}`;
                 out.push(`<g class="${u.mine ? 'mine' : ''}"><polyline points="${u.pts.map((q) => q.join(',')).join(' ')}"/>${u.pts.map((q) => `<circle cx="${q[0]}" cy="${q[1]}" r="${r(4)}"/>`).join('')}<text x="${e[0] + r(10)}" y="${e[1] - r(10)}" font-size="${r(14)}">${esc(label)}</text></g>`);
             }
-            for (const t of S.trails) out.push(`<polyline class="mp-trail" style="stroke:${COLORS[t.c] || COLORS[5]};stroke-width:${r(5)};opacity:${1 - (now - t.at) / 2000}" points="${t.pts.map((q) => q.join(',')).join(' ')}"/>`);
-            for (const q of S.pings) { const a = (now - q.at) / 1600; for (const f of [0, 0.35]) out.push(`<circle class="mp-ping" cx="${q.x}" cy="${q.y}" r="${r(10 + ((a + f) % 1) * 70)}" style="stroke:${COLORS[q.c] || COLORS[5]};stroke-width:${r(4)};opacity:${1 - a}"/>`); }
+            for (const t of S.trails) {
+                const col = COLORS[t.c] || COLORS[5], fade = t.live ? 1 : Math.max(0, 1 - (now - t.at) / 1300);
+                t.tail.forEach((a, i) => { if (!i) return; const b = t.tail[i - 1], f = 1 - (now - a[2]) / 500; out.push(`<line class="mp-trail" x1="${b[0]}" y1="${b[1]}" x2="${a[0]}" y2="${a[1]}" style="stroke:${col};stroke-width:${r(7 * f)};opacity:${f * fade}"/>`); });
+                out.push(`<circle class="mp-point" cx="${t.head[0]}" cy="${t.head[1]}" r="${r(14)}" style="fill:${col};opacity:${0.25 * fade}"/><circle class="mp-point" cx="${t.head[0]}" cy="${t.head[1]}" r="${r(7)}" style="fill:${col};opacity:${fade}"/>`);
+            }
             if (S.dm && S.tool === 'fog' && S.hover && S.fogShape !== 'polygon') {
                 const b = (S.fogSize * m.grid.s) / 2, [hx, hy] = S.hover;
                 out.push(S.fogShape === 'round' ? `<circle class="mp-brush" cx="${hx}" cy="${hy}" r="${b}" style="stroke-width:${r(1.5)}"/>` : `<rect class="mp-brush" x="${hx - b}" y="${hy - b}" width="${b * 2}" height="${b * 2}" style="stroke-width:${r(1.5)}"/>`);
@@ -283,7 +297,7 @@ window.BattleMap = (() => {
             if (S.newOv) out.push(axis(S.newOv));
             if (S.dm) for (const id of S.picks) { const o = ovOf(id); if (!o) continue; const h = handles(o); out.push(axis(o) + `<circle class="mp-hsize" cx="${h.size[0]}" cy="${h.size[1]}" r="${r(7)}"/><circle class="mp-hturn" cx="${h.turn[0]}" cy="${h.turn[1]}" r="${r(7)}"/>`); }
             svg.innerHTML = out.join('');
-            if ((S.trails.length || S.pings.length) && !liveQ) liveQ = requestAnimationFrame(() => { liveQ = 0; drawLive(); });
+            if (S.trails.length && !liveQ) liveQ = requestAnimationFrame(() => { liveQ = 0; drawLive(); });
         }
 
         // ---- the small page's buttons (campaign page) ----
@@ -349,7 +363,7 @@ window.BattleMap = (() => {
                 if (S.pop === 'colour') h += `<div class="mpt-pop">${swatches('ovcolor', S.ovColor)}</div>`;
                 if (S.pop === 'pattern') h += `<div class="mpt-pop"><label>Pattern<select class="field" data-mpi="ovpat">${PATTERNS.map((p, i) => `<option value="${i}"${i === S.ovPat ? ' selected' : ''}>${p}</option>`).join('')}</select></label></div>`;
             } else if (T === 'point') {
-                h = `<div class="mpt-flyg">${icoBtn('ptmode', 'ping', 'Pg', 'Ping', S.pointMode === 'ping')}${icoBtn('ptmode', 'point', 'Pt', 'Point', S.pointMode === 'point')}<hr>${colourBtn(S.pointColor)}</div>`;
+                h = `<div class="mpt-flyg">${colourBtn(S.pointColor)}</div>`;
                 if (S.pop === 'colour') h += `<div class="mpt-pop">${swatches('ptcolor', S.pointColor)}</div>`;
             } else h = browser();
             if (o.dataset.h !== h) { o.innerHTML = h; o.dataset.h = h; }
@@ -589,7 +603,7 @@ window.BattleMap = (() => {
         const sendMoves = throttle(() => { for (const i of G?.items || []) post({ op: 'move', k: i.t.k, x: i.t.x, y: i.t.y, placed: true }, true); }, 200);
         const sendFog = throttle((op) => post({ op: 'fogpv', add: op }, true), 100); // the stroke so far, to every other screen
         const sendRuler = throttle((pts) => post({ op: 'ruler', pts }, true), 150);
-        const sendTrail = throttle((tr) => post({ op: 'trail', id: tr.id, pts: tr.pts, color: tr.c }, true), 120);
+        const sendTrail = throttle((tr) => { tr.sent = Date.now(); post({ op: 'trail', id: tr.id, pts: [tr.target], color: tr.c }, true); }, 80);
         function snap(t, x, y) {
             const g = S.m.grid, [x0, y0] = cells(g, S.m.w, S.m.h), n = SIZES[t.size] || 1;
             if (n < 1) { const cx = x + (n * g.s) / 2, cy = y + (n * g.s) / 2, off = (g.s - n * g.s) / 2; return [x0 + Math.floor((cx - x0) / g.s) * g.s + off, y0 + Math.floor((cy - y0) / g.s) * g.s + off]; }
@@ -711,8 +725,9 @@ window.BattleMap = (() => {
             const T = S.tool, el = e.target.closest('.mp-tok'), t = el && tokOf(el.dataset.k);
             if (T === 'ruler') { S.ruler = [centre(p), centre(p)]; G = { ...base, type: 'ruler' }; return drawLive(); }
             if (T === 'point') {
-                if (S.pointMode === 'ping') { const q = { x: p[0], y: p[1], c: S.pointColor, at: Date.now() }; S.pings.push(q); post({ op: 'ping', x: q.x, y: q.y, color: q.c }, true); G = null; return drawLive(); }
-                const tr = { id: uid(), pts: [round(p)], c: S.pointColor, at: Date.now() }; S.trails.push(tr); G = { ...base, type: 'trail', tr }; return drawLive();
+                const at = round(p), tr = { id: uid(), target: at, head: at, tail: [], c: S.pointColor, at: Date.now(), live: true, mine: true };
+                S.trails.push(tr); G = { ...base, type: 'trail', tr }; sendTrail(tr);
+                return drawLive();
             }
             if (canEdit() && S.dm && T === 'fog') {
                 if (S.fogShape === 'polygon') { const f = S.poly[0]; if (f && Math.hypot(p[0] - f[0], p[1] - f[1]) < 12 / S.k) return closePoly(); if (!f) S.polyOn = fogRight; S.poly.push(p); return drawLive(); }
@@ -780,7 +795,7 @@ window.BattleMap = (() => {
             }
             else if (G.type === 'draw') { G.d.pts.push(round(p)); drawMarks(); }
             else if (G.type === 'erase') eraseAt(p);
-            else if (G.type === 'trail') { G.tr.pts.push(round(p)); G.tr.at = Date.now(); sendTrail(G.tr); drawLive(); }
+            else if (G.type === 'trail') { G.tr.target = round(p); G.tr.at = Date.now(); sendTrail(G.tr); }
             else if (G.type === 'newov') {
                 const o = S.newOv, dx = p[0] - G.start[0], dy = p[1] - G.start[1];
                 if (o.type === 'square') { o.len = Math.max(Math.abs(dx), Math.abs(dy)); o.x = G.start[0] + (Math.sign(dx || 1) * o.len) / 2; o.y = G.start[1] + (Math.sign(dy || 1) * o.len) / 2; }
@@ -813,7 +828,8 @@ window.BattleMap = (() => {
             const g = G, p = toMap(e);
             G = null;
             box.hidden = true;
-            if (g.type === 'ruler') { S.ruler = null; if (!S.full) { S.tool = 'select'; drawBar(); } drawLive(); sendRuler(null); }
+            if (g.type === 'trail') { g.tr.live = false; g.tr.at = Date.now(); sendTrail(g.tr); }
+            else if (g.type === 'ruler') { S.ruler = null; if (!S.full) { S.tool = 'select'; drawBar(); } drawLive(); sendRuler(null); }
             else if (g.type === 'fog') { g.op.pts.push(round(p)); fogAdd(g.op); }
             else if (g.type === 'draw') { S.m.draws.push(g.d); drawMarks(); const out = await post({ op: 'draw', add: g.d }); if (out) Object.assign(g.d, { id: out.id, mine: true }); else load(); }
             else if (g.type === 'erase') { if (g.del.length) post({ op: 'drawdel', ids: g.del }); }
@@ -888,7 +904,6 @@ window.BattleMap = (() => {
                 case 'ovtype': S.ovType = v; return P();
                 case 'ovcolor': S.ovColor = +v; for (const id of S.picks) { const o = ovOf(id); if (o) { o.color = +v; post({ op: 'overlay', o }, true); } } P(); return drawMarks();
                 case 'ovhide': for (const id of S.picks) { const o = ovOf(id); if (o) { o.hidden = !o.hidden; post({ op: 'overlay', o }); } } drawMarks(); return drawOpts();
-                case 'ptmode': S.pointMode = v; return P();
                 case 'ptcolor': S.pointColor = +v; return P();
                 case 'brtab': S.brTab = v; return drawOpts();
                 case 'brfilter': S.brFilters = !S.brFilters; return drawOpts();
@@ -1159,7 +1174,7 @@ window.BattleMap = (() => {
             };
         }
         function openSettings() {
-            const K = [['Select', 'V'], ['Pan', 'P'], ['Pan for a moment', 'Hold Space'], ['Tokens', 'T'], ['Fog of War', 'F'], ['Reveal fog, cover with fog', 'Left drag, right drag'], ['Draw', 'D'], ['Overlays', 'O'], ['Ruler', 'R'], ['Point and Ping', 'X'], ['Drop tool, deselect', 'Esc'], ['Move token', 'Arrows or W A S D'], ['Remove token', 'Backspace'], ['Hide or reveal', 'Shift+H'], ['Group', 'Shift+G'], ['Lock', 'Shift+L'], ['Add to selection', 'Shift+Click'], ['Move one in a group', 'Shift+Drag'], ['Copy, paste', 'Ctrl+C, Ctrl+V'], ['Undo fog stroke', 'Ctrl+Z'], ['Ruler corner', 'Right click'], ['Zoom', 'Wheel, + and -'], ['Fog brush size', 'Wheel, with the brush'], ['Fit the map', '0']].filter(([, key]) => S.dm || !/^(T|F|Left drag, right drag|O|Backspace|Shift\+H|Shift\+G|Shift\+L|Ctrl\+C, Ctrl\+V|Ctrl\+Z)$/.test(key));
+            const K = [['Select', 'V'], ['Pan', 'P'], ['Pan for a moment', 'Hold Space'], ['Tokens', 'T'], ['Fog of War', 'F'], ['Reveal fog, cover with fog', 'Left drag, right drag'], ['Draw', 'D'], ['Overlays', 'O'], ['Ruler', 'R'], ['Point', 'X'], ['Drop tool, deselect', 'Esc'], ['Move token', 'Arrows or W A S D'], ['Remove token', 'Backspace'], ['Hide or reveal', 'Shift+H'], ['Group', 'Shift+G'], ['Lock', 'Shift+L'], ['Add to selection', 'Shift+Click'], ['Move one in a group', 'Shift+Drag'], ['Copy, paste', 'Ctrl+C, Ctrl+V'], ['Undo fog stroke', 'Ctrl+Z'], ['Ruler corner', 'Right click'], ['Zoom', 'Wheel, + and -'], ['Fog brush size', 'Wheel, with the brush'], ['Fit the map', '0']].filter(([, key]) => S.dm || !/^(T|F|Left drag, right drag|O|Backspace|Shift\+H|Shift\+G|Shift\+L|Ctrl\+C, Ctrl\+V|Ctrl\+Z)$/.test(key));
             const o = S.m?.opts || { fx: true, ac: false };
             const d = dlg(`<h2>Settings and shortcuts</h2><div class="form" style="display:grid;gap:6px;margin:8px 0 12px"><label class="check"><input type="checkbox" data-st="grid"${S.lines ? ' checked' : ''}> Show the grid (this window only)</label>${S.dm ? `<label class="check"><input type="checkbox" data-st="fx"${o.fx ? ' checked' : ''}> Show bloodied and dead effects to players</label><label class="check"><input type="checkbox" data-st="ac"${o.ac ? ' checked' : ''}> Show AC on monster tokens to players during combat</label>` : ''}</div>
                 <div class="mpt-keys">${K.map(([a, b]) => `<div><span>${a}</span><kbd>${b}</kbd></div>`).join('')}</div><div class="actions"><button type="button" class="btn primary" data-stx>Close</button></div>`);
@@ -1192,8 +1207,11 @@ window.BattleMap = (() => {
                 return drawLive();
             }
             if (m.type === 'mapfog' && m.m === S.m?.id && m.who !== S.me) { S.fogLive[m.who] = { op: m.op, at: Date.now() }; drawFog(); setTimeout(() => { if (S.m) drawFog(); }, 2600); return; }
-            if (m.type === 'mapping' && m.m === S.m?.id && m.who !== S.me) { S.pings.push({ x: m.x, y: m.y, c: m.c, at: Date.now() }); return drawLive(); }
-            if (m.type === 'maptrail' && m.m === S.m?.id && m.who !== S.me) { S.trails = S.trails.filter((x) => x.id !== m.id); S.trails.push({ id: m.id, pts: m.pts, c: m.c, at: Date.now() }); return drawLive(); }
+            if (m.type === 'maptrail' && m.m === S.m?.id && m.who !== S.me) {
+                const to = m.pts[m.pts.length - 1], tr = S.trails.find((x) => x.id === m.id);
+                if (tr) Object.assign(tr, { target: to, at: Date.now() }); else S.trails.push({ id: m.id, target: to, head: to, tail: [], c: m.c, at: Date.now() });
+                return drawLive();
+            }
             if (m.type === 'removed') { S.v = null; S.m = null; S.failed = true; draw(); }
         }
         addEventListener('online', load);

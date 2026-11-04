@@ -145,8 +145,8 @@ try {
     is("a player's ruler, live", await until(tv, text('.mp-ruler text'), Boolean), '10 ft · Pat');
     await post(SID.pat, '/campaigns/maps.php', { c: CAMP, m: MAP, op: 'ruler', pts: null });
     is('the ruler goes', await until(tv, `!document.querySelector('.mp-ruler polyline')`, Boolean), true);
-    await post(SID.pat, '/campaigns/maps.php', { c: CAMP, m: MAP, op: 'ping', x: 50, y: 50, color: 5 });
-    is("a player's ping, live", await until(tv, `!!document.querySelector('.mp-ping')`, Boolean), true);
+    await post(SID.pat, '/campaigns/maps.php', { c: CAMP, m: MAP, op: 'trail', id: 'pt1', pts: [[50, 50]], color: 5 });
+    is("a player's pointer, live", await until(tv, `!!document.querySelector('.mp-point')`, Boolean), true);
 
     // the fight: straight to round 1, the Lurker hidden, a sheet's roll moves Lock
     await fightOp('begin', { items: [{ kind: 'monster', mon: 'lurker', init: 25, bonus: 3, ac: 17, hidden: true }, { kind: 'monster', mon: 'gob', init: 10, bonus: 2, ac: 15 }, { kind: 'pc', char: 'lock', init: 5 }, { kind: 'pc', char: 'ozzy', init: 4 }] });
