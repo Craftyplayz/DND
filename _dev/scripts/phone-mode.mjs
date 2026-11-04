@@ -179,8 +179,14 @@ try {
                 await click('#ph-head [data-act=roll]'); await has('.hb-rollcard');
                 await sleep(100);
                 if (await raw(`!!document.querySelector('.hb-rollcard')`)) is(`${tag} card above the dice button`, await raw(`document.querySelector('.hb-rollcard').getBoundingClientRect().bottom <= document.querySelector('.hb-dicebtn').getBoundingClientRect().top`), true);
+                // a small pill: the name and the total only, clear of the screen's left side, gone by itself after 5 s; another player's shows their name
+                is(`${tag} roll pill shows name and total only`, await J(`(() => { const c = document.querySelector('.hb-rollcard'), r = c.getBoundingClientRect(), vis = (s) => { const e = c.querySelector(s); return !!e && getComputedStyle(e).display !== 'none'; }; return [r.height <= 52, r.width < innerWidth - 24 || c.scrollWidth <= c.clientWidth, vis('.hb-rollhead b'), vis('.hb-rolltot'), vis('.hb-rollhead small'), vis('.hb-rolldice')]; })()`), [true, true, true, true, false, false]);
                 await shot('roll', W, H);
                 await click('.hb-rollcard'); await gone('.hb-rollcard');
+                await raw(`document.querySelector('#hb-rolls').insertAdjacentHTML('afterbegin', '<button type="button" class="hb-rollcard hb-other hb-nat20" id="ph-other"><span class="hb-rollhead"><b>Harl<span class="hb-rollwhat">: Longsword to hit</span></b><small>1d20+5</small></span><span class="hb-rolldice">14</span><span class="hb-rolltot">19</span></button>')`);
+                is(`${tag} another player's pill reads their name and total`, await raw(`document.querySelector('#ph-other').innerText.replace(/\\s+/g, ' ').trim()`), 'Harl 19');
+                await raw(`document.querySelector('#ph-other').remove()`);
+                await click('#ph-head [data-act=roll]'); await has('.hb-rollcard'); await sleep(5600); is(`${tag} the pill goes after 5 seconds`, await raw(`!!document.querySelector('.hb-rollcard')`), false);
                 await click('.hb-dicebtn'); await has('#ph-body .ph-dice'); await sleep(250); is(`${tag} dice sheet tap targets`, await J(TAP), []); await shot('dice', W, H);
                 await click('#ph-body [data-n="20"]'); await click('#ph-body [data-n="20"]'); await click('#ph-body [data-n="6"]'); await click('#ph-body .ph-minus[data-n="20"]');
                 ok(`${tag} dice pool`, (await raw(`document.querySelector('[data-act=dieroll]').textContent`)).includes('1d6 + 1d20'));

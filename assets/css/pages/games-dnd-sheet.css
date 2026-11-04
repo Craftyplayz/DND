@@ -544,10 +544,14 @@ dialog.hb-ver { width: min(640px, calc(100vw - 32px)); }
 .ph-on .hb-dice { left: auto; right: 12px; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 8px); justify-items: end; z-index: 50; }
 .ph-on .hb-dicebtn { width: 56px; height: 56px; background: var(--btn); border-color: var(--btn-line); color: var(--on-btn); }
 html.ph-typing #ph-tabs, html.ph-typing .hb-dice { display: none; }
-.ph-on #hb-rolls { top: auto !important; left: 12px; right: 12px; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 72px); max-height: none; overflow: visible; z-index: 50; }
-.ph-on .hb-rollcard { width: 100%; }
-.ph-on .hb-rollcard.hb-other { padding-block: 6px; }
-.ph-on .hb-rollcard.hb-other .hb-rolltot { font-size: 22px; }
+.ph-on #hb-rolls { top: auto !important; left: auto; right: 12px; max-width: calc(100vw - 24px); justify-items: end; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 72px); max-height: none; overflow: visible; z-index: 50; }
+/* a small pill on phones (owner, 2026-11-04): the roll's name and total; the dice are in the log */
+.ph-on .hb-rollcard { display: flex; align-items: center; gap: 8px; width: auto; max-width: 100%; min-height: 44px; padding: 4px 14px; border-left-width: 1px; border-radius: 999px; }
+.ph-on .hb-rollhead { display: block; min-width: 0; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.ph-on .hb-rollhead small, .ph-on .hb-rolldice, .ph-on .hb-other .hb-rollwhat { display: none; }
+.ph-on .hb-rolltot, .ph-on .hb-rollcard.hb-each .hb-rolltot { flex: none; font-size: 20px; }
+.ph-on .hb-rollcard.hb-nat20 { border-color: var(--gold-line); }
+.ph-on .hb-rollcard.hb-nat1 { border-color: var(--danger-line); }
 .ph-on .toasts { left: 12px; right: 12px; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 72px); width: auto; z-index: 55; }
 .ph-on dialog #hb-rolls, .ph-on dialog .toasts { bottom: 12px; }
 .ph-on #hb-throw { width: 100%; height: 100dvh; }

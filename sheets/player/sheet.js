@@ -1804,7 +1804,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="hb-rollhead"><b>${esc(title)}</b><small>${esc(expr + to)}</small></span>
                 <span class="hb-rolldice">${strike(shown)}</span><span class="hb-rolltot">${total}</span></button>`);
             const el = $('#hb-rolls').firstElementChild;
-            setTimeout(() => el.remove(), 12000);
+            setTimeout(() => el.remove(), Phone.on() ? 5000 : 12000);
             // the roll log keeps the last 100 rolls with the character
             if (logIt) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
@@ -1923,7 +1923,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function tableCard(e) {
         const h = hiddenRoll(e);
         putCard(`<button type="button" class="hb-rollcard hb-other${natCls(e)}" data-act="rollx" aria-label="Dismiss roll">
-            <span class="hb-rollhead"><b>${esc(e.name)}${h ? ' rolled' : ': ' + esc(e.title)}</b><small>${h ? 'A hidden roll' : esc(e.expr + tableNote(e))}</small></span>
+            <span class="hb-rollhead"><b>${esc(e.name)}${h ? ' rolled' : `<span class="hb-rollwhat">: ${esc(e.title)}</span>`}</b><small>${h ? 'A hidden roll' : esc(e.expr + tableNote(e))}</small></span>
             <span class="hb-rolldice">${h ? '' : strike(e.shown)}</span><span class="hb-rolltot">${h ? '?' : esc(String(e.total))}</span></button>`);
     }
     const tableRows = (n) => `<ol class="hb-logl">${tlog.slice(-n).reverse().map((e) => `<li class="hb-logi${natCls(e)}">
