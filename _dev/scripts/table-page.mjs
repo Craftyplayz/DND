@@ -150,6 +150,9 @@ try {
     is('round 1 on the tracker', (await tv.ev(text('.mpt-trt'))).startsWith('Round 1'), true);
     await go(pat, `${BASE}/campaigns/${CAMP}/map`);
     is("Pat's map: the DM's turn card", await until(pat, text('[data-mp=tracker] .mpt-tile.on'), Boolean), "DM's turn");
+    await maps({ op: 'rename', name: 'Crypt' });
+    await sleep(800);
+    is('a map change leaves the tracker up', await tv.ev(`document.querySelectorAll('[data-mp=tracker] .mpt-tile').length`), 4);
     await fightOp('next');
     is('next turn: the order turns round, Lock first', await untilCards(tv, (c) => c[0] === 'on:Lock'), ['on:Lock', ':Goblin', ':Ozzy']);
     is('no initiative numbers on the TV', await tv.ev(`[...document.querySelectorAll('.mpt-tile')].some((t) => /\\b(25|15|10)\\b/.test(t.textContent))`), false);

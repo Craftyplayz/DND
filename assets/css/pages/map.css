@@ -1,7 +1,8 @@
 /* The battle map (campaigns/map.php, assets/js/map.js), the campaign page's Map section and the Spectator window. The map page's
    layout follows the owner's D&D Beyond screenshots: tools float over the map, the turn tracker sits top middle. Icons are placeholders. */
-.mp-body { height: 100%; margin: 0; overflow: hidden; background: var(--bg); }
-.mp { display: flex; flex-direction: column; height: 100dvh; min-height: 0; color: var(--text); font-size: 14px; }
+/* the page is exactly one screen; the map takes what's left under anything above it (the test site's banner) */
+body:has(> main.mp) { display: flex; flex-direction: column; height: 100dvh; margin: 0; overflow: hidden; background: var(--bg); }
+.mp { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; color: var(--text); font-size: 14px; }
 .mp [hidden], .mpt-dlg [hidden] { display: none !important; }
 .mp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .mpt-main { position: relative; display: flex; flex: 1 1 auto; min-height: 0; }
@@ -239,3 +240,4 @@
 .mpt-tright .auth { margin-left: 0; }
 .mpt-panel input[type=number] { appearance: textfield; -moz-appearance: textfield; }
 .mpt-panel input[type=number]::-webkit-inner-spin-button, .mpt-panel input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.mp-brush { fill: rgb(255 255 255 / .12); stroke: var(--highlight); }

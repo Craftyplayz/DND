@@ -400,9 +400,12 @@ function fi_view($accounts, $c, $sub, $f = null)
     $dm = cp_is_dm($c, $sub);
     $party = fi_party($c);
     $fx = $dm || fi_opts($accounts, $c['id'])['fx']; // the DM's "Show bloodied and dead effects to players" off: everyone looks healthy
+    // a monster standing only under fog on the map on the table is hidden from the order too, or its name would give it away
+    if (!$dm) require_once __DIR__ . '/maps.php';
+    $fogged = $dm ? [] : mp_fogged_entries($accounts, $c, $f);
     $vis = [];
     foreach ($f['entries'] as $e) {
-        if ($e['hidden'] && !$dm) {
+        if (($e['hidden'] || in_array($e['id'], $fogged, true)) && !$dm) {
             // nothing about it but that the DM is acting now: no name, no picture, no id
             if ($f['phase'] === 'running' && $f['turn'] === $e['id']) $vis[] = ['id' => 'dm-turn', 'kind' => 'dm', 'name' => "DM's turn", 'art' => ''];
             continue;

@@ -9,15 +9,14 @@
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase();
     const face = (e) => `<span class="fi-face">${e.art ? `<img src="${esc(e.art)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<span aria-hidden="true">${esc(initials(e.name))}</span></span>`;
-    const tracker = $('[data-mp=tracker]'), idle = $('.tv-idle'), badge = $('.tv-badge'), fightEl = $('[data-mp=fight]');
+    const tracker = $('[data-mp=tracker]'), idle = $('.tv-idle'), badge = $('.tv-badge');
     const q = '?c=' + encodeURIComponent(c);
     let mapS = null, fight = null, trackerH = -1;
-    const map = window.BattleMap.mount(main, c, { table: true, top: () => tracker.offsetHeight, onDraw(S) { mapS = S; idle.hidden = !!S.m; } });
-    window.Fight.panel(fightEl, c, { onChange(f) {
+    // map.js keeps the fight and draws the tracker, here as on the map page
+    let map = null; // (the fight can arrive while it mounts)
+    map = window.BattleMap.mount(main, c, { table: true, top: () => tracker.offsetHeight, onDraw(S) { mapS = S; idle.hidden = !!S.m; }, onFight(f) {
         fight = f;
-        fightEl.hidden = true; // fight.js keeps the fight; this page draws its own tracker
-        tracker.innerHTML = window.BattleMap.tiles(f);
-        if (tracker.offsetHeight !== trackerH) { trackerH = tracker.offsetHeight; if (!mapS?.moved) map.fit(); }
+        if (tracker.offsetHeight !== trackerH) { trackerH = tracker.offsetHeight; if (!mapS?.moved && map) map.fit(); }
     } });
     window.Live.watch(c, {
         onMessage(m) {

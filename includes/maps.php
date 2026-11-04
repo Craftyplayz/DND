@@ -315,6 +315,11 @@ function mp_overlay_of($o)
     return ['id' => (string)$o['id'], 'type' => $o['type'], 'x' => round((float)$o['x'], 1), 'y' => round((float)$o['y'], 1), 'len' => round((float)$o['len'], 1), 'ang' => round((float)$o['ang'], 4),
         'color' => $o['color'], 'pat' => $o['pat'], 'hidden' => !empty($o['hidden']), 'group' => (string)($o['group'] ?? ''), 'locked' => !empty($o['locked'])];
 }
+// what a viewer gets of a drawing: whether it's theirs, never whose
+function mp_draws_out($list, $sub)
+{
+    return array_map(function ($d) use ($sub) { $mine = ($d['by'] ?? null) === $sub; unset($d['by']); return $d + ['mine' => $mine]; }, $list);
+}
 // what players may get of them: nothing hidden or wholly under fog, none of the DM's marks. The page clips the rest to the picture.
 function mp_draws_seen($m)
 {
@@ -388,6 +393,20 @@ function mp_in_sight($m, $t)
     return mp_sight_any($m, $t['x'], $t['y'], $t['x'] + $span - 0.01, $t['y'] + $span - 0.01);
 }
 
+// the fight entries whose token on the map on the table is placed and wholly under fog (fi_view hides them from players)
+function mp_fogged_entries($accounts, $c, $f)
+{
+    $m = mp_active($accounts, $c['id']);
+    if (!$m) return [];
+    $toks = (array)($m['tokens'] ?? []);
+    $out = [];
+    foreach ($f['entries'] as $e) {
+        $t = $e['kind'] === 'pc' ? null : ($toks[mp_entry_key($c, $e)] ?? null);
+        if ($t && !empty($t['placed']) && isset($t['x']) && !mp_in_sight($m, ['placed' => true, 'size' => $t['size'] ?? 'M', 'x' => $t['x'], 'y' => $t['y']])) $out[] = $e['id'];
+    }
+    return $out;
+}
+
 // may players get this token? Party tokens once placed; monsters and other entries when placed, not hidden and in sight
 function mp_player_sees($m, $t)
 {
@@ -446,10 +465,10 @@ function mp_view($accounts, $c, $sub, $mid = null, $role = null)
     if ($dm) {
         $enc = $m['enc'] ?? [];
         $o += ['fog' => ['n' => $n, 'ops' => $m['fog']['ops'] ?? []], 'enc' => ['ids' => $enc['ids'] ?? [], 'init' => (object)($enc['init'] ?? []), 'side' => (object)($enc['side'] ?? [])],
-            'img' => "$base&m={$m['id']}&img=work", 'original' => "$base&m={$m['id']}&img=original", 'public' => $pub, 'draws' => $m['draws'] ?? [], 'overlays' => $m['overlays'] ?? []];
+            'img' => "$base&m={$m['id']}&img=work", 'original' => "$base&m={$m['id']}&img=original", 'public' => $pub, 'draws' => mp_draws_out($m['draws'] ?? [], $sub), 'overlays' => $m['overlays'] ?? []];
         $o['tokens'] = array_map(fn($t) => mp_tok_out($t, $sub, true), $toks);
     } else {
-        $o += ['img' => $pub, 'draws' => mp_draws_seen($m), 'overlays' => mp_overlays_seen($m)];
+        $o += ['img' => $pub, 'draws' => mp_draws_out(mp_draws_seen($m), $sub), 'overlays' => mp_overlays_seen($m)];
         $o['tokens'] = array_values(array_map(fn($t) => mp_tok_out($t, $sub, false, $opts),
             array_filter($toks, fn($t) => mp_player_sees($m, $t) || ($t['kind'] === 'pc' && $t['owner'] === $sub))));
     }
@@ -509,7 +528,7 @@ function mp_suffix($toks, $mon)
 // The caller holds mp_lock(). Ops for the DM and co-DMs:
 //   {op: "activate", m} | {op: "hide", m} | {op: "rename", m, name} | {op: "archive", m, on} | {op: "grid", m, s, ox, oy}
 //   {op: "fog", m, add} (an "all" op replaces the list) | {op: "fogset", m, ops} (Undo)
-//   {op: "draw", m, add} | {op: "drawset", m, draws} | {op: "overlay", m, o} (by id) | {op: "overlaydel", m, ids}
+//   {op: "draw", m, add} and {op: "drawdel", m, ids} (players too: their own lines, the map on the table) | {op: "drawset", m, draws} | {op: "overlay", m, o} (by id) | {op: "overlaydel", m, ids}
 //   {op: "token", m, k, size?, hidden?, ring?, noName?, locked?, group?, name?, cond?} (players: size only, their own token on the map on the table)
 //   {op: "drop", m, mon} | {op: "remove", m, k} | {op: "place", m, mon, x, y, ac?, bonus?} | {op: "paste", m, k, x, y}
 //   {op: "copyhp", m, k, hop} | {op: "enc", m, enc} | {op: "opts", m, fx?, ac?}
@@ -588,7 +607,7 @@ function mp_op($accounts, $c, $sub, $body)
         }
         return [200, ['ok' => true], $live];
     }
-    if (!$dm) {
+    if (!$dm && !(in_array($op, ['draw', 'drawdel'], true) && $onTable)) { // players draw on the map on the table, and erase their own lines
         // a player may resize their own character's token on the map on the table, and nothing else about it
         $own = false;
         if ($op === 'token' && $onTable) foreach (fi_party($c) as $char => $owner) if ($owner === $sub && mp_key($c['id'], 'pc', $char) === (string)($body['k'] ?? '')) $own = true;
@@ -667,7 +686,13 @@ function mp_op($accounts, $c, $sub, $body)
         $m['grid'] = $g; // the fog is freeform: it doesn't move with the squares
     } elseif ($op === 'draw') {
         if (!($d = mp_draw_of($body['add'] ?? null))) return [400, ['error' => "That isn't a drawing."], []];
+        $d['id'] = bin2hex(random_bytes(6));
+        $d['by'] = $sub;
         $m['draws'] = [...($m['draws'] ?? []), $d];
+        return mp_write($accounts, $c['id'], $m) ? [200, ['id' => $d['id']], $all] : [500, ['error' => "Couldn't save the map."], []];
+    } elseif ($op === 'drawdel') {
+        $ids = is_array($body['ids'] ?? null) ? $body['ids'] : [];
+        $m['draws'] = array_values(array_filter($m['draws'] ?? [], fn($d) => !(in_array($d['id'] ?? null, $ids, true) && ($dm || ($d['by'] ?? null) === $sub))));
     } elseif ($op === 'drawset') {
         $list = [];
         foreach (is_array($body['draws'] ?? null) ? $body['draws'] : [null] as $x) if (!($list[] = mp_draw_of($x))) return [400, ['error' => "That isn't a drawing."], []];

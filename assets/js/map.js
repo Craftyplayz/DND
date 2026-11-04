@@ -75,7 +75,7 @@ window.BattleMap = (() => {
         const span = (t) => (SIZES[t.size] || 1) * S.m.grid.s;
         const entryOf = (t) => S.fight?.entries.find((e) => e.id === t.fight) || null;
         const movable = (t) => (S.dm || t.mine) && !t.locked;
-        const allowed = (t) => S.dm || ['select', 'pan', 'ruler', 'point'].includes(t);
+        const allowed = (t) => S.dm || ['select', 'pan', 'draw', 'ruler', 'point'].includes(t);
 
         // ---- loading ----
         async function load() {
@@ -261,6 +261,10 @@ window.BattleMap = (() => {
             }
             for (const t of S.trails) out.push(`<polyline class="mp-trail" style="stroke:${COLORS[t.c] || COLORS[5]};stroke-width:${r(5)};opacity:${1 - (now - t.at) / 2000}" points="${t.pts.map((q) => q.join(',')).join(' ')}"/>`);
             for (const q of S.pings) { const a = (now - q.at) / 1600; for (const f of [0, 0.35]) out.push(`<circle class="mp-ping" cx="${q.x}" cy="${q.y}" r="${r(10 + ((a + f) % 1) * 70)}" style="stroke:${COLORS[q.c] || COLORS[5]};stroke-width:${r(4)};opacity:${1 - a}"/>`); }
+            if (S.dm && S.tool === 'fog' && S.hover && S.fogShape !== 'polygon') {
+                const b = (S.fogSize * m.grid.s) / 2, [hx, hy] = S.hover;
+                out.push(S.fogShape === 'round' ? `<circle class="mp-brush" cx="${hx}" cy="${hy}" r="${b}" style="stroke-width:${r(2)}"/>` : `<rect class="mp-brush" x="${hx - b}" y="${hy - b}" width="${b * 2}" height="${b * 2}" style="stroke-width:${r(2)}"/>`);
+            }
             if (S.poly.length) out.push(`<polyline class="mp-polyd" style="stroke-width:${r(2)}" points="${[...S.poly, ...(S.hover ? [S.hover] : [])].map((q) => q.join(',')).join(' ')}"/><circle class="mp-polys" cx="${S.poly[0][0]}" cy="${S.poly[0][1]}" r="${r(7)}"/>`);
             const axis = (o) => { const R = o.type === 'square' ? o.len / 2 : o.len, ex = o.x + R * Math.cos(o.ang), ey = o.y + R * Math.sin(o.ang); return `<line class="mp-axis" x1="${o.x}" y1="${o.y}" x2="${ex}" y2="${ey}" style="stroke-width:${r(3)};stroke-dasharray:${r(12)} ${r(8)}"/>` + pillSvg(Math.round(o.len / m.grid.s) * 5 + ' ft', ex + r(14) * Math.cos(o.ang), ey + r(14) * Math.sin(o.ang)); };
             if (S.newOv) out.push(axis(S.newOv));
@@ -288,7 +292,7 @@ window.BattleMap = (() => {
                 L.innerHTML = `<button type="button" class="mpt-ico${S.sideOn ? ' on' : ''}" data-mpa="side"${pressed(S.sideOn)} aria-label="Show or hide the combat panel" title="Combat panel">${ph('≡')}</button>
                     <select class="field" data-mpi="map" aria-label="Map">${list.map((x) => `<option value="${esc(x.id)}"${x.id === S.m?.id ? ' selected' : ''}>${esc(x.name)}${S.v.active === x.id ? ' (displayed)' : ''}</option>`).join('')}${list.length ? '' : '<option value="">No maps yet</option>'}<option value="__browse">Browse maps...</option></select>`;
             }
-            if (M && S.dm && !M.contains(document.activeElement)) M.innerHTML = `<select class="field" data-mpi="menu" aria-label="Menu"><option value="">Menu</option><option value="spec">Spectator window</option><option value="maps">Browse maps</option><option value="grid">Fit the grid</option><option value="set">Settings and shortcuts</option></select>`;
+            if (M && !M.contains(document.activeElement)) M.innerHTML = `<select class="field" data-mpi="menu" aria-label="Menu"><option value="">Menu</option><option value="camp">Campaign page</option>${S.dm ? '<option value="spec">Spectator window</option><option value="maps">Browse maps</option><option value="grid">Fit the grid</option>' : ''}<option value="set">Settings and shortcuts</option></select>`;
         }
         function drawCluster() {
             const z = part('zoom'), m = S.m;
@@ -315,7 +319,7 @@ window.BattleMap = (() => {
             const o = part('opts');
             if (!o) return;
             const T = S.tool, focus = document.activeElement, keepId = focus && o.contains(focus) ? focus.dataset.mpi : null, caret = focus?.selectionStart;
-            if (!['tokens', 'fog', 'draw', 'overlay', 'point'].includes(T) || !allowed(T)) { o.hidden = true; o.innerHTML = ''; return; }
+            if (!['tokens', 'fog', 'draw', 'overlay', 'point'].includes(T) || !allowed(T)) { o.hidden = true; o.innerHTML = ''; o.dataset.h = ''; return; }
             o.hidden = false;
             let h = '';
             if (T === 'fog') {
@@ -323,7 +327,7 @@ window.BattleMap = (() => {
                 if (S.pop === 'size') h += `<div class="mpt-pop"><label>Brush size: <span data-mp="fogn">${S.fogSize}</span> squares<br><input type="range" data-mpi="fogsize" min="1" max="9" value="${S.fogSize}"></label></div>`;
                 else if (S.fogShape === 'polygon') h += '<div class="mpt-pop"><p class="mpt-hint">Click points, then click the first point or double-click to close.</p></div>';
             } else if (T === 'draw') {
-                h = `<div class="mpt-flyg">${icoBtn('penmode', 'pen', 'Pn', 'Pen', S.penMode === 'pen')}${icoBtn('penmode', 'erase', 'Er', 'Erase drawing', S.penMode === 'erase')}<hr>${icoBtn('pop', 'size', String(S.penSize + 1), 'Pen size', S.pop === 'size')}${colourBtn(S.penColor)}<hr>${icoBtn('cleardraw', '', 'Cl', 'Clear drawings')}</div>`;
+                h = `<div class="mpt-flyg">${icoBtn('penmode', 'pen', 'Pn', 'Pen', S.penMode === 'pen')}${icoBtn('penmode', 'erase', 'Er', 'Erase drawing', S.penMode === 'erase')}<hr>${icoBtn('pop', 'size', String(S.penSize + 1), 'Pen size', S.pop === 'size')}${colourBtn(S.penColor)}${S.dm ? `<hr>${icoBtn('cleardraw', '', 'Cl', 'Clear drawings')}` : ''}</div>`;
                 if (S.pop === 'size') h += `<div class="mpt-pop"><div class="mpt-row">${BRUSH.map((b, i) => `<button type="button" class="btn small${i === S.penSize ? ' primary' : ''}" data-mpa="pensize" data-v="${i}"${pressed(i === S.penSize)}>${i + 1}</button>`).join('')}</div></div>`;
                 if (S.pop === 'colour') h += `<div class="mpt-pop">${swatches('pencolor', S.penColor)}</div>`;
             } else if (T === 'overlay') {
@@ -638,8 +642,12 @@ window.BattleMap = (() => {
         }
         function eraseAt(p) {
             const m = S.m, n = m.draws.length;
-            m.draws = m.draws.filter((d) => !d.pts.some(([x, y]) => Math.hypot(x - p[0], y - p[1]) < ((BRUSH[d.s] || 6) * m.grid.s) / 140 + 8 / S.k));
-            if (m.draws.length !== n) { G.changed = true; drawMarks(); }
+            m.draws = m.draws.filter((d) => {
+                if (!d.id || !(S.dm || d.mine) || !d.pts.some(([x, y]) => Math.hypot(x - p[0], y - p[1]) < ((BRUSH[d.s] || 6) * m.grid.s) / 140 + 8 / S.k)) return true;
+                G.del.push(d.id);
+                return false;
+            });
+            if (m.draws.length !== n) drawMarks();
         }
         view.addEventListener('wheel', (e) => { if (!S.m) return; e.preventDefault(); const r = view.getBoundingClientRect(); zoom(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
         view.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -674,8 +682,8 @@ window.BattleMap = (() => {
                 G = { ...base, type: 'fog', op: { on: S.fogMode === 'paint', shape: S.fogShape, r: (S.fogSize * S.m.grid.s) / 2, pts: [round(p)] } };
                 return drawFog();
             }
-            if (canEdit() && S.dm && T === 'draw') {
-                if (S.penMode === 'erase') { G = { ...base, type: 'erase' }; return eraseAt(p); }
+            if (canEdit() && T === 'draw') {
+                if (S.penMode === 'erase') { G = { ...base, type: 'erase', del: [] }; return eraseAt(p); }
                 G = { ...base, type: 'draw', d: { c: S.penColor, s: S.penSize, pts: [round(p)] } };
                 return drawMarks();
             }
@@ -713,7 +721,7 @@ window.BattleMap = (() => {
             if (!S.m) return;
             const p = toMap(e);
             S.hover = p;
-            if (S.poly.length) drawLive();
+            if (S.poly.length || S.tool === 'fog') drawLive();
             if (!ptrs.has(e.pointerId)) return;
             ptrs.set(e.pointerId, [e.clientX, e.clientY]);
             if (G?.type === 'ruler' && e.button === 2) return joint(); // a right click during a drag arrives as a pointermove (chorded buttons)
@@ -766,8 +774,8 @@ window.BattleMap = (() => {
             box.hidden = true;
             if (g.type === 'ruler') { S.ruler = null; if (!S.full) { S.tool = 'select'; drawBar(); } drawLive(); sendRuler(null); }
             else if (g.type === 'fog') { if (g.op.shape === 'square' || g.op.shape === 'round') fogAdd(g.op); }
-            else if (g.type === 'draw') { S.m.draws.push(g.d); drawMarks(); if (!(await post({ op: 'draw', add: g.d }))) load(); }
-            else if (g.type === 'erase') { if (g.changed) post({ op: 'drawset', draws: S.m.draws }); }
+            else if (g.type === 'draw') { S.m.draws.push(g.d); drawMarks(); const out = await post({ op: 'draw', add: g.d }); if (out) Object.assign(g.d, { id: out.id, mine: true }); else load(); }
+            else if (g.type === 'erase') { if (g.del.length) post({ op: 'drawdel', ids: g.del }); }
             else if (g.type === 'newov') { const o = S.newOv; S.newOv = null; if (o.len > S.m.grid.s / 4) { S.m.overlays.push(o); S.picks = new Set([o.id]); post({ op: 'overlay', o }); drawOpts(); } drawMarks(); drawLive(); }
             else if (g.type === 'ovsize' || g.type === 'ovturn') post({ op: 'overlay', o: g.o });
             else if (g.type === 'box') {
@@ -783,6 +791,7 @@ window.BattleMap = (() => {
             else if (g.type === 'wait') { if (!S.full) tapName(toks.querySelector(`[data-k="${CSS.escape(g.items[0]?.t.k || '')}"]`)); drawMenu(); }
             else if (g.type === 'pan' && !g.moved && !S.full) tapName(e.target.closest?.('.mp-tok'));
         };
+        view.addEventListener('pointerleave', () => { S.hover = null; if (S.tool === 'fog') drawLive(); });
         view.addEventListener('pointerup', up);
         view.addEventListener('pointercancel', up);
         view.addEventListener('dblclick', () => { if (S.tool === 'fog' && S.fogShape === 'polygon' && S.poly.length) { S.poly.pop(); closePoly(); } });
@@ -899,7 +908,8 @@ window.BattleMap = (() => {
             }
             if (k === 'menu') {
                 const v = i.value; i.value = ''; i.blur();
-                if (v === 'spec') open(`/campaigns/${c}/table`, 'spectator');
+                if (v === 'camp') location.href = `/campaigns/${c}`;
+                else if (v === 'spec') open(`/campaigns/${c}/table`, 'spectator');
                 else if (v === 'maps') openMaps();
                 else if (v === 'grid') { if (S.m) openScale(false); }
                 else if (v === 'set') openSettings();
@@ -1091,7 +1101,7 @@ window.BattleMap = (() => {
             };
         }
         function openSettings() {
-            const K = [['Select', 'V'], ['Pan', 'P'], ['Pan for a moment', 'Hold Space'], ['Tokens', 'T'], ['Fog of War', 'F'], ['Draw', 'D'], ['Overlays', 'O'], ['Ruler', 'R'], ['Point and Ping', 'X'], ['Drop tool, deselect', 'Esc'], ['Move token', 'Arrows or W A S D'], ['Remove token', 'Backspace'], ['Hide or reveal', 'Shift+H'], ['Group', 'Shift+G'], ['Lock', 'Shift+L'], ['Add to selection', 'Shift+Click'], ['Move one in a group', 'Shift+Drag'], ['Copy, paste', 'Ctrl+C, Ctrl+V'], ['Undo fog stroke', 'Ctrl+Z'], ['Ruler corner', 'Right click'], ['Zoom', 'Wheel, + and -'], ['Fit the map', '0']].filter(([, key]) => S.dm || !/^(T|F|D|O|Backspace|Shift\+H|Shift\+G|Shift\+L|Ctrl\+C, Ctrl\+V|Ctrl\+Z)$/.test(key));
+            const K = [['Select', 'V'], ['Pan', 'P'], ['Pan for a moment', 'Hold Space'], ['Tokens', 'T'], ['Fog of War', 'F'], ['Draw', 'D'], ['Overlays', 'O'], ['Ruler', 'R'], ['Point and Ping', 'X'], ['Drop tool, deselect', 'Esc'], ['Move token', 'Arrows or W A S D'], ['Remove token', 'Backspace'], ['Hide or reveal', 'Shift+H'], ['Group', 'Shift+G'], ['Lock', 'Shift+L'], ['Add to selection', 'Shift+Click'], ['Move one in a group', 'Shift+Drag'], ['Copy, paste', 'Ctrl+C, Ctrl+V'], ['Undo fog stroke', 'Ctrl+Z'], ['Ruler corner', 'Right click'], ['Zoom', 'Wheel, + and -'], ['Fit the map', '0']].filter(([, key]) => S.dm || !/^(T|F|O|Backspace|Shift\+H|Shift\+G|Shift\+L|Ctrl\+C, Ctrl\+V|Ctrl\+Z)$/.test(key));
             const o = S.m?.opts || { fx: true, ac: false };
             const d = dlg(`<h2>Settings and shortcuts</h2><div class="form" style="display:grid;gap:6px;margin:8px 0 12px"><label class="check"><input type="checkbox" data-st="grid"${S.lines ? ' checked' : ''}> Show the grid (this window only)</label>${S.dm ? `<label class="check"><input type="checkbox" data-st="fx"${o.fx ? ' checked' : ''}> Show bloodied and dead effects to players</label><label class="check"><input type="checkbox" data-st="ac"${o.ac ? ' checked' : ''}> Show AC on monster tokens to players during combat</label>` : ''}</div>
                 <div class="mpt-keys">${K.map(([a, b]) => `<div><span>${a}</span><kbd>${b}</kbd></div>`).join('')}</div><div class="actions"><button type="button" class="btn primary" data-stx>Close</button></div>`);
@@ -1107,12 +1117,13 @@ window.BattleMap = (() => {
         function onMessage(m) {
             if (m.type === 'map' || m.type === 'fight' || m.type === 'campaign' || m.type === 'status') {
                 if (G?.type === 'fog' || G?.type === 'draw') return; // the DM's next stroke isn't interrupted; their own save reloads after it
+                if (m.type === 'map' && !S.dm) window.Fight?.load(c); // fog changes who is in sight, so the turn order follows
                 return load();
             }
             if (m.type === 'mapmove' && m.m === S.m?.id) {
                 const t = tokOf(m.k);
-                if (m.gone) { if (t) S.m.tokens = S.m.tokens.filter((x) => x !== t); S.picks.delete(m.k); drawToks(); return drawMenu(); }
-                if (!t) return load(); // one that just came into sight: its name and picture come with the map
+                if (m.gone) { if (t) S.m.tokens = S.m.tokens.filter((x) => x !== t); S.picks.delete(m.k); drawToks(); window.Fight?.load(c); return drawMenu(); }
+                if (!t) { window.Fight?.load(c); return load(); } // one that just came into sight: its name and picture come with the map
                 if (G?.items?.some((i) => i.t === t)) return;
                 Object.assign(t, { x: m.x, y: m.y, placed: m.placed });
                 drawToks(); drawTray(); drawBar(); return placeMenu();

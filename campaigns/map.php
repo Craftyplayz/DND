@@ -28,7 +28,7 @@ if (!$c) http_response_code(404);
     <main class="mp" id="main" data-c="<?= h($c['id']) ?>" data-me="<?= h(live_key($c['id'], $user['sub'])) ?>"<?= $isDm ? ' data-dm' : '' ?>>
         <h1 class="mp-sr">Map · <?= h($c['name']) ?></h1>
         <header class="mpt-top">
-            <div class="mpt-tl"><a class="btn small" href="/campaigns/<?= h($c['id']) ?>"><?= h($c['name']) ?></a><span class="mpt-tl" data-mp="tl"></span></div>
+            <div class="mpt-tl" data-mp="tl"></div>
             <div class="mpt-tr" data-mp="tracker" aria-label="Turn order"></div>
             <div class="mpt-tright"><span data-mp="menuPick"></span><?= auth_button() ?></div>
         </header>
@@ -55,7 +55,7 @@ if (!$c) http_response_code(404);
     <script src="<?= h(asset('/sheets/monster/import.js')) ?>" defer></script><?php endif; ?>
     <script src="<?= h(asset('/assets/js/map.js')) ?>" defer></script>
     <script>
-        addEventListener('DOMContentLoaded', () => { document.body.classList.add('mp-body'); const m = document.getElementById('main'); window.BM = BattleMap.mount(m, m.dataset.c, { dm: 'dm' in m.dataset, me: m.dataset.me, full: true }); });
+        addEventListener('DOMContentLoaded', () => { const m = document.getElementById('main'); window.BM = BattleMap.mount(m, m.dataset.c, { dm: 'dm' in m.dataset, me: m.dataset.me, full: true }); });
     </script>
 <?php else: ?>
     <?php site_header(); ?>

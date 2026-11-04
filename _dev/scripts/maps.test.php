@@ -163,7 +163,16 @@ $is('players: the overlay in sight only, without the DM\'s marks', [array_column
 $is('the DM: all of them', [count(mp_view($A, $c, '111')['map']['draws']), array_column(mp_view($A, $c, '111')['map']['overlays'], 'id')], [2, ['seen', 'dark', 'hide']]);
 $is('overlay upsert by id', [$op('111', ['op' => 'overlay', 'o' => $ov('seen', 70, 70)])[0], count(mp_read($A, $c['id'], $m['id'])['overlays'])], [200, 3]);
 $is('overlay delete and clear drawings', [$op('111', ['op' => 'overlaydel', 'ids' => ['dark', 'hide']])[0], $op('111', ['op' => 'drawset', 'draws' => []])[0], count(mp_read($A, $c['id'], $m['id'])['overlays']), mp_read($A, $c['id'], $m['id'])['draws']], [200, 200, 1, []]);
-$is("players can't draw", [$op('222', ['op' => 'draw', 'add' => ['c' => 1, 's' => 2, 'pts' => [[1, 1]]]])[0], $op('222', ['op' => 'overlay', 'o' => $ov('p', 1, 1)])[0]], [403, 403]);
+// players draw, on the map on the table only, and erase only their own lines; nobody learns who drew what
+$dmLine = $op('111', ['op' => 'draw', 'add' => ['c' => 1, 's' => 2, 'pts' => [[20, 20]]]])[1]['id'];
+$patLine = $op('222', ['op' => 'draw', 'add' => ['c' => 2, 's' => 2, 'pts' => [[30, 30]]]])[1]['id'] ?? null;
+$is('a player draws; an overlay stays the DM\'s', [is_string($patLine), $op('222', ['op' => 'overlay', 'o' => $ov('p', 1, 1)])[0]], [true, 403]);
+$op('222', ['op' => 'drawdel', 'ids' => [$dmLine, $patLine]]);
+$ids = fn($who) => array_column(mp_view($A, $c, $who)['map']['draws'], 'id');
+$is("a player erases their own line, never the DM's", $ids('111'), [$dmLine]);
+$is("a player can't clear them all", $op('222', ['op' => 'drawset', 'draws' => []])[0], 403);
+$is('marked as theirs, with no account id', [mp_view($A, $c, '111')['map']['draws'][0]['mine'], mp_view($A, $c, '222')['map']['draws'][0]['mine'], isset(mp_view($A, $c, '222')['map']['draws'][0]['by'])], [true, false, false]);
+$op('111', ['op' => 'drawdel', 'ids' => [$dmLine]]);
 
 // pings and trails: for everyone, relayed, never saved
 $before = file_get_contents("$dir/map.json");

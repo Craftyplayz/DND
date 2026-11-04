@@ -100,6 +100,7 @@ try {
     await dm.ev(`(() => { const s = document.querySelector('[data-scs]'); s.value = 100; s.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('[data-scy]').click(); })(); 1`);
     is('the grid saved from the size field', await until(dm, '1', () => mapJson().grid.s === 100, 5000).then(() => mapJson().grid.s), 100);
     await until(dm, `!document.querySelector('dialog[open]')`, Boolean);
+    is('no campaign name in the corner; the Menu goes back to it', await dm.ev(`!document.querySelector('.mpt-tl a') && !!document.querySelector('[data-mpi=menu] option[value=camp]')`), true);
 
     // the map isn't on the table until Display map
     await pat.shot(1100, 800);
@@ -109,7 +110,7 @@ try {
     await click(dm, '[data-mpa=showmap]');
     is('Display map becomes Hide map', await until(dm, `!!document.querySelector('[data-mpa=hidemap]')`, Boolean), true);
     is('player: the picture comes live', await until(pat, `!!document.querySelector('.mp-img')?.getAttribute('src')`, Boolean), true);
-    is('player rail: select, pan, ruler, ping only', await until(pat, `[...document.querySelectorAll('[data-mp=rail] [data-t]')].map((b) => b.dataset.t).join()`, Boolean), 'select,pan,ruler,point');
+    is('player rail: select, pan, ruler, ping only', await until(pat, `[...document.querySelectorAll('[data-mp=rail] [data-t]')].map((b) => b.dataset.t).join()`, Boolean), 'select,pan,draw,ruler,point');
     let leak = await viewAs(SID.pat);
     is('player never gets fog strokes, an encounter or the working picture', [/"ops"/.test(leak), /"enc"/.test(leak), /img=work|img=original/.test(leak), /"draft"|"sent"/.test(leak)], [false, false, false, false]);
     is('player: the clear map shows the picture', (await until(pat, `document.querySelector('.mp-img').complete`, Boolean).then(() => pointIn(pat, 500, 500)))?.[3], 255);
@@ -122,6 +123,12 @@ try {
     const nAll = await until(dm, '1', () => mapJson().fog.ops.length === 1, 5000).then(() => mapJson().fog.n);
     is('Cover All, for players: transparent with nothing left of the picture', await until(pat, `document.querySelector('.mp-img').src`, (s) => s.includes('n=' + nAll)).then(async () => { await sleep(600); const p = await pointIn(pat, 500, 500); return p; }), [0, 0, 0, 0]);
     is('DM: the fog is on their canvas, light blue', JSON.parse(await dm.ev(`(() => { const c = document.querySelector('.mp-fog'), d = c.getContext('2d').getImageData(10, 10, 1, 1).data; return JSON.stringify([d[0], d[1], d[2], d[3]]); })()`)), [74, 159, 220, 255]);
+    await dm.ev(`__ptr('pointermove', 600, 600); 1`);
+    is('the square brush follows the mouse', await until(dm, `document.querySelector('rect.mp-brush')?.getAttribute('width')`, Boolean), '300');
+    await click(dm, '[data-mpa=fogshape][data-v=round]');
+    await dm.ev(`__ptr('pointermove', 610, 600); 1`);
+    is('the round brush too', await until(dm, `document.querySelector('circle.mp-brush')?.getAttribute('r')`, Boolean), '150');
+    await click(dm, '[data-mpa=fogshape][data-v=square]');
     await click(dm, '[data-mpa=fogmode][data-v=erase]');
     await click(dm, '[data-mpa=fogshape][data-v=round]');
     await drag(dm, [[300, 300], [400, 300], [500, 300]]);
@@ -144,6 +151,11 @@ try {
 
     // the Token Browser: the party on the Players tab, your monsters and the Compendium on Monsters; each click a new copy
     await rail(dm, 'tokens');
+    await until(dm, `!!document.querySelector('.mpt-browser')`, Boolean);
+    await click(dm, '.mpt-browserh [data-mpa=tool]');
+    await until(dm, `!document.querySelector('.mpt-browser')`, Boolean);
+    await dm.ev(`dispatchEvent(new KeyboardEvent('keydown', { key: 't', bubbles: true })); 1`);
+    is('the Token Browser opens again after closing', await until(dm, `!!document.querySelector('.mpt-browser')`, Boolean), true);
     is('Token Browser opens on Monsters', await until(dm, text('.mpt-browserh'), (t) => t.includes('Token Browser')).then(() => until(dm, `!!document.querySelector('[data-add="mon:gob"]')`, Boolean)), true);
     is('the Compendium is listed under your monsters', await until(dm, text('.mpt-list'), (t) => t.includes('COMPENDIUM'), 15000).then((t) => t.includes('YOUR MONSTERS')), true);
     await dm.ev(`(() => { const i = document.querySelector('[data-mpi=brq]'); i.value = 'gob'; i.dispatchEvent(new Event('input', { bubbles: true })); })(); 1`);
@@ -211,6 +223,13 @@ try {
     is('the tracker on both screens', await until(pat, `document.querySelectorAll('[data-mp=tracker] .mpt-tile').length`, (n) => n >= 3) >= 3, true);
     is('the current one is first and larger', await until(dm, `document.querySelector('[data-mp=tracker] .mpt-tile')?.classList.contains('on')`, Boolean), true);
     is("the sheet's roll prompt still reaches the player", (await fight(SID.pat)).canRoll, ['lock']);
+    const tilesOf = "[...document.querySelectorAll('[data-mp=tracker] .mpt-tile')].map((e) => e.title).join()";
+    is('a monster under fog stays out of the players\' order', [(await until(pat, tilesOf, Boolean)).includes('Ogre'), JSON.stringify(await fight(SID.pat)).includes('Ogre')], [false, false]);
+    is('...the DM still has it', (await until(dm, tilesOf, Boolean)).includes('Ogre'), true);
+    await mapsApi(SID.dm, { op: 'fogset', m, ops: [] });
+    is('revealed: it joins the players\' order live', await until(pat, `(${tilesOf}).includes('Ogre')`, Boolean), true);
+    await mapsApi(SID.dm, { op: 'fogset', m, ops: [{ on: true, poly: [[800, 0], [1600, 0], [1600, 1200], [800, 1200]] }] });
+    is('covered again: it leaves, live', await until(pat, `!(${tilesOf}).includes('Ogre')`, Boolean), true);
     const t0 = f0.turn;
     await until(dm, `!document.querySelector('[data-mpa=next]')?.disabled`, Boolean);
     await click(dm, '[data-mpa=next]');
@@ -255,6 +274,17 @@ try {
     is('Damage from the token goes to the sheet', await until(pat, `document.querySelector('[data-mp=menu] .who small')?.textContent || ''`, (t) => t.startsWith('17/')).then((t) => t.startsWith('17/')), true);
     is('another player never gets their HP', JSON.parse(await viewAs(SID.sam)).map.tokens.find((t) => t.name === 'Lock').hp, undefined);
     is('a player can\'t edit more than HP and conditions', (await fetch(`${BASE}/sheets/player/dm.php`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.pat, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: 'send', c: CAMP, char: 'lock', edits: [{ id: 'nope00000001', at: 1, t: 'x', op: 'set', path: ['name'], value: 'Bad', was: 'Lock' }] }) }).then((r) => r.json())).refused?.length, 1);
+
+    // Pat draws: it shows for the DM; they erase only their own line
+    await rail(pat, 'draw');
+    await until(pat, `!!document.querySelector('[data-mpa=penmode]')`, Boolean);
+    is('players have no Clear drawings', await pat.ev(`!document.querySelector('[data-mpa=cleardraw]')`), true);
+    await pat.ev(HELP);
+    await drag(pat, [[100, 900], [200, 950]]);
+    is("a player's line reaches the DM", await until(dm, 'BM.state.m.draws.length', (n) => n === 3), 3);
+    await click(pat, '[data-mpa=penmode][data-v=erase]');
+    await drag(pat, [[100, 500], [100, 900]]);
+    is('erasing takes their line, not the DM\'s under the same stroke', await until(dm, 'BM.state.m.draws.length', (n) => n === 2), 2);
 
     // Ping and ruler: seen live by the others; a player sees the DM's ping
     await rail(pat, 'ruler');
