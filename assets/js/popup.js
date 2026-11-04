@@ -67,7 +67,7 @@
         });
     }
     // focus: true when a person asked for it (the search box takes the cursor); a page that was left open reopens without moving focus
-    function open(focus) {
+    function open(focus, restoring) {
         if (isOpen()) return focus && look();
         if (!panel) make();
         opener = document.activeElement;
@@ -76,7 +76,7 @@
         html.classList.add('cp-open'); html.classList.remove('cp-btn');
         fab.hidden = true;
         requestAnimationFrame(() => panel.classList.add('open'));
-        st.open = true; save();
+        if (!restoring) { st.open = true; save(); } // reopening a page that was left open isn't a change: saving it would re-stamp the account's copy as newer
         if (focus) look();
     }
     function look() {
@@ -110,6 +110,6 @@
         close();
     }, true);
 
-    const start = () => { build(); if (st.open) open(false); };
+    const start = () => { build(); if (st.open) open(false, true); };
     if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();

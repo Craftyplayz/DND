@@ -212,6 +212,19 @@ try {
     await dm.ev(`document.querySelector('[data-mpi=hpn]').value = 3; document.querySelector('[data-mpa=hp][data-v=dmg]').click(); 1`);
     is('Damage on the copy', await until(dm, `BM.state.m.tokens.find((t) => t.name === 'Goblin A').hp.cur`, (v) => v === hpBefore - 3), hpBefore - 3);
     is('the other copy keeps its HP', await dm.ev(`BM.state.m.tokens.find((t) => t.name === 'Goblin B').hp.cur`), hpBefore);
+
+    // the Compendium popup (ROADMAP 5.4, answer 73): with it open the map's shortcuts do nothing, Backspace included, with real key input
+    const zoom = () => dm.ev(text('.mpt-brg span')), toks = () => dm.ev(`BM.state.m.tokens.length`);
+    const z0 = await zoom(), n0 = await toks();
+    await dm.key('Control', 'k');
+    is('popup: Ctrl+K opens it on the map', await until(dm, `!!document.querySelector('.cpp.open')`, Boolean), true);
+    await dm.ev(`document.querySelector('.cpp iframe').blur(); document.body.tabIndex = -1; document.body.focus(); 1`); // the keys go to the map page, not the frame
+    await dm.key('Backspace'); await dm.key('-'); await sleep(600);
+    is('popup open: Backspace deletes no token and - does not zoom', [await toks(), await zoom(), !!await dm.ev(tokOf('Goblin A') + ' && 1')], [n0, z0, true]);
+    await dm.key('Escape');
+    is('popup: Esc closes it', await until(dm, `!document.querySelector('.cpp.open')`, Boolean), true);
+    await dm.key('-'); await sleep(400);
+    is('popup closed: the map shortcut works again', (await zoom()) !== z0, true);
     is('the Monster Sheet save is untouched', readFileSync(join(ACCOUNTS, 'monsters', '111', 'gob.json'), 'utf8'), before);
     await click(dm, '[data-mpa=panel][data-v=cond]');
     await until(dm, `!!document.querySelector('[data-mpa=cond][data-v=Prone]')`, Boolean);

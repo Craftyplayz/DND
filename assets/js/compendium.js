@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // can say which character or encounter "Add to" means (parent.cpContext, set by the sheets)
     const EMBED = document.documentElement.classList.contains('cp-embed');
     const ctx = () => { try { return (EMBED && parent.cpContext && parent.cpContext()) || null; } catch (e) { return null; } };
+    // the full page in a new tab with the form already open: act is new:<tab>, edit:<kind>:<id> or copy:<entry key> (runAct, below)
+    const embedAct = (a) => fullPage('/compendium/' + location.search + (location.search ? '&' : '?') + 'act=' + encodeURIComponent(a));
     const fullPage = (url) => { if (EMBED) window.open(url || '/compendium/' + location.search, '_blank'); else location.href = url; };
     const TABS = [['all', 'All'], ['spell', 'Spells'], ['monster', 'Monsters'], ['item', 'Items'], ['magic', 'Magic items'], ['class', 'Classes'], ['race', 'Races'],
         ['background', 'Backgrounds'], ['feat', 'Feats'], ['rule', 'Rules'], ['fav', 'Favourites'], ['recent', 'Recent']];
@@ -168,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loaded.has(j)) return Promise.resolve();
         if (loading.has(j)) return loading.get(j);
         failed.delete(j);
-        const p = jobs[j]().then(() => loaded.add(j)).catch(() => failed.add(j)).then(() => { loading.delete(j); entries.sort(byName); drawTabs(); refresh(); openFromUrl(); });
+        const p = jobs[j]().then(() => loaded.add(j)).catch(() => failed.add(j)).then(() => { loading.delete(j); entries.sort(byName); drawTabs(); refresh(); openFromUrl(); runAct(); });
         loading.set(j, p);
         return p;
     }
@@ -585,11 +587,10 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (b.dataset.add === 'sheet') addToSheet(e);
         else if (b.dataset.add === 'enc') addToEncounter(e);
         else if (b.dataset.reopen !== undefined) openEntry(e);
-        else if (b.dataset.hbEdit !== undefined) { if (e.raw.kind === 'monster') fullPage('/sheets/monster/?hb=edit:' + encodeURIComponent(e.raw.id)); else openForm(e.raw.kind, e.raw); }
+        else if (b.dataset.hbEdit !== undefined) { if (e.raw.kind === 'monster') fullPage('/sheets/monster/?hb=edit:' + encodeURIComponent(e.raw.id)); else { if (EMBED) embedAct('edit:' + e.raw.kind + ':' + e.raw.id); else openForm(e.raw.kind, e.raw); } }
         else if (b.dataset.hbCopy !== undefined) {
-            if (e.t === 'monster') fullPage('/sheets/monster/?hb=' + (e.hb ? 'copy:' + encodeURIComponent(e.raw.id) : 'key:' + encodeURIComponent(e.id)));
-            else if (FORMS[e.hb ? e.raw.kind : e.t].wizard && !e.hb) officialCopy(e);
-            else openForm(e.hb ? e.raw.kind : e.t, null, seedOf(e));
+            if (EMBED && e.t !== 'monster') return embedAct('copy:' + key(e));
+            copyOf(e);
         }
         else if (b.dataset.unarchive) unarchive(b.dataset.unarchive);
         else if (b.dataset.hbArchive !== undefined) archive(e.raw);
@@ -1047,8 +1048,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showHomebrew();
         openEntry(byKey.get(`${form.entry(out).t}:hb:${out.id}`));
     });
-    $('#cp-new').addEventListener('click', () => { if (FORMS[S.tab].link) fullPage(FORMS[S.tab].link); else openForm(S.tab); });
-    $('#cp-new2').addEventListener('click', () => openForm(SECOND[S.tab]));
+    $('#cp-new').addEventListener('click', () => { if (FORMS[S.tab].link) fullPage(FORMS[S.tab].link); else if (EMBED) embedAct('new:' + S.tab); else openForm(S.tab); });
+    $('#cp-new2').addEventListener('click', () => (EMBED ? embedAct('new:' + SECOND[S.tab]) : openForm(SECOND[S.tab])));
     // ---- the guided form for classes, races and backgrounds (assets/js/homebrew-form.js, loaded the first time it's needed) ----
     let wizardLoad = null;
     const loadWizard = () => wizardLoad || (wizardLoad = new Promise((ok, no) => { const s = document.createElement('script'); s.src = $('#main').dataset.hbform; s.onload = ok; s.onerror = () => { wizardLoad = null; no(new Error('form')); }; document.head.appendChild(s); }));
@@ -1143,6 +1144,27 @@ document.addEventListener('DOMContentLoaded', () => {
         b.closest('.rowi').remove();
         if (!$('#cp-hbarch-body').children.length) dlg('cp-hbarch').close();
     });
+    function copyOf(e) {
+        if (e.t === 'monster') fullPage('/sheets/monster/?hb=' + (e.hb ? 'copy:' + encodeURIComponent(e.raw.id) : 'key:' + encodeURIComponent(e.id)));
+        else if (FORMS[e.hb ? e.raw.kind : e.t].wizard && !e.hb) officialCopy(e);
+        else openForm(e.hb ? e.raw.kind : e.t, null, seedOf(e));
+    }
+    // the popup sent us here to make, edit or copy homebrew: open that form once what it needs has loaded
+    let act = params.get('act') || '';
+    function runAct() {
+        if (!act) return;
+        const [op, a, b] = act.split(':');
+        if (op === 'new' && FORMS[a]) { act = ''; return openForm(a); }
+        if (!loaded.has('homebrew')) return;
+        if (op === 'edit') { act = ''; const x = Homebrew.mine().find((y) => y.id === b); if (x && FORMS[a]) openForm(a, x); return; }
+        if (op === 'copy') {
+            const k = act.slice(5);
+            if (!jobsOfKey(k).every((j) => loaded.has(j) || failed.has(j))) return;
+            act = '';
+            const e = byKey.get(k);
+            if (e) copyOf(e);
+        }
+    }
     // Copy to homebrew from an official class, race or background: the lists it needs load first
     async function officialCopy(e) {
         if (EMBED) return fullPage();
