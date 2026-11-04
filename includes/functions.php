@@ -136,6 +136,11 @@ function page_head()
     if (auth_user()) echo '<script src="' . h(asset('/assets/js/sync.js')) . '" defer></script>' . "\n";
     // the live relay's address for assets/js/live.js (pages that share rolls load that script themselves)
     if (auth_user() && live_ws() !== '') echo '<meta name="dnd-live" content="' . h(live_ws()) . '">' . "\n";
+    // the Compendium popup (ROADMAP 5.4) on every page that uses this head, except those that set 'nopopup' (the Compendium itself)
+    if (empty($p['nopopup'])) {
+        echo '<link rel="stylesheet" href="' . h(asset('/assets/css/popup.css')) . '">' . PHP_EOL;
+        echo '<script src="' . h(asset('/assets/js/popup.js')) . '" defer></script>' . PHP_EOL;
+    }
     if (!empty($p['ui'])) echo '<script src="' . h(asset('/assets/js/ui.js')) . '" defer></script>' . "\n";
     // the test site (SITE_ENV=test in compose.yml) says so at the top of every page and stays out of search engines
     if (getenv('SITE_ENV') === 'test') {

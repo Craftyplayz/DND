@@ -156,7 +156,7 @@ HTML],
 <p class="ok">Saved.</p>
 <button class="btn small" data-act="toast">Show a toast</button>
 HTML],
-    'drawer' => ['Drawer', 'Details for a clicked item. Full width on phones; <code>Esc</code> closes it.', <<<'HTML'
+    'drawer' => ['Drawer', 'Details for a clicked item. Full-screen on phones; <code>Esc</code> closes it. A reference panel that is open beside any page (the Compendium popup, <code>assets/js/popup.js</code>) is the same pattern: a 44 px round button fixed bottom right, kept above the bottom bars and clear of the toasts, opens a panel from the right whose left edge drags to size it; its x or a click anywhere off it closes it (a click on a link keeps it open on the next page). On a phone it is a full-screen overlay that slides up from the bottom, with a little x top left.', <<<'HTML'
 <button class="btn" data-act="drawer">Open the drawer</button>
 <aside class="drawer" id="dg-drawer" aria-label="Details" aria-hidden="true" tabindex="-1">
   <button class="close" data-act="drawer-close" aria-label="Close">&times;</button>
@@ -164,7 +164,7 @@ HTML],
   <p class="muted">Slides in with transform only, in 180ms.</p>
 </aside>
 HTML],
-    'bsheet' => ['Bottom sheet', 'On phones, instead of a dialog or a menu: in thumb reach, closed by dragging the handle down, tapping outside, the X or the phone\'s Back. A native <code>&lt;dialog&gt;</code>; <code>.half</code> or <code>.full</code> sets the height and dragging up goes to full.', <<<'HTML'
+    'bsheet' => ['Bottom sheet', 'The phone dialogs and menus that already use it keep it. A new panel or popup on a phone is a full-screen overlay instead (see Drawer). In thumb reach, closed by dragging the handle down, tapping outside, the X or the phone\'s Back. A native <code>&lt;dialog&gt;</code>; <code>.half</code> or <code>.full</code> sets the height and dragging up goes to full.', <<<'HTML'
 <button class="btn" data-act="bsheet">Open a bottom sheet</button>
 <dialog class="bsheet half" id="dg-bsheet" aria-labelledby="dg-bsheet-h">
   <div class="bsheet-grab" aria-hidden="true"><i></i></div>

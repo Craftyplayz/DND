@@ -2860,6 +2860,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         return navigator.locks ? navigator.locks.request('mon-pending', run) : run();
     }
     addEventListener('storage', (e) => { if (e.key === 'mon-pending') takePending(); });
+    // the Compendium popup (assets/js/popup.js) asks which encounter is shown, so its "Add to encounter" needs no picker
+    window.cpContext = () => ({ enc: shownEnc });
 
 
     // ---- phone mode (ROADMAP 2.1, assets/js/phone.js): what this sheet hands to the phone's frame ----

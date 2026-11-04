@@ -1,0 +1,41 @@
+/* The Compendium popup (ROADMAP 5.4, assets/js/popup.js): a floating button bottom right and a panel from the right (a full-screen
+   overlay from the bottom on a phone). Self-contained: it loads on pages that don't load components.css. */
+.cpp-fab {
+    position: fixed; right: 16px; bottom: var(--cp-bottom, 16px); z-index: 1850; width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
+    background: var(--card2, #333); border: 1px solid var(--line-strong, #555); border-radius: 50%; color: var(--text, #eee); box-shadow: var(--lift, 0 12px 28px rgb(0 0 0 / .55)); cursor: pointer;
+}
+.cpp-fab:hover { background: var(--btn2-hover, #3d3d3d); }
+.cpp-fab:focus-visible, .cpp-x:focus-visible { outline: 2px solid var(--accent, #66c0f4); outline-offset: 2px; }
+.cpp-fab[hidden] { display: none; }
+/* toasts keep clear of the button (and, on a laptop, of the open panel) */
+html.cp-btn .toasts { bottom: var(--cp-top, 76px); }
+html.cp-open .toasts { right: calc(var(--cpp-w, 480px) + 16px); }
+@media (max-width: 800px) { html.cp-open .toasts { right: 12px; } }
+
+.cpp { box-sizing: border-box;
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 1900; display: flex; flex-direction: column; width: min(var(--cpp-w, 480px), 100vw);
+    background: var(--sunken, #1b1b1b); border-left: 1px solid var(--line-strong, #555); box-shadow: -12px 0 30px rgba(0, 0, 0, .55); color: var(--text, #eee);
+    transform: translateX(105%); visibility: hidden; transition: transform var(--base, .18s) ease-out, visibility 0s var(--base, .18s);
+}
+.cpp.open { transform: none; visibility: visible; transition: transform var(--base, .18s) ease-out; }
+.cpp.drag { transition: none; }
+.cpp.drag iframe { pointer-events: none; }
+.cpp-top { display: flex; align-items: center; gap: 8px; flex: none; padding: 4px 8px 4px 16px; border-bottom: 1px solid var(--line, #444); font-weight: 600; }
+.cpp-x { order: 2; margin-left: auto; min-width: 36px; height: 36px; padding: 0 6px; background: none; border: 0; color: var(--muted, #aaa); font-size: 26px; line-height: 1; cursor: pointer; }
+.cpp-x:hover { color: var(--text, #eee); }
+.cpp iframe { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: var(--bg, #202020); color-scheme: dark; }
+.cpp-edge { position: absolute; top: 0; bottom: 0; left: -4px; width: 10px; z-index: 1; cursor: ew-resize; touch-action: none; }
+.cpp-edge:hover, .cpp.drag .cpp-edge { background: var(--accent-soft, rgb(102 192 244 / .25)); }
+
+/* a phone: the whole screen, sliding up from the bottom, the x top left */
+@media (max-width: 800px) {
+    .cpp { inset: 0; width: 100vw; border: 0; box-shadow: none; transform: translateY(105%); padding-top: env(safe-area-inset-top); }
+    .cpp.open { transform: none; }
+    .cpp-top { padding: 4px 16px 4px 4px; }
+    .cpp-x { order: -1; margin: 0; min-width: 44px; height: 44px; }
+    .cpp-edge { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .cpp, .cpp.open { transition: none; } }
+@media print { .cpp, .cpp-fab { display: none; } }
+html.ph-typing .cpp-fab { display: none; }
+@media (max-width: 800px) { html.cp-open { overflow: hidden; } }

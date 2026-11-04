@@ -2916,6 +2916,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return navigator.locks ? navigator.locks.request('hb-pending', run) : run();
     }
     addEventListener('storage', (e) => { if (e.key === 'hb-pending') takePending(); });
+    // the Compendium popup (assets/js/popup.js) asks which character it is open beside, so its "Add to sheet" needs no picker
+    window.cpContext = () => (RO || DMM || !C ? null : { char: C.id });
 
     // ---- phone mode (ROADMAP 2.1, assets/js/phone.js): what this sheet hands to the phone's frame ----
     const phRows = new Set(), $$ = (s) => [...document.querySelectorAll(s)];
