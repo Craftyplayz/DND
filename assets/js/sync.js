@@ -4,7 +4,7 @@
 // (the sheets' cloud.php).
 (function () {
     'use strict';
-    const KEYS = ['dice-choice', 'dice-sets-page', 'dice-sets-sound', 'dnd.rollMode', 'monster-table', 'monster-roll-vis', 'compendium-view', 'compendium-rules', 'compendium-favs', 'compendium-recent', 'compendium-enc', 'encounter-rules', 'compendium-books']; // the same list as prefs.php
+    const KEYS = ['dice-choice', 'dice-sets-page', 'dice-sets-sound', 'dnd.rollMode', 'monster-table', 'monster-roll-vis', 'compendium-view', 'compendium-rules', 'compendium-favs', 'compendium-recent', 'compendium-enc', 'encounter-rules', 'compendium-books', 'sheet-full-layout']; // the same list as prefs.php
     const STAMPS = 'prefs-updated'; // { key: ms } when this browser last changed each one
     const ls = localStorage, set = Storage.prototype.setItem, del = Storage.prototype.removeItem;
     let stamps = {};

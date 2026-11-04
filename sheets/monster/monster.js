@@ -205,7 +205,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             panels: [newPanel('profs'), newPanel('attacks'), newPanel('spells'), newPanel('items'), Object.assign(newPanel('list', 'Passive abilities'), { split: true, sub: 'race' }),
                 newPanel('trackers', 'Resources'), newPanel('homebrew'), newPanel('combat'),
                 Object.assign(newPanel('notes'), { notes: [Object.assign(ROW.note(), { title: 'Tactics', group: 'Monster' })] })],
-            view: { tab: '', all: false, prep: false }, hbPanel: true, hb2: true, passSplit: true,
+            view: { tab: '', phoneTab: '', all: false, prep: false }, hbPanel: true, hb2: true, passSplit: true,
             // homebrew (ROADMAP 5.2): the entry this monster is a copy of, {id, by, at, sum}
             hbsrc: null,
         };
@@ -449,6 +449,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     let backupTimer = 0;
     function flushBackups() {
         clearTimeout(backupTimer);
+        if (Phone.pulling()) { backupTimer = setTimeout(flushBackups, 300); return; } // checking the account first: see pullOnReturn
         for (const id of [...dirty]) {
             const c = db.chars[id];
             dirty.delete(id);
@@ -654,7 +655,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
     // a boxed roll button, or the plain rule link when click to roll is off
     const rollBtn = (text, roll, title, fallback) => (C.view.noRoll || !roll ? fallback
-        : `<button type="button" class="hb-rollbtn" data-act="roll2" data-g="${roll.g}" data-m="${roll.m}" data-x="${roll.x || 1}" data-t="${esc(title)}" title="Roll ${esc(title.toLowerCase())}">${esc(text)}</button>`);
+        : `<button type="button" class="hb-rollbtn" data-act="roll2"${roll.d20 ? ' data-d20' : ''} data-g="${roll.g}" data-m="${roll.m}" data-x="${roll.x || 1}" data-t="${esc(title)}" title="Roll ${esc(title.toLowerCase())}">${esc(text)}</button>`);
     const dmgLinks = (dmg, V, name = '') => dmg.filter((d) => d.dice || d.type).map((d) => { const txt = d.dice ? diceText(d.dice, V) : '';
         return [d.dice && rollBtn(txt, diceRoll(d.dice, V), `${name || 'Damage'}${d.type ? ' ' + d.type.toLowerCase() : ''} damage`, ruleLink('act', 'damage rolls', txt, 'Damage rolls', 'Damage')),
             d.type && ruleLink('dmg', d.type, d.type, d.type + ' damage', 'Damage type')].filter(Boolean).join(' '); }).join(' + ');
@@ -663,6 +664,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // effects in a summary; healing and temp HP are buttons that roll them and apply them to your hit points
     const fxHtml = (fx, V, rp) => fx.map((e, j) => ((e.k === 'heal' || e.k === 'temp') && e.dice
         ? `<button type="button" class="hb-rollbtn" data-act="fxapply" data-p="${rp}.fx.${j}" title="Apply to your hit points">${esc(fxOne(e, V))}</button>` : esc(fxOne(e, V)))).filter(Boolean);
+    // ROADMAP 2.1: what a row shows on a phone before it's opened: its rolls, or its weight or source
+    function rowQuick(r, P, V) {
+        const name = r.name, dmg = () => (r.dmg || []).filter((d) => d.dice).map((d) => rollBtn(diceText(d.dice, V), diceRoll(d.dice, V), `${name || 'Damage'}${d.type ? ' ' + d.type.toLowerCase() : ''} damage`, esc(diceText(d.dice, V))));
+        const hit = (v) => { const t = show({ ...v, signed: true }); return rollBtn(t, Number.isFinite(+v.v) ? { g: '20x1', m: +v.v, d20: 1 } : null, `${name || 'Attack'} to hit`, esc(t)); };
+        if (P.type === 'attacks') return [r.mode === 'hit' ? hit(ev(r.hit, V)) : r.mode === 'save' ? `<small>${esc(r.save)} ${esc(show(ev(r.dc, V)))}</small>` : '', ...dmg()].filter(Boolean).join(' ');
+        if (P.type === 'spells' && 'lvl' in r) return [r.mode === 'atk' ? hit(ev(P.atk, V)) : r.mode === 'save' ? `<small>${esc(r.save)} ${esc(show(ev(r.dc || P.dc, V)))}</small>` : '', ...dmg()].filter(Boolean).join(' ');
+        if (P.type === 'items') return `<small>${nm(r.qty) > 1 ? '×' + nm(r.qty) + ' · ' : ''}${nm(r.wt) ? nm(r.wt) + ' lb' : ''}</small>`;
+        return r.src ? `<small>${esc(r.src)}</small>` : '';
+    }
     function actSum(r, V, rp) {
         return [r.time && ruleLink('act', String(r.time).toLowerCase(), r.time, r.time, 'Timing'),
             r.range && ruleLink('act', rangeRules(r.range), r.range, 'Range: ' + r.range, 'Range'),
@@ -749,6 +759,13 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             case 'fx': return { ...ev(get(a), V), why: why(get(a), V) };
             case 'fb': return diceCalc(get(a), V);
             case 'fs': return { ...ev(get(a), V), signed: true, why: why(get(a), V) };
+            case 'rowq': return { html: rowQuick(get(a), panelOf(a), V) };
+            case 'phname': return { v: C.name || 'Unnamed monster' };
+            case 'phcur': return { v: nm(C.hp.cur) };
+            case 'phtemp': return { v: nm(C.hp.temp) ? '+' + nm(C.hp.temp) : '' };
+            case 'phcond': return { v: C.conditions.length + (nm(C.exhaustion) ? 1 : 0) };
+            case 'phsub': return { v: phSub() };
+            case 'phacwhy': return { v: why(C.ac, V) || '' };
             case 'asum': return { html: actSum(get(a), V, a) };
             case 'ssum': return { html: spellSum(get(a), panelOf(a), V, a) };
             case 'isum': return { html: itemSum(get(a)) };
@@ -788,6 +805,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const hp = $('#hb-hpbar'), tmp = $('#hb-tempbar');
         if (hp) hp.style.width = Math.max(0, Math.min(100, (nm(C.hp.cur) / total) * 100)) + '%';
         if (tmp) tmp.style.width = Math.max(0, Math.min(100, (nm(C.hp.temp) / total) * 100)) + '%';
+        if (Phone.on()) phMarks();
     }
 
     // ---- markup helpers ----
@@ -853,12 +871,12 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     }
 
     // ---- the always-visible top ----
-    function top() {
+    function topParts() {
         const DICE = [4, 6, 8, 10, 12, 20].map((n) => [n, 'd' + n]);
         // name, creature type, CR, alignment and age are in the bar (conditions, speed and defences sit here)
         const id = '';
         const art =`<button type="button" class="hb-art" data-act="art" aria-label="${C.art ? 'Change' : 'Add'} monster art">${C.art ? `<img src="${esc(C.art)}" alt="" referrerpolicy="no-referrer" width="300" height="300">` : '<span>Add art</span>'}</button>`;
-        const abils = `<div class="hb-abils">${C.abilities.map((a, i) => `<div class="hb-abil">
+        const abils = Phone.on() ? phAbils() : `<div class="hb-abils">${C.abilities.map((a, i) => `<div class="hb-abil">
             <span class="hb-lbl" title="${esc(a.name)}">${esc(a.key)}</span>
             ${rollv('mod:' + i, a.name + ' check', ' hb-big')}
             ${f(`abilities.${i}.score`, a.name + ' score', { num: true, cls: 'hb-score' })}
@@ -888,12 +906,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             </div>
         </div>`;
         const conds = C.condList.split('\n').map((s) => s.trim()).filter(Boolean);
-        const more = `<div class="hb-more">
-            <button type="button" class="btn small" data-act="more" aria-expanded="${!!open.more}" aria-controls="hb-more">Conditions, speed and defences</button>
-            <span data-c="speed"></span><span class="hb-condsum" data-c="cond"></span><span class="muted" data-c="def"></span>
-        </div>
-        <div class="card hb-more-body" id="hb-more"${open.more ? '' : ' hidden'}>
-            <h3>Conditions</h3>
+        const moreBody = `<h3>Conditions</h3>
             <div class="badges" aria-label="Conditions">${conds.map((n) => `<button type="button" class="badge${C.conditions.includes(n) ? ' r' : ''}" data-act="cond" data-n="${esc(n)}" aria-pressed="${C.conditions.includes(n)}"${ruleTip('cond', n)}>${esc(n)}</button>`).join('')}</div>
             <label class="hb-exh">Exhaustion ${f('exhaustion', 'Exhaustion level', { num: true })}</label>
             ${rulesBlock('cond', conds.filter((n) => C.conditions.includes(n)))}${nm(C.exhaustion) > 0 ? `<div class="hb-rules"><div class="hb-rule"><b>Exhaustion level ${Math.min(6, nm(C.exhaustion))}</b>${rulePs((rule('cond', 'exhaustion') || []).filter((x) => /^\d - /.test(x) && +x[0] <= nm(C.exhaustion)).map((x) => '- ' + x.slice(4)))}</div></div>` : ''}
@@ -905,8 +918,12 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 <label>Resistances ${f('res', 'Resistances', { list: 'hb-dl-res', multi: true, ph: 'fire, cold' })}</label>
                 <label>Immunities ${f('imm', 'Immunities', { list: 'hb-dl-imm', multi: true })}</label>
                 <label>Vulnerabilities ${f('vul', 'Vulnerabilities', { list: 'hb-dl-vul', multi: true })}</label>
-            </div>
-        </div>`;
+            </div>`;
+        const more = `<div class="hb-more">
+            <button type="button" class="btn small" data-act="more" aria-expanded="${!!open.more}" aria-controls="hb-more">Conditions, speed and defences</button>
+            <span data-c="speed"></span><span class="hb-condsum" data-c="cond"></span><span class="muted" data-c="def"></span>
+        </div>
+        <div class="card hb-more-body" id="hb-more"${open.more ? '' : ' hidden'}>${moreBody}</div>`;
         const saves = `<section class="card hb-saves"><h2>Saving throws</h2><div class="hb-savegrid">${C.abilities.map((a, i) => `<div class="hb-save">
             <label class="hb-dot">${f(`abilities.${i}.save`, 'Proficient in ' + a.name + ' saves', { check: true })}</label>
             <span>${esc(a.key)}</span>${rollv('save:' + i, a.name + ' save')}
@@ -915,6 +932,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <div class="rows">${C.passives.map((p, i) => `<div class="rowi"><button type="button" class="hb-link grow" data-act="sense" data-i="${i}">${esc(p.name)}</button>${fx(`passives.${i}.f`, p.name, false)}${p.unit ? `<small class="muted">${esc(p.unit)}</small>` : ''}</div>`).join('')}</div>
             <label class="hb-lbl hb-other">Other senses ${f('senses', 'Other senses', { area: true, ph: '120 ft magical darkvision' })}</label>
         </section>`;
+        return { id, art, abils, combat, more, moreBody, saves, senses, pins: pinned() };
+    }
+    function top() {
+        const { id, art, abils, combat, more, saves, senses } = topParts();
         return `<div class="hb-top-id"><div class="hb-id">${id}${more}</div></div><div class="hb-top-abil">${abils}</div><div class="hb-top-combat">${combat}${pinned()}</div>
             <div class="hb-side"><div class="hb-top-art">${art}</div><div class="hb-top-saves">${saves}</div><div class="hb-top-senses">${senses}</div></div>`;
     }
@@ -934,6 +955,16 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // end: buttons after the pencil (the inventory's remove ×)
     function entry(rp, r, summaryKey, editor, lead = '', tail = '', end = '') {
         const isOpen = openRows.has(r.id);
+        // a phone: one line that opens on tap, with its rolls still on the line (ROADMAP 2.1)
+        if (Phone.on()) {
+            const on = phRows.has(r.id) || isOpen;
+            return `<div class="hb-entry">
+                <div class="hb-entry-h">${lead}<button type="button" class="hb-link ph-rowname" data-act="phrow" data-id="${esc(r.id)}" aria-expanded="${on}">${esc(r.name || 'Unnamed')}</button>${hbBadge(r)}<span class="ph-rowq" data-c="rowq:${rp}"></span></div>
+                ${tail}${on ? `<div class="ph-rowopen"><span class="hb-sum" data-c="${summaryKey}:${rp}"></span><div class="ph-rowbtns"><button type="button" class="btn small" data-act="info" data-p="${rp}">Details</button>
+                    <button type="button" class="hb-x hb-toggle" data-act="toggle" data-id="${esc(r.id)}" aria-expanded="${isOpen}" aria-label="Edit ${esc(r.name || 'entry')}" title="Edit">${PENCIL}</button>${end}</div></div>` : ''}
+                ${isOpen ? `<div class="hb-editor">${editor()}</div>` : ''}
+            </div>`;
+        }
         return `<div class="hb-entry">
             <div class="hb-entry-h">${lead}<button type="button" class="hb-link" data-act="info" data-p="${rp}">${esc(r.name || 'Unnamed')}</button>${hbBadge(r)}
                 <span class="hb-sum" data-c="${summaryKey}:${rp}"></span>
@@ -1244,10 +1275,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <p class="muted hb-hint">Filled boxes are spent. Spend any number in a short rest; a long rest gives half back, rounded up.</p>`,
     };
 
+    const panelCard = ([p, i]) => `<section class="card hb-panel" id="hb-p-${esc(p.id)}"><h2>${esc(p.title)}</h2>${R[p.type](p, 'panels.' + i, i)}</section>`;
     function panels() {
         const vis = C.panels.map((p, i) => [p, i]).filter(([p]) => p.on);
         if (!vis.length) return '<p class="note">Every panel is hidden. Turn some back on in Customise.</p>';
-        const card = ([p, i]) => `<section class="card hb-panel" id="hb-p-${esc(p.id)}"><h2>${esc(p.title)}</h2>${R[p.type](p, 'panels.' + i, i)}</section>`;
+        const card = panelCard;
         if (C.view.all) return `<div class="masonry">${vis.map(card).join('')}</div>`;
         const cur = vis.find(([p]) => p.id === C.view.tab) || vis[0];
         return `<div class="stabs hb-tabs">${vis.map(([p]) => `<button type="button" class="${p === cur[0] ? 'on' : ''}" data-act="tab" data-id="${esc(p.id)}" aria-pressed="${p === cur[0]}">${esc(p.title)}</button>`).join('')}</div>${card(cur)}`;
@@ -1271,7 +1303,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
             <button type="button" class="btn small" data-act="dup">Duplicate</button>
             ${hbMonNewer() ? '<button type="button" class="btn small" data-act="hbmon">Update available</button>' : ''}
-            <span class="hb-manage" id="hb-manage"${open.manage ? '' : ' hidden'}>
+            <span class="hb-manage" id="hb-manage"${open.manage || Phone.on() ? '' : ' hidden'}>
                 <button type="button" class="btn small" data-act="new">New</button>
                 <button type="button" class="btn small" data-act="find">Import monster</button>
                 <button type="button" class="btn small" data-act="hbsave">Save as homebrew</button>
@@ -1606,7 +1638,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             ${spell ? '' : rulesBlock('prop', r.props, 'Properties')}
             ${spell && wdUrl(r) ? `<p class="muted hb-hint">Full spell text: <a href="${wdUrl(r)}" target="_blank" rel="noopener">${esc(r.name)} on dnd5e.wikidot.com</a></p>` : spell && r.srd ? `<p class="muted hb-hint">${SRD_CREDIT}</p>` : ''}`);
     }
-    function openDrawer(html) { $('#hb-drawer-body').innerHTML = html; drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); drawer.focus(); }
+    function openDrawer(html) { if (Phone.on()) return Phone.info(html); $('#hb-drawer-body').innerHTML = html; drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); drawer.focus(); }
     function ruleInfo(kind, names, title, sub) {
         const list = names.split('|').filter((n) => rule(kind, n));
         const body = list.length === 1 ? rulePs(rule(kind, list[0]))
@@ -1721,9 +1753,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             <h3>Panels</h3>
             <label class="check">${f('view.all', 'Show every panel at once', { check: true })} Show every panel at once instead of tabs</label>
             <label class="check">${f('view.prep', 'Always show prepared spells', { check: true })} Always show the Prepared tab and checkboxes (for homebrew classes; otherwise only Artificer, Cleric, Druid, Paladin and Wizard get them)</label>
-            ${table(['Show', 'Title', 'Type', ''], C.panels.map((p, i) => `<tr><td class="hb-c">${f(`panels.${i}.on`, 'Show ' + p.title, { check: true })}</td>
-                <td>${f(`panels.${i}.title`, 'Title')}</td><td class="muted">${TYPES[p.type]}</td>
-                <td class="hb-nowrap"><button type="button" class="hb-x" data-act="mv" data-i="${i}" data-d="-1" aria-label="Move ${esc(p.title)} up" title="Move up"${i ? '' : ' disabled'}>↑</button><button type="button" class="hb-x" data-act="mv" data-i="${i}" data-d="1" aria-label="Move ${esc(p.title)} down" title="Move down"${i < C.panels.length - 1 ? '' : ' disabled'}>↓</button>${del('panels', i, p.title)}</td></tr>`).join(''))}
+            ${Phone.fullSwitch()}<div class="hb-ptable">${table(['Show', 'Title', 'Type', ''], C.panels.map((p, i) => `<tr><td class="hb-c">${f(`panels.${i}.on`, 'Show ' + p.title, { check: true })}</td>
+                <td>${f(`panels.${i}.title`, 'Title')}</td><td class="muted">${TYPES[p.type]}${Phone.on() ? ' · ' + Phone.tabName(p.type) + ' tab' : ''}</td>
+                <td class="hb-nowrap"><button type="button" class="hb-x" data-act="mv" data-i="${i}" data-d="-1" aria-label="Move ${esc(p.title)} up" title="Move up"${i ? '' : ' disabled'}>↑</button><button type="button" class="hb-x" data-act="mv" data-i="${i}" data-d="1" aria-label="Move ${esc(p.title)} down" title="Move down"${i < C.panels.length - 1 ? '' : ' disabled'}>↓</button>${del('panels', i, p.title)}</td></tr>`).join(''))}</div>
             <div class="actions hb-addpanel"><select class="field hb-auto" id="hb-newtype" aria-label="Panel type">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select><button type="button" class="btn small" data-act="addpanel">Add panel</button></div>
             <h3>Numbers</h3>
             ${table(['Number', 'Formula', 'Result'], [['prof', 'Proficiency bonus', 1], ['ac', 'Armour class', 0], ['init', 'Initiative', 1]].map(([k, t, s]) =>
@@ -1762,21 +1794,24 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // groups: [[sides, count]], mod: number added on top
     // groups [['coin', 1]] flips a coin: the card shows Heads or Tails instead of a total
     // each > 1 splits the dice into that many separate results, e.g. one per target ("4 × (1d12 + 10)"); mod covers them all
-    function rollShow(title, groups, mod = 0, each = 1) {
+    function rollShow(title, groups, mod = 0, each = 1, adv = '') {
         const logIt = !C.archived; // decided now: an archived roll stays unlogged even if Unarchive comes before its dice land
-        const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails');
+        const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails'), thrown = adv ? [[20, 2]] : groups;
+        if (adv) title += adv === 'adv' ? ' with advantage' : ' with disadvantage';
         const card = (rolls) => {
             // every die as it landed, for the Table view's 3D dice (ROADMAP 1.7); a coin flip has none
             const dice = rolls.every(([n]) => [4, 6, 8, 10, 12, 20, 100].includes(n)) ? rolls.map(([n, r]) => [n, r.slice()]) : undefined;
             const c = camp(), to = c && rollTo() ? (c.dm ? ' · hidden' : ' · to DM') : '';
+            const pair = adv && rolls[0][1];
+            if (pair) rolls = [[20, [Math[adv === 'adv' ? 'max' : 'min'](...pair)]]];
             const tail = (m) => (m ? ` ${m < 0 ? '−' : '+'} ${Math.abs(m)}` : '');
             // separate results: result i takes its share of every group's dice
             const hits = each > 1 && !coin ? Array.from({ length: each }, (_, i) => rolls.flatMap(([, r]) => r.slice(i * r.length / each, (i + 1) * r.length / each))) : null;
             const total = coin ? side(rolls[0][1][0]) : hits ? hits.map((v) => v.reduce((a, b) => a + b, mod / each)).join(', ')
                 : rolls.reduce((t, [, r]) => t + r.reduce((a, b) => a + b, 0), 0) + mod;
-            const expr = coin ? 'Coin' : hits ? `${each} × (${groups.map(([n, c]) => `${c / each}d${n}`).join(' + ')}${tail(mod / each)})`
+            const expr = pair ? `2d20 keep ${adv === 'adv' ? 'higher' : 'lower'}${tail(mod)}` : coin ? 'Coin' : hits ? `${each} × (${groups.map(([n, c]) => `${c / each}d${n}`).join(' + ')}${tail(mod / each)})`
                 : groups.map(([n, c]) => `${c}d${n}`).join(' + ') + tail(mod);
-            const shown = coin ? '' : hits ? hits.map((v) => v.join(' + ') + tail(mod / each)).join(' | ') : rolls.map(([, r]) => r.join(', ')).join(' | ') + tail(mod);
+            const kept = pair && rolls[0][1][0], shown = pair ? `~${pair[pair.indexOf(kept) ^ 1]}~, ${kept}` + tail(mod) : coin ? '' : hits ? hits.map((v) => v.join(' + ') + tail(mod / each)).join(' | ') : rolls.map(([, r]) => r.join(', ')).join(' | ') + tail(mod);
             // a lone d20 shows a natural 20 or 1
             const nat = groups.length === 1 && groups[0][0] === 20 && groups[0][1] === 1 ? (rolls[0][1][0] === 20 ? ' hb-nat20' : rolls[0][1][0] === 1 ? ' hb-nat1' : '') : '';
             // just under the sticky sheet bar, which wraps taller on phones
@@ -1789,7 +1824,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             // the roll log keeps the last 100 rolls with the character
             if (logIt) (C.rolls ||= []).unshift({ at: Date.now(), title, expr, shown, total, nat: nat.trim() });
             C.rolls.length = Math.min(C.rolls.length, 100);
-            saveNow(); drawLog(); if (tray.open) drawTray();
+            saveNow(false); drawLog(); if (tray.open) drawTray(); // a roll isn't an edit
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
             if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', dice, ...window.Fight?.tag(c.id, title, C.id) }));
         };
@@ -1798,7 +1833,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         $('#hb-rolls').innerHTML = '';
         // 3D dice (dice3d.js, three.js + cannon-es from jsDelivr) load on the first roll; the face that lands up is the result
         const css = getComputedStyle(main);
-        dice3d().then(async (m) => m.throwDice(groups, { style: await chosenStyle(m), accent: css.getPropertyValue('--btn').trim() || '#5b3f8f', sound: !C.view.noSound }))
+        dice3d().then(async (m) => m.throwDice(thrown, { style: await chosenStyle(m), accent: css.getPropertyValue('--btn').trim() || '#5b3f8f', sound: !C.view.noSound }))
             .then(card, () => { dice3dP = null; quick(); });
     }
     // ---- the table (ROADMAP 1.3): signed in, rolls are shared to a campaign's table log (assets/js/live.js) ----
@@ -1821,7 +1856,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const hbBar = $('#hb-bar');
         $('#hb-rolls').style.top = (getComputedStyle(hbBar).position === 'sticky' ? Math.max(76, hbBar.offsetHeight + 12) : 16) + 'px';
         $('#hb-rolls').innerHTML = html;
-        clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, 12000);
+        clearTimeout(rollTimer); rollTimer = setTimeout(() => { $('#hb-rolls').innerHTML = ''; }, Phone.on() ? 6000 : 12000);
     }
     let camps = [], tlog = [], tloaded = false, watching = null, watchId = '', logTab = 'mine';
     const sent = new Set();
@@ -1836,6 +1871,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function tableWatch() {
         // the fight in the campaign picked here (assets/js/fight.js): the DM runs it on the battle map (ROADMAP 1.6), so the panel
         // only links there; it redraws the list's "Add to fight" buttons
+        Phone.frame(); refresh();
         window.Fight?.panel($('#mon-fight'), camp()?.id || '', { brief: true, onChange: drawSide });
         const id = camp()?.id || '';
         if (id === watchId) return;
@@ -1885,6 +1921,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const dice3d = () => dice3dP || (dice3dP = import(new URL('/dice/dice3d.js' + (($('script[src*="/monster.js"]')?.src || '').match(/\?v=\d+/) || [''])[0], location.href).href));
     function drawTray() {
         const box = $('#hb-dice');
+        if (Phone.on()) { box.hidden = !!C.view.noTray && !!C.view.noRoll; box.innerHTML = `<button type="button" class="hb-dicebtn" data-act="tray" aria-label="Open dice and roll log" title="Dice">${D20}</button>`; if (Phone.kind() === 'dice') Phone.fill(); return; }
         box.hidden = !!C.view.noTray;
         if (box.hidden) return;
         const groups = DICE.filter((n) => tray.pool[n]).map((n) => [n, tray.pool[n]]);
@@ -1905,6 +1942,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         <span class="hb-logh"><b>${esc(r.title)}</b><small title="${esc(new Date(r.at).toLocaleString())}">${esc(logTime(r.at))}</small></span>
         <span class="hb-logd">${esc(r.expr)} · ${strike(r.shown)}</span><span class="hb-logt${String(r.total).includes(',') ? ' hb-each' : ''}">${esc(String(r.total))}</span></li>`).join('')}</ol>`;
     function drawLog() {
+        if (Phone.on()) { $('#hb-log').hidden = true; if (Phone.kind() === 'dice') Phone.fill(); return; }
         const box = $('#hb-log'), left = root.getBoundingClientRect().left;
         box.hidden = !!C.view.noRoll || !logSide();
         if (box.hidden) return;
@@ -1922,15 +1960,18 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         for (const p of C.panels) if (p.type === 'trackers') for (const r of p.rows) if (r.kind === 'count' && /^sorcery points?$/i.test(String(r.name).trim())) {
             Object.assign(r, { kind: 'pips', used: Math.max(0, maxOf(r.max) - nm(r.cur)) });
         }
-        $('#hb-barin').innerHTML = bar();
+        const ph = Phone.on();
+        $('#hb-barin').innerHTML = ph ? '' : bar();
         drawSide();
-        root.innerHTML = top() + `<div class="hb-top-panels">${panels()}</div><div hidden>${datalists()}</div>`;
-        drawTray(); drawLog();
+        root.innerHTML = (ph ? Phone.mainHTML() : top() + `<div class="hb-top-panels">${panels()}</div>`) + `<div hidden>${datalists()}</div>`;
+        Phone.frame();
+        drawTray(); drawLog(); Phone.fill();
         if (dlg.open && dlgMode && !['rest', 'crop', 'hbsave'].includes(dlgMode.kind)) { dlgBody.innerHTML = dlgHTML(); }
         if (C.archived) for (const el of root.querySelectorAll('input, select, textarea')) el.disabled = true;
+        phLock();
         refresh();
     }
-    function showDlg(mode) { dlgMode = mode; dlgBody.innerHTML = dlgHTML(); dlg.showModal(); refresh(); }
+    function showDlg(mode) { Phone.close(); dlgMode = mode; dlgBody.innerHTML = dlgHTML(); dlg.showModal(); refresh(); }
     dlg.addEventListener('close', () => { dlgMode = null; draw(); });
 
     // ---- monsters only: the encounter list on the left, Duplicate, and importing from the monster list ----
@@ -2692,7 +2733,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     });
 
     // what an archived monster still does: look, roll, open things, and come back
-    const VIEW_ACTS = new Set(['skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
+    const VIEW_ACTS = new Set(['phrow', 'advnext', 'dieless', 'skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
         'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions', 'fightadd', 'encshow', 'encunarc', 'diffadd', 'diffparty', 'diffrefresh', 'diffopen']); // fightadd: other monsters into the fight
 
     // ---- events ----
@@ -2784,9 +2825,14 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (how === 'auto') how = v > 0 ? 'heal' : 'dmg';
         if (!amt && how !== 'temp') return $('#hb-amt').focus();
         if (how === 'temp' && amt < nm(C.hp.temp)) toast(`Temp HP doesn't stack, so you keep ${C.hp.temp}.`, 'note');
+        const hpWas = { ...C.hp };
         hpApply(C, { k: how, n: amt });
         hpOp(C, { k: how, n: amt });
-        saveNow(); draw();
+        saveNow();
+        if (!Phone.on()) return draw();
+        Phone.close();
+        const c = C, sign = how === 'dmg' ? '−' : '+';
+        offerUndo(how === 'temp' ? `Temp HP ${nm(C.hp.temp)}` : `${sign}${amt} HP, now ${nm(C.hp.cur)}/${hpMax()}`, () => { c.hp = hpWas; saveNow(); draw(); });
     });
     // the scroll style of hit points: scroll over the amount to change it (shift for 5 at a time); the button follows its sign
     const hpLabel = () => { const b = $('.hb-hpgo'); if (b) b.toggleAttribute('data-heal', nm($('#hb-amt').value) > 0); };
@@ -2797,8 +2843,25 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         el.value = nm(el.value) + (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 5 : 1); hpLabel();
     }, { passive: false });
     main.addEventListener('input', (e) => { if (e.target.id === 'hb-amt') hpLabel(); });
+    // press and hold a d20 roll on a phone: advantage or disadvantage (the same menu as the player sheet's)
+    main.insertAdjacentHTML('beforeend', `<div class="hb-advmenu" id="hb-adv" role="menu" aria-label="Roll with" hidden>
+        <button type="button" role="menuitem" data-act="adv" data-a="adv">Advantage roll</button><button type="button" role="menuitem" data-act="adv" data-a="dis">Disadvantage roll</button></div>`);
+    const isD20 = (b) => !!b && (b.dataset.act === 'roll' || 'd20' in b.dataset);
+    let advFor = null, holdTimer = 0, held = false;
+    function advOpen(b, x, y) { const m = $('#hb-adv'); advFor = b; m.hidden = false; m.style.left = Math.max(8, Math.min(x, innerWidth - m.offsetWidth - 8)) + 'px'; m.style.top = Math.max(8, Math.min(y, innerHeight - m.offsetHeight - 8)) + 'px'; m.querySelector('button').focus(); }
+    function advClose() { const m = $('#hb-adv'); if (!m.hidden) { m.hidden = true; if (advFor?.isConnected) advFor.focus(); } advFor = null; }
+    document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#hb-adv')) advClose(); });
+    addEventListener('scroll', () => advFor && advClose(), true);
+    main.addEventListener('pointerdown', (e) => {
+        held = false; clearTimeout(holdTimer);
+        const b = e.target.closest('[data-act]');
+        if (Phone.on() && e.pointerType === 'touch' && isD20(b)) holdTimer = setTimeout(() => { held = true; advOpen(b, e.clientX, e.clientY); }, 500);
+    });
+    for (const t of ['pointerup', 'pointercancel']) main.addEventListener(t, () => clearTimeout(holdTimer));
     // right-click a die in the tray to take one away
     main.addEventListener('contextmenu', (e) => {
+        const r = e.target.closest('[data-act]');
+        if (Phone.on() && isD20(r)) { e.preventDefault(); if (!held) advOpen(r, e.clientX, e.clientY); return; }
         const b = e.target.closest('[data-act="die"]');
         if (!b) return;
         e.preventDefault();
@@ -2810,6 +2873,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         const b = e.target.closest('[data-act]');
         if (!b || b.tagName === 'SELECT' || b.tagName === 'FORM') return;
         const act = b.dataset.act, p = b.dataset.p, i = +b.dataset.i;
+        if (held && isD20(b)) { held = false; return; } // the click that ends a press and hold opened the menu instead of rolling
         // archived (ROADMAP 0.5): it can be looked at and rolled, nothing else, until it's unarchived
         if (C.archived && !VIEW_ACTS.has(act)) return;
         if (act === 'formula') return showDlg({ kind: 'formula', p, t: b.dataset.t, s: !!b.dataset.s, parts: parseParts(get(p)) });
@@ -2869,14 +2933,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             else { hpApply(C, { k: 'temp', n: amt }); hpOp(C, { k: 'temp', n: amt }); toast(`${name}: ${amt} temp HP (${rolled}).`, 'ok'); }
             saveNow(); return draw();
         }
-        if (act === 'roll2') return rollShow(b.dataset.t, b.dataset.g.split(',').map((x) => x.split('x').map(Number)), +b.dataset.m || 0, +b.dataset.x || 1);
-        if (act === 'roll') { const v = value(b.dataset.k, vars()); return rollShow(b.dataset.t, [[20, 1]], Number.isFinite(+v.v) ? +v.v : 0); }
+        if (act === 'roll2') return rollShow(b.dataset.t, b.dataset.g.split(',').map((x) => x.split('x').map(Number)), +b.dataset.m || 0, +b.dataset.x || 1, 'd20' in b.dataset ? takeAdv() : '');
+        if (act === 'roll') { const v = value(b.dataset.k, vars()); return rollShow(b.dataset.t, [[20, 1]], Number.isFinite(+v.v) ? +v.v : 0, 1, takeAdv()); }
+        if (act === 'adv') { const t = advFor; advClose(); if (!t) return; const v = t.dataset.act === 'roll2' ? { v: +t.dataset.m || 0 } : value(t.dataset.k, vars()); return rollShow(t.dataset.t, [[20, 1]], Number.isFinite(+v.v) ? +v.v : 0, 1, b.dataset.a); }
         if (act === 'rollx') { clearTimeout(rollTimer); $('#hb-rolls').innerHTML = ''; return; }
-        if (act === 'tray') { tray.open = !tray.open; return drawTray(); }
+        if (act === 'tray') { if (Phone.on()) return Phone.open('dice'); tray.open = !tray.open; return drawTray(); }
         if (act === 'rollto') { setRollTo(!rollTo()); return drawTray(); }
         if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : monsIn(shownEnc).filter((c) => !c.archived), b);
         if (act === 'logtab') { logTab = b.dataset.t; return drawLog(); }
-        if (act === 'logclear') { if (confirm('Clear the roll log for this monster?')) { C.rolls = []; saveNow(); drawLog(); } return; }
+        if (act === 'logclear') { if (Phone.on()) { const was = C.rolls; C.rolls = []; saveNow(); drawLog(); offerUndo('Roll log cleared.', () => { C.rolls = was; saveNow(); drawLog(); }); return; } if (confirm('Clear the roll log for this monster?')) { C.rolls = []; saveNow(); drawLog(); } return; }
         if (act === 'die') { tray.pool[b.dataset.n] = (tray.pool[b.dataset.n] || 0) + 1; return drawTray(); }
         if (act === 'dieclear') { tray.pool = {}; return drawTray(); }
         if (act === 'coin') { rollShow('Coin flip', [['coin', 1]]); tray.open = false; return drawTray(); }
@@ -2893,7 +2958,10 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'more') { open.more = !open.more; return draw(); }
         if (act === 'manage') { open.manage = !open.manage; $('#hb-barin').innerHTML = bar(); return $('[data-act=manage]').focus(); }
         if (act === 'hpedit') { open.hp = !open.hp; return draw(); }
-        if (act === 'tab') { C.view.tab = b.dataset.id; save(); return draw(); }
+        if (act === 'tab') { C.view.tab = b.dataset.id; saveNow(false); return draw(); }
+        if (act === 'phrow') { const id = b.dataset.id; phRows.has(id) ? phRows.delete(id) : phRows.add(id); openRows.delete(id); return drawKeepY(); }
+        if (act === 'dieless') { const n = b.dataset.n; if (tray.pool[n] > 1) tray.pool[n]--; else delete tray.pool[n]; return drawTray(); }
+        if (act === 'advnext') { advNext = b.dataset.v; return Phone.fill(); }
         if (act === 'toggle') { const id = b.dataset.id; openRows.has(id) ? openRows.delete(id) : openRows.add(id); return draw(); }
         if (act === 'tagadd') return addTag(b.previousElementSibling);
         if (act === 'nnew' || act === 'nsession') {
@@ -2942,12 +3010,12 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             P.rows.push(r);
             saveNow(); return draw();
         }
-        if (act === 'nopen') { get(p).open = b.dataset.id; save(); return draw(); }
+        if (act === 'nopen') { get(p).open = b.dataset.id; saveNow(false); return draw(); }
         if (act === 'ngo') {
             const P = C.panels[i];
-            P.open = b.dataset.id; C.view.tab = P.id;
+            P.open = b.dataset.id; C.view.tab = P.id; Phone.showPanel('notes');
             if (P.sub === 'pinned' || P.sub.startsWith('g:') || P.sub === 'none') P.sub = 'all';
-            save(); draw();
+            saveNow(false); draw();
             const el = $('#hb-p-' + P.id);
             return el && el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
@@ -2970,7 +3038,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             P.notes.splice(i + 1, 0, n); P.open = n.id;
         }
         else
-        if (act === 'sub') set(p, b.dataset.id);
+        if (act === 'sub') { set(p, b.dataset.id); saveNow(false); return draw(); }
         else if (act === 'cond') { const n = b.dataset.n; C.conditions = C.conditions.includes(n) ? C.conditions.filter((x) => x !== n) : [...C.conditions, n]; }
         else if (act === 'chip') { const list = get(p), n = b.dataset.n; set(p, list.includes(n) ? list.filter((x) => x !== n) : [...list, n]); }
         else if (act === 'prof' || act === 'tprof') { const s = act === 'prof' ? C.skills[i] : C.profs.tools[i], lv = PROF.findIndex(([q]) => q === s.p); s.p = PROF[(lv + 1) % PROF.length][0]; }
@@ -3010,7 +3078,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (act === 'art') return $('#hb-artfile').click();
         else if (act === 'artdel') { snap(b); C.art = ''; }
         else if (act === 'new') return switchTo(Object.assign(blank(), { name: numbered('New monster'), updated: Date.now() }));
-        else if (act === 'side') return switchTo(db.chars[b.dataset.id]);
+        else if (act === 'side') { Phone.close(); return switchTo(db.chars[b.dataset.id]); }
         else if (act === 'dup') return dupMonster();
         else if (act === 'encto') { open.manage = false; return encOpen({ kind: 'to', copy: 'copy' in b.dataset }); }
         else if (act === 'encshow') return encShow(b.dataset.id);
@@ -3064,6 +3132,66 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         return navigator.locks ? navigator.locks.request('mon-pending', run) : run();
     }
     addEventListener('storage', (e) => { if (e.key === 'mon-pending') takePending(); });
+
+
+    // ---- phone mode (ROADMAP 2.1, assets/js/phone.js): what this sheet hands to the phone's frame ----
+    const phRows = new Set(), $$ = (s) => [...document.querySelectorAll(s)];
+    let advNext = ''; // the dice sheet's Advantage / Disadvantage: for the next d20 only
+    const takeAdv = () => { const a = advNext; advNext = ''; return a; };
+    const drawKeepY = () => { const y = scrollY; draw(); scrollTo(0, y); };
+    function phMarks() {
+        const hp = $('#ph-hp'), cur = nm(C.hp.cur), max = hpMax(), n = C.conditions.length + (nm(C.exhaustion) ? 1 : 0);
+        if (hp) { hp.classList.toggle('low', cur > 0 && cur < max / 2); hp.classList.toggle('down', cur <= 0); hp.setAttribute('aria-label', `Hit points ${cur} of ${max}${nm(C.hp.temp) ? ', ' + nm(C.hp.temp) + ' temporary' : ''}. Tap to damage or heal`); }
+        $('#ph-cond')?.classList.toggle('set', n > 0);
+        $('[data-c="phsub"]')?.classList.toggle('cond', n > 0);
+    }
+    // the line under the name: the conditions when there are any, otherwise who this is
+    function phSub() {
+        const L = C.conditions, list = [...L.slice(0, 2), ...(nm(C.exhaustion) ? ['Exhaustion ' + C.exhaustion] : [])].join(', ') + (L.length > 2 ? ` +${L.length - 2}` : '');
+        return list || phWho();
+    }
+    const phHpSheet = () => `<div class="ph-hpnow"><b data-c="phcur"></b><span>/ <span data-c="hpmax"></span></span><span class="ph-temp" data-c="hptemp"></span></div>
+        ${phRO() ? '<p class="muted">Read only, so this can\'t change.</p>' : `<form class="ph-hpform" data-act="hp"><input class="field ph-amt" id="hb-amt" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Amount" aria-label="Amount">
+            <div class="ph-hpgo"><button class="btn ph-dmg" value="dmg">Damage</button><button class="btn ph-heal" value="heal">Heal</button></div>
+            <div class="ph-two"><button class="btn" value="temp">Set temp</button><button type="button" class="btn" data-act="hpedit" aria-expanded="${!!open.hp}">Edit HP</button></div></form>
+            ${open.hp ? `<div class="hb-hpf ph-two"><label>Current ${f('hp.cur', 'Current hit points', { num: true })}</label><label>Base ${f('hp.base', 'Base hit points, before level × CON modifier', { num: true })}</label>
+                <label>Max change ${f('hp.mod', 'Temporary change to maximum hit points', { num: true })}</label><label>Temp ${f('hp.temp', 'Temporary hit points', { num: true })}</label></div>` : ''}`}`;
+    const phAcSheet = () => `<div class="ph-hpnow"><b data-c="fx:ac"></b></div><p class="muted" data-c="phacwhy"></p>${phRO() ? '' : '<button type="button" class="btn" data-act="custom">Open Customise</button>'}`;
+    const phCondSheet = () => phRO() ? topParts().moreBody.replace(/<button type="button" class="badge/g, '<button type="button" disabled class="badge') : topParts().moreBody;
+    function phDiceSheet() {
+        const groups = DICE.filter((n) => tray.pool[n]).map((n) => [n, tray.pool[n]]), noTray = !!C.view.noTray, noLog = !!C.view.noRoll;
+        if (!camp()) logTab = 'mine';
+        const rows = logTab === 'table' ? (tlog.length ? tableRows(200) : '<p class="muted">Rolls at the table show up here.</p>') : (C.rolls || []).length ? logRows(100) : '<p class="muted">Your dice rolls show up here.</p>';
+        return `${noTray ? '' : `<div class="ph-dice">${DICE.map((n) => `<div class="ph-die${tray.pool[n] ? ' has' : ''}"><button type="button" class="hb-die" data-act="die" data-n="${n}" aria-label="Add a d${n}">${tray.pool[n] || ''}d${n}</button>${tray.pool[n] ? `<button type="button" class="ph-minus" data-act="dieless" data-n="${n}" aria-label="Remove a d${n}">−</button>` : ''}</div>`).join('')}<div class="ph-die"><button type="button" class="hb-die" data-act="coin">Coin</button></div></div>
+            <div class="ph-seg" role="group" aria-label="The next d20 roll">${[['adv', 'Advantage'], ['', 'Normal'], ['dis', 'Disadvantage']].map(([v, w]) => `<button type="button" class="${advNext === v ? 'on' : ''}" data-act="advnext" data-v="${v}" aria-pressed="${advNext === v}">${w}</button>`).join('')}</div>
+            <div class="ph-go"><button type="button" class="btn" data-act="dieclear"${groups.length ? '' : ' disabled'}>Clear</button><button type="button" class="btn primary" data-act="dieroll"${groups.length ? '' : ' disabled'}>Roll${groups.length ? ' ' + groups.map(([n, c]) => `${c}d${n}`).join(' + ') : ''}</button></div>${tablePick()}`}
+            ${noLog ? '' : `<div class="ph-loghead">${camp() ? `<div class="stabs"><button type="button" data-act="logtab" data-t="mine" class="${logTab === 'mine' ? 'on' : ''}">Mine</button><button type="button" data-act="logtab" data-t="table" class="${logTab === 'table' ? 'on' : ''}">Table</button></div>` : '<h3>Roll log</h3>'}${logTab === 'mine' && (C.rolls || []).length ? '<button type="button" class="btn small" data-act="logclear">Clear log</button>' : ''}</div>${rows}`}`;
+    }
+    // Spells with nothing in them: just the way to add one
+    const phCard = ([p, i]) => (p.type === 'spells' && !p.rows.length && !p.slots.some((s) => maxOf(s.max) > 0)
+        ? `<section class="card hb-panel" id="hb-p-${esc(p.id)}"><h2>${esc(p.title)}</h2><p class="muted">No spells yet.</p>${phRO() ? '' : `<div class="actions">${add(`panels.${i}.rows`, 'spell', 'Add spell')}</div>`}</section>`
+        : panelCard([p, i]));
+    const phFoot = () => [...$$('#main > .hb-hint, #main > .mon-credit')].map((e) => e.outerHTML).join('');
+    const phLock = () => { if (phRO()) for (const el of $$('#ph-body input:not([data-ph-full]), #ph-body select, #ph-body textarea')) el.disabled = true; };
+    const phWho = () => [String(C.cr).trim() ? 'CR ' + C.cr : '', C.race].filter(Boolean).join(' · ') || 'Monster';
+    const phRO = () => !!C.archived;
+    const phApi = { monster: true, abEdit: false, notice: () => (C.archived ? 'This monster is archived. <button type="button" class="btn small primary" data-act="unarchive">Unarchive</button>' : ''), pencil: PENCIL, C: () => C, draw, refresh: () => { phLock(); refresh(); }, saveView: () => saveNow(false),
+        visible: () => C.panels.map((p, i) => [p, i]).filter(([p]) => p.on), card: phCard, parts: topParts, defaultOrder: () => blank().panels.map((p) => p.type),
+        head: () => { const list = monsIn(shownEnc).filter((c) => !c.archived), i = list.indexOf(C); return { cur: nm(C.hp.cur), noRoll: !!C.view.noRoll, prev: i > 0 ? list[i - 1].id : '', next: i >= 0 && i < list.length - 1 ? list[i + 1].id : '' }; },
+        map: () => (camp() ? '/campaigns/' + encodeURIComponent(camp().id) + '/map' : ''), ro: phRO,
+        hpSheet: phHpSheet, acSheet: phAcSheet, condSheet: phCondSheet, diceSheet: phDiceSheet,
+        menuSheet: () => { const t = topParts(); return `<div class="ph-menu"><a class="btn" href="/">Home</a>${bar()}<div class="ph-artw">${t.art}</div><div id="ph-auth" class="ph-authw"></div>${Phone.fullSwitch()}<div class="ph-foot">${phFoot()}</div></div>`; },
+    };
+    function phAbils() {
+        return `<div class="hb-abils ph-abils">${C.abilities.map((a, i) => (phApi.abEdit ? `<label class="hb-abil"><span class="hb-lbl">${esc(a.key)}</span>${f(`abilities.${i}.score`, a.name + ' score', { num: true, cls: 'hb-score' })}</label>`
+            : `<div class="hb-abil"><span class="hb-lbl" title="${esc(a.name)}">${esc(a.key)}</span>${rollv('mod:' + i, a.name + ' check', ' hb-big')}<small class="muted">${esc(a.score)}</small></div>`)).join('')}</div>
+            <div class="rowi ph-profrow"><span class="grow">Proficiency bonus</span>${fx('prof', 'Proficiency bonus', true, '')}</div><label class="rowi ph-profrow"><span class="grow">Inspiration</span>${f('insp', 'Heroic inspiration', { check: true })}</label>`;
+    }
+    Phone.start(phApi);
+
+    // ROADMAP 2.1: coming back to an open sheet, signed in, the account's newer copy is taken (before anything goes up from here)
+    Phone.pullOnReturn({ url: 'cloud.php', cloud: () => cloud, chars: () => db.chars, normalise, current: () => C, adopt: (c) => { C = c; }, off: cloudOff, store, flush: flushBackups, toast, offerUndo,
+        draw: () => { const y = scrollY; draw(); scrollTo(0, y); }, keep: (mine) => { mine.updated = Date.now(); db.chars[mine.id] = mine; C = mine; saveNow(false); draw(); } });
 
     draw();
     takePending();

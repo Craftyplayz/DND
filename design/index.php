@@ -164,6 +164,19 @@ HTML],
   <p class="muted">Slides in with transform only, in 180ms.</p>
 </aside>
 HTML],
+    'bsheet' => ['Bottom sheet', 'On phones, instead of a dialog or a menu: in thumb reach, closed by dragging the handle down, tapping outside, the X or the phone\'s Back. A native <code>&lt;dialog&gt;</code>; <code>.half</code> or <code>.full</code> sets the height and dragging up goes to full.', <<<'HTML'
+<button class="btn" data-act="bsheet">Open a bottom sheet</button>
+<dialog class="bsheet half" id="dg-bsheet" aria-labelledby="dg-bsheet-h">
+  <div class="bsheet-grab" aria-hidden="true"><i></i></div>
+  <div class="bsheet-top"><h2 id="dg-bsheet-h">Dice and rolls</h2><button class="btn small" data-act="bsheet-close">Close</button></div>
+  <div class="bsheet-body"><p class="muted">The body scrolls on its own; the title stays.</p></div>
+</dialog>
+HTML],
+    'tabbar' => ['Tab bar', 'On a phone layout only: up to five tabs fixed at the bottom, each an icon over a word, the open one <code>.on</code> with <code>aria-current="page"</code>. Sample shown in place here; the real one is fixed to the bottom of the screen.', <<<'HTML'
+<nav class="tabbar" style="position: static" aria-label="Sample tabs">
+  <button class="on" aria-current="page"><span>Main</span></button><button><span>Actions</span></button><button><span>Spells</span></button><button><span>Items</span></button><button><span>Notes</span></button>
+</nav>
+HTML],
     'tree' => ['Raw data tree', 'Raw JSON, last on the page and collapsed. Build children only when a node opens.', <<<'HTML'
 <div class="tree">
   <details open>
@@ -312,7 +325,7 @@ PHP;
                 <ol>
                     <li><b>Never lose player data.</b> A page change may add to what a player saved, never drop or change it (<code>CLAUDE.md</code>).</li>
                     <li><b>Fast.</b> Content is visible and usable in under 1 second on a phone. The first view is HTML from PHP; JS only improves it. Nothing heavy (3D dice, big data files) loads until it's needed.</li>
-                    <li><b>Fits every screen.</b> Players use phones and laptops at the table and PCs online. One layout that flows from 320px to 2560px. Grids pick their own column count, sizes use <code>clamp()</code>, and breakpoints exist only where content actually breaks.</li>
+                    <li><b>Fits every screen.</b> Players use phones and laptops at the table and PCs online. One layout that flows from 320px to 2560px. Grids pick their own column count, sizes use <code>clamp()</code>, and breakpoints exist only where content actually breaks. Full-screen tools you play from (the sheets) may switch to a phone layout below 700px: a header that stays on top, a tab bar and bottom sheets, around the same code.</li>
                     <li><b>Uncluttered.</b> One job per page. One primary button per view. Empty things are hidden, details live behind a click, raw data comes last.</li>
                     <li><b>Show it, don't list it.</b> When a page has pictures (character art, monster art, dice), lead with them. Headline numbers (HP, AC, initiative) are big and easy to read at a glance. Tables and raw data still exist, further down.</li>
                     <li><b>One dark theme, one blue accent.</b> Every page uses the same tokens. No page invents a colour, a font, or a light mode. (User-pickable themes may come later; they will swap the tokens, not the pages.)</li>
@@ -430,7 +443,8 @@ PHP;
                             <li>Panels sized <code>width: min(460px, 100vw)</code>, so they're full-screen on phones.</li>
                             <li>Images get <code>width</code>/<code>height</code> attributes and <code>height: auto</code>, so nothing jumps while loading.</li>
                             <li>Wide data (tables, code): wrap only that block in <code>overflow-x: auto</code>.</li>
-                            <li>Tap targets at least 40px tall on touch.</li>
+                            <li>Tap targets at least 44px on touch, for everything new. A small box may keep its looks with a bigger tap area around it; a link inside a sentence gets more line height instead.</li>
+                            <li>Keep clear of the notch and home bar on full-screen tools: <code>$site_page['cover'] = true</code> and <code>env(safe-area-inset-*)</code> padding. Fields are 16px on phones, or iPhone Safari zooms in on them.</li>
                         </ul>
                     </div>
                     <div>
@@ -438,7 +452,7 @@ PHP;
                         <ul>
                             <li>Scroll the page sideways at any width.</li>
                             <li>Put fixed pixel widths on containers.</li>
-                            <li>Make separate mobile and desktop markup, or sniff the user agent.</li>
+                            <li>Make separate mobile and desktop markup, or sniff the user agent. The one exception is a full-screen tool's phone layout, and even that reuses the same panels, fields and actions (<code>assets/js/phone.js</code>).</li>
                             <li>Hide anything essential behind hover. Hover may add detail, never the only copy of it.</li>
                             <li>Use <code>body { overflow: hidden }</code> or <code>100vh</code> on content pages (full-screen tools like the sheets and dice are the exception).</li>
                             <li>Add a breakpoint "just in case". Most pages need none.</li>
@@ -630,7 +644,8 @@ PHP;
     <?php site_footer(null, false); ?>
 
     <script>
-        // live samples: drawer, pill tabs, toast
+        // live samples: bottom sheet, drawer, pill tabs, toast
+        document.addEventListener('click', (e) => { const a = e.target.closest('[data-act]')?.dataset.act, s = document.getElementById('dg-bsheet'); if (a === 'bsheet') s.showModal(); else if (a === 'bsheet-close' || e.target === s) s.close(); });
         document.addEventListener('DOMContentLoaded', () => {
             const drawer = document.getElementById('dg-drawer');
             const setDrawer = (open) => {

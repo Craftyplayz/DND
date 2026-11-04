@@ -1,5 +1,5 @@
 <?php
-$site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css', '/assets/css/pages/games-dnd-monster.css', '/assets/css/pages/fight.css']];
+$site_page = ['components' => true, 'ui' => true, 'cover' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css', '/assets/css/pages/games-dnd-monster.css', '/assets/css/pages/fight.css']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), true)['sources'] ?? [];
 ?>
@@ -71,6 +71,7 @@ $sources = json_decode((string)@file_get_contents(__DIR__ . '/monsters.json'), t
     <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/monster/difficulty.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/phone.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/monster/monster.js')) ?>" defer></script>
 </body>
 
