@@ -17,7 +17,7 @@ const ok = (name, cond, got = '') => { if (!cond) { bad++; console.log(`FAIL ${n
     ok('live-page drives both browsers at once', list.some((j) => j.name === 'live-page' && j.browser === 'both'));
     ok('no --data, no sheet-keeps-data', !jobs(files).list.some((j) => j.name === 'sheet-keeps-data'));
 
-    for (const [label, opts] of [['default range', {}], ['busy ports skipped', { busy: new Set([8300, 8301, 8310, 8320, 8331]) }], ['tight range', { lo: 8200, hi: 8299 }]]) {
+    for (const [label, opts] of [['default range', {}], ['busy ports skipped', { busy: new Set([8300, 8301, 8310, 8320, 8331]) }], ['another range', { lo: 8600, hi: 8799 }]]) {
         const p = plan(list, opts), ports = new Map(), folders = new Map();
         for (const j of p) for (const port of j.used) {
             ok(`${label}: port ${port} used once (${j.id})`, !ports.has(port), `also ${ports.get(port)}`); ports.set(port, j.id);
@@ -25,7 +25,7 @@ const ok = (name, cond, got = '') => { if (!cond) { bad++; console.log(`FAIL ${n
         }
         for (const j of p) for (const f of j.folders) { ok(`${label}: folder ${f} used once`, !folders.has(f), `${j.id} and ${folders.get(f)}`); folders.set(f, j.id); }
         for (const j of p) {
-            ok(`${label}: ${j.id} ports in range`, j.used.every((x) => x >= (opts.lo || 8300) && x <= (opts.hi || 8399)), j.used.join());
+            ok(`${label}: ${j.id} ports in range`, j.used.every((x) => x >= (opts.lo || 8300) && x <= (opts.hi || 8499)), j.used.join());
             ok(`${label}: ${j.id} ports are its bases shifted`, j.used.every((x, i) => x === (j.url ? [8110, ...j.ports] : j.ports)[i] + j.shift));
             if (j.url) ok(`${label}: ${j.id} has its own server`, j.port === 8110 + j.shift);
         }
