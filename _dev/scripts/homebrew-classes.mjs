@@ -413,7 +413,8 @@ try {
             await signIn(pat3, PLAYER, `/characters/${id}`);
             await until(() => pat3.ev(`!!document.querySelector('[data-k=name]')`));
             // a pulled character is in this browser once it has been saved here
-            await pat3.ev(`(() => { const i = document.querySelector('[data-k=name]'); i.value = 'Pat the Bold'; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+            // (the page reloads once when settings sync pulls something new, so this tries again)
+            await until(() => pat3.ev(`(() => { const i = document.querySelector('[data-k=name]'); if (!i) return false; i.value = 'Pat the Bold'; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`).catch(() => false));
             await until(() => chars(pat3).then((c) => c[id]?.name === 'Pat the Bold'));
             const was = (await chars(pat3))[id];
             await pat3.go(`${BASE}/characters/build?up=${id}`);
