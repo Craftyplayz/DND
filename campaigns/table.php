@@ -17,7 +17,7 @@ header('X-Robots-Tag: noindex');
 // what the tab watches for a new version: its own files (an update to the site changes them)
 function tv_ver()
 {
-    $files = ['/campaigns/table.php', '/assets/js/table.js', '/assets/js/map.js', '/assets/js/fight.js', '/assets/js/live.js', '/assets/js/conds.js',
+    $files = ['/campaigns/table.php', '/assets/js/table.js', '/assets/js/map.js', '/assets/js/map-icons.js', '/assets/js/fight.js', '/assets/js/live.js', '/assets/js/conds.js',
         '/assets/css/pages/table.css', '/assets/css/pages/map.css', '/assets/css/pages/fight.css', '/assets/css/global.css', '/assets/css/components.css'];
     return substr(md5(implode('|', array_map(fn($f) => asset($f), $files))), 0, 12);
 }
@@ -62,6 +62,7 @@ if (!$ok) http_response_code(404);
     <script src="<?= h(asset('/assets/js/live.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/conds.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/map-icons.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/map.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/table.js')) ?>" defer></script>
 <?php else: ?>

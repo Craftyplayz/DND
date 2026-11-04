@@ -82,6 +82,7 @@ try {
     // the rail, the Menu and the map dropdown, where the owner's screenshots put them
     is('DM rail: select, pan | fog, draw, overlays, ruler, ping, tokens', await until(dm, `[...document.querySelectorAll('[data-mp=rail] [data-t]')].map((b) => b.dataset.t).join()`, Boolean), 'select,pan,fog,draw,overlay,ruler,point,tokens');
     await until(dm, `!!document.querySelector('[data-mpi=map]')`, Boolean);
+    is('every rail button has its drawn icon', await dm.ev(`[...document.querySelectorAll('[data-mp=rail] [data-t]')].every((b) => !!b.querySelector('svg path, svg circle, svg rect, svg line'))`), true);
 
     // Map Browser: a text file refused, then a noisy 1600 x 1200 PNG over one 4 MB chunk
     await dm.ev(`(() => { const s = document.querySelector('[data-mpi=map]'); s.value = '__browse'; s.dispatchEvent(new Event('change', { bubbles: true })); })(); 1`);

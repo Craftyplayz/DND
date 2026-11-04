@@ -53,6 +53,7 @@ if (!$c) http_response_code(404);
     <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
     <?php if ($isDm): ?><script src="<?= h(asset('/sheets/monster/difficulty.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/monster/import.js')) ?>" defer></script><?php endif; ?>
+    <script src="<?= h(asset('/assets/js/map-icons.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/map.js')) ?>" defer></script>
     <script>
         addEventListener('DOMContentLoaded', () => { const m = document.getElementById('main'); window.BM = BattleMap.mount(m, m.dataset.c, { dm: 'dm' in m.dataset, me: m.dataset.me, full: true }); });

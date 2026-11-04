@@ -1,5 +1,5 @@
 /* The battle map (campaigns/map.php, assets/js/map.js), the campaign page's Map section and the Spectator window. The map page's
-   layout follows the owner's D&D Beyond screenshots: tools float over the map, the turn tracker sits top middle. Icons are placeholders. */
+   layout follows the owner's D&D Beyond screenshots: tools float over the map, the turn tracker sits top middle. */
 /* the page is exactly one screen; the map takes what's left under anything above it (the test site's banner) */
 body:has(> main.mp) { display: flex; flex-direction: column; height: 100dvh; margin: 0; overflow: hidden; background: var(--bg); }
 .mp { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; color: var(--text); font-size: 14px; }
@@ -95,7 +95,7 @@ body:has(> main.mp) { display: flex; flex-direction: column; height: 100dvh; mar
 /* the map page's tools, panels and dialogs */
 .mp :where(button:not(.btn)) { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 /* placeholder icon: a box with a letter */
-.mpt-ph { display: grid; place-items: center; width: 24px; height: 24px; border: 1px dashed var(--line-strong); border-radius: 4px; font: 700 12px var(--mono); }
+.mpt-ph { display: grid; place-items: center; width: 24px; height: 24px; font: 700 13px var(--mono); }
 .mpt-ico { display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius); }
 .mpt-ico:hover { background: var(--btn2); }
 .mpt-ico[aria-pressed="true"], .mpt-ico.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--btn-line); }

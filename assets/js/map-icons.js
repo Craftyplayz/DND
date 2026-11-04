@@ -1,0 +1,51 @@
+// The battle map's button icons: set A (thin outline), the owner's pick from _dev/mockups/map-icons/ (2026-11-04). Our own drawings.
+// Each is the inside of a 24 x 24 <svg>; MapIcons.get(name) wraps it. Anything left without its own fill or stroke takes the svg's.
+window.MapIcons = (() => {
+    'use strict';
+    const ICONS = {
+        "Select": "<path d=\"M6 3 L6 18 L10 14 L13 20.5 L15.7 19.2 L12.7 13 L18 13 Z\"/>",
+        "Pan": "<path d=\"M8 13 L8 7 L10 7 L10 4.5 L12 4.5 L12 6 L14 6 L14 7.5 L16 7.5 L16 15 Q16 20 11.5 20 Q8.5 20 7.5 17.5 L5 13.5 L6.5 12 Z\"/><path d=\"M10 8.5 L10 12.5 M12 8 L12 12.5 M14 9.5 L14 12.5\"/>",
+        "Fog of War": "<path d=\"M7 18 Q3 18 3 14.5 Q3 11.5 6.5 11 Q7 7 11.5 7 Q15 7 16 10 Q21 10 21 14.5 Q21 18 17 18 Z\"/><path d=\"M6 21 L13 21\"/>",
+        "Draw": "<path d=\"M4 20.5 L5 15 L16 4 L20 8 L9 19 Z\"/><path d=\"M14 6 L18 10\"/>",
+        "Overlays": "<path d=\"M12 3 L21 8 L12 13 L3 8 Z\"/><path d=\"M3 12 L12 17 L21 12 M3 16 L12 21 L21 16\"/>",
+        "Ruler": "<path d=\"M3 16 L16 3 L21 8 L8 21 Z\"/><path d=\"M7 14 L9 16 M10.5 10.5 L12.5 12.5 M14 7 L16 9\"/>",
+        "Point and Ping": "<path d=\"M12 21 Q5 13 5 9.5 Q5 4 12 4 Q19 4 19 9.5 Q19 13 12 21 Z\"/><circle cx=\"12\" cy=\"9.5\" r=\"2.5\"/>",
+        "Tokens": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"9.5\" r=\"2.6\"/><path d=\"M7 17 Q12 11.5 17 17\"/>",
+        "Cover All": "<path d=\"M3 3 L21 3 L21 21 L3 21 Z\"/><path d=\"M8 16 Q5.5 16 5.5 13.5 Q5.5 11.5 8 11 Q8.5 8.5 12 8.5 Q15 8.5 15.5 11 Q18.5 11 18.5 13.5 Q18.5 16 16 16 Z\"/>",
+        "Reveal All": "<path d=\"M2 12 Q12 3.5 22 12 Q12 20.5 2 12 Z\"/><circle cx=\"12\" cy=\"12\" r=\"3.2\"/>",
+        "Paint fog": "<path d=\"M20 4 L12 12\"/><path d=\"M10 10 L14 14 Q12.5 19 6 19.5 Q6.5 17 6.7 15 Q7.5 11 10 10 Z\"/>",
+        "Erase fog": "<path d=\"M7 18 Q3 18 3 14.5 Q3 11.5 6.5 11 Q7 7 11.5 7 Q15 7 16 10 Q21 10 21 14.5 Q21 18 17 18 Z\"/><path d=\"M9.5 11 L14.5 16 M14.5 11 L9.5 16\"/>",
+        "Square brush": "<path d=\"M5 5 L19 5 L19 19 L5 19 Z\"/><circle cx=\"12\" cy=\"12\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/>",
+        "Round brush": "<circle cx=\"12\" cy=\"12\" r=\"8\"/><circle cx=\"12\" cy=\"12\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/>",
+        "Polygon": "<path d=\"M5 8 L13 4 L20 10 L17 19 L7 18 Z\"/><circle cx=\"5\" cy=\"8\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"13\" cy=\"4\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"20\" cy=\"10\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"17\" cy=\"19\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"7\" cy=\"18\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/>",
+        "Brush size": "<circle cx=\"6\" cy=\"9\" r=\"1.8\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"15.5\" cy=\"9\" r=\"5.5\"/><path d=\"M4 20 L20 20 M4 20 L6.5 17.5 M4 20 L6.5 22.5 M20 20 L17.5 17.5 M20 20 L17.5 22.5\"/>",
+        "Pen": "<path d=\"M12 2.5 L18 10 L15 16 L9 16 L6 10 Z\"/><path d=\"M12 8 L12 16\"/><circle cx=\"12\" cy=\"10\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M9 16 L15 16 L15 21 L9 21 Z\"/>",
+        "Erase drawing": "<path d=\"M3 11 L9 5 L16 12 L10 18 Z\"/><path d=\"M6.5 8.5 L13 15\"/><path d=\"M3 21 Q5.5 18.5 8 21 Q10.5 23 13 21 Q15.5 18.5 18 21\"/>",
+        "Clear drawings": "<path d=\"M6 7 L7 20 L17 20 L18 7 Z\"/><path d=\"M4 7 L20 7 M9 7 L9 4 L15 4 L15 7\"/><path d=\"M10 10 L10 17 M14 10 L14 17\"/>",
+        "Square overlay": "<path d=\"M4 4 L20 4 L20 20 L4 20 Z\"/><circle cx=\"12\" cy=\"12\" r=\"1.6\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M12 12 L17 12\"/>",
+        "Circle overlay": "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><circle cx=\"12\" cy=\"12\" r=\"1.6\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M12 12 L17.5 7\"/>",
+        "Cone overlay": "<path d=\"M12 4 L21 19 Q12 22.5 3 19 Z\"/><path d=\"M12 8 L12 17\"/>",
+        "Line overlay": "<path d=\"M3.5 18 L18 3.5 L20.5 6 L6 20.5 Z\"/><path d=\"M7 17 L17 7\"/>",
+        "Overlay pattern": "<path d=\"M4 4 L20 4 L20 20 L4 20 Z\"/><path d=\"M4 4 L12 4 L12 12 L4 12 Z\"/><path d=\"M12 12 L20 12 L20 20 L12 20 Z\"/>",
+        "Hide overlay": "<path d=\"M4 4 L20 4 L20 20 L4 20 Z\" stroke-dasharray=\"3 2.6\"/><path d=\"M3 21 L21 3\"/>",
+        "Delete overlay": "<path d=\"M4 4 L20 4 L20 20 L4 20 Z\"/><path d=\"M9 9 L15 15 M15 9 L9 15\"/>",
+        "Ping": "<circle cx=\"12\" cy=\"12\" r=\"5.5\"/><circle cx=\"12\" cy=\"12\" r=\"1.8\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"12\" r=\"9.5\"/>",
+        "Point": "<path d=\"M9 21 L7 15 Q5 12 7 11 Q8.5 10 10 12 L10 5 Q10 3.5 12 3.5 Q14 3.5 14 5 L14 11 L18 12 Q20 12.5 20 14.5 L19.5 19 L18 21 Z\"/>",
+        "HP": "<path d=\"M12 20 Q3 14 3 9 Q3 5 7 5 Q10.5 5 12 8 Q13.5 5 17 5 Q21 5 21 9 Q21 14 12 20 Z\"/><path d=\"M12 9.5 L12 15 M9.3 12.2 L14.7 12.2\"/>",
+        "Combat": "<path d=\"M4 4 L15 15 M12.5 17.5 L17.5 12.5 M16 16 L20 20 M20 4 L9 15 M11.5 17.5 L6.5 12.5 M8 16 L4 20\"/>",
+        "Hide": "<path d=\"M2 12 Q12 3.5 22 12 Q12 20.5 2 12 Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M4 20 L20 4\"/>",
+        "Ring": "<circle cx=\"12\" cy=\"12\" r=\"9.5\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"3.6\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/>",
+        "Size": "<path d=\"M5 19 L19 5 M13 5 L19 5 L19 11 M11 19 L5 19 L5 13\"/>",
+        "More": "<path d=\"M2.5 7.5 L21.5 7.5 L21.5 16.5 L2.5 16.5 Z\"/><circle cx=\"7\" cy=\"12\" r=\"1.6\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"12\" cy=\"12\" r=\"1.6\" fill=\"currentColor\" stroke=\"none\"/><circle cx=\"17\" cy=\"12\" r=\"1.6\" fill=\"currentColor\" stroke=\"none\"/>",
+        "Combat panel": "<path d=\"M12 3 L20 6 L20 12 Q20 18 12 21 Q4 18 4 12 L4 6 Z\"/><path d=\"M12 6.5 L12 13.5 M9.5 13.5 L14.5 13.5 M12 13.5 L12 17\"/>",
+        "Previous turn": "<path d=\"M19 5 L9 12 L19 19 Z\"/><path d=\"M5.5 5 L5.5 19\"/>",
+        "Clear encounter": "<path d=\"M19 3 L11 13\"/><path d=\"M8 12 L14 15 L12 21 L4 21 Q4 17 8 12 Z\"/><path d=\"M7 17 L7 21 M10 16 L10 21\"/>",
+        "Filters": "<path d=\"M3 5 L21 5 L14 13 L14 20 L10 18 L10 13 Z\"/>",
+        "Hide or Display map": "<path d=\"M3 6 L9 4 L15 6 L21 4 L21 18 L15 20 L9 18 L3 20 Z\"/><path d=\"M6.5 12 Q12 7 17.5 12 Q12 17 6.5 12 Z\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/>",
+        "Full screen": "<path d=\"M4 9 L4 4 L9 4 M15 4 L20 4 L20 9 M20 15 L20 20 L15 20 M9 20 L4 20 L4 15\"/>",
+        "Spectator window": "<path d=\"M3 4 L21 4 L21 16 L3 16 Z\"/><path d=\"M7 10 Q12 5.5 17 10 Q12 14.5 7 10 Z\"/><circle cx=\"12\" cy=\"10\" r=\"1.4\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M8 21 L16 21 M12 16 L12 21\"/>",
+        "Settings": "<path d=\"M19.25 10.53 L21.92 10.70 L21.92 13.30 L19.25 13.47 L18.17 16.09 L19.93 18.09 L18.09 19.93 L16.09 18.17 L13.47 19.25 L13.30 21.92 L10.70 21.92 L10.53 19.25 L7.91 18.17 L5.91 19.93 L4.07 18.09 L5.83 16.09 L4.75 13.47 L2.08 13.30 L2.08 10.70 L4.75 10.53 L5.83 7.91 L4.07 5.91 L5.91 4.07 L7.91 5.83 L10.53 4.75 L10.70 2.08 L13.30 2.08 L13.47 4.75 L16.09 5.83 L18.09 4.07 L19.93 5.91 L18.17 7.91 Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>",
+    };
+    const get = (name) => (ICONS[name] ? `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>` : '');
+    return { get, names: Object.keys(ICONS) };
+})();
