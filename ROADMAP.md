@@ -100,7 +100,7 @@ newer, and 401 when signed out.
 - **Panels:** Proficiencies (chips), Actions (hit or save, DC, damage parts, uses/reset, timing), Spells,
   Inventory, Passive abilities (Racial/Class/Other tabs), Resources, Homebrew, Combat (death saves, hit dice per
   class) and Notes (search, groups, pin, sort).
-- **Spells:** slots for levels 1-9, spell points, sorcery points with Flexible Casting and metamagic, and a
+- **Spells:** slots for levels 1-9, sorcery points with Flexible Casting and metamagic, and a
   prepared checkbox (the Prepared tab shows for prepared casters or when switched on). Spell DC and attack are
   formulas. The picker has 319 SRD spells (dnd5eapi.co via `spells.php`, cached 30 days) plus 205 non-SRD spells
   in `extra-spells.json` (stats only; the text is fetched live from wikidot, never stored).
@@ -967,16 +967,43 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 **4.4 Spell rules**
 - What: per class, show known vs prepared limits (e.g. a wizard prepares INT + level, a sorcerer knows a fixed
   number) and warn when over, without blocking. Spell slots come from the class tables, including the
-  multiclass slot table. The spell points variant can be turned on per campaign or character; it builds on the
-  existing spell-points counter. The point-cost and points-per-level table isn't in the SRD, so the DM types it
+  multiclass slot table. The spell points variant can be turned on per campaign or character; it's a new counter (the
+  counter already on the sheet is sorcery points). The point-cost and points-per-level table isn't in the SRD, so the DM types it
   into the campaign settings once (an editable table, empty by default), and the site doesn't ship one. Pact Magic stays separate.
 - Size: 2.5 days. Done: tests for multiclass slots (e.g. paladin 4 / sorcerer 3), prepared counts and the spell points table.
+- Owner's answers (batch 2, 4 Nov 2026; numbers are the question list's). Mockup: https://claude.ai/artifact/6A4qXSf7VMZv79LZqs4Q6W
+  - Limits: every character with a recognised class (32 a); one line per class, hand-added spells "not assigned" with no warning (33 a);
+    class picks only, cantrips counted separately (34 a); a wizard shows spellbook and prepared (35 a); over the limit is a red count plus
+    a toast (36 b); numbers only, no swap timing (60 a).
+  - Slots: "Your classes give 4/3/2" with Use these and Undo (37 a). Eldritch Knights and Arcane Tricksters get third-caster slots and
+    known or prepared numbers, not SRD 5.1, owner said yes (38 a). 2024 was checked against SRD 5.2 (39 b): the table is the same but half
+    casters round up there, so half casters round by the character's rules version, with one table. Artificers round up in both.
+  - Bugs fixed here for new builds and level ups, saved rows unchanged, official builds test file regenerated (40 a): Artificer and Herald
+    counts, Artificer multiclass rounding, the 2024 prepared tab, level up raising hidden slots, starting items at 0 lb, the unpacked 2024 pack.
+  - Spell points: campaign switch and table win, a character with no campaign has its own (41 a); slots hidden and kept, points refill on a
+    long rest (42 a); a counter changed by hand, cost on each spell row (43 a); an empty DM table keeps slots with a note (44 a); multiclass
+    caster level, warlock excluded (45 a); Flexible Casting box hidden, sorcery points and metamagic kept (46 a).
+  - Rules version: blank means 2014, with a 2014/2024 choice in Customise; a built character takes the builder's version (59 a).
 
 **4.5 Equipment rules**
 - What: encumbrance from STR (standard rule; the variant "encumbered / heavily encumbered" rule can be switched
   on), carried weight including coins (50 per lb), starting equipment from class and background in the
   builder, and the attunement cap (already there, default 3).
 - Size: 1.5 days. Done: a STR 10 character carrying 160 lb shows over capacity, and coin weight is counted.
+- Owner's answers (batch 2, 4 Nov 2026; numbers are the question list's).
+  - Weight can go completely: one switch, off by default, replacing a separate encumbrance switch, set by the campaign, else by a character
+    with no campaign (47 a, changed after the mockup). Off: no capacity, bar, Not carried ticks, Coins carried, Fill in missing weights,
+    capacity formula or speed change, and the plain "Total weight" line is hidden too; items keep their weights and the weight field when
+    editing an item stays, coins still show as coins, and every saved value stays and comes back when it's on. On: everything below. There is
+    no "capacity only" state.
+  - Being over shows a warning plus the lower speed, with the saved speed unchanged (48 b): -10 ft encumbered, -20 ft heavily, on all speeds,
+    never below 0. The limits sit at one third and two thirds of the capacity formula's result. 2024 characters get the same, with the rule
+    text saying it's the older SRD 5.1 rule the table turned on (SRD 5.2 has no such rule).
+  - "Not carried" tick per item, default carried (49 a); one "Coins carried" tick, default on (50 a); editable capacity formula, default
+    STR_SCORE * 15 (51 a); the weight line in words plus the guide's progress bar, red when over (52 b); clicking it opens the rule text (53).
+  - A "Fill in missing weights" button: exact name matches on 0 lb rows only, with Undo (54 a). Magic items take the base armour or weapon's
+    weight where the name shows it (55 c).
+  - Mockup first, one page (56 a). Heavy armour rules left out (57 a). The Monster Sheet gets no weight line (58 a).
 
 **4.6 Homebrew classes and races (for the builder)**
 - What: a creator for homebrew races, subraces, classes, subclasses, backgrounds and feats in the same shape as

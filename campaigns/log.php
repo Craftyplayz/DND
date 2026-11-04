@@ -4,7 +4,7 @@
 //                                (&as=table: the Table view's, ROADMAP 1.7)
 //   GET ?c=<campaign id>&page=1 -> the same with "page": what the campaign page's Rolls tab shows instead (tl_page, ROADMAP 1.9):
 //                                every roll of the running or last session, "page": {n, running, started, count} or null
-//   GET ?char=<character id>  -> {"campaigns": [{"id", "name", "dm"}]}: the campaigns one of your characters is in
+//   GET ?char=<character id>  -> {"campaigns": [{"id", "name", "dm", "rules"}]}: the campaigns one of your characters is in; rules: what its sheet follows (cp_sheet_rules)
 //   GET ?dm=1                 -> {"campaigns": [...]}: the campaigns you DM or co-DM (the Monster Sheet's rolls go to one of them)
 require __DIR__ . '/../includes/auth.php';
 require __DIR__ . '/../includes/tablelog.php';
@@ -25,10 +25,11 @@ $sub = $user['sub'];
 $list = fn($cs) => array_values(array_map(fn($c) => ['id' => $c['id'], 'name' => $c['name'], 'dm' => cp_is_dm($c, $sub)], $cs));
 if (isset($_GET['char'])) {
     $id = (string)$_GET['char'];
-    tl_out(200, ['campaigns' => $list(array_filter(cp_all($accounts), function ($c) use ($sub, $id) {
+    $in = array_filter(cp_all($accounts), function ($c) use ($sub, $id) {
         $i = cp_member($c, $sub);
         return $i >= 0 && in_array($id, array_column($c['members'][$i]['characters'] ?? [], 'id'), true);
-    }))]);
+    });
+    tl_out(200, ['campaigns' => array_values(array_map(fn($c) => ['id' => $c['id'], 'name' => $c['name'], 'dm' => cp_is_dm($c, $sub), 'rules' => cp_sheet_rules($c)], $in))]);
 }
 if (isset($_GET['dm'])) tl_out(200, ['campaigns' => $list(cp_mine($accounts, $sub)['dm'])]);
 $c = cp_get($accounts, $_GET['c'] ?? '');

@@ -62,7 +62,7 @@ function ch_plain($c, $top = true)
 {
     if (!is_array($c)) return $c;
     foreach (['updated', 'open', 'sub'] as $k) unset($c[$k]);
-    if ($top) unset($c['rolls'], $c['view'], $c['calc'], $c['dmApplied']); // calc: the sheet's worked-out numbers; dmApplied: DM edit ids (1.5)
+    if ($top) unset($c['rolls'], $c['view'], $c['calc'], $c['dmApplied'], $c['campRules']); // calc: the sheet's worked-out numbers; dmApplied: DM edit ids (1.5); campRules: a copy of its campaign's rules (4.4)
     foreach ($c as $k => $v) if (is_array($v)) $c[$k] = ch_plain($v, false);
     return $c;
 }

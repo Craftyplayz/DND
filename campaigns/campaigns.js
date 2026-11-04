@@ -45,8 +45,11 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#cp-rulesf')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const pick = (n) => [...e.target.querySelectorAll(`[name=${n}]:checked`)].map((b) => b.value);
-        if (await send({ act: 'rules', methods: pick('m'), hp: pick('hp') }, e.submitter)) { toast('Saved the character rules.', 'ok'); e.submitter.disabled = false; }
+        const nums = (n) => [...e.target.querySelectorAll(`[name=${n}]`)].map((b) => b.value);
+        if (await send({ act: 'rules', methods: pick('m'), hp: pick('hp'), sp: $('#cp-r-sp').checked, weight: $('#cp-r-weight').checked, pts: nums('pts'), cost: nums('cost') }, e.submitter)) { toast('Saved the character rules.', 'ok'); e.submitter.disabled = false; }
     });
+    // the DM's points table shows with the spell points switch; through the page, as the card is swapped in fresh by refresh()
+    document.addEventListener('change', (e) => { if (e.target.id === 'cp-r-sp') $('#cp-r-table').hidden = !e.target.checked; });
     $('#cp-chars')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = e.target, characters = [...form.querySelectorAll('[name=ch]:checked')].map((b) => b.value);

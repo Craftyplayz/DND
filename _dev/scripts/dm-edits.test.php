@@ -143,7 +143,7 @@ $amounts = array_keys(array_filter(DM_FIELDS, fn($t) => $t === 'a'));
 sort($amounts);
 $is('amount fields', $amounts, ['classes.N.hdUsed', 'exhaustion', 'hp.cur', 'hp.temp', 'panels.#.bad', 'panels.#.coins.cp', 'panels.#.coins.ep', 'panels.#.coins.gp', 'panels.#.coins.pp', 'panels.#.coins.sp',
     'panels.#.ok', 'panels.#.rows.#.cur', 'panels.#.rows.#.extra', 'panels.#.rows.#.levels.N.extra', 'panels.#.rows.#.levels.N.used', 'panels.#.rows.#.qty', 'panels.#.rows.#.used',
-    'panels.#.slots.N.extra', 'panels.#.slots.N.used', 'panels.#.sp.cur', 'panels.#.sp.extra', 'panels.#.sp.used']);
+    'panels.#.slots.N.extra', 'panels.#.slots.N.used', 'panels.#.sp.cur', 'panels.#.sp.extra', 'panels.#.sp.used', 'spellPts.used']);
 
 // clean up the temp folder (test data only)
 $rm = function ($p) use (&$rm) { if (is_dir($p) && !is_link($p)) { foreach (array_diff(scandir($p), ['.', '..']) as $f) $rm("$p/$f"); rmdir($p); } else @unlink($p); };

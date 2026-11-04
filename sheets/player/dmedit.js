@@ -28,12 +28,12 @@
     const KEEP = 500; // applied edit ids a character remembers
 
     // what the DM never changes: the roll log (except rolls), view settings, panel layout, portrait, archive, save stamps
-    const NO_TOP = new Set(['id', 'updated', 'archived', 'art', 'artUrl', 'rolls', 'view', 'calc', 'dmApplied', 'miscCat', 'hbPanel', 'hb2', 'passSplit', 'hoPanel', 'draft', 'build']); // draft, build: the builder's own (4.2)
+    const NO_TOP = new Set(['id', 'updated', 'archived', 'art', 'artUrl', 'rolls', 'view', 'calc', 'dmApplied', 'miscCat', 'hbPanel', 'hb2', 'passSplit', 'hoPanel', 'draft', 'build', 'campRules']); // draft, build: the builder's own (4.2); campRules: a copy of the campaign's (4.4)
     const NO_PANEL = new Set(['id', 'type', 'title', 'on', 'sub', 'open', 'sort', 'split']);
     const NO_ANY = new Set(['id', 'updated', 'created', 'open', 'sub']);
-    const AMOUNT = /^(hp\.(cur|temp)|exhaustion|classes\.N\.hdUsed|panels\.#\.(coins\.(cp|sp|ep|gp|pp)|ok|bad|sp\.(used|cur|extra)|slots\.N\.(used|extra)|rows\.#\.(qty|used|cur|extra)|rows\.#\.levels\.N\.(used|extra)))$/;
+    const AMOUNT = /^(hp\.(cur|temp)|exhaustion|spellPts\.used|classes\.N\.hdUsed|panels\.#\.(coins\.(cp|sp|ep|gp|pp)|ok|bad|sp\.(used|cur|extra)|slots\.N\.(used|extra)|rows\.#\.(qty|used|cur|extra)|rows\.#\.levels\.N\.(used|extra)))$/;
     const TAGS = /^(conditions|profs\.(armour|weapons|langs)|panels\.#\.tabs|panels\.#\.rows\.#\.props)$/;
-    const FIXED = /^panels\.#\.(slots|flex)$/; // lists whose entries are edited but never added or removed
+    const FIXED = /^(panels\.#\.(slots|flex)|spellPts\.(pts|cost))$/; // lists whose entries are edited but never added or removed
     const pat = (path) => path.map((s) => (s[0] === '#' ? '#' : s[0] === '@' ? '@' : /^\d/.test(s) ? 'N' : s)).join('.');
     const allowed = (path) => Array.isArray(path) && path.length > 0 && path.every((s) => typeof s === 'string' && s !== '') && !NO_TOP.has(path[0])
         && !path.some((s) => NO_ANY.has(s)) && !(path[0] === 'panels' && (path.length < 3 || NO_PANEL.has(path[2])));

@@ -128,9 +128,23 @@
     }
 
     // ---- spellcasting ----
-    // a class's spellcasting: {ab, kind: full | half | third | pact | none}
-    function casterOf(clsId, data) {
+    // the two third casters (not SRD; owner's yes, ROADMAP 4.4): their subclass makes a fighter or rogue a caster with the wizard's list. The content has
+    // no table for them, so here are the PHB's and the 2024 PHB's numbers, the same in both: [cantrips at level 3, from level 10], then spells known or
+    // prepared by class level (checked against 5etools' PHB and XPHB data). Slots follow the multiclass table at a third of the level, rounded up.
+    const THIRD = { 'eldritch-knight': [2, 3], 'arcane-trickster': [3, 4] };
+    const THIRD_N = [0, 0, 3, 4, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13];
+    function casterRow(clsId, n, data, subId) {
         const c = data.classes?.[clsId];
+        if (!THIRD[subId] || c?.spellcasting) return c?.levels?.[n - 1]?.spellcasting;
+        if (n < 3) return {};
+        const out = { cantrips_known: THIRD[subId][n >= 10 ? 1 : 0], [c?.rules === '2024' ? 'prepared_spells' : 'spells_known']: THIRD_N[n - 1] };
+        (MC[Math.ceil(n / 3)] || []).forEach((x, i) => { out['spell_slots_level_' + (i + 1)] = x; });
+        return out;
+    }
+    // a class's spellcasting: {ab, kind: full | half | third | pact | none}
+    function casterOf(clsId, data, subId) {
+        const c = data.classes?.[clsId];
+        if (THIRD[subId] && !c?.spellcasting) return { ab: 'INT', kind: 'third' };
         const ab = AK(c?.spellcasting?.spellcasting_ability?.index || c?.spellcasting?.spellcasting_ability || '');
         if (!c?.spellcasting) return { ab: '', kind: 'none' };
         if (c.hbCaster) return { ab, kind: c.hbCaster };
@@ -144,42 +158,46 @@
     const MC = [[], [2], [3], [4, 2], [4, 3], [4, 3, 2], [4, 3, 3], [4, 3, 3, 1], [4, 3, 3, 2], [4, 3, 3, 3, 1], [4, 3, 3, 3, 2], [4, 3, 3, 3, 2, 1], [4, 3, 3, 3, 2, 1],
         [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1, 1], [4, 3, 3, 3, 3, 1, 1, 1, 1],
         [4, 3, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 3, 2, 2, 1, 1]];
-    // {slots: [9], pact: {n, level} | null, casterLevel} for class levels {id: n}
-    function slotsFor(byClass, data) {
+    // half casters count half their levels, rounded down in 2014 and up in 2024 (SRD 5.2); artificers round up in both. The table is the same in both.
+    const halfLevels = (id, n, data) => (data.classes?.[id]?.rules === '2024' || id === 'artificer' ? Math.ceil(n / 2) : Math.floor(n / 2));
+    // {slots: [9], pact: {n, level} | null, casterLevel} for class levels {id: n}; subs: their subclasses {id: subclass id}, for the third casters
+    function slotsFor(byClass, data, subs = {}) {
         let cl = 0, casters = 0, single = null, pact = null;
         for (const [id, n] of Object.entries(byClass)) {
-            const k = casterOf(id, data).kind, sc = data.classes?.[id]?.levels?.[n - 1]?.spellcasting;
+            const k = casterOf(id, data, subs[id]).kind, sc = casterRow(id, n, data, subs[id]);
             if (k === 'pact') { const row = slotRow(sc), lv = row.findIndex((x) => x > 0); if (lv >= 0) pact = { n: row[lv], level: lv + 1 }; continue; }
             if (k === 'none') continue;
             casters++; single = slotRow(sc);
-            cl += k === 'full' ? n : k === 'half' ? Math.floor(n / 2) : Math.floor(n / 3);
+            cl += k === 'full' ? n : k === 'half' ? halfLevels(id, n, data) : Math.floor(n / 3);
         }
         const slots = casters === 1 ? single : Array.from({ length: 9 }, (_, i) => MC[Math.min(20, cl)][i] || 0);
         return { slots: casters ? slots : Array(9).fill(0), pact, casterLevel: cl };
     }
     // the highest spell level a class can pick at class level n (its own table, as for a single class)
-    function maxSpellLevel(clsId, n, data) {
-        const row = slotRow(data.classes?.[clsId]?.levels?.[n - 1]?.spellcasting);
+    function maxSpellLevel(clsId, n, data, subId) {
+        const row = slotRow(casterRow(clsId, n, data, subId));
         return row.reduce((m, x, i) => (x > 0 ? i + 1 : m), 0);
     }
     // how many cantrips and spells a class takes at class level n (prepared casters: ability modifier + level, at least 1)
-    const PREPARED = { cleric: 1, druid: 1, wizard: 1, paladin: 0.5 };
+    const PREPARED = { cleric: 1, druid: 1, wizard: 1, paladin: 0.5, artificer: 0.5, herald: 0.5 };
     const prepRate = (clsId, data) => PREPARED[clsId] || data.classes?.[clsId]?.hbPrep || 0;
-    const prepares = (clsId, data) => !!prepRate(clsId, data) || (data.classes?.[clsId]?.levels || []).some((l) => l.spellcasting?.prepared_spells);
-    function spellCounts(clsId, n, data, scores) {
-        const sc = data.classes?.[clsId]?.levels?.[n - 1]?.spellcasting || {}, k = casterOf(clsId, data);
+    // 2024's artificer has its prepared numbers among the class's own columns
+    const prepares = (clsId, data, subId) => !!prepRate(clsId, data) || (data.classes?.[clsId]?.levels || []).some((l) => l.spellcasting?.prepared_spells || l.class_specific?.prepared_spells) || (!!THIRD[subId] && data.classes?.[clsId]?.rules === '2024');
+    function spellCounts(clsId, n, data, scores, subId) {
+        const sc = casterRow(clsId, n, data, subId) || {}, k = casterOf(clsId, data, subId), own = +data.classes?.[clsId]?.levels?.[n - 1]?.class_specific?.prepared_spells;
         const rate = prepRate(clsId, data), bk = data.classes?.[clsId]?.hbBook;
-        const prep = +sc.prepared_spells || (rate ? Math.max(1, mod(scores?.[k.ab] || 10) + Math.floor(n * rate)) : 0);
+        const prep = +sc.prepared_spells || own || (rate ? Math.max(1, mod(scores?.[k.ab] || 10) + Math.floor(n * rate)) : 0);
         return { cantrips: +sc.cantrips_known || 0, known: +sc.spells_known || 0, prepared: prep, book: clsId === 'wizard' ? 6 + 2 * (n - 1) : bk ? bk[0] + bk[1] * (n - 1) : 0 };
     }
     // the spells a class can pick: its list, plus its subclass's expanded list; [{index, name, level}]
     function spellPool(clsId, subId, data) {
-        const cls = data.classes?.[clsId], sub = data.subclasses?.[subId], all = data.spells || {};
+        const third = THIRD[subId] && !data.classes?.[clsId]?.spellcasting; // a third caster takes the wizard's list
+        const cid = third ? 'wizard' : clsId, cls = data.classes?.[cid], sub = data.subclasses?.[subId], all = data.spells || {};
         const ids = new Set([...(cls?.spells || []), ...(sub?.spells || []).filter((s) => !(s.prerequisites || []).some((p) => !/-\d+$/.test(p))).map((s) => s.spell || s.index)]);
         // content spells say which classes have them
         // homebrew spells with no class ticked are for any caster
         for (const [id, s] of Object.entries(all)) if (s.hbx && !(s.classes || []).length) ids.add(id);
-        for (const [id, s] of Object.entries(all)) if ((s.classes || []).some((c) => norm(c.index || c.name || c) === norm(clsId) || norm(c.name || c) === norm(cls?.name || ''))) ids.add(id);
+        for (const [id, s] of Object.entries(all)) if ((s.classes || []).some((c) => norm(c.index || c.name || c) === norm(cid) || norm(c.name || c) === norm(cls?.name || ''))) ids.add(id);
         return [...ids].map((id) => ({ index: id, name: all[id]?.name || words(id), level: all[id]?.level ?? null })).sort((a, b) => (a.level ?? 9) - (b.level ?? 9) || a.name.localeCompare(b.name));
     }
     // subclass spells a prepared caster always has (domain and oath spells) at class level n
@@ -417,12 +435,65 @@
         }
     }
 
+    // a character's classes against this data: {by: {id: level}, ids: {row name: id}, unknown: a class with a name the data hasn't got}
+    function classesOf(c, data) {
+        const by = {}, ids = {};
+        let unknown = false;
+        for (const k of c.classes || []) {
+            if (!String(k.name).trim()) continue;
+            const id = Object.keys(data.classes || {}).find((x) => norm(data.classes[x].name) === norm(k.name));
+            if (id) { by[id] = (by[id] || 0) + (+k.level || 0); ids[k.name] = id; } else unknown = true;
+        }
+        return { by, ids, unknown };
+    }
+    // the subclasses a built character picked, {class id: subclass id}; a hand-made sheet has none it can be sure of
+    function subsOfChar(c) {
+        const out = {};
+        for (const e of c.build?.classes || []) if (e?.id && e.sub) out[e.id] = e.sub;
+        for (const u of c.build?.ups || []) if (u?.cls && u.entry?.sub) out[u.cls] = u.entry.sub;
+        return out;
+    }
+    // what a character's classes give: {slots, pact, casterLevel, unknown}
+    function castingOf(c, data) {
+        const { by, unknown } = classesOf(c, data);
+        return { ...slotsFor(by, data, subsOfChar(c)), unknown };
+    }
+    // the rules version a sheet follows: its own choice, what the builder made it with, else 2014
+    const rulesOf = (c) => (c.rulesVer === '2024' || c.rulesVer === '2014' ? c.rulesVer : c.build?.rules === '2024' ? '2024' : '2014');
+    // one line per class for the Spells panel (ROADMAP 4.4): only the spells that class picked count (the row's source is the class's name), never
+    // subclass, race, feat or item spells; rows with no source were added by hand and are only counted as not assigned.
+    //   {lines: [{id, name, level, prepares, cantrips: [have, max] | null, book, prepared, known}], unassigned}
+    function spellLimits(c, data) {
+        const rows = panel(c, 'spells')?.rows || [], { ids, by } = classesOf(c, data), subs = subsOfChar(c), lines = [];
+        const scores = Object.fromEntries((c.abilities || []).map((a) => [AK(a.key), +a.score || 0]));
+        const seen = new Set();
+        for (const k of c.classes || []) {
+            const id = ids[k.name];
+            if (!id || seen.has(id)) continue;
+            seen.add(id);
+            const n = by[id], sub = subs[id], s = spellCounts(id, n, data, scores, sub);
+            // a paladin at level 1 has no spells yet, so no line
+            if (!s.cantrips && !slotRow(casterRow(id, n, data, sub)).some(Boolean)) continue;
+            const mine = rows.filter((r) => norm(r.source || '') === norm(k.name)), lv = mine.filter((r) => +r.lvl > 0);
+            const pair = (have, max) => (max ? [have, max] : null);
+            lines.push({ id, name: k.name, level: n, prepares: prepares(id, data, sub), cantrips: pair(mine.length - lv.length, s.cantrips), book: pair(lv.length, s.book),
+                prepared: pair(lv.filter((r) => r.prep).length, s.prepared), known: pair(lv.length, s.known), rate: prepRate(id, data), ab: casterOf(id, data, sub).ab });
+        }
+        return { lines, unassigned: rows.filter((r) => !r.source).length };
+    }
+
     // spell slots from the class levels (only ever raised), the casting ability, Pact Magic as its own short-rest resource
-    function applySlots(c, data, M) {
-        const by = {};
-        for (const k of c.classes) { const id = Object.keys(data.classes || {}).find((x) => norm(data.classes[x].name) === norm(k.name)); if (id) by[id] = +k.level; }
-        const { slots, pact } = slotsFor(by, data), sp = panel(c, 'spells');
+    function applySlots(c, data, M, subs = subsOfChar(c)) {
+        const { by } = classesOf(c, data);
+        const { slots, pact } = slotsFor(by, data, subs), sp = panel(c, 'spells');
         if (sp) slots.forEach((n, i) => { if (n > +sp.slots[i].max) sp.slots[i].max = n; });
+        // a "Spell slots" resource is what the sheet shows instead of the panel's own (sheet.js slotTracker): it's raised too
+        const t = (panel(c, 'trackers')?.rows || []).find((r) => r.kind === 'levels' && /^spell slots?$/i.test(String(r.name).trim()));
+        if (t) slots.forEach((n, i) => {
+            if (!n) return;
+            t.levels[i] ||= Object.assign(M.ROW.level(), { label: ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'][i], max: '0' });
+            if (/^\d+$/.test(String(t.levels[i].max)) && n > +t.levels[i].max) t.levels[i].max = String(n);
+        });
         if (pact) {
             const t = tracker(c, M, 'Pact slots', 0, 'short', 'levels', 'Warlock');
             if (t && !t.levels.length) t.levels = ['1st', '2nd', '3rd', '4th', '5th'].map((label) => Object.assign(M.ROW.level(), { label, max: '0' }));
@@ -430,9 +501,9 @@
             if (t) t.levels.forEach((l, i) => { const want = i + 1 === pact.level ? pact.n : 0; if (String(l.max) !== String(want) && /^\d+$/.test(String(l.max))) l.max = String(want); });
         }
         // the first caster class's ability for the save DC and attack, unless the player changed them
-        const caster = Object.keys(by).find((id) => casterOf(id, data).kind !== 'none');
+        const caster = Object.keys(by).find((id) => casterOf(id, data, subs[id]).kind !== 'none');
         if (sp && caster) {
-            const ab = casterOf(caster, data).ab;
+            const ab = casterOf(caster, data, subs[caster]).ab;
             if (sp.dc === '8 + PROF + INT') sp.dc = '8 + PROF + ' + ab;
             if (sp.atk === 'PROF + INT') sp.atk = 'PROF + ' + ab;
         }
@@ -481,8 +552,11 @@
             const a = ARMOUR[it.ref] || Object.values(ARMOUR).find(([n]) => [it.ref, it.name, String(it.ref).replace(/-armou?r$/, '')].some((x) => x && norm(n).replace(/armour$/, '') === norm(x).replace(/armou?r$/, '')));
             const name = it.name || (it.ref ? itemName(it.ref, data, M) : '');
             const pack = PACKS[it.ref] || data.packs?.[it.ref];
-            if (pack) { for (const [n, nmx] of pack) addItem(inv, M, nmx, n * it.n, 'Gear', it.from); continue; }
-            addItem(inv, M, name, it.n, w ? 'Weapons' : a ? 'Armour' : 'Gear', it.from, !!(w || a));
+            if (pack) { for (const [n, nmx] of pack) addItem(inv, M, nmx, n * it.n, 'Gear', it.from, false, data); continue; }
+            // a pack only the content knows (2024's Dungeoneer's Pack)
+            const parts = data.equipment?.[it.ref]?.contents;
+            if (Array.isArray(parts) && parts.length) { for (const p of parts) { const r = p.item?.index || p.item; addItem(inv, M, itemName(r, data, M), (+p.quantity || 1) * it.n, 'Gear', it.from, false, data, r); } continue; }
+            addItem(inv, M, name, it.n, w ? 'Weapons' : a ? 'Armour' : 'Gear', it.from, !!(w || a), data, it.ref);
             if (a) { if (a[2] === 'shield') shield = true; else if (!armour || a[1] > armour[1]) armour = a; }
             if (w && atk && !atk.rows.some((r) => r.name === w[0])) {
                 // WEAPONS order: simple melee 0-9, simple ranged 10-13, martial melee 14-31, martial ranged 32-35
@@ -512,12 +586,20 @@
         // the monk's Unarmored Defense doesn't work with a shield
         c.ac = opts[0][1] + (opts[0][1] === '10 + DEX + WIS' ? '' : sh);
     }
-    function addItem(inv, M, name, n, cat, from, eq = false) {
+    // the weight of one of a thing, by what the content or the sheet's own gear list says. The content's weight is for its whole bundle: 20 arrows are 1 lb
+    function itemWeight(name, data, M, ref) {
+        const each = (e) => (+e?.weight || 0) / (+e?.quantity || 1);
+        const g = M.GEAR.find((x) => norm(x[0]) === norm(name));
+        if (ref && each(data.equipment?.[ref])) return each(data.equipment[ref]);
+        if (g && g[1]) return g[1];
+        return each(Object.values(data.equipment || {}).find((e) => norm(e.name) === norm(name)));
+    }
+    function addItem(inv, M, name, n, cat, from, eq = false, data = {}, ref = '') {
         if (!inv || !name) return;
         const have = inv.rows.find((r) => r.name === name);
         if (have) { have.qty = +have.qty + n; return; }
         const g = M.GEAR.find((x) => norm(x[0]) === norm(name));
-        inv.rows.push(Object.assign(M.ROW.item(), { name, qty: n, wt: g ? g[1] : 0, cat: g?.[2] || cat, eq, source: from }));
+        inv.rows.push(Object.assign(M.ROW.item(), { name, qty: n, wt: itemWeight(name, data, M, ref), cat: g?.[2] || cat, eq, source: from }));
     }
 
     // the hit points a level after the first adds (the die's average, or the roll)
@@ -530,6 +612,7 @@
     function build(ch, data, M) {
         const c = M.blank();
         c.build = clone(ch);
+        c.rulesVer = ch.rules === '2024' ? '2024' : '';
         // a built character keeps personality and backstory in Character details, so the blank sheet's empty notes for them go
         const np = panel(c, 'notes');
         if (np) np.notes = np.notes.filter((n) => String(n.body).trim());
@@ -613,7 +696,7 @@
             const cls = data.classes?.[e.id];
             if (!cls) continue;
             addSpells(c, alwaysPrepared(e.id, e.sub, +e.levels, data), data, M, { prep: true, source: data.subclasses?.[e.sub]?.name || cls.name });
-            addSpells(c, e.spells || [], data, M, { prep: prepares(e.id, data), source: cls.name });
+            addSpells(c, e.spells || [], data, M, { prep: prepares(e.id, data, e.sub), source: cls.name });
         }
         applySlots(c, data, M);
         // equipment, coins
@@ -644,8 +727,9 @@
         applyLevel(c, { cls: choice.cls, n, at, entry: choice.entry || {} }, hp, data, M);
         c.hp.base += hpExtra(c, choice.cls, data, choice.entry?.sub);
         addSpells(c, alwaysPrepared(choice.cls, choice.entry?.sub, n, data), data, M, { prep: true, source: data.subclasses?.[choice.entry?.sub]?.name || cls.name });
-        addSpells(c, choice.entry?.spells || [], data, M, { prep: prepares(choice.cls, data), source: cls.name });
-        applySlots(c, data, M);
+        addSpells(c, choice.entry?.spells || [], data, M, { prep: prepares(choice.cls, data, choice.entry?.sub || subsOfChar(c)[choice.cls]), source: cls.name });
+        // this level's subclass pick isn't in the character's build record yet
+        applySlots(c, data, M, { ...subsOfChar(c), ...(choice.entry?.sub ? { [choice.cls]: choice.entry.sub } : {}) });
         jackOfAllTrades(c);
         // the new level's hit points are added to what's left now
         c.hp.cur = +c.hp.cur + hp + mod(+c.abilities.find((a) => a.key === 'CON')?.score || 10);
@@ -661,7 +745,7 @@
     }
 
     const HbBuild = { AB, STD, PB_COST, PB_BUDGET, mod, pbCost, dropLowest, baseScores, bonuses, addContent, mergeContent, listOf, levels, total, profBonus, asiLevels, subLevel, subsOf,
-        featuresAt, fkey, fid, pickOf, chooseN, casterOf, slotsFor, maxSpellLevel, spellCounts, spellPool, alwaysPrepared, prepares, profKind, langName, LANGS, ARMOUR, PACKS, category,
+        featuresAt, fkey, fid, pickOf, chooseN, casterOf, slotsFor, maxSpellLevel, spellCounts, spellPool, alwaysPrepared, prepares, castingOf, spellLimits, rulesOf, itemWeight, classesOf, profKind, langName, LANGS, ARMOUR, PACKS, category,
         itemName, goldDice, equipChoice, startingItems, raceChoices, ANCESTRY, hpAt, build, levelUp, blankChoices, words };
     if (typeof module === 'object' && module.exports) module.exports = HbBuild; else root.HbBuild = HbBuild;
 })(this);
