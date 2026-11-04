@@ -19,7 +19,8 @@ function pf_out($code, $data)
 
 $user = auth_user();
 if (!$user) pf_out(401, ['error' => 'Sign in to save settings to your account.']);
-$dir = __DIR__ . '/private/dnd/accounts/prefs';
+// DND_ACCOUNTS: a stand-in folder for the local checks in _dev/scripts/, so they never touch real accounts
+$dir = (getenv('DND_ACCOUNTS') ?: __DIR__ . '/private/dnd/accounts') . '/prefs';
 $file = $dir . '/' . $user['sub'] . '.json';
 $read = function () use ($file) {
     $all = is_file($file) ? json_decode((string)file_get_contents($file), true) : null;
