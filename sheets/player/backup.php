@@ -40,7 +40,7 @@ if (defined('HB_ENCS') && isset($_GET['encs'])) {
     if (!$lock || !flock($lock, LOCK_EX)) hb_out(500, ['error' => "Couldn't lock the backup folder."]);
     $last = 0;
     foreach (glob($dir . '/encounters-*.json') ?: [] as $file) if (preg_match('/-(\d+)\.json$/', $file, $m)) $last = max($last, (int)$m[1]);
-    $json = json_encode(['encs' => $in['encs']], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
+    $json = json_encode(['encs' => $in['encs']] + (isset($in['unsorted']) ? ['unsorted' => $in['unsorted']] : []), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR);
     if ($last && @file_get_contents("$dir/encounters-$last.json") === $json) hb_out(200, ['version' => $last, 'unchanged' => true]);
     if (@file_put_contents("$dir/encounters-" . ($last + 1) . '.json', $json) === false) hb_out(500, ['error' => "Couldn't write the backup."]);
     hb_out(200, ['version' => $last + 1]);
