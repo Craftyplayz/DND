@@ -59,7 +59,7 @@ do). Signed out, everything keeps working from the browser alone.
     `monster-sheet`, `accounts/monster-encounters/<sub>.json` through sheets/monster/encounters.php), each with its party
     (`party`, Unsorted's is `unsorted` beside the list)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
-    Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`), encounter rules
+    Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`), the full layout on a phone (`sheet-full-layout`), encounter rules
     (`encounter-rules`), the Compendium's last encounter (`compendium-enc`)
   - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js); the versions a
     save replaced are in `accounts/homebrew/<sub>/history/<id>/`. `homebrew-shared` and `homebrew-me` in the browser are only a read-only copy of what the

@@ -125,7 +125,7 @@ newer, and 401 when signed out.
   never pruned, and there's no restore button (only the admin backup browser). Account versions can be restored from
   the sheet (0.5).
 - **My Characters** (`/characters/`): a card list; each character opens at `/characters/<id>` with the same sheet code.
-- **Layout:** two columns from 960 px. There's no phone layout yet. It has ARIA labels, dialogs, Escape to close
+- **Layout:** two columns from 960 px; below 700 px, or a phone on its side, phone play mode (2.1). It has ARIA labels, dialogs, Escape to close
   and reduced-motion support.
 
 ### Monster sheet (`/sheets/monster/`)
@@ -725,7 +725,14 @@ change already lands in `sheets/player/`. The test copy is archived and must not
 
 ### Phase 2: Phone and look
 
-**2.1 Phone play mode**
+**2.1 Phone play mode** (built 2026-11-04 from the owner's mockup, `_dev/mockups/phone/`; on dndtest, the owner tries it on real phones, then the group plays, then the owner says when it goes live)
+- Built: `assets/js/phone.js` frames the sheets' own panels, fields and actions when `<html class="ph-on">`: below 700 px, or a short window on a phone-sized screen (on its side, one-line header). A tablet and a short desktop window keep the desktop layout. "Use the full layout on this phone" (menu, Customise > Panels) is the setting `sheet-full-layout`, following the account.
+- Header: name, conditions (or who they are) under it, HP with temp, AC, initiative, a count of conditions; a Map icon with a campaign; on the Monster Sheet ‹ › between monsters and the name opens the encounter sheet. Tab bar: Main (pinned notes, abilities, proficiency, inspiration, saves, skills and the other proficiencies, senses, death saves and hit dice, first at 0 HP; rests), Actions (Resources first until panels are moved, Actions, Passive abilities, Homebrew, lists and trackers added), Spells, Items, Notes (Notes, Handouts, Character details, text panels added). A new panel kind goes in `MAP` in phone.js; `phone-mode.mjs` fails if it's missing. On the Monster Sheet, Spells and Items hide when empty.
+- Bottom sheets: HP (Damage, Heal far apart, Set temp, Edit HP; closes with a toast and Undo; Enter never applies), conditions with speed and defences, AC, details in place of the drawer, dice and the whole roll log with Clear and Mine / Table, Adv / Normal / Dis for the next d20, a − on each die; the menu (the top bar's own fields and buttons, sign-in, full layout, credits); the encounter sheet (fight panel, picker, difficulty, monsters, archived ones). Back closes a sheet. Rows are one line with their rolls, opening on tap.
+- Saving: the last tab is `view.phoneTab` per character or monster (new in `blank()`). A tab, sub-tab or note being opened is no longer an edit, on desktop too: it never changes `updated`, and a Monster Sheet roll no longer does either. Coming back to an open sheet, signed in, takes the account's newer copies before anything goes up (`Phone.pullOnReturn`, both sheets at any width); the tab stays and rolls made here are kept. An edit in the moment before that check comes back gives way to the account's copy, with a toast and Undo.
+- Not changed: an edit on a copy left in view while another device saves, or made offline, is still newest wins.
+- Checks: `phone-mode.mjs` (both browsers, 320, 375, on its side, a tablet, desktop; signed-in data), `dm-edits.mjs` (DM on a phone).
+- The plan as first written:
 - What: below 700 px wide, the sheet switches layout. A header with name, HP (tap to damage or heal), AC,
   initiative and conditions always stays at the top. A bottom tab bar: Main (abilities, skills, saves, combat),
   Actions, Spells, Items, Notes. Tap targets are at least 44 px. The dice tray and log open as a bottom sheet.
