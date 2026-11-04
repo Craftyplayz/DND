@@ -1,7 +1,7 @@
 // Shared by build-content.mjs and its source modules: a polite, cached fetch plus small text helpers.
 // Requests to one host go one at a time with a pause between them; different hosts run side by side.
 // Every response is cached under _dev/cache/content/<host>/ (gitignored), so a re-run reads disk, not the web.
-// Set CONTENT_REFRESH=1 to fetch again.
+// Set CONTENT_REFRESH=1 to fetch again. CONTENT_TOLERATE=1: a page the server keeps failing on counts as missing (not cached), for build-books.mjs.
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -28,6 +28,7 @@ export async function get(url, { json = false } = {}) {
             } catch (e) { if (/^\d{3} /.test(e.message)) throw e; }
             await new Promise((s) => setTimeout(s, 1000 * 2 ** i));
         }
+        if (process.env.CONTENT_TOLERATE) { console.log('FAILED PAGE', url); return null; }
         throw new Error('failed ' + url);
     };
     const prev = queues.get(u.host) || Promise.resolve();

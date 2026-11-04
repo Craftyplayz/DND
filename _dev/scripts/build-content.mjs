@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { slug } from './content/fetch.mjs';
 import { writeAliases } from './content/aliases.mjs';
+import { bookOf, bookCounts, BOOK_CATS } from './content/books.mjs';
 import * as wikiClasses from './content/wikidot-classes.mjs';
 import * as wikiOther from './content/wikidot-other.mjs';
 import * as srd from './content/srd.mjs';
@@ -25,10 +26,12 @@ import * as open5e from './content/open5e.mjs';
 import * as a5e from './content/a5e.mjs';
 import * as bf from './content/blackflag.mjs';
 
-const OUT = join(import.meta.dirname, '../../sheets/player/content');
+// CONTENT_OUT: write to another folder, with the books as the wiki gives them and no aliases (build-books.mjs reads that)
+const OUT = process.env.CONTENT_OUT || join(import.meta.dirname, '../../sheets/player/content');
 const RULES = ['2014', '2024'];
 const FILES = { classes: ['classes', 'subclasses'], origins: ['races', 'subraces', 'backgrounds', 'feats', 'languages'], spells: ['spells'], items: ['equipment', 'magic_items'] };
 const CATS = Object.values(FILES).flat();
+export { RULES, FILES, CATS };
 const RANK = (src) => /^wikidot/.test(src) ? 0 : /^srd/.test(src) ? 1 : src === 'a5e' ? 3 : src === 'bf' ? 4 : 2;
 export const isUA = (e) => /\bUA\b|unearthed arcana|playtest/i.test(e.name) || /-ua$/.test(e.index);
 
@@ -182,7 +185,7 @@ export function merge(parts) {
 }
 
 // one entry per line: readable diffs, still small
-const write = (obj) => '{' + Object.entries(obj).map(([k, v]) => k === 'meta' ? JSON.stringify(k) + ':' + JSON.stringify(v)
+export const write = (obj) => '{' + Object.entries(obj).map(([k, v]) => k === 'meta' ? JSON.stringify(k) + ':' + JSON.stringify(v)
     : JSON.stringify(k) + ':{\n' + Object.entries(v).map(([i, e]) => JSON.stringify(i) + ':' + JSON.stringify(e)).join(',\n') + '\n}').join(',\n') + '}\n';
 
 const STATIC_CREDITS = [
@@ -202,6 +205,11 @@ if (import.meta.main) {
     const { out, dropped } = merge(parts);
     const skipped = [...new Set(sources.map((s) => s[2]))].flat();
     const ua = skipped.filter((s) => /UA|unearthed|playtest/i.test(s.why)).length + dropped.filter((d) => d.why === 'UA').length;
+    // a credit for every source with at least one entry kept
+    const present = new Set(RULES.flatMap((r) => CATS.flatMap((c) => Object.values(out[r][c]).map((e) => e.src))));
+    const o5 = parts.find((p) => p.id === 'open5e').data._credits.filter((c) => !/^srd/.test(c.src));
+    const credits = [...STATIC_CREDITS, ...o5].filter((c) => present.has(c.src)).map(({ used, key, ...c }) => c);
+    if (!process.env.CONTENT_OUT) { const names = Object.fromEntries(credits.map((c) => [c.src, c.name])); for (const r of RULES) for (const c of BOOK_CATS) for (const e of Object.values(out[r][c])) e.book = bookOf(e, c, names); }
     mkdirSync(OUT, { recursive: true });
     const built = new Date().toISOString().slice(0, 10);
     const files = [], counts = {};
@@ -215,13 +223,9 @@ if (import.meta.main) {
             files.push({ file, rules: r, keys: cats, bytes: Buffer.byteLength(body), gzip: gzipSync(body).length });
         }
     }
-    // a credit for every source with at least one entry kept
-    const present = new Set(RULES.flatMap((r) => CATS.flatMap((c) => Object.values(out[r][c]).map((e) => e.src))));
-    const o5 = parts.find((p) => p.id === 'open5e').data._credits.filter((c) => !/^srd/.test(c.src));
-    const credits = [...STATIC_CREDITS, ...o5].filter((c) => present.has(c.src)).map(({ used, key, ...c }) => c);
     const sum = (why) => dropped.filter((d) => d.why === why).length;
-    writeFileSync(join(OUT, 'index.json'), JSON.stringify({ built, note: 'Indexes are unique within one rules version and category. Load the files for the character\'s rules.', files, counts, dropped: { ua, duplicates: sum('duplicate'), unresolved: sum('unresolved'), skipped_by_sources: skipped.length }, credits }, null, 1) + '\n');
-    writeAliases();
+    writeFileSync(join(OUT, 'index.json'), JSON.stringify({ books: process.env.CONTENT_OUT ? undefined : bookCounts(out), built, note: 'Indexes are unique within one rules version and category. Load the files for the character\'s rules.', files, counts, dropped: { ua, duplicates: sum('duplicate'), unresolved: sum('unresolved'), skipped_by_sources: skipped.length }, credits }, null, 1) + '\n');
+    if (!process.env.CONTENT_OUT) writeAliases();
     writeFileSync(join(import.meta.dirname, '../cache/content/build-report.json'), JSON.stringify({ notes, skipped, dropped }, null, 1));
     console.table(counts);
     console.table(files.map((f) => ({ file: f.file, kB: Math.round(f.bytes / 1024), gzip_kB: Math.round(f.gzip / 1024) })));

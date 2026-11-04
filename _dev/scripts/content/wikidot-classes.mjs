@@ -331,10 +331,11 @@ export async function loadSite(key, log = () => {}) {
             let idx = slug(sname);
             if (subclasses[idx]?.name === sname) { idx = `${cs}-${s}`; sname += ` (${s})`; }   // two pages, one title (Juggernaut / Juggernaut Reborn)
             else if (subclasses[idx]) idx = `${cs}-${idx}`;
-            subclasses[idx] = parseSubclass(site, cls, idx, sname, sh);
+            subclasses[idx] = { ...parseSubclass(site, cls, idx, sname, sh), book: src };
             cls.subclasses.push(idx);
         }
         delete cls._subLevel;
+        cls.book = sourceLine(c);
         classes[cs] = cls;
     }
     return { classes, subclasses };

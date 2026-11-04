@@ -140,7 +140,7 @@ async function races14(log, out) {
             // some pages put the base traits under a first <h2> ("Kender Traits") instead of at the top
             if (!hasBase(top) && subs.length && hasBase(subs[0])) { top += subs[0]; subs = subs.slice(1); }
             const bl = blocks(top).filter((b) => b.k !== 'h');
-            every.push({ subs: hasBase(top) ? subs : p.html.split(/(?=<h2\b)/i).slice(1), bl });
+            every.push({ subs: hasBase(top) ? subs : p.html.split(/(?=<h2\b)/i).slice(1), bl, head: p.head });
             if (hasBase(top)) versions.push({ p, E: entries(bl), subs, bl });
         }
         if (!versions.length) {
@@ -153,9 +153,10 @@ async function races14(log, out) {
         const src14 = sourceOf(v.bl);
         if (isUA(src14)) { skip('races', name, 'Unearthed Arcana (Source line)'); continue; }
         const race = raceFromEntries(slug(pageSlug), name, v.E, W14);
+        race.book = src14 || v.p.head;
         // subraces from every non-UA book version (owner's call): dragonmarks, Mordenkainen's bloodlines, ...; one per name
         const subNames = new Set();
-        for (const s of every.filter((x) => !isUA(sourceOf(x.bl))).flatMap((x) => x.subs)) {
+        for (const x of every.filter((v2) => !isUA(sourceOf(v2.bl)))) for (const s of x.subs) {
             const sb = blocks(s);
             const sname = sb[0]?.k === 'h' ? sb[0].text : '';
             if (!sname || subNames.has(slug(sname))) continue;
@@ -167,7 +168,7 @@ async function races14(log, out) {
             const traits = traitsOf(E.entries.filter((e) => e.name !== 'Ability Score Increase'));
             if (asi && /choice|another|different|other|choose|any|one /i.test(asiT)) traits.unshift({ index: 'ability-score-increase', name: 'Ability Score Increase', desc: asi.desc });
             const sidx = dedupeSlug(subUsed.has(slug(sname)) ? `${race.index}-${sname}` : sname, subUsed);
-            out.subraces[sidx] = { index: sidx, name: sname, src: W14.src, rules: W14.rules, race: race.index, desc: E.intro.join(' '), ability_bonuses: abilities(asiT), traits };
+            out.subraces[sidx] = { index: sidx, name: sname, src: W14.src, rules: W14.rules, race: race.index, desc: E.intro.join(' '), ability_bonuses: abilities(asiT), traits, book: sourceOf(x.bl) || x.head };
             race.subraces.push(sidx);
         }
         out.races[race.index] = race;
@@ -199,7 +200,7 @@ async function races24(log, out) {
         if (stat['Creature Type']) traits.unshift({ index: 'creature-type', name: 'Creature Type', desc: [stat['Creature Type']] });
         const index = slug(pageSlug);
         out.races[index] = {
-            index, name, src: W24.src, rules: W24.rules,
+            index, name, src: W24.src, rules: W24.rules, book: sourceOf(bl),
             speed: +((stat.Speed || '').match(/(\d+)/) || [])[1] || 0,
             ability_bonuses: [], alignment: '', age: '',
             size: sizeOf(stat.Size),
@@ -290,7 +291,7 @@ async function backgrounds(site, log, out) {
         const bl = blocks(content(h));
         if (/-ua$/.test(pageSlug) || isUA(name) || isUA(sourceOf(bl))) { skip('backgrounds', name, 'Unearthed Arcana / playtest'); continue; }
         if (!bl.some((b) => b.k === 'p' && /Skill Proficienc/i.test(b.text))) { skip('backgrounds', name, 'no "Skill Proficiencies" line (guide page or unusual layout)'); log(`${site.src} background ${pageSlug}: no Skill Proficiencies line, skipped`); continue; }
-        out.backgrounds[slug(pageSlug)] =background(slug(pageSlug), name, bl, site, log);
+        out.backgrounds[slug(pageSlug)] = { ...background(slug(pageSlug), name, bl, site, log), book: sourceOf(bl) };
     }
 }
 
@@ -323,7 +324,7 @@ async function feats(site, log, out) {
             desc.push(b.li ? '- ' + b.text : b.text);
         }
         const index = slug(pageSlug);
-        out.feats[index] = { index, name, src: site.src, rules: site.rules, prerequisites: prereqs(pre), desc };
+        out.feats[index] = { index, name, src: site.src, rules: site.rules, prerequisites: prereqs(pre), desc, book: sourceOf(bl) };
     }
 }
 
@@ -378,7 +379,7 @@ async function spells(site, log, out) {
         }
         const index = slug(pageSlug);
         out.spells[index] = {
-            index, name, src: site.src, rules: site.rules, level, school, classes,
+            index, name, src: site.src, rules: site.rules, book: src, level, school, classes,
             casting_time: ct, range: f.range || '', components, material: mat ? mat[1].trim() : null,
             duration: dur.replace(/^Concentration,\s*u/i, 'U'), concentration: /^Concentration/i.test(dur), ritual, desc, higher_level: higher,
         };
