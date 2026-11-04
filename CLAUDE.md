@@ -60,7 +60,7 @@ do). Signed out, everything keeps working from the browser alone.
     (`party`, Unsorted's is `unsorted` beside the list)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
     Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`), the full layout on a phone (`sheet-full-layout`), encounter rules
-    (`encounter-rules`), the Compendium's last encounter (`compendium-enc`), the Sources tick list (`compendium-books`, the books turned off; the Compendium and the builder share it)
+    (`encounter-rules`), the Compendium's last encounter (`compendium-enc`), the map's tool choices (`map-tools`), the Sources tick list (`compendium-books`, the books turned off; the Compendium and the builder share it)
   - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js); the versions a
     save replaced are in `accounts/homebrew/<sub>/history/<id>/`. `homebrew-shared` and `homebrew-me` in the browser are only a read-only copy of what the
     account says. A row on a sheet, or a whole monster, that came from homebrew is its own copy, with its source in `hbsrc`; a built character keeps the classes, races and backgrounds it picked in `build.hbc`. A monster shared
