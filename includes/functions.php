@@ -122,7 +122,8 @@ function page_head()
     $desc = isset($p['description']) ? $p['description'] : ($found ? $found[1] : '');
 
     echo '<meta charset="UTF-8">' . "\n";
-    echo '<meta name="viewport" content="width=device-width, initial-scale=1.0">' . "\n";
+    // cover: full-screen tools that keep clear of the notch and home bar themselves (the sheets)
+    echo '<meta name="viewport" content="width=device-width, initial-scale=1.0' . (!empty($p['cover']) ? ', viewport-fit=cover' : '') . '">' . "\n";
     echo '<meta name="color-scheme" content="dark">' . "\n";
     echo '<meta name="theme-color" content="#202020">' . "\n";
     echo '<title>' . h($title ? $title . ' · ' . SITE_NAME : SITE_NAME) . '</title>' . "\n";

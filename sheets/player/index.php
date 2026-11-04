@@ -8,7 +8,7 @@ if (!isset($hb)) { header('Location: /characters/', true, 301); exit; }
 //   inline: the account's copy of it as JSON (owner or public only), vis: private or public,
 //   dm: {c, camp, player} when the viewer edits it as the DM of campaign c (ROADMAP 1.5)
 $hb = ($hb ?? []) + ['char' => '', 'readonly' => false, 'inline' => null, 'vis' => 'private', 'dm' => null];
-$site_page = ($site_page ?? []) + ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css', '/assets/css/pages/fight.css', '/assets/css/pages/handouts.css']];
+$site_page = ($site_page ?? []) + ['components' => true, 'ui' => true, 'cover' => true, 'css' => ['/assets/css/pages/games-dnd-sheet.css', '/assets/css/pages/fight.css', '/assets/css/pages/handouts.css']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 ?>
 <!DOCTYPE html>
@@ -53,6 +53,7 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
     <script src="<?= h(asset('/assets/js/fight.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/handouts.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/phone.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/sheet.js')) ?>" defer></script>
 </body>
 

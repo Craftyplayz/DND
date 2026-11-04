@@ -35,9 +35,9 @@
 .mon-findf { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .mon-findf label { display: grid; flex: 1 1 90px; gap: 4px; font-size: 13px; }
 .mon-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font-size: 14px; }
-@media (min-width: 761px) { .mon .hb-pick, .mon .mon-encbar { display: none; } }
-@media (max-width: 760px) { .mon .mon-encbar, .mon .mon-diffbar { flex: 1 1 100%; } .mon .mon-diffbar { display: flex; } }
-@media (max-width: 760px) {
+@media (min-width: 700px) { .mon .hb-pick, .mon .mon-encbar { display: none; } }
+@media (max-width: 699.98px) { .mon .mon-encbar, .mon .mon-diffbar { flex: 1 1 100%; } .mon .mon-diffbar { display: flex; } }
+@media (max-width: 699.98px) {
     .mon-wrap { grid-template-columns: minmax(0, 1fr); }
     .mon-side { display: none; }
 }
@@ -65,3 +65,11 @@
 .mon-arch .mon-list { margin-top: 8px; }
 .mon-arcrow { display: grid; gap: 4px; }
 .mon-arcrow .btn { justify-self: start; }
+
+/* phone mode (ROADMAP 2.1): the encounter list and the fight panel live in a bottom sheet */
+.ph-on .mon-wrap { display: block; }
+.ph-on #ph-enc .mon-side { display: block; position: static; max-height: none; overflow: visible; padding: 0; background: none; border: 0; }
+.ph-on .mon-fight { margin: 0; }
+.ph-on .mon-item { min-height: 44px; width: 100%; }
+.ph-on .mon-list { grid-template-columns: minmax(0, 1fr); }
+.ph-on .mon-hit { min-height: 44px; }

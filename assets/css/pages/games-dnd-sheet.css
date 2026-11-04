@@ -184,7 +184,7 @@ dialog.hb-dlg.hb-custdlg { height: min(720px, calc(100dvh - 32px)); overflow-y: 
 .hb-cls label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 13px; }
 .hb-cls-more { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 13px; }
 /* class, level, hit die and Add a class on one line where there is room */
-@media (min-width: 761px) { .hb-cls { flex-wrap: nowrap; } .hb-cls-more { flex-wrap: nowrap; white-space: nowrap; min-height: 38px; } }
+@media (min-width: 700px) { .hb-cls { flex-wrap: nowrap; } .hb-cls-more { flex-wrap: nowrap; white-space: nowrap; min-height: 38px; } }
 
 /* hit points: current / max with temp, a two-part bar, and the edit fields */
 .hb-hpv b { font-size: 20px; }
@@ -425,7 +425,7 @@ dialog.hb-dlg.hb-custdlg { height: min(720px, calc(100dvh - 32px)); overflow-y: 
 .hb-manage { display: inline-flex; flex-wrap: wrap; gap: 8px; }
 .hb-bar [data-act=manage] { display: inline-flex; align-items: center; gap: 4px; }
 /* the bar wraps to several rows on phones, so it scrolls away there instead of sticking */
-@media (max-width: 760px) { .hb-bar { position: static; } }
+@media (max-width: 699.98px) { .hb-bar { position: static; } }
 /* the page title is for screen readers only */
 .hb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
@@ -485,3 +485,195 @@ dialog.hb-ver { width: min(640px, calc(100vw - 32px)); }
 .hb-newgrid button.hub-card { width: 100%; font: inherit; text-align: left; cursor: pointer; }
 /* Character details (4.2) */
 .hb-details-f { margin-bottom: 8px; }
+
+/* ---------- phone play mode (ROADMAP 2.1, assets/js/phone.js): <html class="ph-on"> below 700 px or a phone on its side ---------- */
+#ph-head, #ph-tabs { display: none; }
+.ph-on { --phh: 108px; --tabh: 56px; }
+.ph-on #ph-head { display: grid; } .ph-on #ph-tabs { display: grid; }
+.ph-on .page.hb { padding: 0 0 calc(var(--tabh) + env(safe-area-inset-bottom) + 84px); max-width: 100%; }
+.ph-on .page.hb > .crumbs, .ph-on #main > .hb-hint, .ph-on #main > .mon-credit, .ph-on #hb-log { display: none; }
+/* the old top bar only holds the sign-in widget until the menu shows it; off screen rather than hidden, so Google can draw its button */
+.ph-on #hb-bar { position: absolute; left: -9999px; top: 0; }
+.ph-on .hb-sheet { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: none; gap: 12px; padding: 12px max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); }
+.ph-on .hb [id^="hb-p-"], .ph-on .ph-sec { scroll-margin-top: calc(var(--phh) + 8px); }
+.ph-ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the header */
+.ph-head { position: sticky; top: 0; z-index: 60; gap: 4px; padding: max(4px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left)); background: var(--sunken); border-bottom: 1px solid var(--line-strong); }
+.ph-h1 { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.ph-ico { display: grid; flex: none; place-items: center; width: 44px; height: 44px; padding: 0; background: none; border: 0; border-radius: var(--radius); color: var(--text); cursor: pointer; text-decoration: none; }
+.page a.ph-ico { color: var(--text); }
+.ph-ico:disabled { opacity: .3; cursor: default; }
+.ph-name { display: grid; flex: 1; min-width: 0; min-height: 44px; align-content: center; padding: 0 4px; background: none; border: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.ph-name b { font-size: 16px; line-height: 1.2; }
+.ph-name small { color: var(--muted); font-size: 12px; line-height: 1.2; }
+.ph-name small.cond { color: var(--highlight); }
+.ph-h2 { display: grid; grid-template-columns: minmax(0, 1fr) 50px 50px 50px; gap: 4px; }
+.ph-stat { display: grid; justify-items: center; align-content: center; min-width: 0; min-height: 50px; padding: 2px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); color: var(--text); font: inherit; cursor: pointer; }
+.ph-stat small { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
+.ph-stat b { font-size: 20px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ph-stat.set b { color: var(--highlight); }
+.ph-hp { padding: 2px 8px; }
+.ph-hpline { display: flex; align-items: baseline; gap: 4px; }
+.ph-hpline b { font-size: 22px; }
+.ph-hpline span { color: var(--muted); font-size: 14px; }
+.ph-hpline .ph-temp, .ph-hpnow .ph-temp { color: var(--accent); font-weight: 600; }
+.ph-hp .hb-hpbar { height: 5px; margin-top: 2px; }
+.ph-hp.low { border-color: var(--gold-line); }
+.ph-hp.low .hb-hpbar i:first-child { background: var(--gold-line); }
+.ph-hp.down { background: var(--danger-bg); border-color: var(--danger-line); }
+/* a phone on its side: everything on one line */
+@media (max-height: 500px) {
+    .ph-on { --tabh: 44px; }
+    .ph-on .ph-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; gap: 4px 8px; }
+    .ph-h2 { grid-template-columns: minmax(90px, 1fr) 46px 46px 46px; }
+    .ph-stat { min-height: 44px; }
+    .ph-stat small { font-size: 10px; } .ph-stat b { font-size: 16px; } .ph-hpline b { font-size: 18px; } .ph-hp .hb-hpbar { margin-top: 0; }
+    .tabbar svg { display: none; }
+}
+
+/* notices under the header: one line until tapped */
+.ph-on #hb-fight, .ph-on #hb-dmbar, .ph-on #hb-camps { margin: 0; padding: 4px 12px; border-radius: 0; }
+.ph-on #hb-dmbar:not(.ph-open) .hb-dmnotes, .ph-on #hb-camps:not(.ph-open) p + p { display: none; }
+.ph-on #hb-dmbar:not(.ph-open) p, .ph-on #hb-camps:not(.ph-open) p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 36px; }
+.ph-on .hb-dmbar, .ph-on .hb-camps { cursor: pointer; }
+
+/* dice button, roll card and toasts: above the tab bar, in thumb reach; inside an open sheet they sit at its foot */
+.ph-on .hb-dice { left: auto; right: 12px; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 8px); justify-items: end; z-index: 50; }
+.ph-on .hb-dicebtn { width: 56px; height: 56px; background: var(--btn); border-color: var(--btn-line); color: var(--on-btn); }
+html.ph-typing #ph-tabs, html.ph-typing .hb-dice { display: none; }
+.ph-on #hb-rolls { top: auto !important; left: 12px; right: 12px; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 72px); max-height: none; overflow: visible; z-index: 50; }
+.ph-on .hb-rollcard { width: 100%; }
+.ph-on .hb-rollcard.hb-other { padding-block: 6px; }
+.ph-on .hb-rollcard.hb-other .hb-rolltot { font-size: 22px; }
+.ph-on .toasts { left: 12px; right: 12px; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 72px); width: auto; z-index: 55; }
+.ph-on dialog #hb-rolls, .ph-on dialog .toasts { bottom: 12px; }
+.ph-on #hb-throw { width: 100%; height: 100dvh; }
+
+/* 44 px for everything you tap; small boxes keep their looks with a bigger tap area, links inside sentences get room instead */
+.ph-on .hb .btn { min-height: 44px; justify-content: center; }
+.ph-on .hb .btn.small { padding: 5px 12px; font-size: 14px; }
+.ph-on .hb-coinbox .btn { min-width: 44px; }
+.ph-on .hb .field { min-height: 44px; font-size: 16px; } /* 16 px: iPhone Safari zooms into anything smaller */
+.ph-on .hb-x { display: inline-grid; flex: none; place-items: center; width: 44px; height: 44px; }
+.ph-on .hb-edit { width: 44px; height: 44px; right: 0; bottom: 0; }
+.ph-on .hb .rowi { min-height: 44px; padding: 0 4px 0 0; }
+.ph-on .hb-link { min-height: 44px; }
+.ph-on .hb-hpf { width: 100%; }
+.ph-on .hb-roll, .ph-on .hb-rollbtn, .ph-on .stabs button, .ph-on .hb-d20, .ph-on .hb-sub button { position: relative; min-width: 44px; min-height: 36px; }
+.ph-on .hb-roll::after, .ph-on .hb-rollbtn::after, .ph-on .stabs button::after, .ph-on .hb-d20::after, .ph-on .hb-sub button::after { content: ""; position: absolute; inset: -4px 0; }
+.ph-on .stabs { gap: 8px 4px; }
+.ph-on .hb-sub button { font-size: 13px; }
+.ph-on .hb button.badge { min-height: 44px; padding-inline: 12px; font-size: 14px; }
+.ph-on .hb .hb-prof, .ph-on .hb-dot { position: relative; display: grid; flex: none; place-items: center; width: 44px; height: 44px; margin: 0; }
+.ph-on .hb .hb-prof { background: none !important; border: 0; border-radius: 0; box-shadow: none; }
+.ph-on .hb .hb-prof::before { content: ""; width: 18px; height: 18px; border: 2px solid var(--line-strong); border-radius: 50%; }
+.ph-on .hb .hb-prof.l1::before { background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); border-color: var(--accent); }
+.ph-on .hb .hb-prof.l2::before { background: var(--accent); border-color: var(--accent); }
+.ph-on .hb .hb-prof.l3::before { background: var(--accent); border-color: var(--highlight); box-shadow: 0 0 0 2px var(--card2), 0 0 0 3.5px var(--highlight); }
+.ph-on .hb-dot input { width: 18px; height: 18px; }
+.ph-on .hb-pips { gap: 0; }
+.ph-on .hb-pips button { display: grid; place-items: center; width: 44px; height: 44px; background: none; border: 0; }
+.ph-on .hb-pips button::before { content: ""; width: 20px; height: 20px; border: 2px solid var(--accent); border-radius: 4px; }
+.ph-on .hb-pips button.used { background: none; }
+.ph-on .hb-pips button.used::before { background: var(--accent); }
+.ph-on .hb-pips button.extra::before { border-style: dashed; }
+.ph-on .hb-panel .kv .hb-bad-pips .hb-pips button { background: none; }
+.ph-on .hb-panel .kv .hb-bad-pips .hb-pips button::before { border-color: var(--danger-line); }
+.ph-on .hb-panel .kv .hb-bad-pips .hb-pips button.used::before { background: var(--danger-line); }
+.ph-on .hb-prep { display: grid; flex: none; place-items: center; width: 44px; height: 44px; }
+.ph-on .hb-prep input, .ph-on .hb-c input, .ph-on .ph-profrow input { width: 22px; height: 22px; }
+.ph-on .hb .check { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.ph-on .hb-insp input { width: 28px; height: 28px; }
+.ph-on .hb details > summary { display: flex; align-items: center; min-height: 44px; }
+.ph-on .hb-prop, .ph-on .hb-basics p { line-height: 2; }
+.ph-on .hb-nitem { min-height: 44px; }
+.ph-on .hb-nlist { max-height: none; }
+.ph-on .hb-level .hb-x { width: 44px; height: 44px; }
+.ph-on .hb-two { grid-template-columns: minmax(0, 1fr); }
+
+/* Main */
+.ph-jump { margin: 0; }
+.ph-sec h2 { display: flex; align-items: center; gap: 4px; }
+.ph-tool { margin-left: auto; color: var(--muted); }
+.ph-abils { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ph-abils .hb-abil { gap: 0; min-height: 76px; padding: 4px; background: var(--card2); }
+.ph-on .ph-abils .hb-roll { position: static; background: none; border: 0; font-size: 24px; font-weight: 700; }
+.ph-on .ph-abils .hb-roll::after { inset: 0; }
+.ph-abils small { font-size: 12px; }
+.ph-profrow { margin-top: 6px; padding-left: 10px !important; }
+.ph-rests { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+/* one-line rows */
+.ph-on .hb-entry { padding: 2px 8px; gap: 2px; }
+.ph-on .hb-entry-h { flex-wrap: nowrap; }
+.ph-on .hb .ph-rowname { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ph-rowq { display: flex; flex: none; flex-wrap: nowrap; align-items: center; gap: 4px; max-width: 62%; color: var(--muted); font-size: 12px; }
+.ph-rowq small { white-space: nowrap; }
+.ph-rowopen { display: grid; gap: 4px; padding: 4px 0 6px; font-size: 14px; }
+.ph-rowbtns { display: flex; align-items: center; gap: 4px; }
+.ph-on .hb-sum { flex: none; }
+.ph-on .hb-res .hb-entry-h { flex-wrap: wrap; }
+.ph-on .hb-res .hb-entry-h:has(> b.grow) { flex-wrap: nowrap; }
+.ph-on .hb-editor { padding-bottom: 6px; }
+
+/* the bottom sheets' contents */
+.bsheet-body h3 { margin: 8px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.ph-hpnow { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 6px; }
+.ph-hpnow b { font-size: 40px; line-height: 1; }
+.ph-hpnow > span { color: var(--muted); font-size: 18px; }
+.ph-hpform { display: grid; gap: 10px; }
+.ph-on .hb .ph-amt { font-size: 24px; font-weight: 700; text-align: center; }
+.ph-hpgo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; }
+.ph-on .hb .ph-hpgo .btn { min-height: 56px; font-size: 17px; font-weight: 600; }
+.ph-on .hb .btn.ph-dmg { background: var(--danger-bg); border-color: var(--danger-line); }
+.ph-on .hb .btn.ph-heal { background: var(--ok-bg); border-color: var(--ok-line); }
+.ph-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ph-dice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.ph-die { position: relative; display: grid; }
+.ph-die.has .hb-die { padding-right: 44px; border-color: var(--accent); }
+.ph-minus { position: absolute; top: 0; right: 0; width: 44px; height: 44px; padding: 0; background: var(--accent-soft); border: 1px solid var(--btn-line); border-radius: 0 var(--radius) var(--radius) 0; color: var(--text); font: inherit; font-size: 18px; cursor: pointer; }
+.ph-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.ph-seg button { min-height: 44px; background: var(--card2); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+.ph-seg button:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.ph-seg button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.ph-seg button.on { background: var(--accent-soft); border-color: var(--btn-line); }
+.ph-go { display: grid; grid-template-columns: 1fr 2fr; gap: 6px; }
+.ph-loghead { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.ph-loghead h3 { margin: 0; }
+.ph-loghead .stabs { margin: 0; }
+
+/* the menu: the top bar's own buttons and fields, put in order */
+.ph-menu { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.ph-menu > * { order: 20; }
+.ph-menu label { display: grid; gap: 2px; min-width: 0; color: var(--muted); font-size: 13px; }
+.ph-menu > a.btn, .ph-menu > [data-act=custom] { order: 1; flex: 1 1 40%; }
+.ph-menu [data-act=manage], .ph-menu .hb-pick, .ph-menu .mon-encbar, .ph-menu .mon-diffbar, .ph-menu .hb-gap, .ph-menu > .hb-pick { display: none !important; }
+.ph-hc { order: 2; flex-basis: 100%; }
+.ph-menu > .hb-name { order: 3; flex: 1 1 100%; }
+.ph-menu > .hb-race, .ph-menu > .hb-align, .ph-menu > .hb-age { order: 4; flex: 1 1 40%; }
+.ph-cls { order: 5; flex: 1 1 100%; }
+.ph-on .hb-cls > label:first-child { flex: 1 1 100%; }
+.ph-on .hb-cls .hb-lvl, .ph-on .hb-cls .hb-hitdie { flex: 1 1 40%; }
+.ph-artw { order: 6; width: 96px; }
+.ph-menu > [data-act=rest], .ph-menu > [href*="/characters/build"], .ph-menu > [data-act=dup] { order: 7; flex: 1 1 40%; }
+.ph-hf { order: 8; flex-basis: 100%; }
+.ph-menu > .hb-manage { order: 9; display: grid; flex: 1 1 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.ph-authw { order: 10; flex: 1 1 100%; min-height: 44px; }
+.ph-authw .auth { display: flex; align-items: center; gap: 8px; }
+.ph-authw button { min-height: 44px; }
+.ph-full { order: 11; flex: 1 1 100%; }
+.ph-foot { order: 12; flex: 1 1 100%; color: var(--muted); font-size: 13px; }
+
+/* Customise fills the phone; its Panels tab is rows */
+.ph-on dialog.hb-dlg { width: 100%; max-width: 100%; margin: auto 0 0; }
+.ph-on dialog.hb-dlg.hb-custdlg { height: calc(100dvh - 16px); }
+.ph-on .hb-ptable thead { display: none; }
+.ph-on .hb-ptable table, .ph-on .hb-ptable tbody { display: block; }
+.ph-on .hb-ptable tr { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.ph-on .hb-ptable td { padding: 0; border: 0; }
+.ph-on .hb-ptable td:nth-child(2) { flex: 1 1 60%; min-width: 0; }
+.ph-on .hb-ptable td:nth-child(2) .field { min-width: 0; width: 100%; }
+.ph-on .hb-ptable td:nth-child(3) { flex: 1 1 60%; font-size: 13px; }
+.ph-on .hb-ptable td:nth-child(1) { display: grid; place-items: center; width: 44px; height: 44px; }
+.ph-on .hb-ptable td:last-child { margin-left: auto; }
