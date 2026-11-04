@@ -46,7 +46,7 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 
         <section class="card">
             <h2>Session recordings</h2>
-            <p>The <a href="/transcripts/">Session Transcripts</a> pages hold audio recordings and transcripts of our game sessions, so they include players' voices and names. Anyone who visits the site can open them. If you'd like a recording, a part of one, or your name removed, email me and I'll take it down.</p>
+            <p>We keep audio recordings and transcripts of a few old game sessions, which include players' voices and names. They aren't public; only the site owner can open them. If you'd like a recording, a part of one, or your name removed, email me and I'll take it down.</p>
         </section>
 
         <section class="card">

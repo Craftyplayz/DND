@@ -2,6 +2,8 @@
 // Router for the local test server, doing what characters/.htaccess, campaigns/.htaccess and campaigns/join/.htaccess do on Apache:
 //   php -S 127.0.0.1:8110 -t . _dev/router.php
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+// the root .htaccess's redirect: the archived session recordings' folder never opens from the web
+if (preg_match('#^/transcripts(/|$)#', $path)) { header('Location: /campaigns/', true, 301); return true; }
 if (preg_match('#^/characters/([A-Za-z0-9_-]+)/?$#', $path, $m) && !file_exists(__DIR__ . '/..' . $path)) {
     $_GET['id'] = $m[1];
     $_SERVER['SCRIPT_NAME'] = '/characters/index.php';

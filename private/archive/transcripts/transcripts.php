@@ -1,7 +1,37 @@
 <?php
-// Session transcripts: shared by the viewer (this folder) and the uploader (/private/transcripts/).
+// Session transcripts, archived with ROADMAP 1.9: shared by the viewer (this folder) and the uploader (private/archive/private/transcripts/).
+// The sessions stay where their volume is mounted, transcripts/data, which no longer opens from the web (/transcripts/... redirects).
 // Each session is a folder in data/: transcript.md (Discord recorder export), audio.ogg, meta.json {"name"}.
-const TX_DATA = __DIR__ . '/data';
+const TX_DATA = __DIR__ . '/../../../transcripts/data';
+
+// [first byte, last byte] for a Range header on a file of $size bytes (click-a-line-to-play seeks with these); null: send it all
+function tx_range($header, $size)
+{
+    if ($size < 1 || !preg_match('/^bytes=([0-9]*)-([0-9]*)$/', (string)$header, $m) || ($m[1] === '' && $m[2] === '')) return null;
+    if ($m[1] === '') return [max(0, $size - (int)$m[2]), $size - 1];
+    $first = (int)$m[1];
+    return $first < $size ? [$first, $m[2] === '' ? $size - 1 : min((int)$m[2], $size - 1)] : null;
+}
+
+// the session's recording, for the viewer alone: the folder it's in isn't served any more
+function tx_send_audio($slug)
+{
+    $file = TX_DATA . "/$slug/audio.ogg";
+    if (!tx_slug_ok($slug) || !is_file($file)) { http_response_code(404); exit; }
+    $size = filesize($file);
+    $r = tx_range($_SERVER['HTTP_RANGE'] ?? '', $size);
+    [$first, $last] = $r ?? [0, $size - 1];
+    header('Content-Type: audio/ogg');
+    header('Accept-Ranges: bytes');
+    header('Cache-Control: private, no-store');
+    header('Content-Length: ' . ($last - $first + 1));
+    if ($r) { http_response_code(206); header("Content-Range: bytes $first-$last/$size"); }
+    $f = fopen($file, 'rb');
+    fseek($f, $first);
+    for ($left = $last - $first + 1; $left > 0 && !feof($f); $left -= strlen($piece)) { $piece = (string)fread($f, min(1 << 20, $left)); echo $piece; flush(); }
+    fclose($f);
+    exit;
+}
 
 // seconds since midnight for "04:22:53 AM", or null
 function tx_secs($time)

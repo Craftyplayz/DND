@@ -5,7 +5,8 @@ auth_require();
 
 // folder => description
 $sections = [
-    'transcripts' => 'Import a D&D session',
+    'archive/transcripts' => 'Session recordings (archived)',
+    'archive/private/transcripts' => 'Import a D&D session',
     'dnd' => 'D&D sheet backups',
     'dnd/monsters' => 'Monster sheet backups',
 ];

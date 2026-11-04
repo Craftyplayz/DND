@@ -33,7 +33,6 @@ function site_pages()
         '/dice/test/' => ['Dice Fairness Test', "Rolls the Homebrew Sheet's 3D dice over and over in four panels to check they are fair", false],
         '/dice/' => ['Dice Sets', 'Ten 3D dice sets with moving parts and 35 sounds to pick from, with a test roll that lands on any number', false],
         '/dice/rolls/' => ['Quick Rolls', 'Four buttons that roll a nat 1, anything from 2 to 19 or a nat 20, or flip a coin, with the dice chosen on Dice Sets', false],
-        '/transcripts/' => ['Session Transcripts', 'D&D session recordings with transcripts you can click to play', false],
     ];
 }
 
@@ -68,13 +67,13 @@ function site_breadcrumbs($path)
     if ($found) {
         $crumbs[] = '<span aria-current="page">' . h($found[0]) . '</span>';
     } else {
-        // not in site_pages(): fall back to the folder names
+        // not in site_pages(): fall back to the folder names; $site_page['crumb'] names the last one (a campaign's name, not its id)
         $parts = array_values(array_filter(explode('/', rawurldecode($path)), 'strlen'));
         $url = '/';
         foreach ($parts as $i => $part) {
             if (preg_match('/^index\.(php|html?)$/', $part)) break;
             $url .= $part . '/';
-            $label = ucwords(str_replace(['_', '-'], ' ', preg_replace('/\.(php|html?)$/', '', $part)));
+            $label = $i === count($parts) - 1 && isset($GLOBALS['site_page']['crumb']) ? $GLOBALS['site_page']['crumb'] : ucwords(str_replace(['_', '-'], ' ', preg_replace('/\.(php|html?)$/', '', $part)));
             $crumbs[] = $i < count($parts) - 1 ? '<a href="' . h($url) . '">' . h($label) . '</a>' : '<span aria-current="page">' . h($label) . '</span>';
         }
     }

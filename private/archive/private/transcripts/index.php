@@ -1,10 +1,10 @@
 <?php
-// Imports a D&D session (Discord recorder .md export + .ogg recording) into /transcripts/.
+// Imports a D&D session (Discord recorder .md export + .ogg recording) into the archived /private/archive/transcripts/ (ROADMAP 1.9).
 // Lives in /private/ so only the admins in includes/config.php can upload. Files arrive in 4 MB chunks because
 // the host's proxy rejects requests near 8 MB (413), well under PHP's own 64 MB limit.
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 auth_require();
-require $_SERVER['DOCUMENT_ROOT'] . '/transcripts/transcripts.php';
+require $_SERVER['DOCUMENT_ROOT'] . '/private/archive/transcripts/transcripts.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dir = TX_DATA . "/$slug";
     if (!mkdir($dir, 0755) || !rename("$tmp/$id.md", "$dir/transcript.md") || !rename("$tmp/$id.ogg", "$dir/audio.ogg")) $fail('Could not save the session.', 500);
     file_put_contents("$dir/meta.json", json_encode(['name' => $name, 'imported' => time()]));
-    exit(json_encode(['url' => '/transcripts/?s=' . $slug]));
+    exit(json_encode(['url' => '/private/archive/transcripts/?s=' . $slug]));
 }
 
 $site_page = ['components' => true, 'title' => 'Import a D&D Session'];
@@ -62,7 +62,7 @@ $site_page = ['components' => true, 'title' => 'Import a D&D Session'];
 
     <main class="page" id="main">
         <h1 class="page-title">Import a D&amp;D Session</h1>
-        <p class="page-lede">Upload the transcript and its recording together. They appear on <a href="/transcripts/">Session Transcripts</a>.</p>
+        <p class="page-lede">Upload the transcript and its recording together. They appear on <a href="/private/archive/transcripts/">Session Transcripts</a>.</p>
 
         <form class="form form-card" id="tx-form">
             <label>Session name <input class="field" name="name" required maxlength="100" placeholder="Edrin's Disappearance"></label>

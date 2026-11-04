@@ -1,6 +1,9 @@
 # there is no /sheets/ page; the breadcrumbs on the test sheet link to it
 RedirectMatch 301 ^/sheets/?$ /
 
+# the session recordings are archived for the owner (ROADMAP 1.9): transcripts/data stays in its volume but never opens from here
+RedirectMatch 301 ^/transcripts(/.*)?$ /campaigns/
+
 # Browser caching for static files outside /assets (those aren't versioned, so keep it short)
 <IfModule mod_headers.c>
     <FilesMatch "\.(css|js)$">

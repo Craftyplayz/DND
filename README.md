@@ -13,7 +13,7 @@ Our D&D campaign tools, split out of craftyplayz.com:
   - Your own house rules, saved to your account and shareable with a campaign (more kinds of homebrew are coming, ROADMAP 5.2)
   - Planned, not built yet: on any page whatsoever, the Compendium opens in a popup sidebar window for super fast referencing
 - `/dice/` 3D dice sets, `/dice/rolls/` quick rolls, `/dice/test/` dice fairness test
-- `/transcripts/` session recordings and transcripts (data in `transcripts/data/`, server only)
+- `/private/archive/transcripts/` the old session recordings and transcripts, archived for the owner (data in `transcripts/data/`, server only, no longer served; `/transcripts/...` redirects to `/campaigns/`)
 - `/private/` backup browsers and the session importer, behind HTTP basic auth
 
 Plain PHP 7.4+ and Apache (`.htaccess`), no build step; in production a php:8.3-apache image (`Dockerfile`).

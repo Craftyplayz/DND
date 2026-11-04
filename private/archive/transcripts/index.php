@@ -1,9 +1,12 @@
 <?php
+// Archived with ROADMAP 1.9: for the owner only, behind the site password and auth_require(). It reads and serves the sessions itself.
 require __DIR__ . '/transcripts.php';
 $slug = $_GET['s'] ?? '';
 $s = tx_slug_ok($slug) ? tx_session($slug) : null;
-$site_page = ['components' => true, 'css' => ['/assets/css/pages/games-dnd-transcripts.css']] + ($s ? ['title' => $s['name']] : []);
+$site_page = ['components' => true, 'css' => ['/private/archive/assets/css/pages/games-dnd-transcripts.css']] + ($s ? ['title' => $s['name']] : []);
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
+auth_require();
+if (isset($_GET['audio'])) tx_send_audio((string)$_GET['audio']);
 
 if ($s) {
     $md = (string)file_get_contents(TX_DATA . "/$slug/transcript.md");
@@ -28,12 +31,12 @@ if ($s) {
             <h1 class="page-title"><?= h($s['name']) ?></h1>
             <p class="page-lede">
                 <?= $s['ts'] ? h(date('j M Y', $s['ts'])) . ' · ' : '' ?><?= $s['duration'] ? h(tx_duration($s['duration'])) . ' · ' : '' ?><?= h(implode(', ', $speakers)) ?>.
-                <a href="/transcripts/">All sessions</a>
+                <a href="/private/archive/transcripts/">All sessions</a>
             </p>
 
             <?php if (!$s['audio']): ?><p class="note">This session has no recording.</p><?php endif; ?>
             <div class="bar tx-bar">
-                <?php if ($s['audio']): ?><audio id="tx-audio" controls preload="metadata" src="data/<?= h($slug) ?>/audio.ogg"></audio><?php endif; ?>
+                <?php if ($s['audio']): ?><audio id="tx-audio" controls preload="metadata" src="?audio=<?= h($slug) ?>"></audio><?php endif; ?>
                 <input class="field tx-q" id="tx-q" type="search" placeholder="Search the transcript" aria-label="Search the transcript">
                 <button class="btn small" type="button" id="tx-prev" title="Previous match (Shift+Enter)">Previous</button>
                 <button class="btn small" type="button" id="tx-next" title="Next match (Enter)">Next</button>
@@ -69,7 +72,7 @@ if ($s) {
             <h1 class="page-title">Session Transcripts</h1>
             <p class="page-lede">Recordings of our D&amp;D sessions. Click any line of a transcript to hear it.</p>
             <?php if ($slug !== ''): ?><p class="err">That session doesn't exist.</p><?php endif; ?>
-            <div class="actions tx-actions"><a class="btn primary" href="/private/transcripts/">Import a session</a></div>
+            <div class="actions tx-actions"><a class="btn primary" href="/private/archive/private/transcripts/">Import a session</a></div>
             <?php if (!$sessions): ?>
                 <p class="note">No sessions yet.</p>
             <?php else: ?>
