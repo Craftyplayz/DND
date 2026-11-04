@@ -34,7 +34,7 @@ if (isset($_GET['ver']) || isset($_GET['party'])) {
     if (!$ok) { http_response_code($user ? 404 : 401); exit('{"error":"No such campaign."}'); }
     exit(json_encode(isset($_GET['ver']) ? ['ver' => tv_ver()] : ['name' => $c['name'], 'party' => tv_party($accounts, $c)], JSON_UNESCAPED_SLASHES));
 }
-$site_page = ['title' => $ok ? 'Table · ' . $c['name'] : 'Table view not found', 'components' => true, 'css' => ['/assets/css/pages/fight.css', '/assets/css/pages/map.css', '/assets/css/pages/table.css']];
+$site_page = ['nopopup' => true, 'title' => $ok ? 'Table · ' . $c['name'] : 'Table view not found', 'components' => true, 'css' => ['/assets/css/pages/fight.css', '/assets/css/pages/map.css', '/assets/css/pages/table.css']];
 if (!$ok) http_response_code(404);
 ?>
 <!DOCTYPE html>

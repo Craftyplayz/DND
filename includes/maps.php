@@ -529,7 +529,7 @@ function mp_suffix($toks, $mon, $name = null)
 //   {op: "draw", m, add} and {op: "drawdel", m, ids} (players too: their own lines, the map on the table) | {op: "drawset", m, draws} | {op: "overlay", m, o} (by id) | {op: "overlaydel", m, ids}
 //   {op: "token", m, k, size?, hidden?, ring?, noName?, locked?, group?, name?, cond?} (players: size only, their own token on the map on the table)
 //   {op: "drop", m, mon} | {op: "remove", m, k} | {op: "place", m, mon, x, y, ac?, bonus?} | {op: "paste", m, k, x, y}
-//   {op: "copyhp", m, k, hop} | {op: "enc", m, enc} | {op: "opts", m, fx?, ac?}
+//   {op: "copyhp", m, k, hop} | {op: "enc", m, enc} | {op: "opts", m, fx?, ac?} | {op: "send", m, mons: [{mon, ac, bonus}]}
 // and for everyone: {op: "move", m, k, x, y, placed} (players: their own character's token on the map on the table only, unless locked),
 // {op: "ruler", m, pts: [[x, y], ...] | null}, {op: "ping", m, x, y, c}, {op: "trail", m, id, pts, c} (shown to everyone live, never saved).
 function mp_op($accounts, $c, $sub, $body)
@@ -587,6 +587,9 @@ function mp_op($accounts, $c, $sub, $body)
         $stored[$t['k']] = $keep;
         $m['tokens'] = $stored;
         if (!mp_write($accounts, $c['id'], $m)) return [500, ['error' => "Couldn't save the move."], []];
+        // the action log (ROADMAP "Stats data"): where a move ended, not each step of a drag
+        if ($placed && empty($body['drag'])) st_add($accounts, 'campaigns', $c['id'], array_filter(['t' => 'token', 'map' => $m['id'], 'k' => $t['k'], 'kind' => $t['kind'], 'char' => $t['char'] ?? null, 'mon' => $t['mon'] ?? null, 'copy' => $t['copy'] ?? null, 'name' => $t['name'] ?? null,
+            'from' => isset($before['x'], $before['y']) && !empty($before['placed']) ? [$before['x'], $before['y']] : null, 'to' => [$keep['x'], $keep['y']], 'grid' => $m['grid']['s'], 'by' => $dm ? 'dm' : 'player'], fn($v) => $v !== null));
         $t = array_merge($t, ['x' => $keep['x'] ?? null, 'y' => $keep['y'] ?? null, 'placed' => $placed && isset($keep['x'])]);
         $msg = ['type' => 'mapmove', 'm' => $m['id'], 'k' => $t['k'], 'x' => $t['x'], 'y' => $t['y'], 'placed' => $t['placed']];
         $live = [[$msg, 'dm']];
@@ -618,6 +621,7 @@ function mp_op($accounts, $c, $sub, $body)
         if (!mp_put(mp_root($accounts, $c['id']) . '/table.json', ['active' => $m['id']])) return [500, ['error' => "Couldn't put the map on the table."], []];
         $f = fi_read($accounts, $c['id']);
         mp_fight_sync($accounts, $c, $f, $f);
+        st_add($accounts, 'campaigns', $c['id'], ['t' => 'map', 'map' => $m['id'], 'name' => mb_substr((string)($m['name'] ?? ''), 0, 80)]);
         return [200, ['active' => $m['id']], [[['type' => 'map'], null]]];
     }
     if ($op === 'hide') {
@@ -668,6 +672,37 @@ function mp_op($accounts, $c, $sub, $body)
             + array_intersect_key($from ?? [], ['cond' => 1, 'ring' => 1, 'noName' => 1, 'hidden' => 1]);
         $m['tokens'] = $toks;
         return mp_write($accounts, $c['id'], $m) ? [200, ['k' => $k], $all] : [500, ['error' => "Couldn't save the token."], []];
+    }
+    // Send to initiative (3.3): an encounter from the Monster Sheet joins this map's Combat Encounter as copies with their own HP.
+    // Not placed, so players see nothing until the DM puts them on the map. A name that's already unique stays as it is, no letter.
+    if ($op === 'send') {
+        if (fi_read($accounts, $c['id'])) return [409, ['error' => 'A fight is running. Add them from the Monster Sheet.'], []];
+        $toks = (array)($m['tokens'] ?? []);
+        $mons = [];
+        foreach (is_array($body['mons'] ?? null) ? $body['mons'] : [] as $x) {
+            $mon = is_array($x) ? fi_monster($accounts, $c, (string)($x['mon'] ?? ''), $sub) : null;
+            if (!$mon) return [400, ['error' => 'Save those monsters to your account first (sign in on the Monster Sheet).'], []];
+            $mons[] = [$x, $mon, mb_substr((string)($mon['name'] ?? '') ?: 'Monster', 0, 80)];
+        }
+        if (!$mons) return [400, ['error' => 'There are no monsters to send.'], []];
+        $taken = array_count_values(array_column($mons, 2));
+        $copies = [];
+        $enc = ($m['enc'] ?? []) + ['ids' => [], 'init' => [], 'side' => []];
+        foreach ($mons as [$x, $mon, $name]) {
+            $id = $mon['id'];
+            $alone = $taken[$name] === 1 && !array_filter($toks, fn($t) => !empty($t['copy']) && ($t['name'] ?? null) === $name);
+            $suffix = $alone ? '' : mp_suffix($toks, $id, $name);
+            $copy = bin2hex(random_bytes(6));
+            $copies[$copy] = ['mon' => $id, 'by' => $sub, 'name' => $name, 'suffix' => $suffix, 'hp' => fi_hp($mon['hp'] ?? [], ['k' => 'set', 'hp' => []]), 'ac' => fi_int($x['ac'] ?? null), 'bonus' => fi_int($x['bonus'] ?? 0) ?? 0];
+            $k = mp_key($c['id'], 'monster', "$sub:$id:$copy");
+            $toks[$k] = ['kind' => 'monster', 'mon' => $id, 'by' => $sub, 'copy' => $copy, 'suffix' => $suffix, 'name' => $name, 'size' => mp_size_of($mon['race'] ?? ''), 'x' => null, 'y' => null, 'placed' => false];
+            $enc['ids'][] = $k;
+            $enc['side'][$k] = 'enemy';
+        }
+        if (!fi_copies_change($accounts, $c['id'], function (&$all) use ($copies) { $all = $copies + $all; return true; })) return [500, ['error' => "Couldn't save the tokens."], []];
+        $m['tokens'] = $toks;
+        $m['enc'] = $enc;
+        return mp_write($accounts, $c['id'], $m) ? [200, ['sent' => count($mons)], $all] : [500, ['error' => "Couldn't save the tokens."], []];
     }
     if ($op === 'rename') {
         $name = cp_clean_name($body['name'] ?? '');

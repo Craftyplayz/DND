@@ -15,6 +15,7 @@
 // <accounts>/monsters/<by>/<id>.json; entries from before co-DMs have no "by" and use the DM's), or from its copy.
 require_once __DIR__ . '/tablelog.php';
 require_once __DIR__ . '/dmedits.php';
+require_once __DIR__ . '/stats.php';
 
 function fi_file($accounts, $id)
 {
@@ -74,11 +75,19 @@ function fi_copies_change($accounts, $cid, $fn)
 // one HP change on a copy (fi_hp): the new HP, or null
 function fi_copy_hp($accounts, $cid, $copy, $op)
 {
-    return fi_copies_change($accounts, $cid, function (&$all) use ($copy, $op) {
+    return fi_copies_change($accounts, $cid, function (&$all) use ($accounts, $cid, $copy, $op) {
         if (!isset($all[$copy])) return null;
-        $hp = fi_hp($all[$copy]['hp'] ?? [], $op);
+        $was = $all[$copy]['hp'] ?? [];
+        $hp = fi_hp($was, $op);
         if ($hp === null) return null;
         $all[$copy]['hp'] = $hp;
+        // the action log (ROADMAP "Stats data"): a copy on the map counts in or out of a fight
+        $cp = $all[$copy];
+        $f = fi_read($accounts, $cid);
+        $e = null;
+        foreach ($f['entries'] ?? [] as $x) if (($x['copy'] ?? null) === $copy) $e = $x;
+        $m = ch_json("$accounts/monsters/" . preg_replace('/\D/', '', (string)($cp['by'] ?? '')) . '/' . basename((string)($cp['mon'] ?? '')) . '.json') ?? ['id' => $cp['mon'] ?? null];
+        st_mhp($accounts, $cid, $f['n'] ?? null, $e ?? ['copy' => $copy, 'mon' => $cp['mon'] ?? null, 'ac' => $cp['ac'] ?? null], $m, trim(($cp['name'] ?? '') . ' ' . ($cp['suffix'] ?? '')), $was, $hp, $op);
         return $hp;
     });
 }

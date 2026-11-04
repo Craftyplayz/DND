@@ -1,11 +1,11 @@
 // The whole check suite in one command: every *.test.js, every *.test.php and every browser check in headless Chrome and
 // Firefox, run side by side. Ends with a table and "all checks ok" or "N checks failed".
-//   node _dev/scripts/check-all.mjs [--only pages-ok,art-sync] [--data <old URL>] [--jobs N] [--ports 8300-8399]
+//   node _dev/scripts/check-all.mjs [--only pages-ok,art-sync] [--data <old URL>] [--jobs N] [--ports 8300-8499]
 //   --only    just these checks (script names without .mjs/.test.js/.test.php)
 //   --data    also run sheet-keeps-data.mjs against that old URL (the live code), in both browsers
 //   --jobs    how many checks at once (default: half the logical CPUs; each browser check is a browser, a PHP server and
 //             often a relay, and at the full count the relays' timings got flaky)
-//   --ports   the range the servers and relays use (default 8300-8399); ports already in use are skipped
+//   --ports   the range the servers and relays use (default 8300-8499); ports already in use are skipped
 // Every job gets its own CHECK_PORT_SHIFT (so its servers, relays and temp folders are its own) and, when the script takes a
 // base URL, its own PHP server with its own backups, accounts and sessions folders, so nothing a check writes reaches
 // private/dnd/ and no two checks share a port or a folder. Every browser gets a debugging port of its own from the system
@@ -47,12 +47,16 @@ export const BROWSER_CHECKS = {
     'homebrew-page': { ports: [8130], split: true, tmp: 'dnd-homebrew-check', secs: 40 },
     'campaign-tabs': { ports: [8131, 8103], split: true, tmp: 'dnd-tabs-check', secs: 120 },
     'encounter-builder': { ports: [8138], split: true, tmp: 'dnd-builder32-check', secs: 120 },
+    'send-initiative': { ports: [8145, 8105], split: true, tmp: 'dnd-send-check', secs: 60 },
     'homebrew-copies': { ports: [8137], split: true, tmp: 'dnd-hbcopies-check', secs: 120 },
     'homebrew-monsters': { ports: [8139], split: true, tmp: 'dnd-hbmonsters-check', secs: 120 },
     'homebrew-classes': { ports: [8140], split: true, tmp: 'dnd-hbclasses-check', secs: 150 },
+    'popup-page': { ports: [8142], split: true, tmp: 'dnd-popup-check', secs: 200 },
     'phone-mode': { ports: [8141], split: true, tmp: 'dnd-phone-check', secs: 200 },
     'layout-ok': { ports: [8142, 8104], split: true, tmp: 'dnd-layout-check', secs: 150 },
     'dice-folds': { url: true, split: true, secs: 40 },
+    'stats-page': { ports: [8142], split: true, tmp: 'dnd-stats-check', secs: 60 },
+    'sheet-rules': { ports: [8142, 8104], split: true, tmp: 'dnd-rules-check', secs: 120 },
 };
 // unit tests that open ports of their own (before the shift)
 const TEST_PORTS = { 'live-relay.test.js': [8095, 8096], 'monster-encounters.test.php': [8124], 'maps.test.php': [8125] };
@@ -83,7 +87,7 @@ export function jobs(files, { data } = {}) {
 
 // gives every job a CHECK_PORT_SHIFT and its own server port when it needs one, no port shared or busy; returns the jobs
 // with .shift, .port, .used (every port it opens) and .folders
-export function plan(list, { lo = 8300, hi = 8399, busy = new Set() } = {}) {
+export function plan(list, { lo = 8300, hi = 8499, busy = new Set() } = {}) {
     const used = new Set(busy), shifts = new Set();
     return list.map((j, i) => {
         // a job with a URL serves the site on 8110 + shift, the port the scripts' usage lines show
@@ -139,7 +143,7 @@ async function main() {
     const argv = process.argv.slice(2), opt = (k) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : null; };
     const only = opt('--only')?.split(',').map((s) => s.trim().replace(/\.(mjs|test\.js|test\.php)$/, ''));
     const data = opt('--data'), width = +opt('--jobs') || Math.max(2, Math.floor(availableParallelism() / 2));
-    const [lo, hi] = (opt('--ports') || '8300-8399').split('-').map(Number);
+    const [lo, hi] = (opt('--ports') || '8300-8499').split('-').map(Number);
 
     if (!existsSync(join(ROOT, 'live/node_modules'))) { console.log('installing the live relay packages (npm install in live/)'); execSync('npm install --no-audit --no-fund', { cwd: join(ROOT, 'live'), stdio: 'inherit', shell: true }); }
     if (!existsSync(join(ROOT, 'includes/config.php'))) console.log('WARNING includes/config.php is missing: the signed-in checks will fail (copy it from the main checkout)');

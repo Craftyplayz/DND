@@ -290,7 +290,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function hpOp(c, op) {
         hpSeen[c.id] = hpKey(c);
         if (!cloud || !c.updated) return; // not in the account: the whole-monster save carries it
-        hpKeep([...hpQueue(), { q: uid() + uid(), id: c.id, op }]);
+        hpKeep([...hpQueue(), { q: uid() + uid(), id: c.id, op, at: Date.now() }]);
         hpFlush();
     }
     // any other HP edit (typed numbers, rests) goes as the numbers that changed
@@ -307,7 +307,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         hpBusy = true;
         for (const item of hpQueue()) {
             let r;
-            try { r = await fetch('cloud.php?hp=' + encodeURIComponent(item.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: item.q, op: item.op }) }); } catch (e) { break; }
+            try { r = await fetch('cloud.php?hp=' + encodeURIComponent(item.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q: item.q, op: item.op, at: item.at, now: Date.now() }) }); } catch (e) { break; }
             if (r.status === 401) { cloudOff(); break; }
             if (r.status >= 500 || r.status === 429) break;
             hpKeep(hpQueue().filter((x) => x.q !== item.q)); // done, or turned down for good (404: not in the account; its save carries it)
@@ -1940,7 +1940,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const fightNow = () => (camp() && window.Fight?.state(camp().id)) || null;
     function fightBtn(c) {
         const f = fightNow();
-        if (!f) return '';
+        if (!f) return !c && camp() && !encOf(shownEnc)?.archived && monsIn(shownEnc).some((m) => !m.archived) ? '<p><button type="button" class="btn small" data-act="encsend">Send to initiative</button></p>' : '';
         if (!c) return '<p><button type="button" class="btn small" data-act="fightadd">Add whole encounter to fight</button></p>';
         return f.entries.some((e) => e.mon === c.id) ? '<span class="badge">In fight</span>' : `<button type="button" class="btn small" data-act="fightadd" data-id="${esc(c.id)}" aria-label="Add ${esc(c.name || 'Unnamed monster')} to the fight">Add to fight</button>`;
     }
@@ -1963,6 +1963,24 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         }
         store();
         await Fight.act(camp().id, 'add', { items });
+    }
+    // Send to initiative (3.3): no fight yet, so the map page makes the copies and the DM starts the fight there; in the account first, so it finds them
+    async function encSend(b) {
+        const list = monsIn(shownEnc).filter((m) => !m.archived), id = camp()?.id;
+        if (!id || !list.length) return;
+        b.disabled = true;
+        try {
+            for (const m of list) {
+                if (!m.updated) m.updated = Date.now();
+                const r = await fetch('cloud.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m) });
+                if (!r.ok && r.status !== 409) throw new Error(r.status); // 409: the account already has a newer copy
+            }
+        } catch (e) {
+            b.disabled = false;
+            return toast("Couldn't save the monsters to your account. Check your connection and try again.", 'err');
+        }
+        store();
+        location.href = `/campaigns/${encodeURIComponent(id)}/map?send=${list.map((m) => encodeURIComponent(m.id)).join(',')}`;
     }
     // a copy with full hit points; like every new monster it starts in Unsorted (ROADMAP 3.1)
     function dupMonster() {
@@ -2462,7 +2480,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     // what an archived monster still does: look, roll, open things, and come back
     const VIEW_ACTS = new Set(['phrow', 'advnext', 'dieless', 'skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
-        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions', 'fightadd', 'encshow', 'encunarc', 'diffadd', 'diffparty', 'diffrefresh', 'diffopen']); // fightadd: other monsters into the fight
+        'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions', 'fightadd', 'encsend', 'encshow', 'encunarc', 'diffadd', 'diffparty', 'diffrefresh', 'diffopen']); // fightadd: other monsters into the fight
 
     // ---- events ----
     const main = $('.hb');
@@ -2668,6 +2686,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'tray') { if (Phone.on()) return Phone.open('dice'); tray.open = !tray.open; return drawTray(); }
         if (act === 'rollto') { setRollTo(!rollTo()); return drawTray(); }
         if (act === 'fightadd') return fightAdd(b.dataset.id ? [db.chars[b.dataset.id]] : monsIn(shownEnc).filter((c) => !c.archived), b);
+        if (act === 'encsend') return encSend(b);
         if (act === 'logtab') { logTab = b.dataset.t; return drawLog(); }
         if (act === 'logclear') { if (Phone.on()) { const was = C.rolls; C.rolls = []; saveNow(); drawLog(); offerUndo('Roll log cleared.', () => { C.rolls = was; saveNow(); drawLog(); }); return; } if (confirm('Clear the roll log for this monster?')) { C.rolls = []; saveNow(); drawLog(); } return; }
         if (act === 'die') { tray.pool[b.dataset.n] = (tray.pool[b.dataset.n] || 0) + 1; return drawTray(); }
@@ -2860,6 +2879,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         return navigator.locks ? navigator.locks.request('mon-pending', run) : run();
     }
     addEventListener('storage', (e) => { if (e.key === 'mon-pending') takePending(); });
+    // the Compendium popup (assets/js/popup.js) asks which encounter is shown, so its "Add to encounter" needs no picker
+    window.cpContext = () => ({ enc: shownEnc });
 
 
     // ---- phone mode (ROADMAP 2.1, assets/js/phone.js): what this sheet hands to the phone's frame ----

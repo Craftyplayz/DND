@@ -4,6 +4,8 @@
 //   await b.until('js expression', ms)             -> its first truthy value; throws "timed out ..." after ms (default 10 s)
 //   await b.block(/backup\.php|cloud\.php/)         requests whose URL matches fail
 //   b.errors                                        console errors and uncaught exceptions since the last go()
+//   await b.key('Control', 'k')                    real key input (a chord: all down in order, then up); names: Control Shift Alt Backspace Delete Escape Enter Tab or one character
+//   await b.drag([[x, y], [x2, y2], ...])           real mouse: press at the first point, move through the rest, release at the last (one point = a click)
 //   await b.shot(width)                             -> PNG Buffer of the whole page at that window width
 //   b.close()
 //   browsers                                        ['chrome', 'firefox'], or just the one CHECK_BROWSER names
@@ -48,6 +50,10 @@ async function rpc(url, onEvent) {
         ws.send(JSON.stringify({ id: i, method, params }));
     });
 }
+// real input: Chrome through Input.dispatch*, Firefox through BiDi input.performActions (key names to each browser's codes)
+const NAMED = { Control: ['Control', 'ControlLeft', 17, 2, '\uE009'], Shift: ['Shift', 'ShiftLeft', 16, 8, '\uE008'], Alt: ['Alt', 'AltLeft', 18, 1, '\uE00A'], Backspace: ['Backspace', 'Backspace', 8, 0, '\uE003'], Delete: ['Delete', 'Delete', 46, 0, '\uE017'],
+    Escape: ['Escape', 'Escape', 27, 0, '\uE00C'], Enter: ['Enter', 'Enter', 13, 0, '\uE007'], Tab: ['Tab', 'Tab', 9, 0, '\uE004'], '-': ['-', 'Minus', 189, 0, '-'] };
+const chromeKey = (n) => { const [key, code, vk, mod] = NAMED[n] || [n, 'Key' + n.toUpperCase(), n.toUpperCase().charCodeAt(0), 0]; return { key, code, windowsVirtualKeyCode: vk, mod }; };
 const value = (v) => v && ['string', 'number', 'boolean'].includes(v.type) ? v.value : null;
 
 // a browser that fails to start (Firefox losing its first tab, a port still held by the browser before) gets one more try
@@ -100,6 +106,10 @@ async function start(name) {
             return {
                 errors, close, ev, until: (e, ms) => until(ev, e, ms),
                 go: async (url) => { errors.length = 0; await send('browsingContext.navigate', { context, url, wait: 'complete' }); },
+                key: (...names) => { const v = (n) => (NAMED[n] ? NAMED[n][4] : n); return send('input.performActions', { context, actions: [{ type: 'key', id: 'kb', actions: [...names.map((n) => ({ type: 'keyDown', value: v(n) })), ...[...names].reverse().map((n) => ({ type: 'keyUp', value: v(n) }))] }] }); },
+                drag: (pts) => send('input.performActions', { context, actions: [{ type: 'pointer', id: 'mouse', parameters: { pointerType: 'mouse' }, actions: [
+                    { type: 'pointerMove', x: Math.round(pts[0][0]), y: Math.round(pts[0][1]), origin: 'viewport' }, { type: 'pointerDown', button: 0 },
+                    ...pts.slice(1).map(([x, y]) => ({ type: 'pointerMove', x: Math.round(x), y: Math.round(y), origin: 'viewport' })), { type: 'pointerUp', button: 0 }] }] }),
                 block: async (re) => { blocked = re; await send('network.addIntercept', { phases: ['beforeRequestSent'] }); },
                 shot: async (width, height = 800) => {
                     await send('browsingContext.setViewport', { context, viewport: { width, height }, devicePixelRatio: 1 });
@@ -135,6 +145,17 @@ async function start(name) {
                 await send('Page.bringToFront'); const h = (await send('Runtime.evaluate', { expression: 'document.documentElement.scrollHeight', returnByValue: true })).result.value;
                 await send('Emulation.setDeviceMetricsOverride', { width, height: Math.max(height, h), deviceScaleFactor: 1, mobile: false });
                 return Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64');
+            },
+            key: async (...names) => {
+                const ks = names.map(chromeKey); let mods = 0;
+                for (const k of ks) { mods |= k.mod; await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: k.key, code: k.code, windowsVirtualKeyCode: k.windowsVirtualKeyCode, modifiers: mods }); }
+                for (const k of [...ks].reverse()) { await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k.key, code: k.code, windowsVirtualKeyCode: k.windowsVirtualKeyCode, modifiers: mods }); mods &= ~k.mod; }
+            },
+            drag: async (pts) => {
+                const m = (type, [x, y], extra = {}) => send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1, ...extra });
+                await m('mouseMoved', pts[0], { button: 'none' }); await m('mousePressed', pts[0], { buttons: 1 });
+                for (const p of pts.slice(1)) await m('mouseMoved', p, { buttons: 1 });
+                await m('mouseReleased', pts.at(-1), { buttons: 0 });
             },
             block: (re) => send('Network.setBlockedURLs', { urls: re.source.split('|').map((s) => `*${s.replace(/\\/g, '')}*`) }),
         };

@@ -367,10 +367,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // spells inside the class step: cantrips and spells up to the highest level the class can cast, with the class's counts.
     // A fold per spell level (its picked count in the summary), a row per spell, search and filters, the picks as chips on top.
     function spellsHtml(e, P, lv, from) {
-        const k = B.casterOf(e.id, D);
+        const sub = lv >= B.subLevel(e.id, D) ? e.sub : '', k = B.casterOf(e.id, D, sub);
         if (k.kind === 'none') return '';
         if (!need(['spells'])) return '<div class="bd-sect"><h3>Spells</h3><p class="hint">Loading the spells...</p></div>';
-        const top = B.maxSpellLevel(e.id, lv, D), n = B.spellCounts(e.id, lv, D, scores()), was = from > 1 ? B.spellCounts(e.id, from - 1, D, scores()) : { cantrips: 0, known: 0, prepared: 0, book: 0 };
+        const top = B.maxSpellLevel(e.id, lv, D, sub), n = B.spellCounts(e.id, lv, D, scores(), sub), was = from > 1 ? B.spellCounts(e.id, from - 1, D, scores(), from - 1 >= B.subLevel(e.id, D) ? e.sub : '') : { cantrips: 0, known: 0, prepared: 0, book: 0 };
         const always = new Set(B.alwaysPrepared(e.id, e.sub, lv, D));
         const pool = B.spellPool(e.id, e.sub, D).filter((s) => s.level !== null && s.level <= top && !always.has(s.index) && (Books.allows(D.spells[s.index]?.book) || arr(`${P}.spells`).includes(s.index)));
         if (!pool.length && !always.size) return `<div class="bd-sect"><h3>Spells</h3><p class="hint">No spells to pick at this level.</p></div>`;

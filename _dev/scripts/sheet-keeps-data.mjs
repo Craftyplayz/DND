@@ -32,6 +32,9 @@ function saves(folder) {
 // every leaf of `old` must be in `now` unchanged; returns the paths that aren't. "updated" is the sheet's own stamp;
 // comparing two code versions also skips id and created, which an upgrade makes fresh each time it runs
 const IGNORE = new Set(OLD ? ['updated', 'id', 'created'] : ['updated']);
+// the character fields of ROADMAP 4.4 and 4.5 as a save from before them must open
+const BLANKS = (n) => Array(n).fill('');
+const RULES_DEFAULT = { rulesVer: '', spellPts: { on: false, used: 0, pts: BLANKS(20), cost: BLANKS(9) }, weightOn: false, capF: 'STR_SCORE * 15', coinsOn: true, campRules: { id: '', sp: false, weight: false, pts: BLANKS(20), cost: BLANKS(9) } };
 function lost(old, now, path = '') {
     if (old === null || typeof old !== 'object') return Object.is(old, now) ? [] : [`${path}: ${JSON.stringify(old)} -> ${JSON.stringify(now)}`.slice(0, 160)];
     if (now === null || typeof now !== 'object') return [`${path}: was ${Array.isArray(old) ? 'a list' : 'an object'}, now ${JSON.stringify(now)}`];
@@ -77,7 +80,8 @@ try {
             // character's "hoPanel" (ROADMAP 3.4, false until the character is in a campaign while signed in, never here)
             // and (ROADMAP 1.5) "dmApplied", the DM edits applied (none here), and "calc", the sheet's worked-out max HP
             // and (ROADMAP 4.2) "draft" (0: not in the builder) and "build" (the builder's picks; {} for one it didn't make)
-            const added = key === 'monster-sheet' ? ['enc', 'hbsrc', 'cmp'] : ['hoPanel', 'dmApplied', 'calc', 'draft', 'build'];
+            // and (ROADMAP 4.4, 4.5) the rules fields below, each checked to be its default
+            const added = key === 'monster-sheet' ? ['enc', 'hbsrc', 'cmp'] : ['hoPanel', 'dmApplied', 'calc', 'draft', 'build', ...Object.keys(RULES_DEFAULT)];
             if (OLD && before[c.id] && after[c.id]) for (const k of Object.keys(after[c.id])) if (!(k in before[c.id]) && !added.includes(k)) miss.push(`${k}: added`);
             if (key !== 'monster-sheet' && after[c.id]) {
                 const a = after[c.id], nm = (x) => parseFloat(x) || 0, con = a.abilities.find((x) => String(x.key).toLowerCase() === 'con');
@@ -88,6 +92,7 @@ try {
             if (key === 'monster-sheet' && after[c.id] && !('enc' in c) && after[c.id].enc !== '') miss.push(`enc: ${JSON.stringify(after[c.id].enc)}, not Unsorted`);
             if (key !== 'monster-sheet' && after[c.id] && !('draft' in c) && after[c.id].draft !== 0) miss.push(`draft: ${JSON.stringify(after[c.id].draft)}, not 0`);
             if (key !== 'monster-sheet' && after[c.id] && !('build' in c) && JSON.stringify(after[c.id].build) !== '{}') miss.push(`build: ${JSON.stringify(after[c.id].build).slice(0, 80)}, not {}`);
+            if (key !== 'monster-sheet' && after[c.id]) for (const [f, want] of Object.entries(RULES_DEFAULT)) if (!(f in c) && JSON.stringify(after[c.id][f]) !== JSON.stringify(want)) miss.push(`${f}: ${JSON.stringify(after[c.id][f]).slice(0, 80)}, not its default`);
             if (key !== 'monster-sheet' && after[c.id] && !('hoPanel' in c) && after[c.id].hoPanel !== false) miss.push(`hoPanel: ${JSON.stringify(after[c.id].hoPanel)}, not false`);
             if (miss.length) { failed++; console.log(`FAIL ${path} ${from}: ${miss.length} value(s) changed or gone\n  ` + miss.slice(0, 8).join('\n  ')); }
         }

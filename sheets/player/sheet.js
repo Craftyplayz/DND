@@ -9,10 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const root = $('#hb-sheet'), dlg = $('#hb-dlg'), dlgBody = $('#hb-dlg-body'), drawer = $('#hb-drawer');
 
     // the character model (blank(), ROW, panel types, SRD weapons and gear) is shared with the builder: model.js
-    const { ABIL, SKILLS, CONDITIONS, LISTS, WEAPONS, ARMOUR, GEAR, PRESET, TOOLS, FLEX_COST, TYPES, DETAILS, nm, ROW, PANEL_ROW, newPanel, blank } = hbModel(() => uid());
+    const { ABIL, SKILLS, CONDITIONS, LISTS, WEAPONS, ARMOUR, GEAR, PRESET, TOOLS, FLEX_COST, TYPES, DETAILS, nm, magicWeight, ROW, PANEL_ROW, newPanel, blank } = hbModel(() => uid());
     const LIST_NAMES = { time: 'Timings', dmg: 'Damage types', props: 'Weapon properties', cats: 'Item categories', speeds: 'Speed types' };
-    // 2014 classes that prepare spells; the rest know theirs, so the Prepared tab hides unless Customise turns it on
-    const PREP_CLASSES = ['artificer', 'cleric', 'druid', 'paladin', 'wizard'];
+    // classes that prepare spells; the rest know theirs, so the Prepared tab hides unless Customise turns it on. In 2024 every spellcasting class prepares
+    const PREP_CLASSES = ['artificer', 'cleric', 'druid', 'paladin', 'wizard'], PREP_2024 = ['bard', 'ranger', 'sorcerer', 'warlock'];
     const HIT_DIE = { barbarian: 12, fighter: 10, paladin: 10, ranger: 10, sorcerer: 6, wizard: 6, artificer: 8, bard: 8, cleric: 8, druid: 8, monk: 8, rogue: 8, warlock: 8 };
     // suggestion lists for the plain text fields
     const CLASSES = Object.keys(HIT_DIE).map((c) => c[0].toUpperCase() + c.slice(1));
@@ -202,6 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
         out.view = Object.assign(d.view, out.view);
         out.calc = Object.assign(d.calc, out.calc);
         out.dmApplied = strs(out.dmApplied);
+        // ROADMAP 4.4: the tables have a fixed length; a blank is ''
+        const table = (list, n) => Array.from({ length: n }, (_, i) => (Array.isArray(list) && list[i] != null ? list[i] : ''));
+        for (const [k, o] of [['spellPts', d.spellPts], ['campRules', d.campRules]]) { out[k] = Object.assign(o, out[k]); out[k].pts = table(out[k].pts, 20); out[k].cost = table(out[k].cost, 9); }
         out.lists = Object.assign(d.lists, out.lists);
         // Misc joined the item categories later; older sheets get it once (removing it in Customise sticks)
         if (!out.miscCat && !/^misc$/im.test(out.lists.cats)) out.lists.cats = String(out.lists.cats).trim() + '\nMisc';
@@ -287,6 +290,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // signed in (data-cloud on <main>): characters are also kept in the account (cloud.php), with this browser's copy for offline use;
     // whichever copy has the newer "updated" wins. Untouched blanks (updated 0) stay in this browser.
     let cloud = 'cloud' in $('#main').dataset && !RO && !DMM;
+    // the action log (assets/js/stats.js, ROADMAP "Stats data"): only this browser's own characters, never a read-only or DM copy
+    const St = RO || DMM ? null : window.Stats;
+    if (St) { Object.values(db.chars).forEach(St.prime); St.start(() => cloud); }
     const API = '/sheets/player/'; // absolute, so /characters/<id> saves through the same files
     function cloudOff() {
         if (!cloud) return;
@@ -325,6 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const g = await fetch(API + 'cloud.php?id=' + encodeURIComponent(id));
             if (!g.ok) continue;
             db.chars[id] = normalise(await g.json());
+            St?.prime(db.chars[id]);
             got = true;
         }
         const ups = [];
@@ -384,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let undoSnap = null, undoTimer = 0; // undo for deletes, see snap()
     // what makes a version (as ch_plain in includes/characters.php): everything but save stamps, the roll log, view settings
     // and which note or tab is open
-    const plain = (c) => JSON.stringify(c, (k, v) => (['updated', 'open', 'sub', 'rolls', 'view', 'calc', 'dmApplied'].includes(k) ? undefined : v));
+    const plain = (c) => JSON.stringify(c, (k, v) => (['updated', 'open', 'sub', 'rolls', 'view', 'calc', 'dmApplied', 'campRules'].includes(k) ? undefined : v));
     let restoreUndo = null; // { plain, drop }: a restore's Undo, dropped by the next real edit (not a roll or a tab switch)
     function saveNow(edited = true) {
         if (C && C.archived) return; // read-only until it's unarchived
@@ -394,6 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (edited && C) C.updated = Date.now();
         if (C) C.calc = { hpMax: hpMax() }; // for the DM's fight tracker (ROADMAP 1.5)
         store();
+        St?.saw(C, edited);
         if (C) { dirty.add(C.id); clearTimeout(backupTimer); backupTimer = setTimeout(flushBackups, 4000); }
     }
     // the edit is stamped straight away, so switching character before the save runs still stamps the right one
@@ -523,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = r.name, dmg = () => (r.dmg || []).filter((d) => d.dice).map((d) => rollBtn(diceText(d.dice, V), diceRoll(d.dice, V), `${name || 'Damage'}${d.type ? ' ' + d.type.toLowerCase() : ''} damage`, esc(diceText(d.dice, V))));
         const hit = (v) => { const t = show({ ...v, signed: true }); return rollBtn(t, Number.isFinite(+v.v) ? { g: '20x1', m: +v.v, d20: 1 } : null, `${name || 'Attack'} to hit`, esc(t)); };
         if (P.type === 'attacks') return [r.mode === 'hit' ? hit(ev(r.hit, V)) : r.mode === 'save' ? `<small>${esc(r.save)} ${esc(show(ev(r.dc, V)))}</small>` : '', ...dmg()].filter(Boolean).join(' ');
-        if (P.type === 'spells' && 'lvl' in r) return [r.mode === 'atk' ? hit(ev(P.atk, V)) : r.mode === 'save' ? `<small>${esc(r.save)} ${esc(show(ev(r.dc || P.dc, V)))}</small>` : '', ...dmg()].filter(Boolean).join(' ');
+        if (P.type === 'spells' && 'lvl' in r) return [spellCost(r) && `<small>${spellCost(r)}</small>`, r.mode === 'atk' ? hit(ev(P.atk, V)) : r.mode === 'save' ? `<small>${esc(r.save)} ${esc(show(ev(r.dc || P.dc, V)))}</small>` : '', ...dmg()].filter(Boolean).join(' ');
         if (P.type === 'items') return `<small>${nm(r.qty) > 1 ? '×' + nm(r.qty) + ' · ' : ''}${nm(r.wt) ? nm(r.wt) + ' lb' : ''}</small>`;
         return r.src ? `<small>${esc(r.src)}</small>` : '';
     }
@@ -585,6 +593,123 @@ document.addEventListener('DOMContentLoaded', () => {
     // where the slots of each spell level (index 0 = 1st) live: the tracker's levels, or the Spells tab's own
     const slotBases = (path) => { const t = slotTracker(); return t ? get(t).levels.map((_, j) => `${t}.levels.${j}`) : get(path).slots.map((_, l) => `${path}.slots.${l}`); };
     const costAmt = (r) => (String(r.cost.amt).trim() ? maxOf(r.cost.amt) : 1);
+    // ---- the rules a sheet follows (ROADMAP 4.4, 4.5): its campaign's (the copy kept by loadCamps), else the character's own ----
+    const rulesNow = () => { const r = C.campRules; return r.id ? { sp: r.sp, weight: r.weight, pts: r.pts, cost: r.cost } : { sp: C.spellPts.on, weight: C.weightOn, pts: C.spellPts.pts, cost: C.spellPts.cost }; };
+    const weightOn = () => !!rulesNow().weight;
+    // class data for this sheet's rules version: srd-build.json first; the content file only for a class it hasn't got (or 2024, which has no srd-build). null until loaded.
+    const classSets = {};
+    function classData() {
+        const v = HbBuild.rulesOf(C), s = classSets[v] ||= { d: null, full: false, busy: false };
+        if (!s.busy && !s.full && (!s.d || HbBuild.classesOf(C, s.d).unknown)) {
+            const full = !!s.d || v !== '2014';
+            s.busy = true;
+            hbContent(v, full ? ['classes'] : []).then((d) => {
+                s.d = d; s.full = full; s.busy = false;
+                if (!d || HbBuild.rulesOf(C) !== v) return;
+                if (document.activeElement?.matches('input, textarea, select')) refresh(); else drawKeepY();
+            });
+        }
+        return s.d;
+    }
+    // spell points now: null when they're off or can't be worked out; max null when the table has no number for this caster level (slots stay)
+    function pointsNow() {
+        const R = rulesNow(), d = R.sp ? classData() : null;
+        if (!d) return null;
+        const cl = HbBuild.castingOf(C, d).casterLevel, n = cl > 0 ? String(R.pts[Math.min(20, cl) - 1] ?? '').trim() : '';
+        return { cl, max: n === '' ? null : nm(n) };
+    }
+    const pointsOn = () => pointsNow()?.max != null;
+    const spellCost = (r) => { if (!nm(r.lvl) || !pointsOn()) return ''; const n = String(rulesNow().cost[nm(r.lvl) - 1] ?? '').trim(); return n === '' ? '' : nm(n) + ' pts'; };
+    const limitLines = () => { const d = classData(); return d ? HbBuild.spellLimits(C, d) : null; };
+    // no prepared tick on a cantrip or a spell from a class that knows its spells (unless Customise asks for ticks on everything)
+    const noTick = (r, L) => !C.view.prep && (!nm(r.lvl) || !!L?.lines.some((l) => !l.prepares && l.name === r.source));
+    function limitsHtml() {
+        const L = limitLines();
+        if (!L) return '';
+        const n = (word, p) => (p ? `<span>${word} <b${p[0] > p[1] ? ' class="badge r"' : ''}>${p[0]} of ${p[1]}</b></span>` : '');
+        return [...L.lines.map((l) => `<div class="hb-limit"><button type="button" class="hb-link" data-act="limitinfo" data-n="${esc(l.name)}">${esc(l.name)} ${l.level}</button>${n('Spellbook', l.book)}${n('Prepared', l.prepared)}${n('Known', l.known)}${n('Cantrips', l.cantrips)}</div>`),
+            L.unassigned ? `<div class="hb-limit"><button type="button" class="hb-link" data-act="limitinfo" data-n="">Not assigned</button><span><b>${L.unassigned}</b> spell${L.unassigned === 1 ? '' : 's'}, added by hand, not counted</span></div>` : ''].join('');
+    }
+    function limitInfo(name) {
+        if (!name) return openDrawer('<h2>Not assigned</h2><div class="hb-desc"><p>These spells were added by hand or from the Compendium, so the sheet can\'t tell which class they belong to. They never count towards a limit and never warn.</p></div>');
+        const l = limitLines()?.lines.find((x) => x.name === name), v = HbBuild.rulesOf(C);
+        if (!l) return;
+        const ab = C.abilities.find((a) => String(a.key).toUpperCase() === l.ab)?.name || l.ab;
+        const how = [l.prepared && (v === '2014' && l.rate ? `Prepared: your ${ab} modifier + ${l.rate < 1 ? 'half ' : ''}your ${name.toLowerCase()} level${l.rate < 1 ? ', rounded down' : ''}, at least 1.` : `Prepared: the Prepared Spells column of the ${name} table.`),
+            l.book && 'Spellbook: 6 spells at level 1, plus 2 a level.', l.known && `Known: the Spells Known column of the ${name} table.`, l.cantrips && `Cantrips: the Cantrips column of the ${name} table.`].filter(Boolean);
+        openDrawer(`<h2>${esc(name)} ${l.level} spells</h2><p class="muted">Rules ${v}.</p><div class="hb-desc">${how.map((x) => `<p>${esc(x)}</p>`).join('')}<p>Only spells this class picked in the builder or on level up count. Spells from a subclass, a race, a feat or an item don't. Cantrips are counted on their own.</p></div>`);
+    }
+    // "Your classes give 4/3/2": only when every class is known and they give slots
+    function slotHint(path) {
+        const d = classData();
+        if (!d || pointsOn()) return '';
+        const g = HbBuild.castingOf(C, d), sb = slotBases(path);
+        if (g.unknown || !g.slots.some(Boolean) || g.slots.every((n, i) => n === (sb[i] ? maxOf(get(sb[i]).max) : 0))) return '';
+        return `<p class="note hb-slothint" id="hb-slothint"><button type="button" class="hb-link" data-act="mcinfo">Your classes give ${g.slots.filter(Boolean).join('/')}</button><button type="button" class="btn small" data-act="useslots" data-p="${path}">Use these</button></p>`;
+    }
+    function useSlots(path) {
+        const d = classData(), before = JSON.parse(JSON.stringify(C)), t = slotTracker(), g = HbBuild.castingOf(C, d).slots;
+        if (t) g.forEach((n, i) => { if (n && !get(t).levels[i]) get(t).levels[i] = Object.assign(ROW.level(), { label: ordinal(i + 1), max: '0' }); });
+        slotBases(path).forEach((b, i) => { get(b).max = t ? String(g[i] || 0) : g[i] || 0; });
+        saveNow(); draw();
+        offerUndo(`Spell slots set to ${g.filter(Boolean).join('/')}`, () => { const b = normalise(before); b.updated = Date.now(); switchTo(b); toast('Spell slots put back.', 'ok'); });
+    }
+    function mcInfo() {
+        const d = classData(), v = HbBuild.rulesOf(C), g = d ? HbBuild.castingOf(C, d) : null;
+        openDrawer(`<h2>Multiclass spell slots</h2><p class="muted">${g ? `Caster level ${g.casterLevel} gives ${g.slots.filter(Boolean).join('/')}. ` : ''}Rules ${v}.</p><div class="hb-desc">${rulePs(RULES.sheet['multiclass ' + v])}</div><p class="muted hb-hint">System Reference Document ${v === '2014' ? '5.1' : '5.2'}, CC-BY-4.0.${v === '2014' ? ' Artificers round up, and third casters count a third, rounded down.' : ' Third casters count a third, rounded down.'}</p>`);
+    }
+    function pointsInfo() {
+        const R = rulesNow(), p = pointsNow(), ths = (a, f) => a.map((_, i) => `<th class="num">${f(i)}</th>`).join(''), tds = (a) => a.map((x) => `<td class="num">${x === '' ? '-' : esc(x)}</td>`).join('');
+        openDrawer(`<h2>Spell points</h2><p class="muted">${C.campRules.id ? "Your DM's table" : 'Your own table'}.${p ? ` You have caster level ${p.cl}: all your levels in full casters, half in paladin and ranger, a third in third casters, none in warlock.` : ''} Change the counter by hand when you cast.</p>
+            <div class="table-wrap"><table class="table"><thead><tr><th>Spell level</th>${ths(R.cost, (i) => ordinal(i + 1))}</tr></thead><tbody><tr><td>Points</td>${tds(R.cost)}</tr></tbody></table></div>
+            <div class="table-wrap"><table class="table"><thead><tr><th>Caster level</th>${ths(R.pts, (i) => i + 1)}</tr></thead><tbody><tr><td>Points</td>${tds(R.pts)}</tr></tbody></table></div>`);
+    }
+    // ---- carried weight (ROADMAP 4.5) ----
+    function carried(V) {
+        const items = itemRows().reduce((t, r) => t + (r.off ? 0 : nm(r.qty) * nm(r.wt)), 0);
+        const coins = C.coinsOn ? C.panels.filter((p) => p.type === 'items').reduce((t, p) => t + ['cp', 'sp', 'ep', 'gp', 'pp'].reduce((a, k) => a + nm(p.coins[k]), 0), 0) / 50 : 0;
+        const cap = ev(C.capF, V), max = Number.isFinite(cap.v) && !cap.err ? cap.v : null, total = items + coins;
+        const heavy = max !== null && total > max * 2 / 3, enc = max !== null && total > max / 3;
+        return { items, coins, total, max, drop: heavy ? 20 : enc ? 10 : 0, heavy, enc, over: max !== null && total > max };
+    }
+    const lb = (n) => (Math.round(n * 100) / 100).toLocaleString('en-GB') + ' lb';
+    function weightHtml(V) {
+        const w = carried(V), line = `Items ${lb(w.items)}${C.coinsOn ? ` + coins ${lb(w.coins)}` : ''} = ${lb(w.total).replace(' lb', '')} of ${w.max === null ? '?' : lb(w.max)}`;
+        const pct = w.max ? Math.min(100, w.total / w.max * 100) : 100, walk = C.speeds[0], sp = (walk && /^\s*[\d.]+\s*$/.test(walk.ft)) ? `speed ${Math.max(0, nm(walk.ft) - w.drop)} ft (saved ${walk.ft} ft)` : `speeds ${w.drop} ft lower`;
+        const msg = [w.heavy ? `Heavily encumbered: ${sp}, with disadvantage on Strength, Dexterity and Constitution rolls.` : w.enc ? `Encumbered: ${sp}.` : '', w.over ? `Over your carrying capacity by ${lb(w.total - w.max)}.` : ''].filter(Boolean).join(' ');
+        const fill = fillable();
+        return `<button type="button" class="hb-wtline" id="hb-wtline" data-act="carryinfo">${esc(line)}</button>
+            <div class="progress${w.enc ? ' hb-over' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="${w.max ?? 0}" aria-valuenow="${Math.round(w.total)}" aria-label="${esc(line)}"><i style="width:${pct}%"></i>${w.max ? '<em style="left:33.33%"></em><em style="left:66.66%"></em>' : ''}</div>
+            ${msg ? `<p class="err" id="hb-wmsg">${esc(msg)}</p>` : ''}
+            ${w.max ? `<small class="muted">Encumbered over ${lb(w.max / 3)}, heavily encumbered over ${lb(w.max * 2 / 3)}.</small>` : ''}
+            ${fill.length ? `<div class="actions"><button type="button" class="btn small" id="hb-fill" data-act="fillwt">Fill in missing weights</button><small class="muted">${fill.length} ${fill.length === 1 ? 'item matches' : 'items match'} by exact name</small></div>` : ''}`;
+    }
+    function carryInfo() {
+        const v = HbBuild.rulesOf(C), w = carried(vars());
+        openDrawer(`<h2>Carrying capacity</h2><p class="muted">Rules ${v}. Your formula: <span class="mono">${esc(C.capF)}</span> = ${w.max === null ? '?' : lb(w.max)}.</p>
+            <div class="hb-desc">${rulePs(RULES.sheet['carry ' + v])}<p>Fifty coins weigh a pound.</p></div>
+            <h3>Encumbrance</h3><p class="muted">${v === '2024' ? 'This is the older SRD 5.1 rule, which your table has turned on. The 2024 rules have no such rule.' : 'Your table has turned this rule on.'} Here the limits are a third and two thirds of your capacity, the same numbers for Str. × 15.</p>
+            <div class="hb-desc">${rulePs(RULES.sheet.encumbrance)}</div>
+            <p class="muted hb-hint">System Reference Document ${v === '2014' ? '5.1' : '5.1 and 5.2'}, CC-BY-4.0.</p>`);
+    }
+    // "Fill in missing weights": items at 0 lb whose exact name the content or the sheet's gear list has. The items file only loads once weight is on.
+    const eqSets = {};
+    function eqData() {
+        const v = HbBuild.rulesOf(C);
+        if (eqSets[v] === undefined) { eqSets[v] = null; hbContent(v, ['equipment']).then((d) => { eqSets[v] = d; if (d && weightOn()) refresh(); }); }
+        return eqSets[v];
+    }
+    function fillable() {
+        const d = eqData();
+        if (!d) return [];
+        return itemRows().filter((r) => !nm(r.wt) && !r.hbsrc && String(r.name).trim() && HbBuild.itemWeight(r.name, d, { GEAR }) > 0);
+    }
+    function fillWeights() {
+        const d = eqData(), rows = fillable(), before = JSON.parse(JSON.stringify(C)), left = itemRows().filter((r) => !nm(r.wt)).length - rows.length;
+        for (const r of rows) r.wt = HbBuild.itemWeight(r.name, d, { GEAR });
+        saveNow(); draw();
+        offerUndo(`Filled in ${rows.length} weight${rows.length === 1 ? '' : 's'}.${left ? ` ${left} at 0 lb had no exact match.` : ''}`, () => { const b = normalise(before); b.updated = Date.now(); switchTo(b); toast('Weights put back.', 'ok'); });
+    }
     const ITEM_ATT = [['', 'None'], ['needs', 'Needs attunement'], ['yes', 'Attuned']];
     // everything the old inventory table showed, on one line that wraps; attributes open their rule
     const itemFacts = (r) => [r.cat, nm(r.qty) !== 1 ? '×' + nm(r.qty) : '', nm(r.wt) ? `${nm(r.wt)} lb${nm(r.qty) > 1 ? ` each (${Math.round(nm(r.wt) * nm(r.qty) * 100) / 100} lb)` : ''}` : '',
@@ -593,6 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
         r.notes ? esc(r.notes) : ''].filter(Boolean).join(' · ');
     function spellSum(r, P, V, rp) {
         return [nm(r.lvl) ? ruleLink('spell', 'spell level', ordinal(nm(r.lvl)), ordinal(nm(r.lvl)) + '-level spell', 'Spell level') : ruleLink('spell', 'cantrips', 'Cantrip', 'Cantrip', 'Spell level'),
+            spellCost(r) && `<button type="button" class="hb-prop" data-act="ptsinfo"><b>${spellCost(r)}</b></button>`,
             r.time && ruleLink('spell', 'casting time', r.time, 'Casting time: ' + r.time, 'Casting time') + (r.trig ? ', ' + esc(r.trig) : ''),
             r.range && ruleLink('spell', 'spell range', r.range, 'Range: ' + r.range, 'Range'),
             r.conc ? ruleLink('spell', 'concentration', 'Concentration', 'Concentration', 'Duration') : '',
@@ -626,13 +752,14 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'lsum': return { v: get(a).src };
             case 'hsum': return { html: hbSum(get(a), V, a) };
             case 'msum': return { v: get(a).cost === '' ? '' : `${get(a).cost} SP` };
-            case 'wt': return { v: Math.round(C.panels[a].rows.reduce((s, r) => s + nm(r.qty) * nm(r.wt), 0) * 100) / 100 + ' lb' };
+            case 'weight': return { html: weightHtml(V) };
+            case 'limits': return { html: limitsHtml() };
             case 'att': { const P = C.panels[a], n = P.rows.filter((r) => r.att === 'yes').length; return { v: `${n} / ${nm(P.attMax)}`, warn: n > nm(P.attMax) }; }
             case 'hdl': { const c = C.classes[a]; return { v: `${Math.max(0, nm(c.level) - nm(c.hdUsed))} of ${nm(c.level)} left` }; }
             case 'lvl': return { v: C.classes.length > 1 ? 'Level ' + level() + ' total' : '' };
             case 'hpmax': return { v: hpMax(), warn: nm(C.hp.mod) < 0, why: `${nm(C.hp.base)} base ${sg(conHp(C))} CON × level${nm(C.hp.mod) ? ` ${sg(nm(C.hp.mod))} change` : ''}` };
             case 'hptemp': return { v: nm(C.hp.temp) ? `+${nm(C.hp.temp)} temp` : '' };
-            case 'speed': return { v: C.speeds.map((s) => `${s.type} ${/^\s*[\d.]+\s*$/.test(s.ft) ? s.ft + ' ft' : s.ft}${s.hover ? ' (hover)' : ''}`).join(' · ') };
+            case 'speed': { const drop = weightOn() ? carried(V).drop : 0; return { v: C.speeds.map((s) => { const n = /^\s*[\d.]+\s*$/.test(s.ft); return `${s.type} ${n ? (drop ? `${Math.max(0, nm(s.ft) - drop)} ft (saved ${s.ft} ft)` : s.ft + ' ft') : s.ft}${s.hover ? ' (hover)' : ''}`; }).join(' · ') }; }
             case 'cond': return { v: [...C.conditions, nm(C.exhaustion) ? 'Exhaustion ' + C.exhaustion : ''].filter(Boolean).join(', ') };
             case 'ntitle': return { v: get(a).title || 'Untitled note' };
             // the worked-out maximum next to a formula like LEVEL or PROF
@@ -814,21 +941,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---- configurable panels ----
     // one action or spell: a summary line you can open to edit
     // end: buttons after the pencil (the inventory's remove ×)
-    function entry(rp, r, summaryKey, editor, lead = '', tail = '', end = '') {
-        const isOpen = openRows.has(r.id);
+    function entry(rp, r, summaryKey, editor, lead = '', tail = '', end = '', mid = '') {
+        const isOpen = openRows.has(r.id), offCls = mid && r.off ? ' hb-offrow' : '';
         // a phone: one line that opens on tap, with its rolls still on the line (ROADMAP 2.1)
         if (Phone.on()) {
             const on = phRows.has(r.id) || isOpen;
-            return `<div class="hb-entry">
+            return `<div class="hb-entry${offCls}">
                 <div class="hb-entry-h">${lead}<button type="button" class="hb-link ph-rowname" data-act="phrow" data-id="${esc(r.id)}" aria-expanded="${on}">${esc(r.name || 'Unnamed')}</button>${hbBadge(r)}<span class="ph-rowq" data-c="rowq:${rp}"></span></div>
-                ${tail}${on ? `<div class="ph-rowopen"><span class="hb-sum" data-c="${summaryKey}:${rp}"></span><div class="ph-rowbtns"><button type="button" class="btn small" data-act="info" data-p="${rp}">Details</button>
+                ${tail}${on ? `<div class="ph-rowopen"><span class="hb-sum" data-c="${summaryKey}:${rp}"></span>${mid}<div class="ph-rowbtns"><button type="button" class="btn small" data-act="info" data-p="${rp}">Details</button>
                     <button type="button" class="hb-x hb-toggle" data-act="toggle" data-id="${esc(r.id)}" aria-expanded="${isOpen}" aria-label="Edit ${esc(r.name || 'entry')}" title="Edit">${PENCIL}</button>${end}</div></div>` : ''}
                 ${isOpen ? `<div class="hb-editor">${editor()}</div>` : ''}
             </div>`;
         }
-        return `<div class="hb-entry">
+        return `<div class="hb-entry${offCls}">
             <div class="hb-entry-h">${lead}<button type="button" class="hb-link" data-act="info" data-p="${rp}">${esc(r.name || 'Unnamed')}</button>${hbBadge(r)}
-                <span class="hb-sum" data-c="${summaryKey}:${rp}"></span>
+                <span class="hb-sum" data-c="${summaryKey}:${rp}"></span>${mid}
                 <button type="button" class="hb-x hb-toggle" data-act="toggle" data-id="${esc(r.id)}" aria-expanded="${isOpen}" aria-label="Edit ${esc(r.name || 'entry')}" title="Edit">${PENCIL}</button>${end}</div>
             ${tail}${isOpen ? `<div class="hb-editor">${editor()}</div>` : ''}
         </div>`;
@@ -932,7 +1059,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         spells: (p, path, pi) => {
             const lv = uniq(p.rows.map((r) => nm(r.lvl))).sort((a, b) => a - b);
-            const prep = C.view.prep || C.classes.some((c) => PREP_CLASSES.includes(kk(c.name)));
+            const lim = limitLines(), rv = HbBuild.rulesOf(C), pts = pointsNow(), ptsOn = pts?.max != null;
+            const prep = C.view.prep || C.classes.some((c) => PREP_CLASSES.includes(kk(c.name)) || (rv === '2024' && PREP_2024.includes(kk(c.name)))) || !!lim?.lines.some((l) => l.prepares);
             const opts = [['all', 'All', p.rows.length], ...lv.map((l) => [String(l), l ? ordinal(l) : 'Cantrips', p.rows.filter((r) => nm(r.lvl) === l).length]),
                 ...(prep ? [['prep', 'Prepared', p.rows.filter((r) => r.prep).length]] : []), ['meta', 'Metamagic']];
             const cur = pickSub(p, opts);
@@ -942,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="rowi hb-track"><span class="grow">Sorcery points${sp ? ' <small class="muted">(synced with Resources)</small>' : ''}</span>
                     ${box(spP)}${sp ? `<small class="muted">${Math.max(0, maxOf(get(spP).max) + nm(get(spP).extra) - nm(get(spP).used))} / ${maxOf(get(spP).max)} left</small>`
                         : `<label class="hb-maxl">Max ${f(spP + '.max', 'Sorcery points maximum (number or formula)', { cls: 'hb-n hb-formula' })}</label><small class="muted" data-c="tmax:${spP}.max"></small>`}</div>
-                ${C.classes.some((c) => /sorcer/i.test(c.name)) || sp ? flexBox(p, path, spP) : ''}
+                ${ptsOn ? '<p class="muted hb-hint" id="hb-flexoff">Flexible Casting is hidden while spell points are on, as there are no slots to convert.</p>' : C.classes.some((c) => /sorcer/i.test(c.name)) || sp ? flexBox(p, path, spP) : ''}
                 <div class="hb-list">${p.meta.map((m, i) => { const mp = `${path}.meta.${i}`; return entry(mp, m, 'msum', () => `<div class="hb-entry-h">${f(mp + '.name', 'Name', { cls: 'hb-strong', list: 'hb-dl-meta', ph: 'Quickened Spell' })}<label class="hb-cost">Cost ${f(mp + '.cost', 'Cost in sorcery points', { cls: 'hb-n' })}</label></div>
                     <label class="hb-wide">Description ${f(mp + '.desc', 'Description', { area: true })}</label>
                     <div class="actions">${del(path + '.meta', i, m.name || 'metamagic', 'Remove metamagic')}</div>`); }).join('')}</div>
@@ -954,13 +1082,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const filter = kinds.length ? `<label class="hb-fxf">Effect ${sel(path + '.fxf', 'Show spells with this effect', [['', 'Any'], ...kinds.map(([k, t]) => [k, `${t} (${p.rows.filter((r) => hasFx(r, k)).length})`])])}</label>` : '';
             const list = p.rows.map((r, i) => [r, `${path}.rows.${i}`]).sort((a, b) => (nm(a[0].lvl) || 0) - (nm(b[0].lvl) || 0))
                 .filter(([r]) => (cur === 'all' || (cur === 'prep' ? r.prep : String(nm(r.lvl)) === cur)) && (!fxf || hasFx(r, fxf)))
-                .map(([r, rp]) => entry(rp, r, 'ssum', () => spellEditor(rp, r), prep ? `<label class="hb-prep" title="Prepared">${f(rp + '.prep', 'Prepared', { check: true })}</label>` : '')).join('');
+                .map(([r, rp]) => entry(rp, r, 'ssum', () => spellEditor(rp, r), prep && !noTick(r, lim) ? `<label class="hb-prep" title="Prepared">${f(rp + '.prep', 'Prepared', { check: true })}</label>` : '')).join('');
             return `<div class="hb-grid">
                     <div class="hb-box"><span class="hb-lbl">Save DC</span>${fx(path + '.dc', 'Spell save DC', false, ' hb-big')}</div>
                     <div class="hb-box"><span class="hb-lbl">Spell attack</span>${fx(path + '.atk', 'Spell attack', true, ' hb-big')}</div>
                 </div>
-                ${slots ? `<div class="hb-slots">${slots}</div>` : ''}
-                <details class="hb-details"><summary>Spell slots per level${linked ? ' (synced with Resources)' : ''}</summary><div class="hb-slotmax">${sb.map((b, l) => `<label>${ordinal(l + 1)} ${f(b + '.max', ordinal(l + 1) + ' level slots (number or formula)', { cls: 'hb-formula' })}</label>`).join('')}</div></details>
+                ${ptsOn ? `<div class="rowi hb-track hb-points" id="hb-points"><button type="button" class="hb-link grow" data-act="ptsinfo">Spell points</button>
+                        <button type="button" class="btn small" data-act="pts" data-d="1" aria-label="Spend a spell point" title="Spend">&minus;</button><input class="field hb-n" id="hb-ptsleft" inputmode="numeric" value="${Math.max(0, pts.max - nm(C.spellPts.used))}" aria-label="Spell points left" autocomplete="off"><button type="button" class="btn small" data-act="pts" data-d="-1" aria-label="Get a spell point back" title="Get one back">+</button>
+                        <small class="muted">of ${pts.max}, caster level ${pts.cl}</small></div>
+                    <p class="muted hb-hint">Your spell slots are kept and come back if spell points are turned off. Points refill on a long rest.</p>`
+                : `${pts && pts.cl > 0 ? `<p class="note hb-slothint" id="hb-notable">${C.campRules.id ? "Your DM hasn't filled in the spell points table yet, so you still use spell slots." : 'Fill in your spell points table in Customise. You still use spell slots until then.'}</p>` : ''}
+                ${slots ? `<div class="hb-slots">${slots}</div>` : ''}${slotHint(path)}
+                <details class="hb-details"><summary>Spell slots per level${linked ? ' (synced with Resources)' : ''}</summary><div class="hb-slotmax">${sb.map((b, l) => `<label>${ordinal(l + 1)} ${f(b + '.max', ordinal(l + 1) + ' level slots (number or formula)', { cls: 'hb-formula' })}</label>`).join('')}</div></details>`}
+                <div class="hb-limits" id="hb-limits" data-c="limits"></div>
                 <div class="hb-subrow">${subtabs(path + '.sub', opts, cur)}${filter}</div><div class="hb-list">${list || (fxf ? '<p class="muted">No spells here with that effect.</p>' : '')}</div>
                 <div class="actions">${add(path + '.rows', 'spell', 'Add spell', /^\d$/.test(cur) ? ` data-lvl="${cur}"` : cur === 'prep' ? ' data-prep="1"' : '')}</div>
                 ${p.rows.some((r) => r.srd && !wdUrl(r)) ? `<p class="muted hb-hint">SRD spell text: ${SRD_CREDIT}</p>` : ''}`;
@@ -969,7 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         items: (p, path, pi) => {
             const cats = uniq([...L('cats'), ...p.rows.map((r) => r.cat).filter(Boolean)]);
             const opts = [['all', 'All', p.rows.length], ...cats.map((c) => [c, c, p.rows.filter((r) => r.cat === c).length])];
-            const cur = pickSub(p, opts);
+            const cur = pickSub(p, opts), wtOn = weightOn();
             // like spells: equipped box, name (opens the details), a summary that wraps, and the fields behind the pencil
             const list = p.rows.map((r, i) => [r, i]).filter(([r]) => cur === 'all' || r.cat === cur).map(([r, i]) => { const rp = `${path}.rows.${i}`; return entry(rp, r, 'isum', () => `<div class="hb-grid">
                     <label>Name ${f(rp + '.name', 'Item', { list: 'hb-dl-gear', ph: 'Rope, 50 ft' })}</label>
@@ -982,17 +1116,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="hb-wide"><span class="muted">Attributes</span><div class="hb-attrs">${r.props.map((n) => `<span class="hb-attr"><button type="button" class="hb-prop" data-act="attr" data-n="${esc(n)}">${esc(n)}</button><button type="button" class="hb-x" data-act="chip" data-p="${rp}.props" data-n="${esc(n)}" aria-label="Remove ${esc(n)}" title="Remove">&times;</button></span>`).join('')}
                     <input class="field hb-tagin hb-attrin" data-p="${rp}.props" list="hb-dl-attr" placeholder="Add" aria-label="Add an attribute to ${esc(r.name || 'this item')}" autocomplete="off"></div></div>
                 <label class="hb-wide">Notes ${f(rp + '.notes', 'Notes', { area: true })}</label>`,
-                `<label class="hb-prep" title="Equipped">${f(rp + '.eq', 'Equipped', { check: true })}</label>`, '', del(path + '.rows', i, r.name || 'item')); }).join('');
+                `<label class="hb-prep" title="Equipped">${f(rp + '.eq', 'Equipped', { check: true })}</label>`, '', del(path + '.rows', i, r.name || 'item'), wtOn ? `<label class="hb-nc">${f(rp + '.off', 'Not carried', { check: true })} Not carried</label>` : ''); }).join('');
             // coins are shown, and changed by typing an amount (formula.js hbCoins breaks coins for change)
             const worth = ['pp', 'gp', 'ep', 'sp', 'cp'].reduce((t, c) => t + nm(p.coins[c]) * { pp: 1000, gp: 100, ep: 50, sp: 10, cp: 1 }[c], 0) / 100;
             return `<div class="hb-purse">${['pp', 'gp', 'ep', 'sp', 'cp'].map((c) => `<span class="hb-coin"><b>${nm(p.coins[c]).toLocaleString()}</b> ${c}</span>`).join('')}
                     <small class="muted">${worth.toLocaleString()} gp in all</small>
                     <span class="hb-coinbox"><input class="field hb-coinin" data-p="${path}.coins" placeholder="5g5s" aria-label="Coins to spend or add, like 5g5s" autocomplete="off">
                     <button type="button" class="btn small" data-act="coins" data-sign="-" aria-label="Spend these coins" title="Spend">&minus;</button><button type="button" class="btn small" data-act="coins" data-sign="+" aria-label="Add these coins" title="Add">+</button></span></div>
+                ${wtOn ? `<div class="hb-carry"><label class="check">${f('coinsOn', 'Coins carried', { check: true })} Coins carried</label><small class="muted">50 coins to the pound</small></div>` : ''}
                 <div class="hb-attune"><span>Attuned <b data-c="att:${pi}"></b></span><label>Attunement slots ${f(path + '.attMax', 'Attunement slots', { num: true, cls: 'hb-n' })}</label></div>
+                ${wtOn ? `<div class="hb-weight" id="hb-weight" data-c="weight"></div>
+                <details class="hb-details"><summary>Capacity formula</summary><label class="hb-grid hb-capf"><span class="muted hb-hint">Pounds you can carry. Double it for a Large character, or use a magic belt's score here.</span>${f('capF', 'Capacity formula', { cls: 'hb-formula mono' })}<b data-c="fx:capF"></b></label></details>` : ''}
                 ${subtabs(path + '.sub', opts, cur)}
                 <div class="hb-list">${list}</div>
-                ${p.rows.length ? `<p class="hb-wt">Total weight, all items <b data-c="wt:${pi}"></b></p>` : ''}
                 <div class="actions">${add(path + '.rows', 'item', 'Add item', ` data-cat="${esc(cur === 'all' ? 'Gear' : cur)}"`)}</div>`;
         },
 
@@ -1016,6 +1152,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const opts = [['all', 'All', p.rows.length], ...tabs.map((t) => ['t:' + t, t, p.rows.filter((r) => r.group === t).length])];
             const cur = pickSub(p, opts), tab = cur.startsWith('t:') ? cur.slice(2) : '';
             const row = (r, rp, i) => {
+                if (rp === slotTracker() && pointsOn()) return ''; // spell points hide the slots, wherever they're kept (they stay saved)
                 const head = `${f(rp + '.name', 'Name', { cls: 'hb-strong', list: 'hb-dl-rsrc', ph: r.kind === 'levels' ? 'Spell slots' : 'Rage' })}`;
                 const main = r.kind === 'count' ? `<span class="hb-count">
                         <button type="button" class="btn small" data-act="track" data-p="${rp}" data-d="-1" aria-label="Use one">−</button>
@@ -1245,7 +1382,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const back = Math.ceil(level() / 2);
         if (kind === 'long') return `<h2>Long rest</h2>
             <p>Taking a long rest will:</p>
-            <ul class="hb-plain"><li>Set hit points to the maximum, and clear temp HP and any max HP change</li><li>Restore spell slots, sorcery points and every resource</li>
+            <ul class="hb-plain"><li>Set hit points to the maximum, and clear temp HP and any max HP change</li><li>Restore spell slots, sorcery points, spell points and every resource</li>
             <li>Give back up to ${back} spent hit ${back === 1 ? 'die' : 'dice'}</li><li>Lower exhaustion by 1 and clear death saves</li></ul>
             <div class="actions"><button type="button" class="btn primary" data-act="dolong">Take long rest</button><button type="button" class="btn" data-act="close">Cancel</button></div>`;
         const con = C.abilities.find((a) => kk(a.key) === 'con'), V = vars();
@@ -1272,6 +1409,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (p.type === 'combat') { p.ok = 0; p.bad = 0; }
         }
         if (kind === 'long') {
+            C.spellPts.used = 0;
             let back = Math.ceil(level() / 2);
             for (const c of [...C.classes].sort((a, b) => b.die - a.die)) { const n = Math.min(back, nm(c.hdUsed)); c.hdUsed = nm(c.hdUsed) - n; back -= n; }
             C.hp.mod = 0; C.hp.cur = hpMax(); C.hp.temp = 0;
@@ -1284,6 +1422,8 @@ document.addEventListener('DOMContentLoaded', () => {
             C.hp.cur = Math.min(hpMax(), nm(C.hp.cur) + Math.max(0, nm($('#hb-heal').value)));
         }
         dlg.close();
+        St?.add(C.id, { t: 'rest', kind });
+        St?.note({ why: kind + '-rest' });
         saveNow(); draw();
         toast(kind === 'long' ? 'Long rest taken.' : 'Short rest taken.', 'ok');
     }
@@ -1706,7 +1846,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <h4>Maths and other parts</h4>${tbl(syntax)}`;
     }
     // the Customise dialog's tabs; the open one is kept while the page is open
-    const CTABS = [['settings', 'Settings'], ['panels', 'Panels'], ['stats', 'Stats'], ['lists', 'Lists'], ['formulas', 'Formulas']];
+    const CTABS = [['settings', 'Settings'], ['panels', 'Panels'], ['stats', 'Stats'], ['lists', 'Lists'], ['rules', 'Rules'], ['formulas', 'Formulas']];
     let customTab = 'settings';
     function customDlg() {
         const mini = (head, rows, addBtn) => table(head, rows) + `<div class="actions">${addBtn}</div>`;
@@ -1727,7 +1867,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ${pic(C) ? '<h3>Art</h3><button type="button" class="btn small" data-act="artdel">Remove art</button>' : ''}`,
             panels: () => `<h3>Panels</h3>
             <label class="check">${f('view.all', 'Show every panel at once', { check: true })} Show every panel at once instead of tabs</label>
-            <label class="check">${f('view.prep', 'Always show prepared spells', { check: true })} Always show the Prepared tab and checkboxes (for homebrew classes; otherwise only Artificer, Cleric, Druid, Paladin and Wizard get them)</label>
+            <label class="check">${f('view.prep', 'Always show prepared spells', { check: true })} Always show the Prepared tab and a checkbox on every spell (for homebrew classes; otherwise only classes that prepare spells get them)</label>
             ${Phone.fullSwitch()}<div class="hb-ptable">${table(['Show', 'Title', 'Type', ''], C.panels.map((p, i) => `<tr><td class="hb-c">${f(`panels.${i}.on`, 'Show ' + p.title, { check: true })}</td>
                 <td>${f(`panels.${i}.title`, 'Title')}</td><td class="muted">${TYPES[p.type]}${Phone.on() ? ' · ' + Phone.tabName(p.type) + ' tab' : ''}</td>
                 <td class="hb-nowrap"><button type="button" class="hb-x" data-act="mv" data-i="${i}" data-d="-1" aria-label="Move ${esc(p.title)} up" title="Move up"${i ? '' : ' disabled'}>↑</button><button type="button" class="hb-x" data-act="mv" data-i="${i}" data-d="1" aria-label="Move ${esc(p.title)} down" title="Move down"${i < C.panels.length - 1 ? '' : ' disabled'}>↓</button>${del('panels', i, p.title)}</td></tr>`).join(''))}</div>
@@ -1745,6 +1885,22 @@ document.addEventListener('DOMContentLoaded', () => {
             lists: () => `<h3>Lists</h3>
             <p class="muted hb-hint">One entry per line. These fill the suggestions and tabs.</p>
             <div class="hb-grid hb-lists"><label>Conditions ${f('condList', 'Conditions', { area: true })}</label>${Object.entries(LIST_NAMES).map(([k, t]) => `<label>${t} ${f('lists.' + k, t, { area: true })}</label>`).join('')}</div>`,
+            rules: () => {
+                const r = C.campRules, locked = !!r.id, v = HbBuild.rulesOf(C), off = locked ? ' disabled' : '';
+                const grid = (k, label) => C.spellPts[k].map((_, i) => `<label>${label(i)}${f(`spellPts.${k}.${i}`, label(i), { num: true })}</label>`).join('');
+                return `<h3>Rules version</h3>
+                <label>Which rules this character follows <select class="field hb-auto" data-k="rulesVer" aria-label="Rules version"><option value="2014"${v === '2014' ? ' selected' : ''}>2014</option><option value="2024"${v === '2024' ? ' selected' : ''}>2024</option></select></label>
+                <p class="muted hb-hint">Sets the spell limits and the spell slot rounding. A character with no version uses 2014.</p>
+                ${locked ? `<p class="note" id="hb-camplock">Your campaign sets spell points (${r.sp ? 'on' : 'off'}) and carried weight (${r.weight ? 'tracked' : 'not tracked'}). Your own settings below come back if you leave it.</p>` : ''}
+                <h3>Spell points</h3>
+                <label class="check">${f('spellPts.on', 'Use spell points', { check: true }).replace('>', off + '>')} Use spell points instead of spell slots</label>
+                ${C.spellPts.on && !locked ? `<p class="muted hb-hint">The site doesn't come with these numbers. Warlock levels don't count and Pact Magic stays separate.</p>
+                    <h4>Points by caster level</h4><div class="hb-pttable">${grid('pts', (i) => 'Level ' + (i + 1))}</div>
+                    <h4>Point cost by spell level</h4><div class="hb-pttable">${grid('cost', (i) => ordinal(i + 1))}</div>` : ''}
+                <h3>Carried weight</h3>
+                <label class="check">${f('weightOn', 'Track carried weight', { check: true }).replace('>', off + '>')} Track carried weight</label>
+                <p class="muted hb-hint">Shows how much this character carries, and lowers its speed when it's too much.</p>`;
+            },
             formulas: formulaGuide,
         };
         return `<div class="hb-custhead"><h2>Customise</h2><button type="button" class="btn small" data-act="close">Close</button></div>
@@ -1775,7 +1931,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // groups [['coin', 1]] flips a coin: the card shows Heads or Tails instead of a total
     // each > 1 splits the dice into that many separate results, e.g. one per target ("4 × (1d12 + 10)"); mod covers them all
     // adv 'adv' or 'dis' (a lone d20 only): two d20s are thrown and only the higher or lower one counts
-    function rollShow(title, groups, mod = 0, each = 1, adv = '') {
+    function rollShow(title, groups, mod = 0, each = 1, adv = '', key = '') {
         const logIt = !C.archived; // decided now: an archived roll stays unlogged even if Unarchive comes before its dice land
         const coin = groups[0]?.[0] === 'coin', side = (v) => (v === 'heads' ? 'Heads' : 'Tails'), thrown = adv ? [[20, 2]] : groups;
         if (adv) title += adv === 'adv' ? ' with advantage' : ' with disadvantage';
@@ -1811,7 +1967,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (DMM && logIt) dmSend([{ op: 'roll', roll: C.rolls[0], t: title }], false); // the DM rolls as the character, into its log (1.5)
             saveNow(); drawLog(); if (tray.open) drawTray();
             // and to the campaign's table log (live.js keeps it until it's sent, offline too)
-            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', dice, ...window.Fight?.tag(c.id, title) }));
+            const natN = nat.includes('20') ? '20' : nat.includes('1') ? '1' : '', rollKind = window.Stats?.kind(title, key);
+            if (c) sent.add(Live.send(c.id, { char: CHAR_ID(), name: C.name, title, expr, shown, total: String(total), nat: natN, vis: !rollTo() ? 'public' : c.dm ? 'hidden' : 'dm', dice, kind: rollKind, ...window.Fight?.tag(c.id, title) }));
+            // not shared to a campaign: the action log is the only lasting copy (the sheet's own log keeps the last 100)
+            else if (logIt) St?.add(C.id, { t: 'roll', title, expr, shown, total: String(total), nat: natN, dice, kind: rollKind });
         };
         const quick =() => card(thrown.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
         if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return quick();
@@ -1848,10 +2007,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const camp = () => (camps.length === 1 ? camps[0] : camps.find((x) => x.id === tableChoice()) || null);
     async function loadCamps() {
         const hoWas = hoOn();
+        let campsRead = false;
         camps = [];
         if (DMM) camps = [{ id: DMM, name: $('#main').dataset.dmCamp || '', dm: true }]; // the DM's rolls here go to that campaign
         else if (cloud && window.Live && tableReady()) {
-            try { const r = await fetch('/campaigns/log.php?' + CAMPS_Q()); if (r.ok) camps = (await r.json()).campaigns; } catch (e) { }
+            try { const r = await fetch('/campaigns/log.php?' + CAMPS_Q()); if (r.ok) { camps = (await r.json()).campaigns; campsRead = true; } } catch (e) { }
+        }
+        // the campaign's rules (ROADMAP 4.4, 4.5): a copy on the character, so it works offline and signed out. It's not an edit: no new "updated", no version
+        if (campsRead && !RO && !DMM) {
+            const c0 = camp(), blankCopy = blank().campRules, next = c0?.rules ? { id: c0.id, sp: !!c0.rules.sp, weight: !!c0.rules.weight, pts: c0.rules.pts, cost: c0.rules.cost } : blankCopy;
+            if (JSON.stringify(next) !== JSON.stringify(C.campRules)) { C.campRules = next; saveNow(false); draw(); }
         }
         // handouts (3.4): the panel added once, or shown or hidden as the character joins or leaves a campaign (before campNote,
         // which a draw would wipe)
@@ -2119,6 +2284,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!e.target.closest('button') || !undoSnap) return;
         const s = undoSnap;
         dropUndo(); db = JSON.parse(s.db);
+        St?.note({ undo: 1 });
         switchTo(db.chars[s.cur] || Object.values(db.chars)[0] || blank());
         toast('Restored.', 'ok');
     });
@@ -2257,6 +2423,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { before } = await r.json();
             if (C.id !== id) return;
             C = db.chars[id] = v;
+            St?.prime(v);
             store(); draw();
             if (restoreUndo) restoreUndo.drop();
             if (undo) toast('Restore undone.', 'ok');
@@ -2404,7 +2571,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const done = [];
         for (const e of [...edits].sort((a, b) => (+a.at || 0) - (+b.at || 0))) {
             const k = c === C && Array.isArray(e.path) ? hbDm.where(c, e.path) : null; // the field it changes, before the change
+            St?.prime(c);
             const r = hbDm.run(c, e, ctxOf(c));
+            // logged once, here, with when it reached the server; one an older copy is catching up on was logged where it first landed
+            if (St) { if (r.ok && !r.skip && !r.wait && !e.done) St.applied(c, { edit: e.id, at: e.got || e.at, by: e.self ? 'self' : 'dm', ...(e.op === 'hp' ? { asked: Math.abs(+e.amt) } : {}) }); else St.sync(c); }
             if (!r.skip && !r.wait) done.push([e, r, k]);
         }
         if (!done.length) return;
@@ -2439,6 +2609,7 @@ document.addEventListener('DOMContentLoaded', () => {
         c.rolls.unshift({ at: Date.now(), title: (e.self ? 'Undid ' : 'Undid DM: ') + e.t, expr: '', shown: '', total: '', dm: 1 });
         c.rolls.length = Math.min(c.rolls.length, 100);
         c.updated = Date.now();
+        St?.applied(c, { undo: 1 });
         store(); dirty.add(id); flushBackups();
         if (c === C) drawKeep();
         dmTell(id, e, `undid: ${e.t}`);
@@ -2479,7 +2650,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // what an archived character still does: look, roll, open things, and come back
-    const VIEW_ACTS = new Set(['phrow', 'advnext', 'dieless', 'skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
+    const VIEW_ACTS = new Set(['limitinfo', 'mcinfo', 'ptsinfo', 'carryinfo', 'phrow', 'advnext', 'dieless', 'skill', 'attr', 'sense', 'rinfo', 'roll', 'roll2', 'adv', 'rollx', 'tray', 'rollto', 'logtab', 'die', 'dieclear', 'coin', 'dieroll',
         'info', 'dclose', 'more', 'manage', 'tab', 'toggle', 'nopen', 'ngo', 'sub', 'close', 'export', 'new', 'newblank', 'import', 'find', 'side', 'unarchive', 'monunarc', 'versions']);
 
     // ---- events ----
@@ -2516,6 +2687,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (/\.notes\.\d+\.(title|body|group)$/.test(k)) get(k.replace(/\.\w+$/, '')).updated = Date.now();
         save(); refresh();
         if (dlgMode && dlgMode.parts && k === dlgMode.p) { dlgMode.parts = parseParts(el.value); $('#hb-parts').innerHTML = partsHTML(dlgMode.parts); }
+        if (/\.prep$/.test(k) && el.checked && panelOf(k).type === 'spells') {
+            const src = get(k.replace(/\.prep$/, '')).source, l = limitLines()?.lines.find((x) => x.name === src);
+            if (l?.prepared && l.prepared[0] > l.prepared[1]) toast(`You've prepared ${l.prepared[0]} ${src.toLowerCase()} spells but can prepare ${l.prepared[1]}.`, 'note');
+        }
+        if (k === 'rulesVer' || k === 'spellPts.on' || k === 'weightOn' || k === 'coinsOn' || /\.rows\.\d+\.off$/.test(k)) { draw(); if (dlg.open && dlgMode === 'custom') { dlgBody.innerHTML = dlgHTML(); refresh(); } }
         if (/\.att$/.test(k) && el.value === 'yes') {
             const P = panelOf(k), n = P.rows.filter((r) => r.att === 'yes').length;
             if (n > nm(P.attMax)) toast(`You're attuned to ${n} items but have ${nm(P.attMax)} attunement slots.`, 'note');
@@ -2549,6 +2725,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (P.sub === 't:' + from) P.sub = 't:' + to;
             saveNow(); return draw();
         }
+        if (el.id === 'hb-ptsleft') { const p = pointsNow(); if (p?.max != null) { C.spellPts.used = Math.max(0, Math.min(p.max, p.max - nm(el.value))); saveNow(); draw(); } return; }
+        if (/^spellPts\.(pts|cost)\./.test(k)) { saveNow(); return draw(); }
         if (/\.notes\.\d+\.group$/.test(k) || /^panels\.\d+\.rows\.\d+\.(uses|max|group)$/.test(k) || /\.(levels\.\d+|slots\.\d+|sp)\.max$/.test(k) || /\.flex\.\d+$/.test(k)) { saveNow(); return draw(); }
         if (/^classes\.\d+\.name$/.test(k)) { const d = HIT_DIE[el.value.trim().toLowerCase()]; if (d) set(k.replace(/name$/, 'die'), d); }
         if (/^panels\.\d+\.rows\.\d+\.name$/.test(k) && el.value.trim() && hbPick(k, el.value)) return;
@@ -2582,11 +2760,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (amt < nm(C.hp.temp)) toast(`Temp HP doesn't stack, so you keep ${C.hp.temp}.`, 'note');
             C.hp.temp = Math.max(nm(C.hp.temp), amt);
         } else C.hp.cur = Math.min(hpMax(), nm(C.hp.cur) + amt);
+        St?.note({ asked: amt });
         saveNow();
         if (!Phone.on()) return draw();
         Phone.close();
         const c = C, sign = how === 'dmg' ? '−' : '+';
-        offerUndo(how === 'temp' ? `Temp HP ${nm(C.hp.temp)}` : `${sign}${amt} HP, now ${nm(C.hp.cur)}/${hpMax()}`, () => { c.hp = hpWas; saveNow(); draw(); });
+        offerUndo(how === 'temp' ? `Temp HP ${nm(C.hp.temp)}` : `${sign}${amt} HP, now ${nm(C.hp.cur)}/${hpMax()}`, () => { c.hp = hpWas; St?.note({ undo: 1 }); saveNow(); draw(); });
     });
     // the scroll style of hit points: scroll over the amount to change it (shift for 5 at a time); the button follows its sign
     const hpLabel = () => { const b = $('.hb-hpgo'); if (b) b.toggleAttribute('data-heal', nm($('#hb-amt').value) > 0); };
@@ -2691,6 +2870,13 @@ document.addEventListener('DOMContentLoaded', () => {
             saveNow(); return draw();
         }
         if (act === 'rinfo') return ruleInfo(b.dataset.k, b.dataset.n, b.dataset.t, b.dataset.s);
+        if (act === 'limitinfo') return limitInfo(b.dataset.n);
+        if (act === 'mcinfo') return mcInfo();
+        if (act === 'ptsinfo') return pointsInfo();
+        if (act === 'carryinfo') return carryInfo();
+        if (act === 'useslots') return useSlots(b.dataset.p);
+        if (act === 'fillwt') return fillWeights();
+        if (act === 'pts') { const p = pointsNow(); if (p?.max != null) { C.spellPts.used = Math.max(0, Math.min(p.max, nm(C.spellPts.used) + +b.dataset.d)); saveNow(); drawKeepY(); } return; }
         if (act === 'fxapply') {
             const e = get(b.dataset.p), name = get(b.dataset.p.split('.').slice(0, -2).join('.')).name || (e.k === 'heal' ? 'Healing' : 'Temp HP'), V = vars();
             // the same dice maths as the boxes (formula.js hbDice): each die rolled, then the flat bonus added
@@ -2703,11 +2889,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.k === 'heal') { C.hp.cur = Math.min(hpMax(), nm(C.hp.cur) + Math.max(0, amt)); toast(`${name}: healed ${Math.max(0, amt)} (${rolled}).`, 'ok'); }
             else if (amt <= nm(C.hp.temp)) toast(`${name}: ${amt} temp HP, but temp HP doesn't stack, so you keep ${C.hp.temp}.`, 'note');
             else { C.hp.temp = amt; toast(`${name}: ${amt} temp HP (${rolled}).`, 'ok'); }
+            St?.note({ asked: Math.max(0, amt), why: 'effect' });
             saveNow(); return draw();
         }
         if (act === 'roll2') return rollShow(b.dataset.t, b.dataset.g.split(',').map((x) => x.split('x').map(Number)), +b.dataset.m || 0, +b.dataset.x || 1, 'd20' in b.dataset ? takeAdv() : '');
-        if (act === 'roll') return rollShow(b.dataset.t, [[20, 1]], d20Mod(b), 1, takeAdv());
-        if (act === 'adv') { const t = advFor; advClose(); return t && rollShow(t.dataset.t, [[20, 1]], d20Mod(t), 1, b.dataset.a); }
+        if (act === 'roll') return rollShow(b.dataset.t, [[20, 1]], d20Mod(b), 1, takeAdv(), b.dataset.k);
+        if (act === 'adv') { const t = advFor; advClose(); return t && rollShow(t.dataset.t, [[20, 1]], d20Mod(t), 1, b.dataset.a, t.dataset.k); }
         if (act === 'rollx') return b.remove();
         if (act === 'campkeep' || act === 'campclone') return campPick(act, b.dataset.c, b);
         if (act === 'tray') { if (Phone.on()) return Phone.open('dice'); tray.open = !tray.open; return drawTray(); }
@@ -2905,6 +3092,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     p.rows.push(row);
                     continue;
                 }
+                // a magic item has no weight data: it takes its base weapon or armour's, where the name shows it
+                if (!isSpell && x.cat === 'Magic items' && !nm(row.wt)) row.wt = magicWeight(row.name) || 0;
                 p.rows.push(row);
                 if (isSpell) fills.push(() => srdFill(`panels.${c.panels.indexOf(p)}.rows.${p.rows.indexOf(row)}`));
                 else if (x.fill) fills.push(() => eqFill(`panels.${c.panels.indexOf(p)}.rows.${p.rows.indexOf(row)}`));
@@ -2916,6 +3105,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return navigator.locks ? navigator.locks.request('hb-pending', run) : run();
     }
     addEventListener('storage', (e) => { if (e.key === 'hb-pending') takePending(); });
+    // the Compendium popup (assets/js/popup.js) asks which character it is open beside, so its "Add to sheet" needs no picker
+    window.cpContext = () => (RO || DMM || !C ? null : { char: C.id });
 
     // ---- phone mode (ROADMAP 2.1, assets/js/phone.js): what this sheet hands to the phone's frame ----
     const phRows = new Set(), $$ = (s) => [...document.querySelectorAll(s)];
@@ -2973,7 +3164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Phone.start(phApi);
 
     // ROADMAP 2.1: coming back to an open sheet, signed in, the account's newer copy is taken (before anything goes up from here)
-    Phone.pullOnReturn({ url: API + 'cloud.php', cloud: () => cloud, chars: () => db.chars, normalise, current: () => C, adopt: (c) => { C = c; }, off: cloudOff, store, flush: flushBackups, toast, offerUndo,
+    Phone.pullOnReturn({ url: API + 'cloud.php', cloud: () => cloud, chars: () => db.chars, normalise, current: () => C, adopt: (c) => { C = c; St?.prime(c); }, off: cloudOff, store, flush: flushBackups, toast, offerUndo,
         draw: () => { const y = scrollY; draw(); scrollTo(0, y); }, keep: (mine) => { mine.updated = Date.now(); db.chars[mine.id] = mine; C = mine; saveNow(false); draw(); } });
 
     draw();
@@ -2998,7 +3189,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (q.has('built')) toast(`${C.name || 'Your character'} is ready. Everything on the sheet can still be changed.${note ? ' ' + note : ''}`, 'ok', 8000);
             else if (up && up.id === C.id && isObj(up.before)) {
                 const lv = level();
-                offerUndo(`Levelled up to level ${lv}`, () => { const b = normalise(up.before); b.updated = Date.now(); switchTo(b); toast('Level up undone.', 'ok'); });
+                offerUndo(`Levelled up to level ${lv}`, () => { const b = normalise(up.before); b.updated = Date.now(); St?.prime(b); switchTo(b); toast('Level up undone.', 'ok'); });
             }
         }
     }

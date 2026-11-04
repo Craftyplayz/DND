@@ -31,8 +31,10 @@ function entryFor(id, levels, sub, d) {
     e.spells = pool.slice(0, 4);
     return e;
 }
-// view.phoneTab (ROADMAP 2.1) came after the golden file: it's only the phone's last tab, nothing a build decides
-const hash = (x) => crypto.createHash('sha256').update(JSON.stringify(x, (k, v) => (k === 'phoneTab' ? undefined : v))).digest('hex').slice(0, 16);
+// view.phoneTab (ROADMAP 2.1) came after the golden file: it's only the phone's last tab, nothing a build decides.
+// The fields of ROADMAP 4.4 and 4.5 are left out the same way: they're the sheet's settings, and every build gets their defaults.
+const SKIP = new Set(['phoneTab', 'rulesVer', 'spellPts', 'weightOn', 'capF', 'coinsOn', 'campRules', 'off', ...(process.env.GOLD_NO_WT ? ['wt'] : [])]);
+const hash = (x) => crypto.createHash('sha256').update(JSON.stringify(x, (k, v) => (SKIP.has(k) ? undefined : v))).digest('hex').slice(0, 16);
 function sweep(d, rules) {
     const out = {}, list = (k) => B.listOf(d, k, rules).filter((x) => !x.hbx);
     const races = list('races'), bgs = list('backgrounds');

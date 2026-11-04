@@ -9,6 +9,14 @@
 .cp-sech { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .cp-sech .btn { margin-left: auto; }
 #cp-party { margin-bottom: 28px; }
+.cp-pttable { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+.form .cp-pttable label { font-size: 12px; }
+.form .cp-pttable .field { padding: 4px 6px; text-align: center; }
+#cp-r-table { display: grid; gap: 12px; }
+#cp-r-table[hidden] { display: none; }
+#cp-r-table p { margin: 0; font-size: 13px; }
+.cp-ptread summary { color: var(--muted); font-size: 14px; cursor: pointer; }
+.cp-ptread .table-wrap { margin-top: 8px; }
 .cp-dot { flex: none; align-self: flex-start; width: 10px; height: 10px; margin-left: auto; background: var(--ok-line); border-radius: 50%; }
 .cp-owner { overflow-wrap: anywhere; }
 .cp-nomap { margin: 0 0 28px; }

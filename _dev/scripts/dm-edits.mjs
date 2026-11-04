@@ -6,7 +6,7 @@
 // Browser A is Chrome (Firefox with --firefox), B the other one, so both browsers play both parts.
 //   node _dev/scripts/dm-edits.mjs [--firefox]   (needs: cd live && npm install, and includes/config.php for sign-in)
 // Uses stand-in account and session folders in the temp folder, never private/dnd/accounts or private/sessions.
-import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
@@ -198,6 +198,11 @@ try {
     await hpBox(dm, 3, 'dmg');
     const id3 = (await waitFor(() => queue().edits.find((e) => e.t === '−3 HP')))?.id;
     is('both devices apply it once', [await until(pat, `JSON.parse(localStorage.getItem('hb-sheet')).chars.lock.hp.cur`, (v) => v === hp0 - 3), await until(C, `JSON.parse(localStorage.getItem('hb-sheet')).chars.lock.hp.cur`, (v) => v === hp0 - 3)], [hp0 - 3, hp0 - 3]);
+    // the action log (ROADMAP "Stats data"): applied on two devices, it's one action, by the DM, at the time it reached the server
+    const dmLines = () => { const dir = join(ACCOUNTS, 'stats', 'characters', 'lock'); return existsSync(dir) ? readdirSync(dir).flatMap((f) => readFileSync(join(dir, f), 'utf8').trim().split('\n').map((l) => JSON.parse(l))).filter((l) => l.id.startsWith('dm-' + id3.replace(/[^\w-]/g, '').slice(0, 30))) : []; };
+    await waitFor(() => dmLines().length, 15000);
+    const line = dmLines()[0], edit3 = queue().edits.find((e) => e.id === id3);
+    is('the action log has the DM hit once, however many devices applied it', [new Set(dmLines().map((l) => l.id)).size, line?.t, line?.d, line?.by, line?.asked, line?.at === +edit3.got], [1, 'hp', -3, 'dm', 3, true]);
     is('the note being typed keeps its text and focus', await pat.ev(`[document.activeElement?.dataset.k === '${noteK}', document.activeElement?.value].join()`), 'true,Typed on device one');
     await pat.ev(`(() => { document.activeElement.value += '!'; document.activeElement.dispatchEvent(new Event('input', { bubbles: true })); document.activeElement.blur(); return 1; })()`);
     const ok2 = await waitFor(() => { const s = safe(); return s && s.hp.cur === hp0 - 3 && JSON.stringify(s).includes('Typed on device one!') && s.dmApplied.filter((x) => x === id3).length === 1 && s; }, 10000);

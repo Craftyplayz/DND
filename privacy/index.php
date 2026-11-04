@@ -35,6 +35,11 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
         </section>
 
         <section class="card">
+            <h2>What happens in play</h2>
+            <p>When you're signed in, the server also keeps a log of what happens on your characters and in your campaigns, so stats can be added up from it later: dice rolls, hit point changes, spell slots and other uses, rests, coins and items, turns in a fight and moves on the map. Nothing shows this log yet, and only the site owner can see it.</p>
+        </section>
+
+        <section class="card">
             <h2>Character sheet backups</h2>
             <p>Every edit on the Homebrew Sheet and the Monster Sheet is also saved on the server as a new version, whether you're signed in or not. The versions are filed under your IP address and the character's name, and kept until deleted, so a lost character can be restored. Only the site owner can see them.</p>
         </section>

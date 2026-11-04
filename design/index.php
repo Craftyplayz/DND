@@ -156,7 +156,7 @@ HTML],
 <p class="ok">Saved.</p>
 <button class="btn small" data-act="toast">Show a toast</button>
 HTML],
-    'drawer' => ['Drawer', 'Details for a clicked item. Full width on phones; <code>Esc</code> closes it.', <<<'HTML'
+    'drawer' => ['Drawer', 'Details for a clicked item. Full-screen on phones; <code>Esc</code> closes it. A reference panel that is open beside any page (the Compendium popup, <code>assets/js/popup.js</code>) is the same pattern: a 44 px round button fixed bottom right, kept above the bottom bars and clear of the toasts, opens a panel from the right whose left edge drags to size it; its x or a click anywhere off it closes it (a click on a link keeps it open on the next page). On a phone it is a full-screen overlay that slides up from the bottom, with a little x top left. On a phone, big panels like this go full-screen; small things (a short menu, a confirmation) stay a bottom sheet.', <<<'HTML'
 <button class="btn" data-act="drawer">Open the drawer</button>
 <aside class="drawer" id="dg-drawer" aria-label="Details" aria-hidden="true" tabindex="-1">
   <button class="close" data-act="drawer-close" aria-label="Close">&times;</button>
@@ -164,7 +164,7 @@ HTML],
   <p class="muted">Slides in with transform only, in 180ms.</p>
 </aside>
 HTML],
-    'bsheet' => ['Bottom sheet', 'On phones, instead of a dialog or a menu: in thumb reach, closed by dragging the handle down, tapping outside, the X or the phone\'s Back. A native <code>&lt;dialog&gt;</code>; <code>.half</code> or <code>.full</code> sets the height and dragging up goes to full.', <<<'HTML'
+    'bsheet' => ['Bottom sheet', 'On phones, small things stay a bottom sheet: a short menu, a confirmation, a small dialog. Big panels (a long list, a reference popup) go full-screen instead (see Drawer). In thumb reach, closed by dragging the handle down, tapping outside, the X or the phone\'s Back. A native <code>&lt;dialog&gt;</code>; <code>.half</code> or <code>.full</code> sets the height and dragging up goes to full.', <<<'HTML'
 <button class="btn" data-act="bsheet">Open a bottom sheet</button>
 <dialog class="bsheet half" id="dg-bsheet" aria-labelledby="dg-bsheet-h">
   <div class="bsheet-grab" aria-hidden="true"><i></i></div>
@@ -540,6 +540,7 @@ PHP;
                     <li><b>One line under the title,</b> not a paragraph. Help text is one muted line where it's needed.</li>
                     <li><b>Text in cards, art on the page.</b> Text, tables and forms sit in <code>.card</code>s. Grids of portraits or tiles sit straight on the page under a section heading; never put a card around a grid of cards.</li>
                     <li><b>Overview first,</b> details on click (drawer, <code>&lt;details&gt;</code>, "Show all", a link to the item's own page), raw data last and collapsed.</li>
+                    <li><b>Anything with a description is clickable and opens it:</b> rule text, an effect, an item's or a spell's text.</li>
                     <li><b>Hide what's empty.</b> No empty cards, no "0 results" headings, no "coming soon" sections. One compact prompt at most.</li>
                     <li><b>Every state has a sentence:</b> loading says what's loading, errors say what failed and what to do. Never a spinner forever or a raw error object.</li>
                     <li><b>Nothing plays or flashes on load.</b> No autoplay, no popups. Dice sounds play only on a roll.</li>

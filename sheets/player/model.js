@@ -87,10 +87,24 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             ['allies', 'Allies', 2], ['enemies', 'Enemies', 2], ['orgs', 'Organisations', 2], ['backstory', 'Backstory', 6]];
         // read a number out of whatever was typed ("30 ft" -> 30)
         const nm = (x) => parseFloat(x) || 0;
+        // a magic item's weight when its name shows the base weapon or armour ("Longsword +1", "Armor of Resistance (Chain Mail)"); magic items
+        // have no weight data of their own. null: the name doesn't show one (Flame Tongue, Bag of Holding). The longest name in it wins.
+        const MAGIC_BASE = [...WEAPONS.map((w) => [w[0].toLowerCase(), +w[5]]), ['crossbow light', 5], ['crossbow hand', 3], ['crossbow heavy', 18], ['net', 3], ['musket', 10], ['pistol', 3], ['warpick', 2],
+            ['padded armour', 8], ['leather armour', 10], ['studded leather', 13], ['hide armour', 12], ['chain shirt', 20], ['scale mail', 45],
+            ['breastplate', 20], ['half plate', 40], ['half plate armour', 40], ['ring mail', 40], ['chain mail', 55], ['splint', 60], ['plate armour', 65], ['shield', 6]];
+        function magicWeight(name) {
+            // "Armor of Resistance (Plate)": what's in brackets may be the armour's short name
+            const paren = /\(([^)]*)\)/.exec(String(name))?.[1], n = ` ${(paren ? `${name} ${paren} armour` : String(name)).toLowerCase().replace(/armor/g, 'armour').replace(/[^a-z]+/g, ' ').trim()} `;
+            if (/ (token|clasp|stone) /.test(n)) return null; // Feather Token (Whip), Braid Whip Clasp: named after a weapon, not made from one
+            let hit = null;
+            for (const b of MAGIC_BASE) if (n.includes(` ${b[0]} `) && (!hit || b[0].length > hit[0].length)) hit = b;
+            return hit ? hit[1] : null;
+        }
         const ROW = {
             attack: () => ({ id: uid(), name: '', time: 'Action', range: '', props: [], mode: 'hit', hit: 'STR + PROF', save: 'DEX', dc: '8 + PROF + STR', dmg: [{ dice: '1d6 + STR', type: 'Slashing' }], fx: [], uses: '', used: 0, reset: '', desc: '' }),
             spell: () => ({ id: uid(), lvl: 0, name: '', school: '', time: 'Action', trig: '', range: '', comp: '', dur: '', conc: false, ritual: false, prep: false, mode: 'none', save: 'DEX', dc: '', dmg: [], fx: [], desc: '', higher: '', srd: '' }),
-            item: () => ({ id: uid(), cat: 'Gear', eq: false, att: '', name: '', qty: 1, wt: 0, gp: '', props: [], notes: '' }),
+            // off: "Not carried" (ROADMAP 4.5), left out of the weight when the weight rules are on
+            item: () => ({ id: uid(), cat: 'Gear', eq: false, att: '', name: '', qty: 1, wt: 0, gp: '', props: [], notes: '', off: false }),
             list: () => ({ id: uid(), name: '', src: '', text: '', uses: '', used: 0, reset: '', grp: '' }),
             // kind: count (left / max), pips (boxes ticked as used) or levels (a row of boxes per level, like spell slots)
             tracker: () => ({ id: uid(), name: '', kind: 'count', cur: 1, max: 1, used: 0, reset: 'long', group: '', levels: [] }),
@@ -148,10 +162,15 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 calc: { hpMax: 0 }, dmApplied: [],
                 // ROADMAP 4.2: a character the builder is still making (draft, no versions until Finish) and what was picked in it
                 draft: 0, build: {},
+                // ROADMAP 4.4 and 4.5. rulesVer: '2014', '2024', or blank (the builder's version, else 2014). spellPts and weightOn: the character's own
+                // choices, used when it has no campaign. capF, coinsOn and each item's off only count while weight is on, and stay saved when it's off.
+                // campRules: a copy of its campaign's rules (id '' = no campaign), so it works offline and signed out; no version of its own
+                rulesVer: '', spellPts: { on: false, used: 0, pts: Array(20).fill(''), cost: Array(9).fill('') }, weightOn: false, capF: 'STR_SCORE * 15', coinsOn: true,
+                campRules: { id: '', sp: false, weight: false, pts: Array(20).fill(''), cost: Array(9).fill('') },
             };
         }
 
-        return { ABIL, SKILLS, CONDITIONS, LISTS, WEAPONS, ARMOUR, GEAR, PRESET, TOOLS, FLEX_COST, TYPES, DETAILS, nm, ROW, PANEL_ROW, newPanel, blank };
+        return { ABIL, SKILLS, CONDITIONS, LISTS, WEAPONS, ARMOUR, GEAR, PRESET, TOOLS, FLEX_COST, TYPES, DETAILS, nm, magicWeight, ROW, PANEL_ROW, newPanel, blank };
     }
     if (typeof module === 'object' && module.exports) module.exports = hbModel; else root.hbModel = hbModel;
 })(this);

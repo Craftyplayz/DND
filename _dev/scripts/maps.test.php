@@ -182,7 +182,14 @@ $is('neither is saved', file_get_contents("$dir/map.json"), $before);
 
 // a move into fog: the DM hears it, players are told it's gone; a move into sight reaches them
 $gk = $tok($dv, 'Goblin')['k'];
+// the action log (ROADMAP "Stats data"): a finished move is a line, each step of a drag isn't
+$moves = function () use ($A, $c) { $n = []; foreach (glob("$A/stats/campaigns/{$c['id']}/*.jsonl") ?: [] as $f) foreach (file($f) as $l) if (($x = json_decode($l, true))['t'] === 'token') $n[] = $x; return $n; };
+$was = count($moves());
+$op('111', ['op' => 'move', 'k' => $gk, 'x' => 100, 'y' => 0, 'placed' => true, 'drag' => true]);
+$is('a step of a drag is no line in the action log', count($moves()), $was);
 [, , $live] = $op('111', ['op' => 'move', 'k' => $gk, 'x' => 0, 'y' => 200, 'placed' => true]);
+$ln = array_slice($moves(), -1)[0];
+$is('a finished move is a line: who, from, to, grid, by', [$ln['k'], $ln['from'], $ln['to'], is_numeric($ln['grid']), $ln['by']], [$gk, [100, 0], [0, 200], true, 'dm']);
 $is('goblin into the fog: players get "gone"', array_map(fn($l) => [$l[0]['gone'] ?? false, $l[1] === 'dm'], $live), [[false, true], [true, false]]);
 $is('goblin left out for players now', $names(mp_view($A, $c, '222')), ['Lock']);
 [, , $live] = $op('111', ['op' => 'move', 'k' => $gk, 'x' => 100, 'y' => 0, 'placed' => true]);

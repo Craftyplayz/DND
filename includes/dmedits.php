@@ -19,7 +19,7 @@ const DM_ROW = ['name' => 'v', 'time' => 'v', 'range' => 'v', 'props' => 'tags',
     'dmg' => 'rows', 'dmg.N.dice' => 'v', 'dmg.N.type' => 'v', 'fx' => 'rows', 'fx.N.k' => 'v', 'fx.N.dice' => 'v', 'fx.N.type' => 'v', 'fx.N.text' => 'v',
     'uses' => 'v', 'used' => 'a', 'reset' => 'v', 'desc' => 'v',
     'lvl' => 'v', 'school' => 'v', 'trig' => 'v', 'comp' => 'v', 'dur' => 'v', 'conc' => 'b', 'ritual' => 'b', 'prep' => 'b', 'higher' => 'v', 'srd' => 'v',
-    'cat' => 'v', 'eq' => 'b', 'att' => 'v', 'qty' => 'a', 'wt' => 'v', 'gp' => 'v', 'notes' => 'v',
+    'cat' => 'v', 'eq' => 'b', 'att' => 'v', 'qty' => 'a', 'wt' => 'v', 'gp' => 'v', 'notes' => 'v', 'off' => 'b',
     'src' => 'v', 'text' => 'v', 'grp' => 'v',
     'kind' => 'v', 'cur' => 'a', 'max' => 'v', 'group' => 'v', 'extra' => 'a', 'levels' => 'rows', 'levels.N.label' => 'v', 'levels.N.max' => 'v', 'levels.N.used' => 'a', 'levels.N.extra' => 'a',
     'cost.amt' => 'v', 'cost.what' => 'v'];
@@ -34,6 +34,7 @@ define('DM_FIELDS', [
     'passives' => 'rows', 'passives.N.name' => 'v', 'passives.N.f' => 'v', 'passives.N.unit' => 'v',
     'profs.armour' => 'tags', 'profs.weapons' => 'tags', 'profs.langs' => 'tags', 'profs.notes' => 'v',
     'profs.tools' => 'rows', 'profs.tools.N.name' => 'v', 'profs.tools.N.ab' => 'v', 'profs.tools.N.p' => 'v',
+    'rulesVer' => 'v', 'weightOn' => 'b', 'capF' => 'v', 'coinsOn' => 'b', 'spellPts.on' => 'b', 'spellPts.used' => 'a', 'spellPts.pts' => 'list', 'spellPts.pts.N' => 'v', 'spellPts.cost' => 'list', 'spellPts.cost.N' => 'v',
     'lists.time' => 'v', 'lists.dmg' => 'v', 'lists.props' => 'v', 'lists.cats' => 'v', 'lists.speeds' => 'v',
     'panels.#.rows' => 'rows',
     'panels.#.coins.cp' => 'a', 'panels.#.coins.sp' => 'a', 'panels.#.coins.ep' => 'a', 'panels.#.coins.gp' => 'a', 'panels.#.coins.pp' => 'a', 'panels.#.attMax' => 'v',
@@ -442,6 +443,7 @@ function dm_send($accounts, $user, $c, $char, $edits)
         if ($self) $e->self = true;
         $e->c = $c['id'];
         $e->done = 0;
+        $e->got = dm_now(); // the server's clock, for the action log (ROADMAP "Stats data"): "at" is the DM's browser's
         $q->edits[] = $e;
         $queued[] = $e;
         $known[$id] = true;

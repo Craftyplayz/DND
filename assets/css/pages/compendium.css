@@ -114,3 +114,7 @@ body.cp-lock { overflow: visible; }
     .cp-dhead { display: block; }
     body.cp-lock { overflow: hidden; }
 }
+
+/* the popup (assets/js/popup.js) shows this page in a frame: no test banner, tighter padding */
+.cp-embed body::before { display: none !important; }
+.cp-embed .page { padding: 12px; }

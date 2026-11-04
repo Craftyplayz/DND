@@ -111,12 +111,18 @@ if (isset($_GET['hp'])) {
     $q = is_string($in['q'] ?? null) && preg_match('/^[\w-]{8,40}$/', $in['q']) ? $in['q'] : null;
     $seen = $read("$dir/.hp-changes") ?? [];
     if ($q === null || !in_array($q, $seen, true)) {
-        $hp = fi_hp(is_array($c['hp'] ?? null) ? $c['hp'] : [], $in['op'] ?? null);
+        $was = is_array($c['hp'] ?? null) ? $c['hp'] : [];
+        $hp = fi_hp($was, $in['op'] ?? null);
         if ($hp === null) cl_out(400, ['error' => "That isn't a hit point change."]);
         $c['hp'] = array_merge(is_array($c['hp'] ?? null) ? $c['hp'] : [], $hp);
         $c['hpAt'] = max(round(microtime(true) * 1000), $stamp($c, 'hpAt') + 1);
         if (@file_put_contents("$dir/$id.json", json_encode($c, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) === false) cl_out(500, ['error' => "Couldn't save the hit points."]);
         if ($q !== null) @file_put_contents("$dir/.hp-changes", json_encode(array_slice([...$seen, $q], -500)));
+        // the action log: only while it's in a fight, which is all the turn guess needs (ROADMAP "Stats data")
+        foreach (cp_mine($accounts, $owner)['dm'] as $camp) {
+            $f = fi_read($accounts, $camp['id']);
+            foreach ($f['entries'] ?? [] as $e) if (($e['mon'] ?? null) === $id && empty($e['copy'])) st_mhp($accounts, $camp['id'], $f['n'], $e, $c, $c['name'] ?? ($e['name'] ?? ''), $was, $c['hp'], $in['op'], st_time($in['at'] ?? null, $in['now'] ?? null));
+        }
     }
     flock($lock, LOCK_UN);
     $out = ['id' => $id, 'hp' => $c['hp'], 'hpAt' => $c['hpAt']];
