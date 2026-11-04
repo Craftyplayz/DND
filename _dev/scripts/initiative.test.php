@@ -108,7 +108,12 @@ $is('a monster once only', $op(['op' => 'add', 'items' => [['kind' => 'monster',
 $is('equal number: higher bonus first', $order(), ['lock', 'ozzy', 'gob1', 'rex', 'ogre']);
 $op(['op' => 'add', 'items' => [['kind' => 'plain', 'name' => 'Lair action', 'init' => 20]]]);
 $f = fi_read($A, $c['id']);
-$is('equal number and bonus: a silent roll-off decides', [$f['entries'][0]['tie'] !== $f['entries'][1]['tie'], count(array_filter($f['entries'], fn($e) => $e['init'] === 20))], [true, 2]);
+// Lock's +2 beats the Lair action's +0, so these two never need a roll-off; the order is still decided
+$is('equal number, different bonus: the bonus decides', [$f['entries'][0]['char'] ?? null, count(array_filter($f['entries'], fn($e) => $e['init'] === 20))], ['lock', 2]);
+// equal number and bonus: a roll-off always splits them (a random one: many tries, or a repeat could slip through by luck)
+$same = 0;
+for ($i = 0; $i < 500; $i++) { $g = ['entries' => []]; fi_place($g, ['id' => 'a', 'init' => 12, 'bonus' => 1]); fi_place($g, ['id' => 'b', 'init' => 12, 'bonus' => 1]); if ($g['entries'][0]['tie'] === $g['entries'][1]['tie'] || fi_cmp($g['entries'][0], $g['entries'][1]) >= 0) $same++; }
+$is('equal number and bonus: a silent roll-off decides', $same, 0);
 $is('roll-off order holds', fi_cmp($f['entries'][0], $f['entries'][1]), -1);
 $lair = array_values(array_filter($f['entries'], fn($e) => $e['kind'] === 'plain'))[0]['id'];
 $is('no table log line for the roll-off', count(tl_read($A, $c['id'], 'unsorted')['entries']), 1);
