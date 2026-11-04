@@ -14,12 +14,12 @@
 .tv-name { margin: 0; color: var(--text-hi); font-size: 8vmin; line-height: 1.1; }
 .tv-party { display: flex; flex-wrap: wrap; justify-content: center; gap: 4vmin; margin: 0; padding: 0; list-style: none; }
 .tv-party li { display: grid; justify-items: center; gap: 1.5vmin; width: 20vmin; font-size: 3vmin; }
-.tv-party b { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-party b { width: 100%; overflow-wrap: anywhere; }
 .tv-party .fi-face { width: 100%; height: auto; aspect-ratio: 1; background: var(--card2); border: .4vmin solid var(--line-strong); border-radius: 50%; color: var(--text); font-size: 6vmin; }
 
 /* the turn order: from whoever's turn it is, left to right; the cards shrink as there are more (--n, up to 14) */
     linear-gradient(-45deg, transparent 46%, var(--danger-line) 46% 54%, transparent 54%); content: ""; }
-.tv-n { width: 100%; overflow: hidden; color: var(--text-hi); text-overflow: ellipsis; white-space: nowrap; }
+.tv-n { width: 100%; color: var(--text-hi); overflow-wrap: anywhere; }
 
 /* the last rolls, older ones fading */
 
@@ -31,3 +31,6 @@
     box-shadow: var(--lift); color: var(--on-btn); font: inherit; font-size: 4vmin; font-weight: 700; transform: translate(-50%, -50%); cursor: pointer; }
 /* the 3D dice (dice/dice3d.js) over everything while they roll, a handout too (they fade a moment after they stop) */
 #hb-throw { position: fixed; inset: 0; z-index: 4; width: 100vw; height: 100vh; pointer-events: none; }
+
+/* phones: 44 px tap targets on the map's zoom and full screen buttons (their sizes are in map.css) */
+@media (max-width: 700px) { .tv .mpt-brg button, .tv .mpt-brg a { min-width: 44px; height: 44px; } }

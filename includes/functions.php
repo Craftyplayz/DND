@@ -93,6 +93,8 @@ function site_header()
         echo '<li class="sh-item' . ($here ? ' is-active' : '') . '"><a class="sh-top" href="' . h($url) . '"' . ($here ? ' aria-current="page"' : '') . '>' . h($page[0]) . '</a></li>';
     }
     echo '</ul></nav>' . auth_button() . '</div></header>';
+    // the menu scrolls sideways when it doesn't fit: --fl / --fr fade the edge that has more beyond it (global.css)
+    echo '<script>(function(n){var f=function(){n.style.setProperty("--fl",n.scrollLeft>1?"28px":"0px");n.style.setProperty("--fr",n.scrollLeft+n.clientWidth<n.scrollWidth-1?"28px":"0px")};n.addEventListener("scroll",f,{passive:true});addEventListener("resize",f);f()})(document.querySelector(".sh-nav"))</script>';
 }
 
 // The site footer. $crumbs prints the breadcrumbs here too (pages normally print them under the header).

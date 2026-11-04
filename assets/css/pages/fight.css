@@ -4,7 +4,7 @@
 /* the order as portraits, left to right */
 .fi-row { display: flex; gap: 8px; margin: 0; padding: 0 0 4px; overflow-x: auto; list-style: none; }
 .fi-p { display: grid; flex: none; justify-items: center; gap: 2px; width: 72px; padding: 6px 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font-size: 12px; text-align: center; }
-.fi-p .fi-n { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fi-p .fi-n { width: 100%; overflow-wrap: anywhere; }
 .fi-p.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .fi-p.mine .fi-n { font-weight: 700; }
 .fi-p.down, .fi-e.down { opacity: .5; }
