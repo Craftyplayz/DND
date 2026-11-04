@@ -48,7 +48,7 @@ $is('own rolls are marked', array_column(tl_tail($c(), '222', tl_read($A, $id, '
 $is('resend is the same roll', tl_add($A, $c(), $p1, $roll('r-000010', ['char' => 'lock']))[1]['again'] ?? false, true);
 tl_add($A, $c(), $p1, $roll('r-000014', ['char' => 'lock', 'title' => 'Offline', 'at' => 1500, 'offline' => true]));
 $is('offline roll in time order', array_slice($names($dm), 0, 3), ['Lock:Stealth', 'Lock:Offline', 'Ozzy:Insight']);
-$is('rolled in the future becomes now', tl_add($A, $c(), $p1, $roll('r-000015', ['char' => 'lock', 'at' => PHP_INT_MAX]))[1]['entry']['at'] <= microtime(true) * 1000, true);
+$is('rolled in the future becomes now', tl_add($A, $c(), $p1, $roll('r-000015', ['char' => 'lock', 'at' => PHP_INT_MAX]))[1]['entry']['at'] <= microtime(true) * 1000 + 1, true); // + 1: the server rounds to the nearest ms
 
 // a co-DM sees and rolls as the DM does; made a player again, they see what a player sees
 $player = $names($p1);
