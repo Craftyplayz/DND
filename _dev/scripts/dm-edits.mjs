@@ -81,6 +81,23 @@ try {
     await go(dm, BASE + '/characters/lock');
     is('DM mode: the bar says whose it is', await until(dm, text('#hb-dmbar'), (t) => t.includes('Changes go to Pat')), "Editing Pat's character as DM. Changes go to Pat.");
     is('DM mode: everything can be edited, but not the player\'s own tools', await dm.ev(`[[...document.querySelectorAll('#hb-sheet input')].every((i) => !i.disabled), !document.querySelector('[data-act=manage]')].join()`), 'true,true');
+    // on a phone (ROADMAP 2.1): phone mode with a one-line DM strip, none of the player's own tools, and the player's tab is left alone
+    await dm.shot(375, 812);
+    is('DM on a phone: phone mode, one-line strip', await dm.ev(`[document.documentElement.classList.contains('ph-on'), getComputedStyle(document.querySelector('#hb-dmbar p')).whiteSpace, getComputedStyle(document.querySelector('#ph-head')).display].join()`), 'true,nowrap,grid');
+    await dm.ev(`document.querySelector('[data-ph=menu]').click(); 1`);
+    is('DM on a phone: no player tools in the menu', await until(dm, `document.querySelector('#ph-body .ph-menu') ? ['archive', 'versions', 'import', 'new'].filter((a) => document.querySelector('#ph-body [data-act=' + a + ']')).join() || 'none' : ''`, (t) => t), 'none');
+    await dm.ev(`document.querySelector('#ph-sheet [data-ph=close]').click(); 1`);
+    await dm.until(`!document.querySelector('#ph-sheet').open`);
+    await dm.ev(`document.querySelector('#ph-hp').click(); 1`);
+    is('DM on a phone: HP sheet has Damage and Heal', await until(dm, `!!document.querySelector('#ph-body .ph-dmg') && !!document.querySelector('#ph-body .ph-heal')`, (t) => t), true);
+    await dm.ev(`document.querySelector('#ph-sheet [data-ph=close]').click(); 1`);
+    await dm.until(`!document.querySelector('#ph-sheet').open`);
+    await dm.ev(`document.querySelector('#ph-tabs [data-id=notes]').click(); 1`);
+    await sleep(600);
+    is('DM on a phone: a tab tap sends nothing to the player', existsSync(join(ACCOUNTS, 'campaigns')) ? JSON.stringify(stored().view) : '', JSON.stringify(S0.view));
+    await dm.ev(`document.querySelector('#ph-tabs [data-id=main]').click(); 1`);
+    await dm.shot(1280, 800);
+    await dm.until(`document.querySelector('#hb-sheet input:not([type=checkbox])')`);
     // the server's list of what a DM may change mirrors the sheet's blank() and ROW makers (less what the DM never changes)
     const sheetFields = JSON.parse(await dm.ev(`JSON.stringify((() => {
         const out = {}, D = hbDm;

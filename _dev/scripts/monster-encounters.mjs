@@ -126,6 +126,7 @@ try {
             is(`${name} unarchived as it was`, [await shown(b), (await listed(b)).sort(), await b.ev(`document.querySelector('#mon-side .mon-arch summary').textContent`), await marks()], ['Cave', ['Goblin 2', 'Goblin 3'], 'Archived (1)', before]);
 
             // phones: the picker in the bar, the monster picker lists only the encounter's monsters
+            await b.ev(`localStorage.setItem('sheet-full-layout', '1')`); // the full layout on a phone; phone mode has its own check (phone-mode.mjs)
             await b.shot(390);
             is(`${name} phone: bar picker shown, sidebar hidden`, await b.ev(`JSON.stringify([getComputedStyle(document.querySelector('.mon-encbar')).display !== 'none', getComputedStyle(document.querySelector('#mon-side')).display])`).then(JSON.parse), [true, 'none']);
             is(`${name} phone: monster picker is the encounter's`, (await opts(b, '.hb-pick')).map((t) => t.split(' — ')[0]).sort(), ['Goblin 2', 'Goblin 3']);

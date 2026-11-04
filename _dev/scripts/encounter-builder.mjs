@@ -169,6 +169,7 @@ try {
 
             // phones: one line in the bar that opens the same card; a computer doesn't show it
             is(`${name} computer: no phone line`, await b.ev(`getComputedStyle(document.querySelector('.mon-diffbar')).display`), 'none');
+            await b.ev(`localStorage.setItem('sheet-full-layout', '1')`); // the full layout on a phone; phone mode has its own check (phone-mode.mjs)
             await b.shot(390);
             is(`${name} phone: line shown, sidebar hidden`, await b.ev(`JSON.stringify([getComputedStyle(document.querySelector('.mon-diffbar')).display, document.querySelector('.mon-diffbar').offsetHeight >= 44, document.querySelector('.mon-diffbar').textContent.includes('13,000 XP'), getComputedStyle(document.querySelector('#mon-side')).display])`).then(JSON.parse), ['flex', true, true, 'none']);
             is(`${name} phone: no sideways scroll`, await b.ev(`document.documentElement.scrollWidth <= innerWidth`), true);
