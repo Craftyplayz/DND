@@ -2,24 +2,28 @@
 // Compendium: search spells, monsters, items, magic items, classes, races, backgrounds, feats and rules; add them to a
 // character or an encounter. The lists load in the browser (assets/js/compendium.js) from sheets/player/content/ (2014 and
 // 2024 rules), monsters.json and rules.js; a monster's stat block comes through the cached proxy sheets/monster/monsters.php.
-$site_page = ['components' => true, 'ui' => true, 'css' => ['/assets/css/pages/compendium.css']];
+// ?embed=1 is the Compendium popup (assets/js/popup.js): this page in a frame, with no header, footer or title, links opening in the whole window
+$embed = ($_GET['embed'] ?? '') === '1';
+$site_page = ['nopopup' => true, 'components' => true, 'ui' => true, 'css' => ['/assets/css/pages/compendium.css']];
 require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/monsters.json'), true) ?: [])['sources'] ?? [];
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"<?= $embed ? ' class="cp-embed"' : '' ?>>
 
 <head>
-    <?php page_head(); ?>
+    <?php page_head(); if ($embed) echo '<base target="_top">'; ?>
 </head>
 
 <body>
-    <?php site_header(); ?>
+    <?php if (!$embed) site_header(); ?>
 
     <main class="page cp" id="main"<?= auth_user() ? ' data-cloud' : '' ?> data-hbform="<?= h(asset('/assets/js/homebrew-form.js')) ?>">
+<?php if (!$embed): ?>
         <?= site_breadcrumbs(site_current_path()) ?>
         <h1 class="page-title">Compendium</h1>
         <p class="page-lede">Spells, monsters, items, classes, races, backgrounds, feats and rules for the 2014 and 2024 rules, with your homebrew.</p>
+<?php endif; ?>
 
         <fieldset class="cp-rules" id="cp-rules">
             <legend>Rules</legend>
@@ -110,7 +114,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
         </dialog>
     </main>
 
-    <?php site_footer(); ?>
+    <?php if (!$embed) site_footer(); ?>
     <script src="<?= h(asset('/assets/js/fuzzy.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew-content.js')) ?>" defer></script>

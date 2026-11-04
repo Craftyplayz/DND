@@ -51,6 +51,7 @@ export const BROWSER_CHECKS = {
     'homebrew-copies': { ports: [8137], split: true, tmp: 'dnd-hbcopies-check', secs: 120 },
     'homebrew-monsters': { ports: [8139], split: true, tmp: 'dnd-hbmonsters-check', secs: 120 },
     'homebrew-classes': { ports: [8140], split: true, tmp: 'dnd-hbclasses-check', secs: 150 },
+    'popup-page': { ports: [8142], split: true, tmp: 'dnd-popup-check', secs: 200 },
     'phone-mode': { ports: [8141], split: true, tmp: 'dnd-phone-check', secs: 200 },
     'stats-page': { ports: [8142], split: true, tmp: 'dnd-stats-check', secs: 60 },
     'sheet-rules': { ports: [8142, 8104], split: true, tmp: 'dnd-rules-check', secs: 120 },
