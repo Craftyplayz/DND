@@ -16,7 +16,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
 <body>
     <?php site_header(); ?>
 
-    <main class="page cp" id="main"<?= auth_user() ? ' data-cloud' : '' ?>>
+    <main class="page cp" id="main"<?= auth_user() ? ' data-cloud' : '' ?> data-hbform="<?= h(asset('/assets/js/homebrew-form.js')) ?>">
         <?= site_breadcrumbs(site_current_path()) ?>
         <h1 class="page-title">Compendium</h1>
         <p class="page-lede">Spells, monsters, items, classes, races, backgrounds, feats and rules for the 2014 and 2024 rules, with your homebrew.</p>
@@ -35,6 +35,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
             <span class="muted" id="cp-count"></span>
             <button type="button" class="btn" id="cp-arch" hidden></button>
             <button type="button" class="btn primary" id="cp-new" hidden></button>
+            <button type="button" class="btn" id="cp-new2" hidden></button>
         </div>
         <div class="cp-filters" id="cp-filters"></div>
 
@@ -88,6 +89,14 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
             </form>
         </dialog>
 
+        <dialog class="dlg cp-hbw" id="cp-hbw" aria-labelledby="cp-hbw-t">
+            <div class="cp-hbwtop"><h2 id="cp-hbw-t"></h2><button type="button" class="btn small" id="cp-hbw-close">Close</button></div>
+            <nav aria-label="Steps"><ol class="cp-hbsteps" id="cp-hbw-steps"></ol></nav>
+            <div class="cp-hbwbody" id="cp-hbw-body" tabindex="-1"></div>
+            <div class="cp-hbwfoot"><small class="muted" id="cp-hbw-saved"></small><div class="actions"><button type="button" class="btn" id="cp-hbw-back">Back</button><button type="button" class="btn primary" id="cp-hbw-next">Next</button></div></div>
+            <div id="cp-hbw-lists"></div>
+        </dialog>
+
         <dialog class="dlg" id="cp-hbask" aria-labelledby="cp-hbask-t">
             <p id="cp-hbask-t"></p>
             <div class="actions"><button type="button" class="btn" id="cp-hbask-no"></button><button type="button" class="btn primary" id="cp-hbask-yes"></button></div>
@@ -103,6 +112,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
     <?php site_footer(); ?>
     <script src="<?= h(asset('/assets/js/fuzzy.js')) ?>" defer></script>
     <script src="<?= h(asset('/sheets/player/formula.js')) ?>" defer></script>
+    <script src="<?= h(asset('/assets/js/homebrew-content.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/homebrew.js')) ?>" defer></script>
     <script src="<?= h(asset('/assets/js/compendium.js')) ?>" defer></script>
 </body>

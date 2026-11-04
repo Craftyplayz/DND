@@ -432,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cell = (v) => (v === undefined || v === null || v === 0 ? '–' : String(v));
         const table = `<div class="table-wrap"><table class="table cp-levels"><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${lv.map((l) => `<tr><td class="num">${l.level}</td><td class="num">+${l.prof_bonus}</td>
             <td>${esc((l.features || []).map((f) => f.name).join(', ') || '–')}</td>${cs.map((k) => `<td>${esc(cell((l.class_specific || {})[k]))}</td>`).join('')}${sp.map((k) => `<td class="num">${esc(cell((l.spellcasting || {})[k]))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-        const subs = (c.subclasses || []).map((s) => byKey.get(`subclass:${e.r}:${s}`)).filter(Boolean).sort(byName);
+        const subs = [...(c.subclasses || []).map((s) => byKey.get(`subclass:${e.r}:${s}`)).filter(Boolean), ...entries.filter((x) => x.hb && x.t === 'subclass' && x.d.class === c.index)].sort(byName);
         const mc = c.multi_classing || {}, mcPre = prereq(mc.prerequisites) || ((mc.prerequisite_options || {}).from?.options || []).map((o) => `${ABIL[o.ability_score]} ${o.minimum_score}+`).join(' or ');
         const eq = [...(c.starting_equipment || []).map((x) => `${x.quantity > 1 ? x.quantity + ' ' : ''}${nice(x.equipment)}`), ...(c.starting_equipment_options || []).map((o) => o.desc)].filter(Boolean);
         return `${textHtml(c.desc)}
@@ -444,23 +444,23 @@ document.addEventListener('DOMContentLoaded', () => {
             <h2 class="cp-h">Features</h2>${features(lv)}${build}`;
     }
     function subclassHtml(e) {
-        const s = e.d, of = byKey.get(`class:${e.r}:${s.class}`);
-        const spellName = (i) => (byKey.get(`spell:${e.r}:${i}`) || {}).name || nice(i);
+        const s = e.d, of = e.hb ? hbParent('class', s.class) : byKey.get(`class:${e.r}:${s.class}`);
+        const spellName = (i) => (s.spellNames || {})[i] || (byKey.get(`spell:${e.r}:${i}`) || {}).name || nice(i);
         const sp = (s.spells || []).map((x) => [(x.prerequisites || []).map((p) => String(p).replace(/^.*-(\d+)$/, 'Level $1')).join(', '), spellName(x.spell)]);
-        return `<p class="muted">${of ? openLink(key(of), of.name) : esc(nice(s.class))} subclass${s.subclass_flavor ? ' · ' + esc(s.subclass_flavor) : ''}</p>${textHtml(s.desc)}
+        return `<p class="muted">${of ? openLink(key(of), of.name) : /^hb-/.test(s.class) ? "Its class isn't shared with you, or has been archived." : esc(nice(s.class))}${of || !/^hb-/.test(s.class) ? ' subclass' : ''}${s.subclass_flavor ? ' · ' + esc(s.subclass_flavor) : ''}</p>${textHtml(s.desc)}
             ${sp.length ? `<h3>Subclass spells</h3>${kv(sp)}` : ''}<h2 class="cp-h">Features</h2>${features(s.levels)}${build}`;
     }
     const bonuses = (b) => (b || []).map((x) => `${ABIL[x.ability_score] || nice(x.ability_score)} ${signed(x.bonus)}`).join(', ');
     const traits = (t) => (t || []).map((x) => `<h3>${esc(x.name)}</h3>${textHtml(x.desc)}`).join('');
     function raceHtml(e) {
-        const x = e.d, subs = (x.subraces || []).map((s) => byKey.get(`subrace:${e.r}:${s}`)).filter(Boolean).sort(byName);
+        const x = e.d, subs = [...(x.subraces || []).map((s) => byKey.get(`subrace:${e.r}:${s}`)).filter(Boolean), ...entries.filter((y) => y.hb && y.t === 'subrace' && y.d.race === x.index)].sort(byName);
         return `${x.desc ? textHtml(x.desc) : ''}${kv([['Ability scores', bonuses(x.ability_bonuses)], ['Size', x.size], ['Speed', x.speed ? x.speed + ' ft.' : ''], ['Languages', x.language_desc || (x.languages || []).map(nice).join(', ')]])}
             ${x.size_description ? `<h3>Size</h3>${textHtml(x.size_description)}` : ''}${x.age ? `<h3>Age</h3>${textHtml(x.age)}` : ''}${x.alignment ? `<h3>Alignment</h3>${textHtml(x.alignment)}` : ''}
             ${traits(x.traits)}${subs.length ? `<h3>Subraces</h3><ul class="cp-subs">${subs.map((s) => `<li>${openLink(key(s), s.name)}</li>`).join('')}</ul>` : ''}${build}`;
     }
     function subraceHtml(e) {
-        const x = e.d, of = byKey.get(`race:${e.r}:${x.race}`);
-        return `<p class="muted">${of ? openLink(key(of), of.name) : esc(nice(x.race))} subrace</p>${x.desc ? textHtml(x.desc) : ''}${kv([['Ability scores', bonuses(x.ability_bonuses)]])}${traits(x.traits)}${build}`;
+        const x = e.d, of = e.hb ? hbParent('race', x.race) : byKey.get(`race:${e.r}:${x.race}`);
+        return `<p class="muted">${of ? `${openLink(key(of), of.name)} subrace` : /^hb-/.test(x.race) ? "Its race isn't shared with you, or has been archived." : `${esc(nice(x.race))} subrace`}</p>${x.desc ? textHtml(x.desc) : ''}${kv([['Ability scores', bonuses(x.ability_bonuses)]])}${traits(x.traits)}${build}`;
     }
     // a background's d6 / d8 table of personality traits, ideals, bonds or flaws
     const rollTable = (title, o) => {
@@ -578,6 +578,7 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (b.dataset.hbEdit !== undefined) { if (e.raw.kind === 'monster') location.href = '/sheets/monster/?hb=edit:' + encodeURIComponent(e.raw.id); else openForm(e.raw.kind, e.raw); }
         else if (b.dataset.hbCopy !== undefined) {
             if (e.t === 'monster') location.href = '/sheets/monster/?hb=' + (e.hb ? 'copy:' + encodeURIComponent(e.raw.id) : 'key:' + encodeURIComponent(e.id));
+            else if (FORMS[e.hb ? e.raw.kind : e.t].wizard && !e.hb) officialCopy(e);
             else openForm(e.hb ? e.raw.kind : e.t, null, seedOf(e));
         }
         else if (b.dataset.unarchive) unarchive(b.dataset.unarchive);
@@ -733,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ITEM_CATS = [['Weapon', 'Weapon'], ['Armor', 'Armour'], ['Ammunition', 'Ammunition'], ['Tools', 'Tools'], ['Mounts and vehicles', 'Mounts and vehicles'], ['Adventuring gear', 'Gear'], ['Consumable', 'Consumable'], ['Treasure', 'Treasure']];
     const MAGIC_TYPES = ['Armor', 'Potion', 'Ring', 'Rod', 'Scroll', 'Staff', 'Wand', 'Weapon', 'Wondrous Item', 'Shield', 'Ammunition'];
     // the classes a spell can be ticked for: every class any listed spell has
-    const spellClasses = () => [...new Set(entries.filter((e) => e.t === 'spell' && !e.hb).flatMap((e) => e.f.cls))].sort();
+    const spellClasses = () => [...new Set([...entries.filter((e) => e.t === 'spell' && !e.hb).flatMap((e) => e.f.cls), ...Homebrew.of(['class']).map((x) => x.name)])].sort();
     const itemFields = (magic) => {
         const w = (v) => (magic ? v.type === 'Weapon' : v.cat === 'Weapon'), a = (v) => (magic ? ['Armor', 'Shield'].includes(v.type) : v.cat === 'Armor');
         return [
@@ -821,6 +822,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 { k: 'uses', label: 'Uses (optional)', calc: true, hint: 'A number or a sheet formula, like PROF. It gives the row a counter on the sheet.' }, { k: 'reset', label: 'Uses come back on', opts: [['', 'No reset'], ['short', 'Short rest'], ['long', 'Long rest']], dflt: '', when: (v) => v.uses }],
             entry: (x) => ({ t: 'feat', sub: x.prereq ? 'Prerequisite: ' + x.prereq : 'No prerequisite', hay: '', f: {}, d: {}, html: `${kv([['Prerequisite', x.prereq], ['Uses', x.uses ? x.uses + (x.reset ? `, back on a ${x.reset} rest` : '') : '']])}${textHtml(x.text)}` }),
         },
+        class: { noun: 'class', wizard: true, entry: (x) => { const d = HomebrewContent.toContent(x).e; return { t: 'class', sub: `Hit die d${d.hit_die}` + (d.spellcasting ? ` · Spellcaster (${ABIL[d.spellcasting.spellcasting_ability] || ''})` : ''), hay: 'class', f: { kind: 'Classes', cls: x.name }, d }; } },
+        subclass: { noun: 'subclass', wizard: true, entry: (x) => { const d = HomebrewContent.toContent(x).e, of = (hbParent('class', d.class) || {}).name || 'Homebrew'; return { t: 'subclass', sub: `${of} subclass` + (d.subclass_flavor ? ' · ' + d.subclass_flavor : ''), hay: of, f: { kind: 'Subclasses', cls: of }, d }; } },
+        race: { noun: 'race', wizard: true, entry: (x) => { const d = HomebrewContent.toContent(x).e; return { t: 'race', sub: [d.size, d.speed ? `Speed ${d.speed} ft.` : ''].filter(Boolean).join(' · '), hay: 'race', f: { kind: 'Races' }, d }; } },
+        subrace: { noun: 'subrace', wizard: true, entry: (x) => { const d = HomebrewContent.toContent(x).e, of = (hbParent('race', d.race) || {}).name || 'Homebrew'; return { t: 'subrace', sub: `${of} subrace`, hay: of, f: { kind: 'Subraces' }, d }; } },
+        background: { noun: 'background', wizard: true, entry: (x) => { const d = HomebrewContent.toContent(x).e; return { t: 'background', sub: skills(d.starting_proficiencies).join(', ') || 'Background', hay: '', f: {}, d }; } },
         // no form: a monster is made on the Monster Sheet and saved from there, so there's one stat block editor
         monster: {
             noun: 'monster',
@@ -853,28 +859,36 @@ document.addEventListener('DOMContentLoaded', () => {
             range: rng.long ? `${rng.normal}/${rng.long} ft` : '', props: props.map(known).filter(Boolean), other: props.filter((p) => !known(p)).join(', '),
             akind: ({ light: 'Light', medium: 'Medium', heavy: 'Heavy', shield: 'Shield' })[String(d.armor_category || '').toLowerCase()] || 'Light', ac: ac.base ?? '', dex: !!ac.dex_bonus, dexmax: ac.max_bonus || '', strmin: d.str_minimum || '', stealth: !!d.stealth_disadvantage, text: text(d.desc, d.description, d.special) };
     }
+    // homebrew's parent: another homebrew entry, or the official one (either rules version has the same index)
+    const hbParent = (t, index) => entries.find((e) => e.t === t && (e.hb ? e.d.index === index : e.d && e.d.index === index));
     function hbEntry(x, shared) {
         let made = null;
         // a shared entry another browser made: anything odd in it costs that entry, not the page
         try { made = FORMS[x.kind] && FORMS[x.kind].entry(x); } catch (err) { }
         if (!made) return null;
+        if (x.unfinished) made.tags = [['Unfinished', 'r']];
         return Object.assign({ id: 'hb:' + x.id, name: x.name, tags: [], f: {}, hb: true, raw: x, shared }, made, shared ? { sub: `${made.sub} · ${x.by}` } : {});
     }
     function showHomebrew() {
         for (let i = entries.length - 1; i >= 0; i--) if (entries[i].hb) { byKey.delete(key(entries[i])); entries.splice(i, 1); }
-        for (const x of Homebrew.mine()) if (!x.archived) { const e = hbEntry(x, false); if (e) addEntry(e); }
-        for (const x of Homebrew.shared()) { const e = hbEntry(x, true); if (e) addEntry(e); }
+        // parents first: a subclass names its class
+        const parentsFirst = (a, b) => (['class', 'race'].includes(b.kind) ? 1 : 0) - (['class', 'race'].includes(a.kind) ? 1 : 0);
+        for (const [x, shared] of [...Homebrew.mine().filter((y) => !y.archived).map((y) => [y, false]), ...Homebrew.shared().map((y) => [y, true])].sort((a, b) => parentsFirst(a[0], b[0]))) { const e = hbEntry(x, shared); if (e) addEntry(e); }
         entries.sort(byName); drawTabs(); refresh();
     }
     const archivedOf = (kinds) => Homebrew.mine().filter((x) => x.archived && kinds.includes(x.kind));
+    const SECOND = { class: 'subclass', race: 'subrace' };
     function drawHomebrewBar() {
-        const form = FORMS[S.tab], kinds = Object.keys(FORMS).filter((k) => k === S.tab), old = archivedOf(kinds).length;
+        const form = FORMS[S.tab], kinds = form ? typesOf(S.tab) : [], old = archivedOf(kinds).length, two = SECOND[S.tab];
         $('#cp-new').hidden = !form;
         if (form) $('#cp-new').textContent = 'New ' + form.noun;
+        $('#cp-new2').hidden = !two;
+        if (two) $('#cp-new2').textContent = 'New ' + two;
         $('#cp-arch').hidden = !old;
         $('#cp-arch').textContent = `Archived (${old})`;
     }
     function homebrewTools(e) {
+        if (e.hb && e.raw.unfinished) return `<div class="cp-hb"><p class="muted">Unfinished. Only you can see this. Finish it to share it or use it in the character builder.</p><div class="actions"><button type="button" class="btn primary" data-hb-edit>Carry on</button><button type="button" class="btn" data-hb-archive>Archive</button></div></div>`;
         const copy = FORMS[e.hb ? e.raw.kind : e.t] ? '<button type="button" class="btn" data-hb-copy>Copy to homebrew</button>' : '';
         if (!e.hb) return copy ? `<div class="cp-hb">${copy}</div>` : '';
         if (e.raw.archived) return `<div class="cp-hb"><p class="muted">Archived.</p><div class="actions"><button type="button" class="btn" data-unarchive="${esc(e.raw.id)}">Unarchive</button></div></div>`;
@@ -956,6 +970,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     async function openForm(kind, x, seed) {
         const form = FORMS[kind], from = x || seed || {};
+        if (form.wizard) return openWizard(kind, x, seed);
         // the spell form ticks classes from the spell lists
         if (kind === 'spell') await Promise.all(jobsOf('spell').map(load));
         editing = { kind, x }; dirty = !!seed;
@@ -1017,6 +1032,67 @@ document.addEventListener('DOMContentLoaded', () => {
         openEntry(byKey.get(`${form.entry(out).t}:hb:${out.id}`));
     });
     $('#cp-new').addEventListener('click', () => { if (FORMS[S.tab].link) location.href = FORMS[S.tab].link; else openForm(S.tab); });
+    $('#cp-new2').addEventListener('click', () => openForm(SECOND[S.tab]));
+    // ---- the guided form for classes, races and backgrounds (assets/js/homebrew-form.js, loaded the first time it's needed) ----
+    let wizardLoad = null;
+    const loadWizard = () => wizardLoad || (wizardLoad = new Promise((ok, no) => { const s = document.createElement('script'); s.src = $('#main').dataset.hbform; s.onload = ok; s.onerror = () => { wizardLoad = null; no(new Error('form')); }; document.head.appendChild(s); }));
+    const officialOf = (t) => { const seen = new Map(); for (const e of entries) if (e.t === t && !e.hb && (!seen.has(e.d.index) || e.r === '2014')) seen.set(e.d.index, e); return [...seen.values()].sort(byName); };
+    const spellsFor = (c) => { const n = String(c).toLowerCase(), seen = new Map(); for (const e of entries) if (e.t === 'spell' && !e.hb && e.f.cls.some((x) => x.toLowerCase() === n)) seen.set(e.d.index, { id: e.d.index, name: e.name, level: e.f.level }); return [...seen.values()]; };
+    function officialSeed(kind, e) {
+        const seed = { ...HomebrewContent.fromOfficial(kind, e.d), name: e.name };
+        if (kind === 'class' && seed.caster !== 'none') seed.spells = spellsFor(e.name);
+        return seed;
+    }
+    const wizardCtx = () => ({
+        classes: () => [...officialOf('class').map((e) => [e.d.index, e.name]), ...Homebrew.of(['class']).map((x) => ['hb-' + x.id, x.name])],
+        races: () => [...officialOf('race').map((e) => [e.d.index, e.name]), ...Homebrew.of(['race']).map((x) => ['hb-' + x.id, x.name])],
+        officials: (kind) => officialOf(kind).map((e) => [e.d.index, e.name]),
+        officialName: (kind, id) => (officialOf(kind).find((e) => e.d.index === id) || {}).name || '',
+        seedOf: (kind, id) => { const { name: _, ...rest } = officialSeed(kind, officialOf(kind).find((e) => e.d.index === id)); return rest; },
+        officialClassNamed: (n) => officialOf('class').some((e) => e.name.trim().toLowerCase() === n.trim().toLowerCase()),
+        // the level a class picks its subclass, for the form's warning
+        subLevelOf: (parent) => {
+            if (!parent) return 0;
+            if (/^hb-/.test(parent)) return +(Homebrew.all().find((x) => 'hb-' + x.id === parent) || {}).subLevel || 3;
+            const lv = entries.filter((e) => e.t === 'subclass' && !e.hb && e.d.class === parent).flatMap((e) => (e.d.levels || []).filter((l) => l.features?.length).map((l) => l.level));
+            return lv.length ? Math.min(...lv) : 3;
+        },
+        spells: () => [...spellChoices().values()].map((s) => ({ label: s.label })),
+        spellNamed: (label) => { const s = spellChoices().get(String(label).trim().toLowerCase()); return s ? { id: s.id, name: s.name, level: s.level } : null; },
+        classSpells: (id) => { const e = officialOf('class').find((x) => x.d.index === id); return e ? spellsFor(e.name) : []; },
+        items: () => [...new Set([...entries.filter((e) => (e.t === 'item') && !e.hb).map((e) => e.name), ...Homebrew.of(['item', 'magic']).map((x) => x.name + Homebrew.SUFFIX)])].sort(),
+        itemRef: (name) => {
+            const n = String(name).trim(), hb = Homebrew.named(['item', 'magic'], n);
+            if (hb) return 'hb-' + hb.id;
+            const e = entries.find((x) => x.t === 'item' && !x.hb && x.name.toLowerCase() === n.toLowerCase());
+            return e ? e.d.index : n.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        },
+        feats: () => [...new Set(entries.filter((e) => e.t === 'feat').map((e) => e.name))].sort(),
+        formulaError: (v) => (String(v ?? '').trim() ? formulaError(hbCalc, String(v)) : ''),
+        preview: (x) => { const e = hbEntry(x, false); return e ? HTML[e.t](e).replace(build, '') : '<p class="muted">Give it a name to see it here.</p>'; },
+        save: (x) => Homebrew.save(x),
+        ask,
+        done: (x) => {
+            if (Homebrew.full()) UI.toast('Saved to your account. This browser is full, so it only has a copy for this visit.', 'note');
+            showHomebrew();
+            const e = byKey.get(`${FORMS[x.kind].entry(x).t}:hb:${x.id}`);
+            if (e) openEntry(e);
+        },
+    });
+    // "Name (level 3)" or "Name (homebrew)": each spell once, whichever rules version has it
+    function spellChoices() {
+        const out = new Map();
+        for (const e of entries) if (e.t === 'spell' && !e.hb && !out.has(e.name.toLowerCase())) out.set(e.name.toLowerCase(), { id: e.d.index, name: e.name, level: e.f.level, label: e.name });
+        for (const x of Homebrew.of(['spell'])) { const label = x.name + Homebrew.SUFFIX; out.set(label.toLowerCase(), { id: 'hb-' + x.id, name: x.name, level: +x.level || 0, label }); }
+        return out;
+    }
+    async function openWizard(kind, x, seed) {
+        try {
+            await loadWizard();
+            await Promise.all(RULES.flatMap((r) => ['classes', 'spells', 'items', 'origins'].map((f) => load(r + '-' + f))));
+        } catch (err) { return UI.toast("Couldn't load the form. Check your connection and try again.", 'err'); }
+        HbWizard.open(kind, x, seed, wizardCtx());
+    }
     async function archive(x) {
         const camps = Homebrew.sharedWith(x.id).map((c) => (Homebrew.camps().find((k) => k.id === c) || {}).name).filter(Boolean);
         if (camps.length && !await ask(`Archive ${x.name}? It leaves ${camps.join(', ')}. Sheets keep their copy.`, 'Archive')) return;
@@ -1051,6 +1127,19 @@ document.addEventListener('DOMContentLoaded', () => {
         b.closest('.rowi').remove();
         if (!$('#cp-hbarch-body').children.length) dlg('cp-hbarch').close();
     });
+    // Copy to homebrew from an official class, race or background: the lists it needs load first
+    async function officialCopy(e) {
+        await Promise.all(RULES.map((r) => load(r + '-spells')));
+        openForm(e.t, null, officialSeed(e.t, e));
+    }
+    // sharing a class or a race offers its subclasses or subraces too
+    async function shareChildren(e, c) {
+        const kids = Homebrew.mine().filter((x) => !x.archived && !x.unfinished && x.parent === 'hb-' + e.raw.id && !Homebrew.sharedWith(x.id).includes(c));
+        if (!kids.length) return;
+        const noun = e.raw.kind === 'class' ? (kids.length > 1 ? 'subclasses' : 'subclass') : kids.length > 1 ? 'subraces' : 'subrace';
+        if (!await ask(`Also share its ${kids.length} ${noun}?`, 'Share them too', 'Not now')) return;
+        for (const k of kids) await Homebrew.share(k.id, c, true).catch(() => { });
+    }
     async function shareTo(e, box) {
         const c = box.dataset.hbShare || box.dataset.hbDmonly, dm = dbody.querySelector(`[data-hb-dmonly="${CSS.escape(c)}"]`), sh = dbody.querySelector(`[data-hb-share="${CSS.escape(c)}"]`);
         box.disabled = true;
@@ -1059,6 +1148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             note("Couldn't change that. Check your connection and try again.", 'err');
         }
         box.disabled = false;
+        if (sh.checked && ['class', 'race'].includes(e.raw.kind)) shareChildren(e, c);
         if (dm) { if (!sh.checked) dm.checked = false; dm.disabled = !sh.checked; }
     }
     async function removeFromCampaign(e, c, ref) {
