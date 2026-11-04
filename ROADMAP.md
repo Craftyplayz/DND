@@ -973,8 +973,7 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 - Built in stages, with a "New ..." button in each Compendium tab, Edit and Archive on the entry, always shown whatever the
   rules switch says. Any member shares their own entries; the DM or a co-DM can take one out of the campaign; the list is
   `accounts/campaigns/<id>/homebrew.json`. Stage 1 done: storage, sharing and house rules (`includes/homebrew.php`,
-  `compendium/homebrew.php`, `assets/js/homebrew.js`, browser key `homebrew`). Still to come: monsters ("Save as homebrew" on the Monster
-  Sheet); classes, races and backgrounds (4.6, a guided form).
+  `compendium/homebrew.php`, `assets/js/homebrew.js`, browser key `homebrew`). Still to come: classes, races and backgrounds (4.6, a guided form).
   Stage 2 done: spells, items, magic items and feats. Each has its form in its Compendium tab (fields that don't apply stay hidden; a spell has a How it rolls
   section; dice and uses are checked with the sheet's own formula parser; closing a changed form asks first), "Copy to homebrew" on any official or homebrew
   entry, and a Homebrew only filter. Saving keeps the replaced version in `homebrew/<sub>/history/<id>/<updated>.json` (no screen yet). Entries carry an account
@@ -984,7 +983,11 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
   archived or unshared changes nothing there. A row's detail says where it came from; "Update available" on the row opens a dialog of the changes, with a warning if
   the row was changed by hand; play state (prepared, quantity, equipped, attuned, uses) stays, and Undo lasts 15 seconds. A homebrew weapon also gets an Actions row; armour goes to
   Inventory only and never changes AC. The builder lists homebrew spells (by ticked class, or for any caster with none ticked), feats at an improvement and gear in Extra gear, and keeps
-  what was picked in the draft (`build.hbc`). The Monster Sheet has the spell suggestions; updating a monster's rows comes with stage 3. Check: `homebrew-copies.mjs`.
+  what was picked in the draft (`build.hbc`). The Monster Sheet has the spell suggestions; updating a monster's rows came with stage 3. Check: `homebrew-copies.mjs`.
+  Stage 3 done: monsters. "Save as homebrew" under Edit on the Monster Sheet (name, size, type, CR, then Update or Save as a new one if it was saved before) keeps the stat block, with hit points
+  full and no conditions, rolls, uses spent or notes; the book's credit is kept. New monster, Edit and Copy to homebrew in the Compendium lead to the Monster Sheet, so there's one stat block editor. The
+  Compendium shows the numbers worked out at save time. Homebrew monsters come first in the Add monsters and Import monster search and go through `addMonsters`, each its own copy with `hbsrc`, and Update (the changes, hand-edit warning, Undo) keeps
+  hit points, conditions, notes, rolls and uses. A monster shared "DM only" is left out of `hb_view` for anyone but that campaign's DM and co-DMs, so a player's answer never has it. Check: `homebrew-monsters.mjs`.
 
 **5.3 Retire the D&D Beyond viewer**
 - What: when the party overview (1.5) is live, import the 6 characters from `characters.json` into their

@@ -22,7 +22,7 @@ window.Homebrew = (() => {
     // shortcut: until the first sync answers, this is the last account seen here, so the next person can see the last one's entries for a moment (never uploaded); put the mark in the page if that matters
     const me = () => (signedIn() ? acct || stored(ME) : '');
     const post = (path, body) => fetch(API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    let view = { shared: null, shares: {}, camps: [] };
+    let view = { shared: null, shares: {}, dmonly: {}, camps: [] };
     const sharedList = () => {
         if (!signedIn()) return [];
         if (view.shared) return view.shared;
@@ -40,7 +40,7 @@ window.Homebrew = (() => {
         const j = await r.json(), db = read(), have = new Map(j.mine.map((e) => [e.id, e]));
         acct = j.acct;
         try { localStorage.setItem(ME, acct); } catch (e) { }
-        view = { shared: j.shared, shares: j.shares, camps: j.camps };
+        view = { shared: j.shared, shares: j.shares, dmonly: j.dmonly || {}, camps: j.camps };
         keepShared();
         for (const e of j.mine) if (!db[e.id] || db[e.id].updated < e.updated) db[e.id] = e;
         for (const e of Object.values(db)) if (!e.acct) e.acct = acct;
@@ -66,12 +66,13 @@ window.Homebrew = (() => {
         return save(e);
     }
     // the entry goes up first: a campaign can only link what the account has
-    async function share(id, c, on) {
+    async function share(id, c, on, dmonly) {
         await post('', read()[id]);
-        const r = await post('?act=share', { id, c, on });
+        const r = await post('?act=share', { id, c, on, dmonly });
         if (!r.ok) throw new Error(r.status);
-        const list = (view.shares[id] || []).filter((x) => x !== c);
+        const list = (view.shares[id] || []).filter((x) => x !== c), dm = (view.dmonly[id] || []).filter((x) => x !== c);
         view.shares[id] = on ? [...list, c] : list;
+        view.dmonly[id] = on && dmonly ? [...dm, c] : dm;
     }
     async function removeFrom(c, ref) {
         const r = await post('?act=remove', { c, ref });
@@ -169,11 +170,12 @@ window.Homebrew = (() => {
     }
 
     return {
-        signedIn, sync, save, setArchived, share, removeFrom, mine, all, of, named, parts, edited, changes, apply, addTo, SUFFIX,
+        signedIn, sync, save, setArchived, share, removeFrom, mine, all, of, named, parts, edited, changes, apply, addTo, sum, SUFFIX,
         id: () => 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
         shared: sharedList,
         camps: () => view.camps,
         sharedWith: (id) => view.shares[id] || [],
+        dmOnlyIn: (id) => view.dmonly[id] || [],
         full: () => !!mem,
         // a sync at most once per page, for the pages that only read homebrew
         ready: () => once || (once = sync().catch(() => { })),

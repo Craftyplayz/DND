@@ -136,7 +136,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.head.appendChild(s);
         }),
         // the browser's copy shows at once; the account's and the campaigns' come after
-        async homebrew() { showHomebrew(); await Homebrew.sync().catch(() => { }); showHomebrew(); },
+        async homebrew() {
+            showHomebrew();
+            await Homebrew.sync().catch(() => { });
+            showHomebrew();
+            // an entry opened from the browser's copy: the account has now said which campaigns there are
+            const e = S.sel && S.sel.includes(':hb:') && byKey.get(S.sel);
+            if (e) openEntry(e);
+        },
     };
     for (const r of RULES) for (const f of Object.keys(content)) jobs[r + '-' + f] = async () => content[f](r, await getJson(`${CONTENT}${r}-${f}.json`));
     let sources = {};
@@ -568,13 +575,16 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (b.dataset.add === 'sheet') addToSheet(e);
         else if (b.dataset.add === 'enc') addToEncounter(e);
         else if (b.dataset.reopen !== undefined) openEntry(e);
-        else if (b.dataset.hbEdit !== undefined) openForm(e.raw.kind, e.raw);
-        else if (b.dataset.hbCopy !== undefined) openForm(e.hb ? e.raw.kind : e.t, null, seedOf(e));
+        else if (b.dataset.hbEdit !== undefined) { if (e.raw.kind === 'monster') location.href = '/sheets/monster/?hb=edit:' + encodeURIComponent(e.raw.id); else openForm(e.raw.kind, e.raw); }
+        else if (b.dataset.hbCopy !== undefined) {
+            if (e.t === 'monster') location.href = '/sheets/monster/?hb=' + (e.hb ? 'copy:' + encodeURIComponent(e.raw.id) : 'key:' + encodeURIComponent(e.id));
+            else openForm(e.hb ? e.raw.kind : e.t, null, seedOf(e));
+        }
         else if (b.dataset.unarchive) unarchive(b.dataset.unarchive);
         else if (b.dataset.hbArchive !== undefined) archive(e.raw);
         else if (b.dataset.hbRemove) removeFromCampaign(e, b.dataset.hbRemove, b.dataset.ref);
     });
-    detail.addEventListener('change', (ev) => { const i = ev.target.closest('[data-hb-share]'), e = byKey.get(S.sel); if (i && e) shareTo(e, i); });
+    detail.addEventListener('change', (ev) => { const i = ev.target.closest('[data-hb-share],[data-hb-dmonly]'), e = byKey.get(S.sel); if (i && e) shareTo(e, i); });
 
     // ---- requests to the sheets (applied there, see sheet.js and monster.js) ----
     const uid = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -752,6 +762,19 @@ document.addEventListener('DOMContentLoaded', () => {
             ['Healing', x.heal], ['Effects', (x.fx || []).map((k) => (SPELL_FX.find(([v]) => v === k) || [k, k])[1]).join(', ')]];
         return rows.some((r) => r[1]) ? `<h3>How it rolls</h3>${kv(rows)}` : '';
     }
+    // a homebrew monster: the numbers were worked out when it was saved (the Compendium has no sheet to work them out with)
+    function hbMonsterHtml(x) {
+        const b = x.block || {}, list = (title, l) => ((l || []).length ? `<h3>${esc(title)}</h3>${l.map((a) => `<p><b>${esc(a.name)}.</b> ${esc(a.text)}</p>`).join('')}` : '');
+        const acts = (t) => (b.actions || []).filter((a) => a.time === t);
+        const other = (b.actions || []).filter((a) => !['Action', 'Bonus action', 'Reaction', 'Legendary'].includes(a.time));
+        return `${/^data:image\//.test(x.sheet?.art || '') ? `<img class="cp-hbart" src="${esc(x.sheet.art)}" alt="">` : ''}<p class="muted">${esc([x.size, x.type].filter(Boolean).join(' '))}</p>
+            ${kv([['Armour class', b.ac], ['Hit points', b.hp], ['Speed', b.speed]])}
+            <div class="table-wrap"><table class="table cp-abil"><thead><tr>${(b.abilities || []).map((a) => `<th class="num">${esc(a.key)}</th>`).join('')}</tr></thead>
+            <tbody><tr>${(b.abilities || []).map((a) => `<td class="num">${esc(a.score)} (${signed(Math.floor((a.score - 10) / 2))})</td>`).join('')}</tr></tbody></table></div>
+            ${kv([['Saving throws', b.saves], ['Skills', b.skills], ['Vulnerabilities', b.vul], ['Resistances', b.res], ['Immunities', b.imm], ['Senses', b.senses], ['Languages', b.langs], ['Challenge', crText(+x.cr || 0)]])}
+            ${list('Traits', b.traits)}${list('Actions', [...acts('Action'), ...other])}${list('Bonus actions', acts('Bonus action'))}${list('Reactions', acts('Reaction'))}${list('Legendary actions', acts('Legendary'))}
+            ${(b.spells || []).length ? `<h3>Spells</h3><p>${esc(b.spells.join(', '))}</p>` : ''}${x.credit ? `<p class="muted cp-credit">${esc(x.credit)}</p>` : ''}`;
+    }
     const FORMS = {
         spell: {
             noun: 'spell',
@@ -797,6 +820,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 { k: 'text', label: 'Description', area: 8, need: 'Write what the feat does.', hint: TEXT_HINT },
                 { k: 'uses', label: 'Uses (optional)', calc: true, hint: 'A number or a sheet formula, like PROF. It gives the row a counter on the sheet.' }, { k: 'reset', label: 'Uses come back on', opts: [['', 'No reset'], ['short', 'Short rest'], ['long', 'Long rest']], dflt: '', when: (v) => v.uses }],
             entry: (x) => ({ t: 'feat', sub: x.prereq ? 'Prerequisite: ' + x.prereq : 'No prerequisite', hay: '', f: {}, d: {}, html: `${kv([['Prerequisite', x.prereq], ['Uses', x.uses ? x.uses + (x.reset ? `, back on a ${x.reset} rest` : '') : '']])}${textHtml(x.text)}` }),
+        },
+        // no form: a monster is made on the Monster Sheet and saved from there, so there's one stat block editor
+        monster: {
+            noun: 'monster',
+            link: '/sheets/monster/?hb=new',
+            entry: (x) => ({ t: 'monster', sub: `CR ${crText(+x.cr || 0)} · ${[x.size, x.type].filter(Boolean).join(' ')}`, hay: x.type || '', f: { cr: +x.cr || 0, size: x.size, mtype: x.type, src: 'Homebrew' }, html: hbMonsterHtml(x) }),
         },
         rule: {
             noun: 'rule',
@@ -851,12 +880,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.raw.archived) return `<div class="cp-hb"><p class="muted">Archived.</p><div class="actions"><button type="button" class="btn" data-unarchive="${esc(e.raw.id)}">Unarchive</button></div></div>`;
         if (e.shared) {
             const camps = e.raw.camps;
-            return `<div class="cp-hb"><p class="muted">Shared by ${esc(e.raw.by)} in ${esc(camps.map((c) => c.name).join(', '))}.</p>
+            return `<div class="cp-hb"><p class="muted">Shared by ${esc(e.raw.by)} in ${esc(camps.map((c) => c.name + (c.dmonly ? ' (DM only)' : '')).join(', '))}.</p>
                 <div class="actions">${copy}</div>${camps.filter((c) => c.dm).map((c) => `<button type="button" class="btn small" data-hb-remove="${esc(c.id)}" data-ref="${esc(c.ref)}">Remove from ${esc(c.name)}</button>`).join(' ')}</div>`;
         }
-        const on = Homebrew.sharedWith(e.raw.id), camps = Homebrew.camps();
+        const on = Homebrew.sharedWith(e.raw.id), camps = Homebrew.camps(), monster = e.raw.kind === 'monster', dmOnly = Homebrew.dmOnlyIn(e.raw.id);
         const share = !Homebrew.signedIn() ? '<p class="muted">Sign in to save this to your account and share it with a campaign.</p>'
-            : camps.length ? `<fieldset class="cp-hbshare"><legend>Share with</legend>${camps.map((c) => `<label class="check"><input type="checkbox" data-hb-share="${esc(c.id)}"${on.includes(c.id) ? ' checked' : ''}> ${esc(c.name)}</label>`).join('')}</fieldset>` : '';
+            : camps.length ? `<fieldset class="cp-hbshare"><legend>Share with</legend>${camps.map((c) => `<label class="check"><input type="checkbox" data-hb-share="${esc(c.id)}"${on.includes(c.id) ? ' checked' : ''}> ${esc(c.name)}</label>
+                ${monster ? `<label class="check cp-hbdm"><input type="checkbox" data-hb-dmonly="${esc(c.id)}"${dmOnly.includes(c.id) ? ' checked' : ''}${on.includes(c.id) ? '' : ' disabled'}> DM only</label>` : ''}`).join('')}
+                ${monster ? '<small class="muted">Everyone in the campaign can read this, unless you tick DM only: then only its DM and co-DMs can.</small>' : ''}</fieldset>` : '';
         return `<div class="cp-hb"><div class="actions"><button type="button" class="btn" data-hb-edit>Edit</button><button type="button" class="btn" data-hb-archive>Archive</button>${copy}</div>${share}</div>`;
     }
     const hbDlg = $('#cp-hb'), hbForm = $('#cp-hb-form');
@@ -985,7 +1016,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showHomebrew();
         openEntry(byKey.get(`${form.entry(out).t}:hb:${out.id}`));
     });
-    $('#cp-new').addEventListener('click', () => openForm(S.tab));
+    $('#cp-new').addEventListener('click', () => { if (FORMS[S.tab].link) location.href = FORMS[S.tab].link; else openForm(S.tab); });
     async function archive(x) {
         const camps = Homebrew.sharedWith(x.id).map((c) => (Homebrew.camps().find((k) => k.id === c) || {}).name).filter(Boolean);
         if (camps.length && !await ask(`Archive ${x.name}? It leaves ${camps.join(', ')}. Sheets keep their copy.`, 'Archive')) return;
@@ -1021,12 +1052,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!$('#cp-hbarch-body').children.length) dlg('cp-hbarch').close();
     });
     async function shareTo(e, box) {
+        const c = box.dataset.hbShare || box.dataset.hbDmonly, dm = dbody.querySelector(`[data-hb-dmonly="${CSS.escape(c)}"]`), sh = dbody.querySelector(`[data-hb-share="${CSS.escape(c)}"]`);
         box.disabled = true;
-        try { await Homebrew.share(e.raw.id, box.dataset.hbShare, box.checked); } catch (x) {
+        try { await Homebrew.share(e.raw.id, c, sh.checked, !!dm && dm.checked); } catch (x) {
             box.checked = !box.checked;
             note("Couldn't change that. Check your connection and try again.", 'err');
         }
         box.disabled = false;
+        if (dm) { if (!sh.checked) dm.checked = false; dm.disabled = !sh.checked; }
     }
     async function removeFromCampaign(e, c, ref) {
         const camp = (e.raw.camps || []).find((x) => x.ref === ref);

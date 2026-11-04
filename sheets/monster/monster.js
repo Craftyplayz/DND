@@ -206,6 +206,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 newPanel('trackers', 'Resources'), newPanel('homebrew'), newPanel('combat'),
                 Object.assign(newPanel('notes'), { notes: [Object.assign(ROW.note(), { title: 'Tactics', group: 'Monster' })] })],
             view: { tab: '', all: false, prep: false }, hbPanel: true, hb2: true, passSplit: true,
+            // homebrew (ROADMAP 5.2): the entry this monster is a copy of, {id, by, at, sum}
+            hbsrc: null,
         };
     }
 
@@ -933,7 +935,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     function entry(rp, r, summaryKey, editor, lead = '', tail = '', end = '') {
         const isOpen = openRows.has(r.id);
         return `<div class="hb-entry">
-            <div class="hb-entry-h">${lead}<button type="button" class="hb-link" data-act="info" data-p="${rp}">${esc(r.name || 'Unnamed')}</button>
+            <div class="hb-entry-h">${lead}<button type="button" class="hb-link" data-act="info" data-p="${rp}">${esc(r.name || 'Unnamed')}</button>${hbBadge(r)}
                 <span class="hb-sum" data-c="${summaryKey}:${rp}"></span>
                 <button type="button" class="hb-x hb-toggle" data-act="toggle" data-id="${esc(r.id)}" aria-expanded="${isOpen}" aria-label="Edit ${esc(r.name || 'entry')}" title="Edit">${PENCIL}</button>${end}</div>
             ${tail}${isOpen ? `<div class="hb-editor">${editor()}</div>` : ''}
@@ -1268,9 +1270,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         return `${encPicker('mon-encbar')}${DIFFBAR()}<select class="field hb-pick" data-act="pick" aria-label="Monster">${pickOpts()}</select>
             <button type="button" class="btn small" data-act="manage" aria-expanded="${!!open.manage}" aria-controls="hb-manage">${PENCIL} Edit</button>
             <button type="button" class="btn small" data-act="dup">Duplicate</button>
+            ${hbMonNewer() ? '<button type="button" class="btn small" data-act="hbmon">Update available</button>' : ''}
             <span class="hb-manage" id="hb-manage"${open.manage ? '' : ' hidden'}>
                 <button type="button" class="btn small" data-act="new">New</button>
                 <button type="button" class="btn small" data-act="find">Import monster</button>
+                <button type="button" class="btn small" data-act="hbsave">Save as homebrew</button>
                 <button type="button" class="btn small" data-act="import">Import file</button>
                 <button type="button" class="btn small" data-act="export">Export</button>
                 <button type="button" class="btn small" data-act="encto">Move to encounter</button>
@@ -1742,7 +1746,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const open = { more: false, hp: false, manage: false };
     const openRows = new Set();
     let dlgMode = null;
-    const dlgHTML = () => (dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : formulaDlg(dlgMode));
+    const dlgHTML = () => (dlgMode.kind === 'hbsave' ? hbSaveDlg() : dlgMode.kind === 'hbmon' ? hbMonDlg() : dlgMode.kind === 'hbup' ? hbUpDlg(dlgMode) : dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : formulaDlg(dlgMode));
     // ---- dice: a card for each roll and the dice tray in the bottom-left corner ----
     const DICE = [4, 6, 8, 10, 12, 20, 100], tray = { open: false, pool: {} };
     // the dice chosen on the Dice Sets page (/dice/, choice.js), read at every roll so a change there applies here straight away;
@@ -1922,7 +1926,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         drawSide();
         root.innerHTML = top() + `<div class="hb-top-panels">${panels()}</div><div hidden>${datalists()}</div>`;
         drawTray(); drawLog();
-        if (dlg.open && dlgMode && !['rest', 'crop'].includes(dlgMode.kind)) { dlgBody.innerHTML = dlgHTML(); }
+        if (dlg.open && dlgMode && !['rest', 'crop', 'hbsave'].includes(dlgMode.kind)) { dlgBody.innerHTML = dlgHTML(); }
         if (C.archived) for (const el of root.querySelectorAll('input, select, textarea')) el.disabled = true;
         refresh();
     }
@@ -2277,6 +2281,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (to !== null) findSum();
         $('#mon-sum').hidden = to === null;
         $('#mon-dlg').showModal(); $('#mon-q').focus();
+        Homebrew.ready().then(() => { if (monIndex && $('#mon-dlg').open) monSearch(); });
         if (monIndex) return monSearch();
         try {
             const r = await fetch('monsters.json');
@@ -2290,7 +2295,9 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     // the search list: names that start with the search first, then names that contain it, within the CR and rules filters
     function monHits() {
         const q = $('#mon-q').value.trim().toLowerCase(), lo = EncDiff.crValue($('#mon-crlo').value), hi = EncDiff.crValue($('#mon-crhi').value), rules = $('#mon-rules').value;
-        const all = monIndex.list.filter((x) => (lo === null || x[2] >= lo) && (hi === null || x[2] <= hi) && (!rules || (x[4] === 'srd-2024') === (rules === '2024')));
+        // homebrew comes first and shows under either rules version
+        const hb = Homebrew.of(['monster']).map((x) => ['hb:' + x.id, x.name, +x.cr || 0, [x.size, x.type].filter(Boolean).join(' '), 'hb', x.size]);
+        const all = [...hb, ...monIndex.list].filter((x) => (lo === null || x[2] >= lo) && (hi === null || x[2] <= hi) && (x[4] === 'hb' || !rules || (x[4] === 'srd-2024') === (rules === '2024')));
         return q ? [...all.filter((x) => x[1].toLowerCase().startsWith(q)), ...all.filter((x) => !x[1].toLowerCase().startsWith(q) && x[1].toLowerCase().includes(q))] : all;
     }
     // at most 100 shown
@@ -2299,19 +2306,23 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         st.className = hits.length ? 'muted' : 'note';
         st.textContent = !hits.length ? 'No monsters match that name.' : hits.length > 100 ? `${hits.length.toLocaleString()} monsters. Type to narrow them down.` : `${hits.length} monster${hits.length === 1 ? '' : 's'}`;
         $('#mon-results').innerHTML = hits.slice(0, 100).map(([key, name, cr, type, src]) => `<button type="button" class="mon-hit" data-mon="${esc(key)}">
-            <b>${esc(name)}${src === 'srd-2024' ? ' <span class="badge b">2024</span>' : ''}</b><small>CR ${esc(crText(cr))} ${esc(type)} · ${esc(monIndex.sources[src]?.title || src)}</small></button>`).join('');
+            <b>${esc(name)}${src === 'srd-2024' ? ' <span class="badge b">2024</span>' : src === 'hb' ? ' <span class="badge p">Homebrew</span>' : ''}</b><small>CR ${esc(crText(cr))} ${esc(type)} · ${src === 'hb' ? 'Homebrew' : esc(monIndex.sources[src]?.title || src)}</small></button>`).join('');
     }
     // The one way monsters join an encounter: n copies of a monster-list entry into encounter enc ('' is Unsorted), each its own
     // creature, numbered within that encounter. open: show the last one added; otherwise the open monster stays, unless it was the
     // empty one a first visit starts with, which is replaced rather than kept. Returns the last one added; throws if it can't be fetched.
     async function addMonsters(key, n, enc, open) {
         if (!monIndex) monIndex = await (await fetch('monsters.json')).json();
-        const r = await fetch('monsters.php?i=' + encodeURIComponent(key)), j = await r.json();
-        if (!r.ok) throw new Error(j.error);
+        const hb = key.startsWith('hb:');
+        if (hb) await Homebrew.ready();
+        const x = hb ? Homebrew.find(key.slice(3)) : null;
+        if (hb && !x) throw new Error(HB_GONE);
+        let j = null;
+        if (!hb) { const r = await fetch('monsters.php?i=' + encodeURIComponent(key)); j = await r.json(); if (!r.ok) throw new Error(j.error); }
         const empty = Object.keys(db.chars).length === 1 && !C.name.trim() && !C.race.trim();
         let c;
         for (let k = 0; k < n; k++) {
-            c = normalise(fromStatBlock(j, monIndex.sources));
+            c = hb ? hbFromEntry(x) : normalise(fromStatBlock(j, monIndex.sources));
             c.enc = enc; c.name = numbered(c.name, enc); c.updated = Date.now();
             db.chars[c.id] = c;
             dirty.add(c.id);
@@ -2339,6 +2350,181 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         else if (e.target.closest('[data-mon-close]')) $('#mon-dlg').close();
     });
 
+    // ---- homebrew monsters (ROADMAP 5.2): "Save as homebrew" keeps the stat block, without play state or notes; every monster added from one is its
+    // own copy with its source in c.hbsrc, and updating is the player's choice. Rows with their own source (a homebrew spell) update the same way. ----
+    const HB_GONE = "That homebrew monster isn't available any more.";
+    const clone = (x) => JSON.parse(JSON.stringify(x));
+    const HB_SIZES = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan', 'Titanic'];
+    const HB_CRS = [0, 0.125, 0.25, 0.5, ...Array.from({ length: 30 }, (_, i) => i + 1)];
+    // the stat block alone: what's the same for every copy, so comparing two says whether anything real changed
+    function hbDefinition(c0) {
+        const c = clone(c0);
+        for (const k of ['id', 'name', 'updated', 'archived', 'enc', 'rolls', 'conditions', 'exhaustion', 'insp', 'hpAt', 'view', 'hbsrc']) delete c[k];
+        c.hp = { base: c.hp.base, mod: c.hp.mod };
+        for (const k of c.classes) delete k.hdUsed;
+        c.panels = c.panels.filter((p) => p.type !== 'notes').map((p) => {
+            for (const k of ['sub', 'open', 'ok', 'bad', 'on']) delete p[k];
+            for (const r of p.rows || []) { delete r.used; delete r.cur; delete r.prep; delete r.hbsrc; for (const l of r.levels || []) delete l.used; }
+            for (const s of p.slots || []) delete s.used;
+            if (p.sp) delete p.sp.used, delete p.sp.cur;
+            return p;
+        });
+        return c;
+    }
+    const hbSumOf = (c) => Homebrew.sum(hbDefinition(c));
+    // a copy for the entry: fresh play state, no notes
+    function hbFresh(c0) {
+        const c = clone(c0), V = vars();
+        Object.assign(c, { rolls: [], conditions: [], exhaustion: 0, insp: false, hpAt: 0, enc: '', archived: 0, hbsrc: null, view: blank().view });
+        c.hp = { ...c.hp, temp: 0, cur: nm(c.hp.base) + nm(c.hp.mod) };
+        for (const k of c.classes) k.hdUsed = 0;
+        for (const p of c.panels) {
+            if (p.type === 'notes') { p.notes = []; p.open = ''; }
+            if (p.type === 'combat') Object.assign(p, { ok: 0, bad: 0 });
+            for (const r of p.rows || []) { if ('used' in r) r.used = 0; if (p.type === 'trackers') r.cur = maxOf(r.max, V); for (const l of r.levels || []) l.used = 0; }
+            for (const s of p.slots || []) s.used = 0;
+            if (p.sp) Object.assign(p.sp, { used: 0, cur: nm(p.sp.max) });
+        }
+        return c;
+    }
+    // the numbers worked out now, for the Compendium to show
+    function hbBlock() {
+        const V = vars(), P = (t) => C.panels.find((p) => p.type === t), val = (f) => { const r = ev(f, V); return r.err ? String(f) : r.v; };
+        const note = /\[([^\]]*)\]/.exec(C.ac), hd = C.classes[0] && !C.classes[0].name && nm(C.classes[0].level) > 1 ? ` (${nm(C.classes[0].level)}d${C.classes[0].die})` : '';
+        const actText = (r) => r.desc || [r.mode === 'hit' ? sg(val(r.hit)) + ' to hit' : r.mode === 'save' ? `DC ${val(r.dc)} ${r.save} save` : '', dmgText(r.dmg, V)].filter(Boolean).join('. ');
+        return { ac: `${val(C.ac)}${note ? ` (${note[1]})` : ''}`, hp: hpMax() + hd, speed: C.speeds.map((s) => (s.type === 'Walk' ? '' : s.type + ' ') + s.ft + ' ft.').join(', '),
+            abilities: C.abilities.map((a) => ({ key: a.key, score: nm(a.score) })), saves: C.abilities.filter((a) => a.save).map((a) => `${a.key} ${sg(saveT(a, V).v)}`).join(', '),
+            skills: C.skills.filter((s) => s.p || String(s.b).trim()).map((s) => `${s.name} ${sg(profT(s.ab, s.p, s.b, V).v)}`).join(', '), vul: C.vul, res: C.res, imm: C.imm, senses: C.senses, langs: C.profs.langs.join(', '),
+            traits: (P('list')?.rows || []).map((r) => ({ name: r.name, text: r.text })), actions: (P('attacks')?.rows || []).map((r) => ({ name: r.name, time: r.time, text: actText(r) })),
+            spells: (P('spells')?.rows || []).map((r) => r.name).filter(Boolean) };
+    }
+    const hbOwn = () => (C.hbsrc ? Homebrew.mine().find((e) => e.id === C.hbsrc.id && !e.archived) : null);
+    function hbSaveDlg() {
+        const [, size = '', type = ''] = /^(?:(Tiny|Small|Medium|Large|Huge|Gargantuan|Titanic)\b\s*)?(.*)$/i.exec(String(C.race).trim()) || [], own = hbOwn(), cr = EncDiff.crValue(C.cr) ?? 0;
+        const opts = (list, cur) => list.map(([v, t]) => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(t)}</option>`).join('');
+        const gone = C.hbsrc && !Homebrew.find(C.hbsrc.id) ? `<p class="muted">From ${esc(C.hbsrc.by ? C.hbsrc.by + "'s" : 'your')} homebrew. No longer available to update.</p>` : '';
+        return `<h2>Save as homebrew</h2>${gone}
+            <div class="form"><label>Name <input class="field" id="hbm-name" value="${esc(String(own ? own.name : C.name).replace(/\s+\d+$/, ''))}" autocomplete="off"><small hidden></small></label>
+            <label>Size <select class="field" id="hbm-size">${opts([['', 'Not set'], ...HB_SIZES.map((s) => [s, s])], HB_SIZES.find((s) => s.toLowerCase() === size.toLowerCase()) || '')}</select></label>
+            <label>Type <input class="field" id="hbm-type" value="${esc(type)}" autocomplete="off"></label>
+            <label>Challenge rating <select class="field" id="hbm-cr">${opts(HB_CRS.map((n) => [n, crText(n)]), HB_CRS.includes(cr) ? cr : 0)}</select></label></div>
+            <p class="muted hb-hint">Its notes stay out. Hit points go back to full, and conditions, rolls and uses spent are cleared in the saved copy. Share it from its entry in the Compendium.</p>
+            <div class="actions">${own ? `<button type="button" class="btn primary" data-act="hbsavego">Update ${esc(own.name)}</button><button type="button" class="btn" data-act="hbsavego" data-new="1">Save as a new one</button>` : '<button type="button" class="btn primary" data-act="hbsavego" data-new="1">Save as homebrew</button>'}<button type="button" class="btn" data-act="close">Cancel</button></div>`;
+    }
+    async function hbSaveGo(asNew) {
+        const name = $('#hbm-name').value.trim();
+        if (!name) { $('#hbm-name').setAttribute('aria-invalid', 'true'); Object.assign($('#hbm-name').parentElement.querySelector('small'), { textContent: 'Give it a name.', hidden: false }); return $('#hbm-name').focus(); }
+        const size = $('#hbm-size').value, type = $('#hbm-type').value.trim(), cr = +$('#hbm-cr').value, own = asNew ? null : hbOwn();
+        C.race = [size, type].filter(Boolean).join(' '); C.cr = crText(cr);
+        const sheet = hbFresh(C);
+        for (const k of ['id', 'updated']) delete sheet[k];
+        sheet.name = name;
+        const source = C.panels.flatMap((p) => p.notes || []).find((n) => n.title === 'Source' && n.group === 'Monster');
+        const e = { ...(own || { id: Homebrew.id(), kind: 'monster' }), name, size, type, cr, sheet, block: hbBlock() };
+        if (source) e.credit = source.body;
+        try { await Homebrew.save(e); } catch (err) { return toast("Couldn't save it: this browser's storage is full or blocked.", 'err'); }
+        C.hbsrc = { id: e.id, by: '', at: e.updated, sum: hbSumOf(C) };
+        saveNow();
+        dlg.close();
+        toast(Homebrew.full() ? 'Saved to your account. This browser is full, so it only has a copy for this visit.' : `Saved ${name} as homebrew. It's in the Compendium's Monsters tab.`, 'ok');
+    }
+    // one more monster from an entry: its own copy, all of it
+    function hbFromEntry(x) {
+        const c = normalise(clone(x.sheet));
+        c.id = uid(); c.name = x.name; c.updated = Date.now(); c.hbsrc = null;
+        if (x.credit) { const np = c.panels.find((p) => p.type === 'notes'); if (np) np.notes.push(Object.assign(ROW.note(), { title: 'Source', group: 'Monster', body: String(x.credit) })); }
+        c.hbsrc = { id: x.id, by: x.by || '', at: +x.updated || 0, sum: hbSumOf(c) };
+        return c;
+    }
+    const hbMonNewer = () => { if (!C.hbsrc) return null; const x = Homebrew.find(C.hbsrc.id); return x && x.updated > C.hbsrc.at ? x : null; };
+    const hbMonLines = (c) => { const P = (t) => (c.panels.find((p) => p.type === t)?.rows || []).map((r) => r.name).join(', ');
+        return [['Type', c.race], ['Challenge rating', c.cr], ['Armour class', c.ac], ['Hit points', nm(c.hp.base) + nm(c.hp.mod)], ['Speed', c.speeds.map((s) => s.type + ' ' + s.ft).join(', ')], ['Ability scores', c.abilities.map((a) => a.key + ' ' + a.score).join(', ')],
+            ['Actions', P('attacks')], ['Traits', P('list')], ['Spells', P('spells')], ['Resources', P('trackers')], ['Resistances', c.res], ['Immunities', c.imm], ['Vulnerabilities', c.vul], ['Senses', c.senses], ['Languages', c.profs.langs.join(', ')]].map(([a, b]) => [a, String(b)]); };
+    function hbMonDlg() {
+        const x = hbMonNewer();
+        if (!x) return '<h2>Update</h2><p>That homebrew is no longer available.</p><div class="actions"><button type="button" class="btn" data-act="close">Close</button></div>';
+        const was = hbMonLines(C), now = hbMonLines(hbFromEntry(x)), list = now.map((l, i) => [l[0], was[i][1], l[1]]).filter((l) => l[1] !== l[2]);
+        return `<h2>Update ${esc(C.name || 'this monster')}</h2>
+            ${hbSumOf(C) !== C.hbsrc.sum ? "<p class=\"note\">You've changed this monster by hand. Updating replaces your changes to its stat block.</p>" : ''}
+            ${list.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Field</th><th>Now</th><th>After the update</th></tr></thead><tbody>${list.map(([f, a, b]) => `<tr><td>${esc(f)}</td><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Only its text changes.</p>'}
+            <p class="muted hb-hint">Its hit points, conditions, notes, rolls and uses spent stay as they are.</p>
+            <div class="actions"><button type="button" class="btn primary" data-act="hbmongo">Update</button><button type="button" class="btn" data-act="close">Cancel</button></div>`;
+    }
+    function hbMonApply() {
+        const x = hbMonNewer(), old = C, before = clone(C);
+        dlg.close();
+        if (!x) return;
+        const n = hbFromEntry(x), num = /\s+(\d+)$/.exec(old.name);
+        Object.assign(n, { id: old.id, enc: old.enc, name: x.name + (num ? num[0] : ''), rolls: old.rolls, conditions: old.conditions, exhaustion: old.exhaustion, insp: old.insp, hpAt: old.hpAt, view: old.view, updated: Date.now() });
+        n.hp = { ...n.hp, cur: old.hp.cur, temp: old.hp.temp };
+        for (const p of n.panels) {
+            const q = old.panels.find((o) => o.type === p.type);
+            if (!q) continue;
+            if (p.type === 'notes') Object.assign(p, { notes: q.notes, open: q.open });
+            if (p.type === 'combat') Object.assign(p, { ok: q.ok, bad: q.bad });
+            for (const r of p.rows || []) { const o = (q.rows || []).find((y) => y.id === r.id); if (o) for (const k of ['used', 'cur', 'prep']) if (k in o) r[k] = o[k]; }
+            (p.slots || []).forEach((s, i) => { if (q.slots?.[i]) s.used = q.slots[i].used; });
+        }
+        n.classes.forEach((k, i) => { if (old.classes[i]) k.hdUsed = old.classes[i].hdUsed; });
+        C = n; db.chars[n.id] = n;
+        saveNow(); draw();
+        offerUndo(`Updated ${n.name}`, () => { const b = normalise(before); b.updated = Date.now(); switchTo(b); toast('Update undone.', 'ok'); });
+    }
+    // a row that came from homebrew: as on the player sheet
+    const hbNewer = (r) => { if (!r.hbsrc) return null; const x = Homebrew.find(r.hbsrc.id); return x && x.updated > r.hbsrc.at ? x : null; };
+    const hbBadge = (r) => (hbNewer(r) ? ' <span class="badge p">Update available</span>' : '');
+    const hbRows = (id) => C.panels.flatMap((P) => (P.rows || []).filter((r) => r.hbsrc && r.hbsrc.id === id).map((r) => [P, r]));
+    function hbInfoAdd(p) {
+        const r = get(p);
+        if (!r.hbsrc) return;
+        const who = r.hbsrc.by ? `${r.hbsrc.by}'s` : 'your', note = Homebrew.find(r.hbsrc.id) ? '' : r.hbsrc.by && !Homebrew.signedIn() ? ' Sign in to check for updates.' : ' No longer available to update.';
+        $('#hb-drawer-body').insertAdjacentHTML('beforeend', `<div class="hb-hbsrc"><p class="muted"><span class="badge p">Homebrew</span> From ${esc(who)} homebrew.${note}</p>
+            ${hbNewer(r) ? `<button type="button" class="btn small" data-act="hbup" data-p="${p}">Update</button>` : ''}</div>`);
+    }
+    function hbUpDlg({ p }) {
+        const r = get(p), x = Homebrew.find(r.hbsrc.id);
+        if (!x) return '<h2>Update</h2><p>That homebrew is no longer available.</p><div class="actions"><button type="button" class="btn" data-act="close">Close</button></div>';
+        const parts = Homebrew.parts(x, C), rows = hbRows(x.id), seen = new Set(), cut = (t) => (t.length > 120 ? t.slice(0, 120) + '...' : t);
+        const list = rows.flatMap(([P, row]) => { const part = parts.find((q) => q.panel === P.type); return part ? Homebrew.changes(row, part) : []; }).filter((c) => { const k = c.join('|'); return !seen.has(k) && seen.add(k); });
+        return `<h2>Update ${esc(r.name || 'this row')}</h2>
+            ${rows.some(([, row]) => Homebrew.edited(row)) ? "<p class=\"note\">You've changed this by hand. Updating replaces your changes.</p>" : ''}
+            ${list.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Field</th><th>Now</th><th>After the update</th></tr></thead><tbody>${list.map(([f, a, b]) => `<tr><td>${esc(f)}</td><td>${esc(cut(a))}</td><td>${esc(cut(b))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nothing on this row changes.</p>'}
+            <p class="muted hb-hint">Prepared and uses spent stay as they are.</p>
+            <div class="actions"><button type="button" class="btn primary" data-act="hbupgo" data-p="${p}">Update</button><button type="button" class="btn" data-act="close">Cancel</button></div>`;
+    }
+    function hbUpdate(p) {
+        const r = get(p), x = Homebrew.find(r.hbsrc.id), before = clone(C), name = r.name;
+        dlg.close(); closeDrawer();
+        if (!x) return;
+        const parts = Homebrew.parts(x, C);
+        for (const [P, row] of hbRows(x.id)) { const part = parts.find((q) => q.panel === P.type); if (part) Homebrew.apply(row, part); else row.hbsrc.at = x.updated; }
+        saveNow(); draw();
+        offerUndo(`Updated ${name || 'the row'}`, () => { const b = normalise(before); b.updated = Date.now(); switchTo(b); toast('Update undone.', 'ok'); });
+    }
+    // from the Compendium: ?hb=new, edit:<id> (your entry, then Save as homebrew updates it), copy:<id> (someone's entry, as your own), key:<monster key>
+    async function hbFromPage() {
+        const q = new URLSearchParams(location.search).get('hb');
+        if (!q) return;
+        history.replaceState(null, '', location.pathname);
+        const hint = 'Press Edit, then Save as homebrew, when it\'s ready.', [how, ...rest] = q.split(':'), arg = rest.join(':');
+        if (how === 'new') { switchTo(Object.assign(blank(), { name: numbered('New monster'), updated: Date.now() })); return toast(hint, 'ok', 8000); }
+        try {
+            if (how === 'key') { await addMonsters(arg, 1, '', true); return toast(hint, 'ok', 8000); }
+            await Homebrew.ready();
+            const x = Homebrew.find(arg);
+            if (!x) return toast(HB_GONE, 'err');
+            if (how === 'edit') {
+                // the copy already open for this version, rather than one more every time
+                const have = Object.values(db.chars).find((c) => !c.archived && c.hbsrc?.id === x.id && c.hbsrc.at === x.updated && c.name === x.name);
+                if (have) return switchTo(have);
+            }
+            const c = hbFromEntry(x);
+            if (how === 'copy') c.hbsrc = null;
+            c.name = numbered(c.name, ''); c.updated = Date.now();
+            switchTo(c);
+            toast(hint, 'ok', 8000);
+        } catch (err) { toast(err.message || "Couldn't reach the monster list. Try again in a minute.", 'err'); }
+    }
     // a stat block from monsters.php (dnd5eapi.co when src is "srd", otherwise Open5e) as a sheet:
     // saves and skills become proficiency plus any extra bonus, attacks and saving-throw actions become Actions, traits Passive abilities
     const cap = (t) => String(t).charAt(0).toUpperCase() + String(t).slice(1);
@@ -2696,7 +2882,13 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         if (act === 'coin') { rollShow('Coin flip', [['coin', 1]]); tray.open = false; return drawTray(); }
         if (act === 'dieroll') { rollShow('Dice', DICE.filter((n) => tray.pool[n]).map((n) => [n, tray.pool[n]])); tray.pool = {}; tray.open = false; return drawTray(); }
         if (act === 'coins') return coinApply(b.parentElement.querySelector('.hb-coinin'), b.dataset.sign);
-        if (act === 'info') { const r = get(p); if ('lvl' in r && r.srd && needsFill(r)) srdFill(p); return info(p); }
+        if (act === 'info') { const r = get(p); if ('lvl' in r && r.srd && needsFill(r)) srdFill(p); info(p); return hbInfoAdd(p); }
+        if (act === 'hbup') return showDlg({ kind: 'hbup', p });
+        if (act === 'hbupgo') return hbUpdate(p);
+        if (act === 'hbmon') return showDlg({ kind: 'hbmon' });
+        if (act === 'hbmongo') return hbMonApply();
+        if (act === 'hbsave') { open.manage = false; return showDlg({ kind: 'hbsave' }); }
+        if (act === 'hbsavego') return hbSaveGo(b.dataset.new === '1');
         if (act === 'dclose') return closeDrawer();
         if (act === 'more') { open.more = !open.more; return draw(); }
         if (act === 'manage') { open.manage = !open.manage; $('#hb-barin').innerHTML = bar(); return $('[data-act=manage]').focus(); }
@@ -2862,7 +3054,11 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
                 await addMonsters(x.key, n, typeof x.enc === 'string' ? x.enc : '', true);
                 localStorage.setItem('mon-pending', JSON.stringify(read().filter((y) => y && y.id !== x.id)));
                 toast(`Added ${n > 1 ? n + ' x ' : ''}${x.name || 'the monster'} from the Compendium.`, 'ok');
-            } catch (err) { return toast("Couldn't add the monster from the Compendium. Reload to try again.", 'err'); }
+            } catch (err) {
+                // homebrew that has gone won't come back on a reload, so its request doesn't stay queued
+                if (err.message === HB_GONE) localStorage.setItem('mon-pending', JSON.stringify(read().filter((y) => y && y.id !== x.id)));
+                return toast(err.message === HB_GONE ? HB_GONE : "Couldn't add the monster from the Compendium. Reload to try again.", 'err');
+            }
             return run();
         };
         return navigator.locks ? navigator.locks.request('mon-pending', run) : run();
@@ -2871,5 +3067,8 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
 
     draw();
     takePending();
+    hbFromPage();
+    // monsters and rows whose source has a newer version, once the account has answered
+    Homebrew.ready().then(() => { if (hbMonNewer() || C.panels.some((P) => (P.rows || []).some(hbNewer))) draw(); });
     loadCamps();
 });

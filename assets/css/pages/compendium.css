@@ -18,6 +18,8 @@
 .cp-hb { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
 .cp-hbshare { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; border: 0; }
 .cp-hb .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cp-hbdm { margin-left: 24px; }
+.cp-hbart { display: block; width: 120px; height: 120px; object-fit: cover; border-radius: var(--radius); margin-bottom: 8px; }
 .cp-hbhead { margin: 8px 0 0; font-size: 16px; }
 .cp-hbchecks { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; padding: 0; border: 0; }
 .cp-hbchecks legend { padding: 0; margin-bottom: 4px; }

@@ -3,7 +3,7 @@
 //   {"id", "kind", "name", "updated", "acct", "archived"?, ...the kind's own fields}. Players archive, nothing is ever removed: the version a
 // save replaces is kept in <accounts>/homebrew/<sub>/history/<id>/<its updated>.json (no screen for it yet; the admin restores by hand).
 // "acct" marks whose entry it is (hb_acct), so a browser used by two people never uploads one player's entries to the other's account.
-// Sharing: <accounts>/campaigns/<campaign id>/homebrew.json, [{"ref", "sub", "id", "at"}]. A campaign only links entries; the owner's
+// Sharing: <accounts>/campaigns/<campaign id>/homebrew.json, [{"ref", "sub", "id", "at", "dmonly"?}]. A monster shared "dmonly" only ever reaches that campaign's DM and co-DMs (hb_view). A campaign only links entries; the owner's
 // file stays the one copy, so an owner's edit reaches the campaign. A sheet keeps its own copy of what it added, so nothing here can
 // change or take away what's on a sheet. Every function takes the accounts folder, so _dev/scripts/homebrew.test.php gets its own.
 require_once __DIR__ . '/campaigns.php';
@@ -72,16 +72,17 @@ function hb_put_shares($accounts, $cid, $rows)
 }
 
 // the owner shares their own entry with a campaign they're in, or takes it back
-function hb_share($accounts, $sub, $cid, $id, $on)
+function hb_share($accounts, $sub, $cid, $id, $on, $dmonly = false)
 {
     $lock = cp_lock($accounts);
     if (!$lock) return [500, ['error' => "Couldn't lock the campaigns."]];
     $c = cp_get($accounts, $cid);
     if (!$c) return [404, ['error' => 'No such campaign.']];
     if (cp_member($c, $sub) < 0) return [403, ['error' => "You aren't in that campaign."]];
-    if (!hb_get($accounts, $sub, $id)) return [404, ['error' => 'Save the entry to your account first.']];
+    $e = hb_get($accounts, $sub, $id);
+    if (!$e) return [404, ['error' => 'Save the entry to your account first.']];
     $rows = array_values(array_filter(hb_shares($accounts, $cid), fn($r) => !($r['sub'] === $sub && $r['id'] === $id)));
-    if ($on) $rows[] = ['ref' => bin2hex(random_bytes(6)), 'sub' => $sub, 'id' => $id, 'at' => time()];
+    if ($on) $rows[] = ['ref' => bin2hex(random_bytes(6)), 'sub' => $sub, 'id' => $id, 'at' => time()] + ($dmonly && ($e['kind'] ?? '') === 'monster' ? ['dmonly' => true] : []);
     return hb_put_shares($accounts, $cid, $rows) ? [200, ['shared' => (bool)$on]] : [500, ['error' => "Couldn't save the campaign's list."]];
 }
 
@@ -101,13 +102,15 @@ function hb_remove($accounts, $sub, $cid, $ref)
 // Owners are named, never identified: a shared entry carries the owner's name in that campaign and no account id.
 function hb_view($accounts, $sub)
 {
-    $shared = $shares = $camps = [];
+    $shared = $shares = $dmonly = $camps = [];
     foreach (cp_all($accounts) as $c) {
         if (cp_member($c, $sub) < 0) continue;
         $dm = cp_is_dm($c, $sub);
         $camps[] = ['id' => $c['id'], 'name' => $c['name'] ?? '', 'dm' => $dm];
         foreach (hb_shares($accounts, $c['id']) as $r) {
-            if ($r['sub'] === $sub) { $shares[$r['id']][] = $c['id']; continue; }
+            if ($r['sub'] === $sub) { $shares[$r['id']][] = $c['id']; if (!empty($r['dmonly'])) $dmonly[$r['id']][] = $c['id']; continue; }
+            // this is the one place shared entries leave the server: a DM-only one isn't in a player's answer at all
+            if (!empty($r['dmonly']) && !$dm) continue;
             // someone who left the campaign no longer shares with it
             $i = cp_member($c, $r['sub']);
             if ($i < 0) continue;
@@ -116,8 +119,8 @@ function hb_view($accounts, $sub)
             $key = $r['sub'] . '/' . $r['id'];
             unset($e['acct']);
             $shared[$key] ??= $e + ['by' => $c['members'][$i]['name'] ?? '', 'camps' => []];
-            $shared[$key]['camps'][] = ['id' => $c['id'], 'name' => $c['name'] ?? '', 'ref' => $r['ref'], 'dm' => $dm];
+            $shared[$key]['camps'][] = ['id' => $c['id'], 'name' => $c['name'] ?? '', 'ref' => $r['ref'], 'dm' => $dm, 'dmonly' => !empty($r['dmonly'])];
         }
     }
-    return ['acct' => hb_acct($sub), 'mine' => hb_mine($accounts, $sub), 'shared' => array_values($shared), 'shares' => (object)$shares, 'camps' => $camps];
+    return ['acct' => hb_acct($sub), 'mine' => hb_mine($accounts, $sub), 'shared' => array_values($shared), 'shares' => (object)$shares, 'dmonly' => (object)$dmonly, 'camps' => $camps];
 }

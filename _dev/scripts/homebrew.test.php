@@ -58,6 +58,29 @@ is('owner still has it', hb_view($dir, '3')['mine'][0]['archived'], 300);
 hb_save($dir, '3', $rule('patrule', 400, 'Pat rule 2'));
 is('unarchived shows again', count(hb_view($dir, '1')['shared']), 1);
 
+// DM only: a monster, for that campaign's DM and co-DMs; a player's whole answer doesn't have it, whoever owns it
+$dmc = 'abcdefabcde2';
+cp_put($dir, ['id' => $dmc, 'name' => 'Boss camp', 'dm' => '1', 'codms' => ['2'], 'members' => [['sub' => '1', 'name' => 'Dee'], ['sub' => '2', 'name' => 'Co'], ['sub' => '3', 'name' => 'Pat'], ['sub' => '6', 'name' => 'Zed']]]);
+hb_save($dir, '3', ['id' => 'secretmon', 'kind' => 'monster', 'name' => 'Secret boss', 'updated' => 1, 'cr' => 5]);
+hb_save($dir, '3', $rule('dmrule', 1, 'Not a monster'));
+is('a share marked DM only', hb_share($dir, '3', $dmc, 'secretmon', true, true)[0], 200);
+$says = fn($sub) => strpos(json_encode(hb_view($dir, $sub)), 'Secret boss') !== false;
+is('a player never gets it', [$says('6'), strpos(json_encode(hb_view($dir, '6')), 'secretmon')], [false, false]);
+is('the DM, a co-DM and its owner do', [$says('1'), $says('2'), $says('3')], [true, true, true]);
+is('the owner is told it is DM only', (array)hb_view($dir, '3')['dmonly'], ['secretmon' => [$dmc]]);
+is('the DM sees it marked', array_values(array_filter(hb_view($dir, '1')['shared'], fn($e) => $e['id'] === 'secretmon'))[0]['camps'][0]['dmonly'], true);
+is('no account id in it', array_key_exists('acct', array_values(array_filter(hb_view($dir, '1')['shared'], fn($e) => $e['id'] === 'secretmon'))[0]), false);
+hb_share($dir, '3', $dmc, 'dmrule', true, true);
+is('DM only is for monsters', strpos(json_encode(hb_view($dir, '6')), 'Not a monster') !== false, true);
+hb_share($dir, '3', $dmc, 'secretmon', true, false);
+is('turned off, players get it', $says('6'), true);
+hb_share($dir, '3', $dmc, 'secretmon', true, true);
+is('turned on again, gone', $says('6'), false);
+cp_put($dir, ['codms' => []] + cp_get($dir, $dmc));
+is('a demoted co-DM stops getting it', $says('2'), false);
+hb_share($dir, '3', $dmc, 'secretmon', false);
+hb_share($dir, '3', $dmc, 'dmrule', false);
+
 // the DM takes it out; the owner keeps it
 $ref = hb_view($dir, '1')['shared'][0]['camps'][0]['ref'];
 is('player can\'t remove', hb_remove($dir, '3', $cid, $ref)[0], 403);
