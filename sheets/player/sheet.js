@@ -796,7 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function entry(rp, r, summaryKey, editor, lead = '', tail = '', end = '') {
         const isOpen = openRows.has(r.id);
         return `<div class="hb-entry">
-            <div class="hb-entry-h">${lead}<button type="button" class="hb-link" data-act="info" data-p="${rp}">${esc(r.name || 'Unnamed')}</button>
+            <div class="hb-entry-h">${lead}<button type="button" class="hb-link" data-act="info" data-p="${rp}">${esc(r.name || 'Unnamed')}</button>${hbBadge(r)}
                 <span class="hb-sum" data-c="${summaryKey}:${rp}"></span>
                 <button type="button" class="hb-x hb-toggle" data-act="toggle" data-id="${esc(r.id)}" aria-expanded="${isOpen}" aria-label="Edit ${esc(r.name || 'entry')}" title="Edit">${PENCIL}</button>${end}</div>
             ${tail}${isOpen ? `<div class="hb-editor">${editor()}</div>` : ''}
@@ -1268,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // sheet names first, then SRD ones not already there (ignoring case)
     const gearNames = () => {
         const seen = new Set(Object.values(EQ_ALIAS).map((n) => n.toLowerCase()));
-        return [...GEAR.map((g) => g[0]), ...eqNames].filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
+        return [...GEAR.map((g) => g[0]), ...eqNames, ...Homebrew.of(['item', 'magic']).map((x) => x.name + Homebrew.SUFFIX)].filter((n) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
     };
     function loadEqList() {
         if (eqList) return eqList;
@@ -1282,6 +1282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // fills only what's empty, so typed-in attributes, weight and cost stay
     async function eqFill(rp) {
         const r = get(rp), name = String(r.name).trim().toLowerCase(), want = (EQ_ALIAS[name] || name).toLowerCase();
+        if (r.hbsrc) return;
         const hit = (await loadEqList()).find(([, n]) => natural(n).toLowerCase() === want);
         if (!hit) return;
         try {
@@ -1307,15 +1308,21 @@ document.addEventListener('DOMContentLoaded', () => {
             ${r ? `<p class="muted hb-hint">${SRD_CREDIT}</p>` : ''}`);
     }
 
-    let srdList = null;
+    // homebrew spells come first in the name suggestions, marked, so a homebrew spell named like an official one can still be picked
+    let srdList = null, srdOpts = '', srdNames = new Set();
+    function spellOpts() {
+        $('#hb-dl-srd').innerHTML = Homebrew.of(['spell']).map((x) => { const n = x.name + Homebrew.SUFFIX; return `<option value="${esc(n)}" label="${esc(n + ' · ' + (+x.level ? ordinal(+x.level) + ' level' : 'cantrip'))}"></option>`; }).join('') + srdOpts;
+    }
     function loadSrdList() {
         if (srdList) return srdList;
         // ?list=N: bump N when the list changes, browsers cache it for a day
         srdList = fetch(API + 'spells.php?list=2').then((r) => (r.ok ? r.json() : Promise.reject())).then((list) => {
             // the label carries the name too: Firefox shows only the label, Chrome shows the value beside it
-            $('#hb-dl-srd').innerHTML = list.map(([, n, l]) => `<option value="${esc(n)}" label="${esc(n + ' · ' + (l ? ordinal(l) + ' level' : 'cantrip'))}"></option>`).join('');
+            srdOpts = list.map(([, n, l]) => `<option value="${esc(n)}" label="${esc(n + ' · ' + (l ? ordinal(l) + ' level' : 'cantrip'))}"></option>`).join('');
+            srdNames = new Set(list.map(([, n]) => n.toLowerCase()));
+            spellOpts();
             return list;
-        }).catch(() => { srdList = null; toast("Couldn't load the SRD spell list. You can still type spells in yourself.", 'err'); return []; });
+        }).catch(() => { srdList = null; spellOpts(); toast("Couldn't load the SRD spell list. You can still type spells in yourself.", 'err'); return []; });
         return srdList;
     }
     const pickDice = (d, lvl) => {
@@ -1345,6 +1352,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const needsFill = (r) => !r.desc || (noMech(r) && !r.mech);
     async function srdFill(rp) {
         const r = get(rp), list = await loadSrdList();
+        // a row from homebrew is the sheet's own copy: an official spell of the same name never fills it
+        if (r.hbsrc) return;
         const hit = list.find(([, n]) => n.toLowerCase() === String(r.name).trim().toLowerCase());
         // an already-filled spell only gets what it's missing (text, or save/attack/damage on older rows), so edits stay
         const textOnly = hit && r.srd === hit[0];
@@ -1376,8 +1385,59 @@ document.addEventListener('DOMContentLoaded', () => {
             + 'Shove. The target must succeed on a Strength or Dexterity saving throw (it chooses which), or you either push it 5 feet away or cause it to have the Prone condition. The DC for the saving throw equals 8 plus your Strength modifier and Proficiency Bonus. This shove is possible only if the target is no more than one size larger than you.' };
     // picking a known weapon, item or metamagic from the suggestions fills in the rest of its row
     const named = (list, name) => list.find((x) => x[0].toLowerCase() === String(name).trim().toLowerCase());
+    // ---- homebrew rows (ROADMAP 5.2): a row from homebrew keeps its source in r.hbsrc {id, by, at, sum} and is the sheet's own copy; the source
+    // changing or going away doesn't touch it. Updating is the player's choice, and never in a read-only or DM's view. ----
+    const hbNewer = (r) => { if (!r.hbsrc || RO || DMM) return null; const x = Homebrew.find(r.hbsrc.id); return x && x.updated > r.hbsrc.at ? x : null; };
+    const hbBadge = (r) => (hbNewer(r) ? ' <span class="badge p">Update available</span>' : '');
+    const hbRows = (id) => C.panels.flatMap((P) => (P.rows || []).filter((r) => r.hbsrc && r.hbsrc.id === id).map((r) => [P, r]));
+    // a name picked from the suggestions fills the row (a weapon also gets its action); "Zap (homebrew)", or plain "Zap" when nothing official has that name
+    function hbPick(k, typed) {
+        const P = panelOf(k), kinds = P.type === 'spells' ? ['spell'] : P.type === 'items' ? ['item', 'magic'] : null, low = String(typed).trim().toLowerCase();
+        if (!kinds) return false;
+        const x = Homebrew.named(kinds, low, P.type === 'spells' ? !srdNames.has(low) : !gearNames().some((n) => n.toLowerCase() === low));
+        if (!x) return false;
+        const parts = Homebrew.parts(x, C), A = C.panels.find((q) => q.type === 'attacks'), atk = parts.find((p) => p.panel === 'attacks');
+        Homebrew.apply(get(k.replace(/\.name$/, '')), parts.find((p) => p.panel === P.type));
+        if (A && atk) A.rows.push(Homebrew.apply(ROW.attack(), atk));
+        saveNow(); draw();
+        toast(`Filled in ${x.name} from homebrew.`, 'ok');
+        return true;
+    }
+    // in a row's details: where it came from, and the update when there is one
+    function hbInfoAdd(p) {
+        const r = get(p);
+        if (!r.hbsrc) return;
+        const who = r.hbsrc.by ? `${r.hbsrc.by}'s` : 'your', gone = !Homebrew.find(r.hbsrc.id);
+        const note = RO || DMM || !gone ? '' : r.hbsrc.by && !Homebrew.signedIn() ? ' Sign in to check for updates.' : ' No longer available to update.';
+        $('#hb-drawer-body').insertAdjacentHTML('beforeend', `<div class="hb-hbsrc"><p class="muted"><span class="badge p">Homebrew</span> From ${esc(who)} homebrew.${note}</p>
+            ${hbNewer(r) ? `<button type="button" class="btn small" data-act="hbup" data-p="${p}">Update</button>` : ''}</div>`);
+    }
+    function hbUpDlg({ p }) {
+        const r = get(p), x = Homebrew.find(r.hbsrc.id);
+        if (!x) return `<h2>Update</h2><p>That homebrew is no longer available.</p><div class="actions"><button type="button" class="btn" data-act="close">Close</button></div>`;
+        const parts = Homebrew.parts(x, C), rows = hbRows(x.id), seen = new Set(), cut = (t) => (t.length > 120 ? t.slice(0, 120) + '...' : t);
+        const list = rows.flatMap(([P, row]) => { const part = parts.find((q) => q.panel === P.type); return part ? Homebrew.changes(row, part) : []; }).filter((c) => { const k = c.join('|'); return !seen.has(k) && seen.add(k); });
+        return `<h2>Update ${esc(r.name || 'this row')}</h2>
+            ${rows.some(([, row]) => Homebrew.edited(row)) ? '<p class="note">You\'ve changed this by hand. Updating replaces your changes.</p>' : ''}
+            ${list.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Field</th><th>Now</th><th>After the update</th></tr></thead><tbody>${list.map(([f, a, b]) => `<tr><td>${esc(f)}</td><td>${esc(cut(a))}</td><td>${esc(cut(b))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nothing on this row changes.</p>'}
+            <p class="muted hb-hint">Prepared, quantity, equipped, attuned and uses spent stay as they are.</p>
+            <div class="actions"><button type="button" class="btn primary" data-act="hbupgo" data-p="${p}">Update</button><button type="button" class="btn" data-act="close">Cancel</button></div>`;
+    }
+    function hbUpdate(p) {
+        const r = get(p), x = Homebrew.find(r.hbsrc.id), before = jclone(C), name = r.name;
+        dlg.close(); closeDrawer();
+        if (!x) return;
+        const parts = Homebrew.parts(x, C);
+        for (const [P, row] of hbRows(x.id)) {
+            const part = parts.find((q) => q.panel === P.type);
+            if (part) Homebrew.apply(row, part); else row.hbsrc.at = x.updated;
+        }
+        saveNow(); draw();
+        offerUndo(`Updated ${name || 'the row'}`, () => { const b = normalise(before); b.updated = Date.now(); switchTo(b); toast('Update undone.', 'ok'); });
+    }
     function rowFill(k) {
         const rp = k.replace(/\.name$/, ''), r = get(rp), P = panelOf(k);
+        if (r.hbsrc) return false;
         if (/\.meta\.\d+\.name$/.test(k)) {
             const m = named(METAMAGIC, r.name);
             if (!m) return false;
@@ -1666,7 +1726,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const open = { more: false, hp: false, manage: false };
     const openRows = new Set();
     let dlgMode = null;
-    const dlgHTML = () => (dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : dlgMode.kind === 'ddb' ? ddbDlg() : dlgMode.kind === 'new' ? newDlg() : formulaDlg(dlgMode));
+    const dlgHTML = () => (dlgMode.kind === 'hbup' ? hbUpDlg(dlgMode) : dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : dlgMode.kind === 'ddb' ? ddbDlg() : dlgMode.kind === 'new' ? newDlg() : formulaDlg(dlgMode));
     // ---- dice: a card for each roll and the dice tray in the bottom-left corner ----
     const DICE = [4, 6, 8, 10, 12, 20, 100], tray = { open: false, pool: {} };
     // this character's own dice (C.view.dice, a copy of a Dice Sets choice kept from Customise), else
@@ -2450,6 +2510,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (/\.notes\.\d+\.group$/.test(k) || /^panels\.\d+\.rows\.\d+\.(uses|max|group)$/.test(k) || /\.(levels\.\d+|slots\.\d+|sp)\.max$/.test(k) || /\.flex\.\d+$/.test(k)) { saveNow(); return draw(); }
         if (/^classes\.\d+\.name$/.test(k)) { const d = HIT_DIE[el.value.trim().toLowerCase()]; if (d) set(k.replace(/name$/, 'die'), d); }
+        if (/^panels\.\d+\.rows\.\d+\.name$/.test(k) && el.value.trim() && hbPick(k, el.value)) return;
         if (/^panels\.\d+\.rows\.\d+\.name$/.test(k) && panelOf(k).type === 'spells' && el.value.trim()) srdFill(k.replace(/\.name$/, ''));
         if (/^panels\.\d+\.rows\.\d+\.name$/.test(k) && panelOf(k).type === 'items' && el.value.trim()) eqFill(k.replace(/\.name$/, ''));
         if (/^panels\.\d+\.(rows|meta)\.\d+\.name$/.test(k) && rowFill(k)) return;
@@ -2612,7 +2673,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (act === 'coin') { rollShow('Coin flip', [['coin', 1]]); tray.open = false; return drawTray(); }
         if (act === 'dieroll') { rollShow('Dice', DICE.filter((n) => tray.pool[n]).map((n) => [n, tray.pool[n]])); tray.pool = {}; tray.open = false; return drawTray(); }
         if (act === 'coins') return coinApply(b.parentElement.querySelector('.hb-coinin'), b.dataset.sign);
-        if (act === 'info') { const r = get(p); if ('lvl' in r && r.srd && needsFill(r)) srdFill(p); return info(p); }
+        if (act === 'info') { const r = get(p); if ('lvl' in r && r.srd && needsFill(r)) srdFill(p); info(p); return hbInfoAdd(p); }
+        if (act === 'hbup') return showDlg({ kind: 'hbup', p });
+        if (act === 'hbupgo') return hbUpdate(p);
         if (act === 'dclose') return closeDrawer();
         if (act === 'more') { open.more = !open.more; return draw(); }
         if (act === 'manage') { open.manage = !open.manage; $('#hb-barin').innerHTML = bar(); return $('[data-act=manage]').focus(); }
@@ -2771,12 +2834,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!Array.isArray(q)) return;
             const panel = (type) => c.panels.find((p) => p.type === type);
             const feats = () => c.panels.find((p) => p.type === 'list' && p.title === 'Passive abilities') || panel('list');
-            const mine = q.filter((x) => x && x.char === c.id && ((x.kind === 'spell' && panel('spells')) || (x.kind === 'item' && panel('items')) || (x.kind === 'feat' && feats())));
+            const home = (h) => (h.panel === 'list' ? feats() : panel(h.panel));
+            const mine = q.filter((x) => x && x.char === c.id && ((x.kind === 'spell' && panel('spells')) || (x.kind === 'item' && panel('items')) || (x.kind === 'feat' && feats()) || (x.kind === 'hb' && Array.isArray(x.parts) && x.parts[0] && home(x.parts[0]))));
             if (!mine.length) return;
             const rest = q.filter((x) => !mine.includes(x));
             if (rest.length) localStorage.setItem('hb-pending', JSON.stringify(rest)); else localStorage.removeItem('hb-pending');
             const fills = [];
             for (const x of mine) {
+                // homebrew: the row is this sheet's own copy, with a note of where it came from
+                if (x.kind === 'hb') { for (const h of x.parts) if (home(h) && PANEL_ROW[h.panel]) home(h).rows.push(Homebrew.apply(PANEL_ROW[h.panel](), h)); continue; }
                 if (x.kind === 'feat') { feats().rows.push(Object.assign(ROW.list(), { name: String(x.name || ''), src: String(x.src || 'Feat'), text: String(x.text || ''), grp: 'other' })); continue; }
                 const isSpell = x.kind === 'spell', p = panel(isSpell ? 'spells' : 'items'), row = isSpell ? ROW.spell() : ROW.item();
                 row.name = String(x.name || '');
@@ -2807,6 +2873,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // the worked-out max HP (calc, ROADMAP 1.5) of a character saved before it was kept, or changed by an upgrade
     else if (!RO && C.updated && !C.archived && C.calc.hpMax !== hpMax()) saveNow(false);
     takePending();
+    // homebrew in the suggestions, and rows whose source has a newer version, once the account has answered
+    if (!RO && !DMM) Homebrew.ready().then(() => {
+        spellOpts();
+        const gear = $('#hb-dl-gear');
+        if (gear) gear.innerHTML = gearNames().map((n) => `<option value="${esc(n)}">`).join('');
+        if (C.panels.some((P) => (P.rows || []).some(hbNewer))) draw();
+    });
     // from the builder (ROADMAP 4.2 and 4.3): ?built=1 after Finish, ?levelled=1 after a level up (with its Undo)
     {
         const q = new URLSearchParams(location.search);

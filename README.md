@@ -10,7 +10,7 @@ Our D&D campaign tools, split out of craftyplayz.com:
 - `/sheets/player/` Homebrew character sheet with a character picker (saved in the browser under `hb-sheet`, backed up to `private/dnd/backups/`)
 - `/sheets/monster/` Monster sheet (backed up to `private/dnd/monster-backups/`)
 - `/compendium/` Compendium: spells, monsters, items, magic items, classes, races, backgrounds, feats and rules, 2014 and 2024 (from `sheets/player/content/`, built by `_dev/scripts/build-content.mjs`)
-  - Your own house rules, saved to your account and shareable with a campaign (more kinds of homebrew are coming, ROADMAP 5.2)
+  - Your own house rules, spells, items, magic items and feats, saved to your account and shareable with a campaign; a sheet keeps its own copy and updating it is your choice (monsters, classes and races are coming, ROADMAP 5.2)
   - Planned, not built yet: on any page whatsoever, the Compendium opens in a popup sidebar window for super fast referencing
 - `/dice/` 3D dice sets, `/dice/rolls/` quick rolls, `/dice/test/` dice fairness test
 - `/transcripts/` session recordings and transcripts (data in `transcripts/data/`, server only)

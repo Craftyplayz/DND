@@ -13,6 +13,7 @@
 .hb [hidden] { display: none !important; }
 .hb .field { min-width: 0; width: 100%; }
 .hb .hb-hint { margin: 8px 0 0; font-size: 13px; }
+.hb-hbsrc { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
 .hb .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .hb h3 { margin: 20px 0 8px; font-size: 15px; }
 .hb-lbl { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }

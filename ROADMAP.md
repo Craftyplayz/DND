@@ -934,8 +934,18 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 - Built in stages, with a "New ..." button in each Compendium tab, Edit and Archive on the entry, always shown whatever the
   rules switch says. Any member shares their own entries; the DM or a co-DM can take one out of the campaign; the list is
   `accounts/campaigns/<id>/homebrew.json`. Stage 1 done: storage, sharing and house rules (`includes/homebrew.php`,
-  `compendium/homebrew.php`, `assets/js/homebrew.js`, browser key `homebrew`). Still to come: spells, items, magic items and feats;
-  monsters ("Save as homebrew" on the Monster Sheet); classes, races and backgrounds (4.6, a guided form).
+  `compendium/homebrew.php`, `assets/js/homebrew.js`, browser key `homebrew`). Still to come: monsters ("Save as homebrew" on the Monster
+  Sheet); classes, races and backgrounds (4.6, a guided form).
+  Stage 2 done: spells, items, magic items and feats. Each has its form in its Compendium tab (fields that don't apply stay hidden; a spell has a How it rolls
+  section; dice and uses are checked with the sheet's own formula parser; closing a changed form asks first), "Copy to homebrew" on any official or homebrew
+  entry, and a Homebrew only filter. Saving keeps the replaced version in `homebrew/<sub>/history/<id>/<updated>.json` (no screen yet). Entries carry an account
+  mark (`acct`, a hash), and go only to that account, so two people on one browser never upload each other's. What campaigns share is copied for offline use
+  to `homebrew-shared`, read-only and hidden when signed out. A browser that's full still saves to the account (signed in).
+  On sheets: "Add to sheet" and the name suggestions ("Zap (homebrew)") add the sheet's own copy, with `hbsrc` {id, by, at, sum} on each row, so a source being edited,
+  archived or unshared changes nothing there. A row's detail says where it came from; "Update available" on the row opens a dialog of the changes, with a warning if
+  the row was changed by hand; play state (prepared, quantity, equipped, attuned, uses) stays, and Undo lasts 15 seconds. A homebrew weapon also gets an Actions row; armour goes to
+  Inventory only and never changes AC. The builder lists homebrew spells (by ticked class, or for any caster with none ticked), feats at an improvement and gear in Extra gear, and keeps
+  what was picked in the draft (`build.hbc`). The Monster Sheet has the spell suggestions; updating a monster's rows comes with stage 3. Check: `homebrew-copies.mjs`.
 
 **5.3 Retire the D&D Beyond viewer**
 - What: when the party overview (1.5) is live, import the 6 characters from `characters.json` into their

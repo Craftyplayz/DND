@@ -160,6 +160,8 @@ try {
             await clickRow(d, 'Pat rule');
             await until(() => visible(d, '[data-hb-remove]'), Boolean);
             await click(d, '[data-hb-remove]');
+            is(`${name} the DM is asked first`, await until(() => d.ev(`document.querySelector('#cp-hbask').open`), Boolean), true);
+            await click(d, '#cp-hbask-yes');
             is(`${name} DM removes it`, (await until(() => names(d), (l) => !l.includes('Pat rule'))).includes('Pat rule'), false);
             errs(d, name, 'DM');
         } finally { d.close(); }

@@ -59,7 +59,9 @@ do). Signed out, everything keeps working from the browser alone.
     `monster-sheet`, `accounts/monster-encounters/<sub>.json` through sheets/monster/encounters.php)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
     Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`)
-  - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js)
+  - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js); the versions a
+    save replaced are in `accounts/homebrew/<sub>/history/<id>/`. `homebrew-shared` and `homebrew-me` in the browser are only a read-only copy of what the
+    account says. A row on a sheet that came from homebrew is the sheet's own copy, with its source in `hbsrc`
 - Not synced, by the user's choice: dice fairness test tallies (`dice-test-counts`).
 - How to add more: a list of things a player builds up (characters, monsters) gets per-item sync like the
   sheets (a cloud.php wrapper with its own `CL_ACCOUNTS` folder, `updated` stamped on edits only); a setting

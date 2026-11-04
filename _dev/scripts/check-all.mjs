@@ -44,6 +44,7 @@ export const BROWSER_CHECKS = {
     'dm-edits': { ports: [8126, 8092], split: 'flag', tmp: 'dnd-dmedit-check', secs: 150 },
     'builder-page': { ports: [8129], split: true, tmp: 'dnd-builder-check', secs: 300 },
     'homebrew-page': { ports: [8130], split: true, tmp: 'dnd-homebrew-check', secs: 40 },
+    'homebrew-copies': { ports: [8131], split: true, tmp: 'dnd-hbcopies-check', secs: 120 },
 };
 // unit tests that open ports of their own (before the shift)
 const TEST_PORTS = { 'live-relay.test.js': [8095, 8096], 'monster-encounters.test.php': [8124], 'maps.test.php': [8125] };

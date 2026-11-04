@@ -169,6 +169,8 @@
         const cls = data.classes?.[clsId], sub = data.subclasses?.[subId], all = data.spells || {};
         const ids = new Set([...(cls?.spells || []), ...(sub?.spells || []).filter((s) => !(s.prerequisites || []).some((p) => !/-\d+$/.test(p))).map((s) => s.spell || s.index)]);
         // content spells say which classes have them
+        // homebrew spells with no class ticked are for any caster
+        for (const [id, s] of Object.entries(all)) if (s.hbx && !(s.classes || []).length) ids.add(id);
         for (const [id, s] of Object.entries(all)) if ((s.classes || []).some((c) => norm(c.index || c.name || c) === norm(clsId) || norm(c.name || c) === norm(cls?.name || ''))) ids.add(id);
         return [...ids].map((id) => ({ index: id, name: all[id]?.name || words(id), level: all[id]?.level ?? null })).sort((a, b) => (a.level ?? 9) - (b.level ?? 9) || a.name.localeCompare(b.name));
     }
@@ -308,8 +310,10 @@
         const p = c.panels.find((x) => x.type === 'list' && x.split) || c.panels.find((x) => x.type === 'list');
         if (!p || p.rows.some((r) => r.name === name && r.src === src)) return;
         p.rows.push(Object.assign(M.ROW.list(), { name, text, src, grp, source: source || src }));
+        return p.rows[p.rows.length - 1];
     };
     const panel = (c, type) => c.panels.find((p) => p.type === type);
+    const applyHb = (row, part) => Object.assign(row, clone(part.row), { hbsrc: clone(part.hbsrc) });
     // a resource in Resources, made once and only ever raised
     function tracker(c, M, name, max, reset, kind = 'count', source = '') {
         const p = panel(c, 'trackers');
@@ -385,7 +389,7 @@
         // an Ability Score Improvement at this class level: +2, +1 and +1, or a feat
         const asi = asiLevels(cls).includes(L.n) ? e.asi?.[L.n] : null;
         if (asi) {
-            if (asi.k === 'feat' && data.feats?.[asi.feat]) { const ft = data.feats[asi.feat]; passive(c, M, ft.name, sumText(ft.desc), 'Feat', 'other', src); }
+            if (asi.k === 'feat' && data.feats?.[asi.feat]) { const ft = data.feats[asi.feat], fr = passive(c, M, ft.name, sumText(ft.desc), 'Feat', 'other', src); if (ft.hbx && fr) applyHb(fr, data.hbParts(ft.hbx, c)[0]); }
             else for (const [a, n] of asi.k === '+1' ? (asi.a || []).slice(0, 2).map((a) => [a, 1]) : [[asi.a?.[0], 2]]) {
                 const x = c.abilities.find((y) => y.key === a);
                 if (x) x.score = Math.max(+x.score, Math.min(20, +x.score + n));
@@ -421,7 +425,10 @@
         for (const id of list) {
             if (!id || sp.rows.some((r) => r.srd === id || norm(r.name) === norm(data.spells?.[id]?.name || id))) continue;
             const s = data.spells?.[id] || {};
-            sp.rows.push(Object.assign(M.ROW.spell(), { name: s.name || words(id), lvl: +s.level || 0, school: s.school?.name || s.school || '', srd: id, prep: !!how.prep && +s.level > 0, source: how.source }));
+            const row = Object.assign(M.ROW.spell(), { name: s.name || words(id), lvl: +s.level || 0, school: s.school?.name || s.school || '', srd: id, prep: !!how.prep && +s.level > 0, source: how.source });
+            // homebrew: the row is the character's own copy of the whole spell
+            if (s.hbx) applyHb(row, data.hbParts(s.hbx, c)[0]);
+            sp.rows.push(row);
         }
     }
 
@@ -441,6 +448,15 @@
         };
         let armour = null, shield = false;
         for (const it of items) {
+            // homebrew gear: its own rows, with an action for a weapon; armour never changes the armour class here
+            const hbx = it.name && data.hbItem?.(it.name);
+            if (hbx) {
+                for (const h of data.hbParts(hbx, c)) {
+                    const T = panel(c, h.panel);
+                    if (T && !T.rows.some((r) => r.hbsrc?.id === hbx.id)) T.rows.push(applyHb(Object.assign(M.PANEL_ROW[h.panel](), h.panel === 'items' ? { qty: it.n, source: it.from } : { source: it.from }), h));
+                }
+                continue;
+            }
             const w = M.WEAPONS.find((x) => weaponIdx(x[0]) === it.ref || norm(x[0]) === norm(it.ref) || (it.name && norm(x[0]) === norm(it.name)));
             const a = ARMOUR[it.ref] || Object.values(ARMOUR).find(([n]) => [it.ref, it.name, String(it.ref).replace(/-armou?r$/, '')].some((x) => x && norm(n).replace(/armour$/, '') === norm(x).replace(/armou?r$/, '')));
             const name = it.name || (it.ref ? itemName(it.ref, data, M) : '');

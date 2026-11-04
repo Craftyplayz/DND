@@ -31,7 +31,7 @@ require $_SERVER['DOCUMENT_ROOT'] . '/includes/bootstrap.php';
 
         <section class="card">
             <h2>Characters saved to your account</h2>
-            <p>When you're signed in, characters you save to your account are stored on the server in a folder named after your Google account ID, so you can open them on another device. Homebrew you make in the Compendium is stored the same way. If you share an entry with a campaign, that campaign's members can read it and see your name on it.</p>
+            <p>When you're signed in, characters you save to your account are stored on the server in a folder named after your Google account ID, so you can open them on another device. Homebrew you make in the Compendium is stored the same way, with the earlier versions of each entry. If you share an entry with a campaign, that campaign's members can read it and see your name on it.</p>
         </section>
 
         <section class="card">

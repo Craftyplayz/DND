@@ -1427,15 +1427,30 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
             ${r ? `<p class="muted hb-hint">${SRD_CREDIT}</p>` : ''}`);
     }
 
-    let srdList = null;
+    // homebrew spells first in the name suggestions, marked (assets/js/homebrew.js); a row from homebrew is the monster's own copy
+    let srdList = null, srdOpts = '', srdNames = new Set();
+    function spellOpts() {
+        $('#hb-dl-srd').innerHTML = Homebrew.of(['spell']).map((x) => { const n = x.name + Homebrew.SUFFIX; return `<option value="${esc(n)}" label="${esc(n + ' · ' + (+x.level ? ordinal(+x.level) + ' level' : 'cantrip'))}"></option>`; }).join('') + srdOpts;
+    }
+    function hbPick(k, typed) {
+        const low = String(typed).trim().toLowerCase(), x = panelOf(k).type === 'spells' ? Homebrew.named(['spell'], low, !srdNames.has(low)) : null;
+        if (!x) return false;
+        Homebrew.apply(get(k.replace(/\.name$/, '')), Homebrew.parts(x, C)[0]);
+        saveNow(); draw();
+        toast(`Filled in ${x.name} from homebrew.`, 'ok');
+        return true;
+    }
     function loadSrdList() {
         if (srdList) return srdList;
+        Homebrew.ready().then(spellOpts);
         // ?list=N: bump N when the list changes, browsers cache it for a day
         srdList = fetch('../player/spells.php?list=2').then((r) => (r.ok ? r.json() : Promise.reject())).then((list) => {
             // the label carries the name too: Firefox shows only the label, Chrome shows the value beside it
-            $('#hb-dl-srd').innerHTML = list.map(([, n, l]) => `<option value="${esc(n)}" label="${esc(n + ' · ' + (l ? ordinal(l) + ' level' : 'cantrip'))}"></option>`).join('');
+            srdOpts = list.map(([, n, l]) => `<option value="${esc(n)}" label="${esc(n + ' · ' + (l ? ordinal(l) + ' level' : 'cantrip'))}"></option>`).join('');
+            srdNames = new Set(list.map(([, n]) => n.toLowerCase()));
+            spellOpts();
             return list;
-        }).catch(() => { srdList = null; toast("Couldn't load the SRD spell list. You can still type spells in yourself.", 'err'); return []; });
+        }).catch(() => { srdList = null; spellOpts(); toast("Couldn't load the SRD spell list. You can still type spells in yourself.", 'err'); return []; });
         return srdList;
     }
     const pickDice = (d, lvl) => {
@@ -1465,6 +1480,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
     const needsFill = (r) => !r.desc || (noMech(r) && !r.mech);
     async function srdFill(rp) {
         const r = get(rp), list = await loadSrdList();
+        if (r.hbsrc) return;
         const hit = list.find(([, n]) => n.toLowerCase() === String(r.name).trim().toLowerCase());
         // an already-filled spell only gets what it's missing (text, or save/attack/damage on older rows), so edits stay
         const textOnly = hit && r.srd === hit[0];
@@ -2370,6 +2386,7 @@ Longbow|1d8|Piercing|Ammunition, Heavy, Two-handed|150/600 ft|2`.split('\n').map
         }
         if (/\.notes\.\d+\.group$/.test(k) || /^panels\.\d+\.rows\.\d+\.(uses|max|group)$/.test(k) || /\.(levels\.\d+|slots\.\d+|sp)\.max$/.test(k) || /\.flex\.\d+$/.test(k)) { saveNow(); return draw(); }
         if (/^classes\.\d+\.name$/.test(k)) { const d = HIT_DIE[el.value.trim().toLowerCase()]; if (d) set(k.replace(/name$/, 'die'), d); }
+        if (/^panels\.\d+\.rows\.\d+\.name$/.test(k) && el.value.trim() && hbPick(k, el.value)) return;
         if (/^panels\.\d+\.rows\.\d+\.name$/.test(k) && panelOf(k).type === 'spells' && el.value.trim()) srdFill(k.replace(/\.name$/, ''));
         if (/^panels\.\d+\.rows\.\d+\.name$/.test(k) && panelOf(k).type === 'items' && el.value.trim()) eqFill(k.replace(/\.name$/, ''));
         if (/^panels\.\d+\.(rows|meta)\.\d+\.name$/.test(k) && rowFill(k)) return;
