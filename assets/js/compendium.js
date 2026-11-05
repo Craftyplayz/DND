@@ -6,7 +6,7 @@
 // "Add to sheet" and "Add to encounter" leave a request in localStorage (hb-pending / mon-pending) that the sheet applies when it opens,
 // or at once if it is already open (see sheet.js, monster.js).
 // Monsters are the 2014 rules except the SRD 5.2 book, so the rules switch filters them too.
-// Settings follow the account through assets/js/sync.js: compendium-view (tab and filters), compendium-rules (2014 / 2024 / both),
+// Settings follow the account through assets/js/sync.js: compendium-view (tab and filters), compendium-rules (2014 / 2024 / both / homebrew),
 // compendium-favs, compendium-recent.
 document.addEventListener('DOMContentLoaded', () => {
     'use strict';
@@ -189,8 +189,9 @@ document.addEventListener('DOMContentLoaded', () => {
     S.f = S.tab === saved.tab ? Object.assign({}, saved.f || {}) : {};
     for (const [k, v] of params) if (k.startsWith('f.')) S.f[k.slice(2)] = v;
     const r0 = store.get('compendium-rules', 'both');
-    S.rules = ['2014', '2024', 'both'].includes(r0) ? r0 : 'both';
-    const rulesOn = () => (S.rules === 'both' ? RULES : [S.rules]);
+    S.rules = ['2014', '2024', 'both', 'homebrew'].includes(r0) ? r0 : 'both';
+    // Homebrew still loads both versions: a homebrew subclass or subrace can name an official parent
+    const rulesOn = () => (RULES.includes(S.rules) ? [S.rules] : RULES);
 
     const favs = () => store.get('compendium-favs', []).filter((k) => typeof k === 'string').map(canon);
     const recents = () => store.get('compendium-recent', []).filter((k) => typeof k === 'string').map(canon);
@@ -210,11 +211,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
     // entries of the other rules version are hidden (favourites and recent show everything)
-    const inRules = (e) => (!e.r || S.rules === 'both' || e.r === S.rules) && Books.allows(e.book);
+    const hbOnly = () => S.rules === 'homebrew';
+    const inRules = (e) => (hbOnly() ? !!e.hb : (!e.r || S.rules === 'both' || e.r === S.rules) && Books.allows(e.book));
     function results() {
         const t = S.tab, types = typesOf(t);
         let pool = t === 'fav' ? favs().map((k) => byKey.get(k)).filter(Boolean) : t === 'recent' ? recents().map((k) => byKey.get(k)).filter(Boolean)
             : entries.filter((e) => (t === 'all' || types.includes(e.t)) && inRules(e));
+        if (hbOnly()) pool = pool.filter((e) => e.hb); // Favourites and Recent don't go through inRules
         pool = pool.filter(matches);
         // with no search, classes and races come before their subclasses and subraces
         const under = (e) => e.t === 'subclass' || e.t === 'subrace';
@@ -266,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!total && busy) html += skeleton();
         else if (!total && !html) {
             const filtered = Object.values(S.f).some((v) => v !== '' && v !== undefined);
-            html += S.f.hb && !S.q.trim() ? `<p class="muted">No homebrew here yet.${FORMS[S.tab] ? ` Press New ${FORMS[S.tab].noun} to make one.` : ''}</p>`
+            html += (S.f.hb || hbOnly()) && !S.q.trim() ? `<p class="muted">No homebrew here yet.${FORMS[S.tab] ? ` Press New ${FORMS[S.tab].noun} to make one.` : ''}</p>`
                 : S.tab === 'fav' ? '<p class="muted">No favourites yet. Open an entry and press the star.</p>'
                 : S.tab === 'recent' ? '<p class="muted">Nothing opened yet.</p>'
                     : `<p class="note">Nothing found${S.q.trim() ? ` for '${esc(S.q.trim())}'` : ''}. Try fewer filters.${filtered ? ' <button type="button" class="btn small" data-clear>Clear filters</button>' : ''}</p>`;
@@ -316,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#cp-fbtn').hidden = !fl.length;
         box.hidden = !fl.length;
         drawHomebrewBar();
-        $('#cp-books').hidden = S.tab === 'rule';
+        $('#cp-books').hidden = S.tab === 'rule' || hbOnly();
         $('#cp-books').textContent = Books.label();
     }
     function persist() {

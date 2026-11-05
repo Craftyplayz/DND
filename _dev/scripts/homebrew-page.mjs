@@ -94,6 +94,36 @@ try {
                 is(`${name} shown under ${r}`, await names(b), ['Brutal crits']);
             }
 
+            // the Homebrew choice beside 2014, 2024 and Both: only homebrew, on every tab, kept over a reload, no Sources button; New follows the tab
+            const rows = () => b.ev(`document.querySelectorAll('#cp-list .cp-row').length`);
+            const pick = (r) => click(b, `#cp-rules input[value="${r}"]`);
+            const official = () => b.ev(`[...document.querySelectorAll('#cp-list .cp-row')].filter((r) => !r.textContent.includes('Homebrew')).length`);
+            await b.ev(`(() => { const q = document.querySelector('#cp-q'); q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+            is(`${name} Both lists the official rules too`, await until(rows, (n) => n > 1) > 1, true);
+            await b.ev(`[...document.querySelectorAll('#cp-list .cp-row')].find((r) => !r.textContent.includes('Homebrew')).click()`);
+            await until(() => visible(b, '[data-fav]'), Boolean);
+            await click(b, '[data-fav]');
+            await pick('homebrew');
+            is(`${name} Homebrew: only homebrew`, [await until(rows, (n) => n === 1), await official(), await names(b)], [1, 0, ['Brutal crits']]);
+            is(`${name} Homebrew: no Sources button, New stays`, [await visible(b, '#cp-books'), await visible(b, '#cp-new')], [false, true]);
+            is(`${name} Homebrew is saved`, await b.ev(`localStorage.getItem('compendium-rules').replace(/"/g, '')`), 'homebrew');
+            await b.go(BASE + '/compendium/?tab=rule');
+            is(`${name} Homebrew survives a reload`, [await until(() => b.ev(`document.querySelector('#cp-rules input:checked')?.value ?? ''`), (v) => v === 'homebrew'), await until(rows, (n) => n === 1), await official()], ['homebrew', 1, 0]);
+            await click(b, '#cp-tabs [data-tab=all]');
+            is(`${name} Homebrew on All`, [await until(() => names(b), (l) => l.length === 1), await official()], [['Brutal crits'], 0]);
+            await click(b, '#cp-tabs [data-tab=fav]');
+            is(`${name} Homebrew on Favourites hides an official favourite`, await until(rows, (n) => n === 0), 0);
+            await click(b, '#cp-tabs [data-tab=spell]');
+            is(`${name} Homebrew with none of that kind says so`, (await until(() => b.ev(`document.querySelector('#cp-list').textContent`), (x) => x.includes('No homebrew here yet'))).includes('Press New spell to make one'), true);
+            await click(b, '#cp-tabs [data-tab=fav]');
+            await pick('both');
+            is(`${name} Both brings the official favourite back`, await until(rows, (n) => n === 1), 1);
+            await b.ev(`document.querySelector('#cp-list .cp-row').click()`);
+            await until(() => visible(b, '[data-fav]'), Boolean);
+            await click(b, '[data-fav]'); // off again, so the rest of this check sees what it always did
+            await click(b, '#cp-tabs [data-tab=rule]');
+            is(`${name} Both lists the rest again`, await until(rows, (n) => n > 1) > 1, true);
+
             // favourite, then a link to it
             await clickRow(b, 'Brutal crits');
             await until(() => body(b), (t) => t.includes('Crits roll max'));

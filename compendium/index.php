@@ -30,6 +30,7 @@ $sources = (json_decode((string)@file_get_contents(SITE_ROOT . '/sheets/monster/
             <label class="check"><input type="radio" name="cp-rules" value="2014"> 2014</label>
             <label class="check"><input type="radio" name="cp-rules" value="2024"> 2024</label>
             <label class="check"><input type="radio" name="cp-rules" value="both" checked> Both</label>
+            <label class="check"><input type="radio" name="cp-rules" value="homebrew"> Homebrew</label>
         </fieldset>
 
         <div class="stabs cp-tabs" id="cp-tabs" role="tablist" aria-label="Type"></div>
