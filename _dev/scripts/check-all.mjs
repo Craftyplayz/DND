@@ -25,6 +25,7 @@ const PHP = process.env.PHP || (process.platform === 'win32' ? 'C:/php/php.exe' 
 // both: drives Chrome and Firefox together in one run. secs: about how long it takes, so the slow ones start first.
 export const BROWSER_CHECKS = {
     'pages-ok': { url: true, split: true, secs: 70 },
+    'browser-go': { url: true, split: true, secs: 15 },
     'characters-page': { url: true, split: true, tmp: 'dnd-accounts-check', secs: 30 },
     compendium: { url: true, split: true, secs: 90 },
     'dice-dissolve': { url: true, split: true, secs: 30 },

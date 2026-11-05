@@ -23,9 +23,11 @@ const CH_PORT = process.env.CHECK_CHROME_PORT || 0, FF_PORT = process.env.CHECK_
 export const browsers = process.env.CHECK_BROWSER ? [process.env.CHECK_BROWSER] : ['chrome', 'firefox'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // polls fn until it gives something truthy; throws `what` after ms
+const within = (p, ms, what) => { let t; return Promise.race([p, new Promise((_, no) => { t = setTimeout(() => no(new Error(what)), ms); })]).finally(() => clearTimeout(t)); };
 async function poll(fn, ms, what) {
     for (const t = Date.now(); ;) {
-        const v = await fn().catch(() => null);
+        // a call the browser never answers counts as a failed one, or this limit would never be reached
+        const v = await within(fn(), ms, what).catch(() => null);
         if (v) return v;
         if (Date.now() - t > ms) throw new Error(what);
         await sleep(50);
@@ -55,6 +57,7 @@ const NAMED = { Control: ['Control', 'ControlLeft', 17, 2, '\uE009'], Shift: ['S
     Escape: ['Escape', 'Escape', 27, 0, '\uE00C'], Enter: ['Enter', 'Enter', 13, 0, '\uE007'], Tab: ['Tab', 'Tab', 9, 0, '\uE004'], '-': ['-', 'Minus', 189, 0, '-'] };
 const chromeKey = (n) => { const [key, code, vk, mod] = NAMED[n] || [n, 'Key' + n.toUpperCase(), n.toUpperCase().charCodeAt(0), 0]; return { key, code, windowsVirtualKeyCode: vk, mod }; };
 const value = (v) => v && ['string', 'number', 'boolean'].includes(v.type) ? v.value : null;
+const FF_ENDS = ['browsingContext.load', 'browsingContext.fragmentNavigated', 'browsingContext.navigationFailed'];
 
 // a browser that fails to start (Firefox losing its first tab, a port still held by the browser before) gets one more try
 export async function launch(name = 'chrome') {
@@ -86,18 +89,21 @@ async function start(name) {
                 proc.stderr.on('data', (d) => { const m = (out += d).match(/WebDriver BiDi listening on (ws:\/\/\S+)/); if (m) r(m[1]); });
             });
             let blocked = null;
+            const ended = new Set(); // navigations that have finished, by id
             const send = await rpc(ws + '/session', (method, p) => {
+                if (FF_ENDS.includes(method)) ended.add(p.navigation);
                 if (method === 'log.entryAdded' && p.level === 'error') note(p.text);
                 if (method === 'network.beforeRequestSent' && p.isBlocked) send(blocked.test(p.request.url) ? 'network.failRequest' : 'network.continueRequest', { request: p.request.request }).catch(() => { });
             });
-            await send('session.new', { capabilities: {} });
+            // now and then a fresh Firefox never answers this at all; that is a browser that didn't start, which launch() tries once more
+            await within(send('session.new', { capabilities: {} }), 15000, 'Firefox did not start: no answer to session.new');
             // a fresh Firefox can answer before its first tab exists, and can swap that tab for a new one while it starts
             // ("BrowsingContext does no longer exist"): wait for a tab that runs a script
             const context = await poll(async () => {
                 const c = (await send('browsingContext.getTree', {})).contexts[0]?.context;
                 return c && (await send('script.evaluate', { expression: '1', target: { context: c }, awaitPromise: false }), c);
             }, 15000, 'Firefox has no tab that answers');
-            await send('session.subscribe', { events: ['log.entryAdded', 'network.beforeRequestSent'] });
+            await send('session.subscribe', { events: ['log.entryAdded', 'network.beforeRequestSent', ...FF_ENDS] });
             const ev = async (expression) => {
                 const r = await send('script.evaluate', { expression, target: { context }, awaitPromise: true });
                 if (r.type === 'exception') throw new Error(r.exceptionDetails.text);
@@ -105,8 +111,13 @@ async function start(name) {
             };
             return {
                 errors, close, ev, until: (e, ms) => until(ev, e, ms),
-                // the same 15 s limit as Chrome's: a navigate Firefox never answers used to hang a check for its whole 10 minutes
-                go: async (url) => { errors.length = 0; await Promise.race([send('browsingContext.navigate', { context, url, wait: 'complete' }), sleep(15000)]); },
+                // not wait: 'complete': Firefox answers that as soon as the old page calls history.replaceState, with the old page still there and
+                // the new one about to replace it. So wait for this navigation's own end. The same 15 s limit as Chrome's.
+                go: async (url) => {
+                    errors.length = 0;
+                    const r = await Promise.race([send('browsingContext.navigate', { context, url, wait: 'none' }), sleep(15000)]);
+                    if (r) await poll(async () => ended.has(r.navigation), 15000, url).catch(() => { });
+                },
                 key: (...names) => { const v = (n) => (NAMED[n] ? NAMED[n][4] : n); return send('input.performActions', { context, actions: [{ type: 'key', id: 'kb', actions: [...names.map((n) => ({ type: 'keyDown', value: v(n) })), ...[...names].reverse().map((n) => ({ type: 'keyUp', value: v(n) }))] }] }); },
                 drag: (pts) => send('input.performActions', { context, actions: [{ type: 'pointer', id: 'mouse', parameters: { pointerType: 'mouse' }, actions: [
                     { type: 'pointerMove', x: Math.round(pts[0][0]), y: Math.round(pts[0][1]), origin: 'viewport' }, { type: 'pointerDown', button: 0 },

@@ -23,7 +23,8 @@ await serving(BASE + '/privacy/');
 const account = () => { try { return JSON.parse(JSON.parse(readFileSync(join(ACCOUNTS, 'prefs', '111.json'), 'utf8'))['dice-presets'].value).map((p) => p.name); } catch { return null; } };
 const untilAccount = async (want) => { for (const t = Date.now(); Date.now() - t < 10000;) { if (JSON.stringify(account()) === JSON.stringify(want)) break; await sleep(200); } return account(); };
 const shown = (b) => b.ev(`JSON.stringify([...document.querySelectorAll('#dd-presets [data-preset] b')].map((x) => x.textContent))`).then(JSON.parse);
-const untilShown = async (b, want) => { for (const t = Date.now(); Date.now() - t < 15000;) { try { if (JSON.stringify(await shown(b)) === JSON.stringify(want)) break; } catch (e) { /* the one reload after a pull */ } await sleep(200); } return shown(b); };
+// gives what it saw: reading again could land in the restart sync.js has already asked for, on a page not drawn yet
+const untilShown = async (b, want) => { let got = null; for (const t = Date.now(); Date.now() - t < 15000;) { try { got = await shown(b); if (JSON.stringify(got) === JSON.stringify(want)) break; } catch (e) { /* the one reload after a pull */ } await sleep(200); } return got; };
 // a browser with empty storage, signed in or out, on the Dice Sets page
 const start = async (name, signedIn) => {
     const b = await launch(name);

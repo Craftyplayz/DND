@@ -28,8 +28,13 @@ const J = JSON.stringify;
 const click = (b, sel) => b.ev(`(() => { const e = document.querySelector(${J(sel)}); if (e) e.click(); return !!e; })()`);
 const visible = (b, sel) => b.ev(`(() => { const e = document.querySelector(${J(sel)}); return !!e && !e.hidden && e.getClientRects().length > 0; })()`);
 const names = (b) => b.ev(`JSON.stringify([...document.querySelectorAll('#cp-list .cp-row')].filter((r) => r.textContent.includes('Homebrew')).map((r) => r.querySelector('.cp-name').textContent))`).then(JSON.parse);
-// by search, as the list only draws 50 rows at a time
-const hasRow = async (b, n) => { await b.ev(`(() => { const q = document.querySelector('#cp-q'); q.value = ${J(n)}; q.dispatchEvent(new Event('input', { bubbles: true })); })()`); return until(() => names(b), (l) => l.includes(n)); };
+// by search, as the list only draws 50 rows at a time. The box waits 80 ms before it searches, then puts q in the URL; until it has,
+// the row seen can still be the unfiltered list's, and it drops off those 50 when the official rules arrive
+const hasRow = async (b, n) => {
+    await b.ev(`(() => { const q = document.querySelector('#cp-q'); q.value = ${J(n)}; q.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    await until(() => b.ev(`new URLSearchParams(location.search).get('q') === ${J(n)}`), Boolean);
+    return until(() => names(b), (l) => l.includes(n));
+};
 const clickRow = (b, n) => b.ev(`[...document.querySelectorAll('#cp-list .cp-row')].find((r) => r.querySelector('.cp-name').textContent === ${J(n)}).click()`);
 const body = (b) => b.ev(`document.querySelector('#cp-dbody')?.textContent ?? ''`); // '' while a page is still loading, so until() keeps waiting
 const open = async (b, cookie, keep) => {
@@ -41,7 +46,12 @@ const open = async (b, cookie, keep) => {
     await until(() => visible(b, '#cp-new'), Boolean);
 };
 const fill = (b, name, text) => b.ev(`(() => { const f = document.querySelector('#cp-hb-form'); f.elements.name.value = ${J(name)}; f.elements.text.value = ${J(text)}; f.requestSubmit(); })()`);
-const account = (sub) => { try { return JSON.parse(readFileSync(join(ACCOUNTS, 'homebrew', sub, 'x').slice(0, -1) + idOf[sub] + '.json', 'utf8')); } catch { return null; } };
+// waits on the account through the server, never by reading its files from here: on Windows a save's rename fails ("Access is denied", a 500)
+// if this process has the file open at that moment. PHP's own server answers one request at a time, so it can't meet its own saves.
+const view = (sid) => fetch(BASE + '/compendium/homebrew.php', { headers: { cookie: `dndsid=${sid}` } }).then((r) => r.json()).catch(() => ({ mine: [], shares: {} }));
+const account = async (sid) => (await view(sid)).mine.find((e) => e.id === idOf[sid]) || null;
+const sharedIn = async (sid) => Object.values((await view(sid)).shares).filter((c) => c.includes(CAMP)).length;
+const campaignList = () => JSON.parse(readFileSync(join(ACCOUNTS, 'campaigns', CAMP, 'homebrew.json'), 'utf8')).map((r) => r.id); // only once sharedIn() says it's saved
 const idOf = {};
 const localId = (b) => b.ev(`Object.keys(JSON.parse(localStorage.getItem('homebrew')))[0]`);
 const errs = (b, name, where) => { const e = b.errors.filter((x) => !/backup\.php|prefs\.php/.test(x)); if (e.length) { bad++; console.log(`FAIL ${name} ${where}: ${e.join(' | ').slice(0, 600)}`); } };
@@ -109,15 +119,16 @@ try {
 
             // signing in uploads what the browser made
             await open(b, DM, true);
-            idOf['111'] = id;
-            is(`${name} uploaded on sign-in`, (await until(() => account('111'), Boolean))?.name, 'Brutal crits');
+            idOf[DM] = id;
+            is(`${name} uploaded on sign-in`, (await until(() => account(DM), Boolean))?.name, 'Brutal crits');
 
             // share with the campaign
             await hasRow(b, 'Brutal crits');
             await clickRow(b, 'Brutal crits');
             await until(() => visible(b, '[data-hb-share]'), Boolean);
             await b.ev(`document.querySelector('[data-hb-share]').click()`);
-            is(`${name} shared`, await until(() => { try { return JSON.parse(readFileSync(join(ACCOUNTS, 'campaigns', CAMP, 'homebrew.json'), 'utf8')).map((r) => r.id); } catch { return []; } }, (l) => l.length === 1), [id]);
+            await until(() => sharedIn(DM), Boolean);
+            is(`${name} shared`, campaignList(), [id]);
             errs(b, name, 'signed in');
         } finally { b.close(); }
 
@@ -130,7 +141,7 @@ try {
             is(`${name} new browser: still shared`, await until(() => b.ev(`!!document.querySelector('[data-hb-share]')?.checked`), Boolean), true);
             await click(b, '[data-hb-edit]');
             await fill(b, 'Brutal crits v2', 'Newer.');
-            is(`${name} new browser: the edit reaches the account`, (await until(() => account('111'), (e) => e && e.name === 'Brutal crits v2'))?.name, 'Brutal crits v2');
+            is(`${name} new browser: the edit reaches the account`, (await until(() => account(DM), (e) => e && e.name === 'Brutal crits v2'))?.name, 'Brutal crits v2');
             errs(b, name, 'new browser');
         } finally { b.close(); }
 
@@ -149,7 +160,7 @@ try {
             await fill(p, 'Pat rule', 'From Pat.');
             await until(() => visible(p, '[data-hb-share]'), Boolean);
             await p.ev(`document.querySelector('[data-hb-share]').click()`);
-            await until(() => { try { return JSON.parse(readFileSync(join(ACCOUNTS, 'campaigns', CAMP, 'homebrew.json'), 'utf8')); } catch { return []; } }, (l) => l.length === 2);
+            await until(() => sharedIn(PLAYER), Boolean);
             errs(p, name, 'member');
         } finally { p.close(); }
 
