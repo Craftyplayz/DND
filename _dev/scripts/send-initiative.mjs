@@ -109,6 +109,12 @@ try {
             is(`${name}: rows`, (await encRows(b)).sort(), ['Goblin 1', 'Goblin 2', 'Hag A', 'Hag B', 'Orcx2']);
             is(`${name}: reload doesn't send twice`, await (async () => { await b.go(`${BASE}/campaigns/${CAMP}/map`); await b.until(`window.BM?.state.m`); return (await view(SID.dm)).map.enc.ids.length; })(), 6);
 
+            // the campaign page's Not placed tray cuts long names, so each tile's tooltip has the whole name
+            await b.go(`${BASE}/campaigns/${CAMP}`);
+            await b.until(`document.querySelector('.mp-trayt')`);
+            is(`${name}: tray tiles have the full name as a tooltip`, await b.ev(`[...document.querySelectorAll('.mp-trayt')].every((t) => t.title === t.querySelector(':scope > span:last-child').textContent && t.title)`), true);
+            await b.go(`${BASE}/campaigns/${CAMP}/map`); await b.until(`window.BM?.state.m`);
+
             // players and the Spectator see nothing new
             const nothing = (v) => !!v.map && !JSON.stringify(v).match(/Goblin|Hag|Orc/);
             is(`${name}: player sees nothing`, nothing(await view(SID.pat)), true);

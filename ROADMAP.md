@@ -774,6 +774,8 @@ change already lands in `sheets/player/`. The test copy is archived and must not
     the open section isn't saved.
   - A new automatic check in `check-all` fails on sideways scroll or clipped text on every in-scope page at each
     width, in both browsers.
+  - The campaign page's Not placed tray keeps cutting long names, with the full name as a tooltip (the owner's choice
+    over wrapping).
 
 **2.3 Theme-ready CSS**
 - What: move colours and fonts into CSS variables in `global.css`, matching the design guide's tokens, so user

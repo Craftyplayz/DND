@@ -470,7 +470,7 @@ window.BattleMap = (() => {
             if (!el) return;
             const list = (S.m?.tokens || []).filter((t) => !t.placed && (S.dm || t.mine));
             el.hidden = !S.m || !list.length;
-            const html = el.hidden ? '' : `<h2>Not placed <span class="n">${list.length}</span></h2><p class="muted">Drag one onto the map, or click it to put it in the middle.</p><div class="mp-trayl">${list.map((t) => `<button type="button" class="mp-trayt${t.hidden ? ' hid' : ''}" data-add="tok:${esc(t.k)}"${canEdit() ? '' : ' disabled'}>${face(t)}<span>${esc(t.name)}</span></button>`).join('')}</div>`;
+            const html = el.hidden ? '' : `<h2>Not placed <span class="n">${list.length}</span></h2><p class="muted">Drag one onto the map, or click it to put it in the middle.</p><div class="mp-trayl">${list.map((t) => `<button type="button" class="mp-trayt${t.hidden ? ' hid' : ''}" data-add="tok:${esc(t.k)}" title="${esc(t.name)}"${canEdit() ? '' : ' disabled'}>${face(t)}<span>${esc(t.name)}</span></button>`).join('')}</div>`;
             if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
         }
         // ---- the left panel: Combat Encounter, then Initiative Order ----
