@@ -31,7 +31,7 @@ const names = (b) => b.ev(`JSON.stringify([...document.querySelectorAll('#cp-lis
 // by search, as the list only draws 50 rows at a time
 const hasRow = async (b, n) => { await b.ev(`(() => { const q = document.querySelector('#cp-q'); q.value = ${J(n)}; q.dispatchEvent(new Event('input', { bubbles: true })); })()`); return until(() => names(b), (l) => l.includes(n)); };
 const clickRow = (b, n) => b.ev(`[...document.querySelectorAll('#cp-list .cp-row')].find((r) => r.querySelector('.cp-name').textContent === ${J(n)}).click()`);
-const body = (b) => b.ev(`document.querySelector('#cp-dbody').textContent`);
+const body = (b) => b.ev(`document.querySelector('#cp-dbody')?.textContent ?? ''`); // '' while a page is still loading, so until() keeps waiting
 const open = async (b, cookie, keep) => {
     await b.block(/backup\.php|prefs\.php/);
     await b.go(BASE + '/privacy/');

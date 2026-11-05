@@ -105,7 +105,8 @@ async function start(name) {
             };
             return {
                 errors, close, ev, until: (e, ms) => until(ev, e, ms),
-                go: async (url) => { errors.length = 0; await send('browsingContext.navigate', { context, url, wait: 'complete' }); },
+                // the same 15 s limit as Chrome's: a navigate Firefox never answers used to hang a check for its whole 10 minutes
+                go: async (url) => { errors.length = 0; await Promise.race([send('browsingContext.navigate', { context, url, wait: 'complete' }), sleep(15000)]); },
                 key: (...names) => { const v = (n) => (NAMED[n] ? NAMED[n][4] : n); return send('input.performActions', { context, actions: [{ type: 'key', id: 'kb', actions: [...names.map((n) => ({ type: 'keyDown', value: v(n) })), ...[...names].reverse().map((n) => ({ type: 'keyUp', value: v(n) }))] }] }); },
                 drag: (pts) => send('input.performActions', { context, actions: [{ type: 'pointer', id: 'mouse', parameters: { pointerType: 'mouse' }, actions: [
                     { type: 'pointerMove', x: Math.round(pts[0][0]), y: Math.round(pts[0][1]), origin: 'viewport' }, { type: 'pointerDown', button: 0 },
