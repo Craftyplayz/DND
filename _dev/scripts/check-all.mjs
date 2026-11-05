@@ -55,6 +55,7 @@ export const BROWSER_CHECKS = {
     'phone-mode': { ports: [8141], split: true, tmp: 'dnd-phone-check', secs: 200 },
     'layout-ok': { ports: [8142, 8104], split: true, tmp: 'dnd-layout-check', secs: 150 },
     'dice-folds': { url: true, split: true, secs: 40 },
+    'dice-presets': { ports: [8146], split: true, tmp: 'dnd-presets-check', secs: 40 },
     'stats-page': { ports: [8142], split: true, tmp: 'dnd-stats-check', secs: 60 },
     'sheet-rules': { ports: [8142, 8104], split: true, tmp: 'dnd-rules-check', secs: 120 },
 };

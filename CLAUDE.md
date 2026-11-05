@@ -59,7 +59,7 @@ do). Signed out, everything keeps working from the browser alone.
     `monster-sheet`, `accounts/monster-encounters/<sub>.json` through sheets/monster/encounters.php), each with its party
     (`party`, Unsorted's is `unsorted` beside the list)
   - settings, through assets/js/sync.js and prefs.php (`accounts/prefs/<sub>.json`): dice choice (`dice-choice`),
-    Dice Sets page (`dice-sets-page`, `dice-sets-sound`), D&D Beyond viewer roll mode (`dnd.rollMode`), the full layout on a phone (`sheet-full-layout`), encounter rules
+    Dice Sets page (`dice-sets-page`, `dice-sets-sound`), its saved presets (`dice-presets`, the newest change wins for the whole list), the old viewer's roll mode (`dnd.rollMode`, nothing reads it now, kept so accounts keep their value), the Monster Sheet's table and roll choices (`monster-table`, `monster-roll-vis`), the Compendium's view, rules version, favourites and recent list (`compendium-view`, `compendium-rules`, `compendium-favs`, `compendium-recent`), the full layout on a phone (`sheet-full-layout`), encounter rules
     (`encounter-rules`), the Compendium's last encounter (`compendium-enc`), the map's tool choices (`map-tools`), the Compendium popup's width and whether it is open (`compendium-popup`), the Sources tick list (`compendium-books`, the books turned off; the Compendium and the builder share it)
   - homebrew made in the Compendium (`homebrew`, `accounts/homebrew/<sub>/<id>.json`, compendium/homebrew.php + assets/js/homebrew.js); the versions a
     save replaced are in `accounts/homebrew/<sub>/history/<id>/`. `homebrew-shared` and `homebrew-me` in the browser are only a read-only copy of what the
