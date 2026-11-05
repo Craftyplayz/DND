@@ -194,7 +194,7 @@ for (const name of browsers) {
         has(`${name} encumbered: a warning`, await txt('#hb-wmsg'), /^Encumbered: speed 20 ft \(saved 30 ft\)\.$/);
         is(`${name} all speeds drop, words left alone`, await b.ev(`document.querySelector('[data-c=speed]').textContent`), 'Walk 20 ft (saved 30 ft) · Fly 0 ft (saved 10 ft) · Swim 30 ft');
         is(`${name} the saved speed is unchanged`, (await local('aldr')).speeds[0].ft, 30);
-        is(`${name} the bar is red`, await is1('.hb-weight .progress.hb-over'), true);
+        is(`${name} encumbered alone: the bar isn't red`, await is1('.hb-weight .progress.hb-over'), false);
         await click('#hb-wtline');
         has(`${name} the line opens the rule`, await txt('#hb-drawer-body'), /Strength score multiplied by 15/);
         await click('[data-act=dclose]');
@@ -219,6 +219,7 @@ for (const name of browsers) {
         await type('[data-k=capF]', 'STR_SCORE * 5');
         await b.until(`${q('#hb-wmsg')}?.textContent.includes('Over your carrying capacity')`);
         has(`${name} over capacity warns and keeps the speed rule`, await txt('#hb-wmsg'), /^Heavily encumbered: speed 10 ft \(saved 30 ft\), with disadvantage .* Over your carrying capacity by 2\.6 lb\.$/);
+        is(`${name} over capacity: the bar is red`, await is1('.hb-weight .progress.hb-over'), true);
         await type('[data-k=capF]', 'nonsense(');
         await b.until(`${q('#hb-wtline')}?.textContent.includes('of ?')`);
         await type('[data-k=capF]', 'STR_SCORE * 15');

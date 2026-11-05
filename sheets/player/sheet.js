@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const msg = [w.heavy ? `Heavily encumbered: ${sp}, with disadvantage on Strength, Dexterity and Constitution rolls.` : w.enc ? `Encumbered: ${sp}.` : '', w.over ? `Over your carrying capacity by ${lb(w.total - w.max)}.` : ''].filter(Boolean).join(' ');
         const fill = fillable();
         return `<button type="button" class="hb-wtline" id="hb-wtline" data-act="carryinfo">${esc(line)}</button>
-            <div class="progress${w.enc ? ' hb-over' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="${w.max ?? 0}" aria-valuenow="${Math.round(w.total)}" aria-label="${esc(line)}"><i style="width:${pct}%"></i>${w.max ? '<em style="left:33.33%"></em><em style="left:66.66%"></em>' : ''}</div>
+            <div class="progress${w.over ? ' hb-over' : ''}" role="progressbar" aria-valuemin="0" aria-valuemax="${w.max ?? 0}" aria-valuenow="${Math.round(w.total)}" aria-label="${esc(line)}"><i style="width:${pct}%"></i>${w.max ? '<em style="left:33.33%"></em><em style="left:66.66%"></em>' : ''}</div>
             ${msg ? `<p class="err" id="hb-wmsg">${esc(msg)}</p>` : ''}
             ${w.max ? `<small class="muted">Encumbered over ${lb(w.max / 3)}, heavily encumbered over ${lb(w.max * 2 / 3)}.</small>` : ''}
             ${fill.length ? `<div class="actions"><button type="button" class="btn small" id="hb-fill" data-act="fillwt">Fill in missing weights</button><small class="muted">${fill.length} ${fill.length === 1 ? 'item matches' : 'items match'} by exact name</small></div>` : ''}`;
