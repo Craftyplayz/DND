@@ -57,8 +57,9 @@ The same for every item below (from CLAUDE.md):
 Files are never deleted: move them with `git mv` into `private/archive/`, keeping their path.
 
 **No limits.** The owner wants no app-imposed limits anywhere: unlimited characters, campaigns, monsters,
-dice presets, homebrew, everything. Don't add count caps. Only real limits stay: the host proxy rejects
-request bodies near 8 MB, so big uploads are sent in chunks (as the transcript importer does).
+dice presets, homebrew, everything. Don't add count caps. Chunking is only for map and handout uploads
+(the host proxy rejects request bodies near 8 MB). Saves stop at 8 MB (characters, monsters, backups, art, DM edits) and
+homebrew at 2 MB, each only to stop a broken client. List display caps aren't limits on data.
 
 **Where new account data lives.** Everything new goes inside the existing `accounts` volume
 (`private/dnd/accounts/`), so no new compose volume is needed and `deploy.sh` already counts it. Google `sub`
@@ -68,13 +69,13 @@ IDs are numeric (`auth_claims_ok` checks this), so named folders can't clash wit
 |---|---|---|
 | `characters/<id>/` | player sheet characters: `character.json`, `meta.json` (owner, visibility, created, campaigns), `history/<n>.json` | exists |
 | `characters/<id>/art.<ext>` | character portraits (owner's choice: in the character's folder; replaced ones in `history/art-<n>.<ext>`) | exists (0.4) |
-| `characters/.deleted/` | deleted character folders (moved, never unlinked) | exists |
+| `characters/.deleted/` | character folders deleted before archiving existed (moved, never unlinked; admin only) | exists |
 | `<sub>/<character id>.json` | the older per-account files, copied into folders once (`.copied`), no longer written | kept as is |
 | `dev/characters/` | the archived test sheet's characters | kept as is |
 | `monsters/<sub>/<monster id>.json` | monster sheet monsters | exists (0.1) |
 | `prefs/<sub>.json` | settings in the `KEYS` list of sync.js / prefs.php | exists (0.1) |
 | `campaigns/<campaign id>/...` | campaign, members, logs, initiative, notes, handouts | `campaign.json` (1.1), `sessions/` (1.3), `initiative.json` and `fights/` (1.4), `notes/` and `handouts/` (3.4) exist |
-| `homebrew/<sub>/<id>.json` | homebrew items, spells, monsters, classes, races... | Phase 4/5 |
+| `homebrew/<sub>/<id>.json` | homebrew items, spells, monsters, classes, races...; replaced versions in `history/<id>/` | exists (4.6, 5.2) |
 
 New server writes copy `sheets/player/cloud.php`: JSON only, `flock` per file, 409 when the stored copy is
 newer, and 401 when signed out.
@@ -83,11 +84,13 @@ newer, and 401 when signed out.
 
 ## What exists today
 
+This section is current as of 2026-11-05 (corrected after an audit against the code).
+
 ### Player sheet (`/sheets/player/`, also every `/characters/<id>`)
 - One sheet code. The old test copy (`/sheets/player-dev/`, key `hb-sheet-dev`) is archived; the live sheet copies
   its characters across once.
-- **Characters:** several per browser, with a picker. Each can be made, imported, exported or deleted. The
-  data model is in `blank()` (sheet.js:182). Old saves are migrated by `upgrade()` and `normalise()`.
+- **Characters:** several per browser, with a picker. Each can be made, imported, exported or archived. The
+  data model is `blank()` in `sheets/player/model.js`. Old saves are migrated by `upgrade()` and `normalise()` in `sheet.js`.
 - **Core stats:** 6 abilities (custom ones allowed), saves, 18 skills (proficiency levels plus a bonus), HP
   (current/base/temp/mod, max = base + level × CON), AC, initiative, proficiency bonus, speeds (with hover),
   14 conditions with SRD rule text, exhaustion, resistances/immunities/vulnerabilities (text), senses,
@@ -95,8 +98,8 @@ newer, and 401 when signed out.
 - **Formulas:** a hand-written parser with no `eval` (`formula.js`). Variables: ability keys, `_SCORE`, `PROF`,
   `LEVEL`, `CANTRIP` (`CANTRIPd10`), `<CLASS>_LEVEL`, skill names, resources (`X`, `X_USED`, `X_MAX`), `SLOTS*`.
   Functions: min, max, floor, ceil, round, abs, plus `[label]`.
-- **Classes:** a list of `{name, level, die, hdUsed}`, so multiclass works. Class and race names come from
-  short lists hard-coded in sheet.js (`CLASSES`, `RACES`). Choosing them doesn't fill anything in.
+- **Classes:** a list of `{name, level, die, hdUsed}`, so multiclass works. The short lists in sheet.js (`CLASSES`, `RACES`)
+  are now the offline fallback, with SRD names added from `srd-build.json`; the builder (4.2) fills things in.
 - **Panels:** Proficiencies (chips), Actions (hit or save, DC, damage parts, uses/reset, timing), Spells,
   Inventory, Passive abilities (Racial/Class/Other tabs), Resources, Homebrew, Combat (death saves, hit dice per
   class) and Notes (search, groups, pin, sort).
@@ -133,7 +136,7 @@ newer, and 401 when signed out.
 - Monsters grouped into named encounters (3.1), one shown at a time in a sidebar with HP and CR. Duplicates get numbered names.
 - Search: `monsters.json` index (SRD + Open5e). `monsters.php` proxies dnd5eapi.co and api.open5e.com,
   strips lore and images, caches 30 days, and serves the stale copy if a refresh fails. Credits are in `ogl.txt`.
-- HP, conditions, rests, an initiative roll button (no turn order), dice tray and roll log. Legendary actions
+- HP, conditions, rests, an initiative roll button, "Add to fight", "Add whole encounter to fight" and "Send to initiative" (the monster sheet joins campaign fights, 1.4 and 3.3), dice tray and roll log. Legendary actions
   are imported as plain action rows, with no counters. Each encounter shows its XP and difficulty (3.2).
 - Saving: localStorage `monster-sheet`, the Google account (`sheets/monster/cloud.php` →
   `accounts/monsters/<sub>/`, newest `updated` wins) and server backups (`monster-backups/`).
@@ -147,30 +150,30 @@ newer, and 401 when signed out.
 - Pages: Dice Sets (presets, a "Land N" test roll), Quick Rolls (`/dice/rolls/`: nat 1, 2-19, nat 20, coin),
   Dice Fairness Test (`/dice/test/`: 8 panels with a chi-square test, tallies kept in the browser).
 - `dice/choice.js` holds the choice (`dice-choice`), which the sheets read on every roll.
-- `prefs.php` + `assets/js/sync.js` save `dice-choice`, `dice-sets-page`, `dice-sets-sound` and `dnd.rollMode`
-  to `accounts/prefs/<sub>.json` (newest wins, one reload per session after a pull). The fairness test tallies
+- `prefs.php` + `assets/js/sync.js` save `dice-choice`, `dice-sets-page`, `dice-sets-sound`, `dice-presets` (the Dice Sets presets;
+  newest change wins for the whole list) and `dnd.rollMode` (still in both sync lists but nothing reads it now; kept so an old
+  account's value isn't dropped) to `accounts/prefs/<sub>.json` (newest wins, one reload per session after a pull). The fairness test tallies
   (`dice-test-counts`) stay in the browser only, by the owner's choice.
 
-### D&D Beyond viewer (`/characters/`)
-- 6 hard-coded public character IDs (`characters.json`), fetched from D&D Beyond's unofficial endpoints and
-  cached in `characters/cache/` (10 min; rules 24 h; falls back to the stale copy).
-- A read-only view of combat, abilities, skills, attacks, spells, features, inventory, campaign and party.
-  Normal/adv/dis roll mode (`dnd.rollMode`).
+### D&D Beyond viewer (retired)
+- Retired 2026-11-02 (5.3). `/characters/` is now My Characters. The old viewer (6 hard-coded public characters fetched from
+  D&D Beyond's unofficial endpoints) is archived in `private/archive/characters/`. The sheet's "From D&D Beyond" import button
+  stays (`sheets/player/sheet.js`, `ddb.js`, `ddb.php`).
 
-### Session recordings (`/transcripts/`)
-- Each session is a Discord recorder `.md` + `audio.ogg` in `transcripts/data/<slug>/`, with clickable lines
-  that play the audio. There are 2 sessions so far.
-- Admin importer at `/private/transcripts/` uploads in 4 MB chunks.
+### Session recordings (archived)
+- Archived at `private/archive/transcripts/` (1.9). `/transcripts/` redirects to `/campaigns/`. Each session is a Discord recorder
+  `.md` + `audio.ogg` in `transcripts/data/<slug>/`, with clickable lines that play the audio; there are 2 sessions. The admin
+  importer is at `/private/archive/private/transcripts/`.
 
 ### Accounts, admin, hosting
 - Google sign-in (an ID token is checked with Google, then a PHP session cookie `dndsid` lasting 30 days).
   Admins are `ADMIN_EMAILS` in `config.php`.
-- `/private/`: backup browsers for player and monster backups, plus the transcript importer.
+- `/private/`: a hub that lists the player backups, the monster backups and two archive links.
 - Docker (php:8.3-apache) in the Portainer stack `dnd`: `dnd` live (port 5762) and `dnd-test` (port 5763), each
   with its own volumes, behind a Cloudflare Tunnel. Images are built by GitHub Actions per commit.
   `deploy.sh test|live` counts data files before and after each deploy.
-- Not there: WebSockets or any live updates, service worker or manifest, print styles (one small block in
-  `dnd.css`), and any campaign or party feature of the site's own.
+- Not there: a service worker or manifest (6.1) and print styles (one small block in `dnd.css`). Live updates (1.2) and
+  campaigns (1.1) exist.
 
 ---
 
@@ -204,7 +207,8 @@ browser only; see CLAUDE.md and "Not planned")
   (cloud saves, backups, prefs, portraits). `characters-cloud.test.php` saves 250 characters.
 
 **0.4 Move character art out of localStorage**
-- What: portraits are uploaded to `accounts/art/<sub>/<character id>.webp`. The character keeps an `artUrl`
+- What: portraits are uploaded to the character's folder, `accounts/characters/<id>/art.<ext>` (replaced ones in
+  `history/art-<n>.<ext>`). The character keeps an `artUrl`
   (new field in `blank()` of both sheets), and the browser keeps a cached copy for offline use (Cache Storage,
   not localStorage). Signed-out users keep inline art as today.
 - How: on sign-in, each character with inline `art` uploads it. Only after the server confirms is the inline
@@ -212,7 +216,7 @@ browser only; see CLAUDE.md and "Not planned")
   server serves art only to its owner and to campaign members and share links (later phases). `normalise()`
   must accept `artUrl` from the same origin.
 - Touches: `sheets/player/sheet.js` (art crop at ~line 1746, `blank()`, `normalise()`), new
-  `sheets/player/art.php` (dev wrapper like `cloud.php`), backups (`backup.php` saves `artUrl`; the
+  `sheets/player/art.php` (no dev wrapper), backups (`backup.php` saves `artUrl`; the
   server-side backup also copies the image into the backup folder so a backup restores the portrait).
 - Data safety: never remove inline art before the upload is confirmed. Add a `sheet-keeps-data` case where
   every backup with inline art still shows its portrait after load, signed in and signed out.
@@ -225,7 +229,7 @@ browser only; see CLAUDE.md and "Not planned")
   next to the character. Monster art stays inline (not in this item). Check: `_dev/scripts/art-sync.mjs`.
 
 **0.5 Version history and Archive instead of Delete** (designed with the owner, 2026-11-02)
-- What: a **Versions** button in the sheet's top bar (on `/sheets/player/` and `/characters/<id>`) opens a
+- What: a **Versions** entry in the sheet's Edit menu (an archived character's bar shows the button directly; on `/sheets/player/` and `/characters/<id>`) opens a
   dialog listing every saved version of the open character, newest first, from the account history
   (`accounts/characters/<id>/history/<n>.json`). Server IP backups are not shown.
   - Each row: date and time, and how many fields changed since the version before ("7 changes"). Clicking the
@@ -308,8 +312,8 @@ browser only; see CLAUDE.md and "Not planned")
 - Storage: `accounts/campaigns/<id>/campaign.json` (name, DM sub, join code, settings, members
   `{sub, name, characters:[{sheet, id}]}`). A campaign stores *links* to characters, never copies, so the
   player's own save stays the only source.
-- Data safety: attaching a character adds nothing to the character itself except an optional `campaigns: []`
-  field (in `blank()` of both sheets). Deleting a campaign never touches characters.
+- Data safety: attaching a character writes nothing to the character (the planned `campaigns: []` field was never added;
+  see the Built note). Deleting a campaign never touches characters; Delete moves its folder to `campaigns/.deleted/`.
 - Size: 3 days. Done: two Google accounts. One creates a campaign, the other joins by link and attaches a
   character, and both see the campaign on a second device.
 
@@ -343,14 +347,13 @@ browser only; see CLAUDE.md and "Not planned")
     as "DM rolled" with no result.
   - Players can mark a roll "to DM". Only that player and the DM see it; others see nothing.
 - Sessions: the DM presses "Start session" and "End session". Each session's log is saved as
-  `campaigns/<id>/sessions/<n>.json` and can be browsed on the campaign page later (next to transcripts, if
-  any). Rolls outside a session go into an "unsorted" log.
+  `campaigns/<id>/sessions/<n>.json` (the owner removed browsing past sessions in 1.9; the files stay on disk). Rolls outside a session go into an "unsorted" log.
 - Reconnect: rejoining shows the current initiative and the last 200 entries. Rolls made while offline are
   rolled locally, marked "offline roll", and sent when the connection is back. They are never dropped, and are
   stored with the time they were rolled.
 - Where it shows: a log panel on the sheet, the monster sheet (for the DM) and the campaign page.
 - Size: 3 days. Done: a public roll, a hidden DM roll and a whisper each show the right thing to the DM, the
-  whisperer and a third player. An offline roll arrives after reconnecting. A finished session can be browsed.
+  whisperer and a third player. An offline roll arrives after reconnecting. (Browsing a finished session was removed in 1.9.)
 - Built (2026-11-02), owner's choices: a character's rolls go to one campaign picked in the dice tray ("Rolls go
   to", saved with the character; automatic when it's in only one; "Nowhere" keeps them private). Other players'
   rolls pop up as cards and fill a Table tab in the roll log. The Monster Sheet picks one campaign you DM (an
@@ -369,8 +372,8 @@ browser only; see CLAUDE.md and "Not planned")
   data), sets ties and order, and advances turns and rounds. Players see the order, the round and whose turn it
   is, as a row of portraits (character art) in turn order. Monster HP shows to players only as Healthy /
   Bloodied (≤ half) / Down. Hidden monsters (1.6) are left out of the order players see (since 1.7 their turn shows as a
-  "DM's turn" card). A "your turn" notice
-  appears on that player's sheet.
+  "DM's turn" card). The sheet has no "your turn" notice, only a Roll initiative prompt;
+  Your turn / up next are on the campaign page's Fight panel.
 - Storage: `campaigns/<id>/initiative.json` (the current fight). Monster entries point to the DM's monster by
   id. HP is written to the DM's monster save through the monster sheet's own save path, so the newest-wins rule
   holds.
@@ -378,7 +381,7 @@ browser only; see CLAUDE.md and "Not planned")
 - Size: 3 days. Done: three players roll in, the DM adds two monsters, advances two rounds and damages a
   monster. Players see Bloodied but not numbers, and a reload on any device shows the same state.
 - Built (2026-11-02), owner's answers: the DM runs it in a Fight panel on the Monster Sheet (for the campaign its rolls
-  go to): Start fight, a rolling-in phase where the order sorts live, Start round 1, Next / Previous, a round counter
+  go to; the controls moved to the map page in 1.6): Start fight, a rolling-in phase where the order sorts live, Start round 1, Next / Previous, a round counter
   and the time since round 1 (everyone sees it), End fight (asks first; moves the fight to
   `campaigns/<id>/fights/<n>.json`). Only "Fight started" and "Fight ended" go in the table log. One fight per
   campaign, independent of sessions. Players get a notice with a Roll button; characters that roll join, each with
@@ -386,15 +389,15 @@ browser only; see CLAUDE.md and "Not planned")
   number, move entries up and down, and add plain named entries. A re-roll replaces the old one while rolling in;
   after round 1 only a first roll counts, and late arrivals slot in by number without moving the turn. An offline
   roll joins only if it was rolled in the same fight. Ties: higher initiative bonus first, then a silent d20 roll-off.
-  Monsters: "Add to fight" beside each one in the list, "Add all in the list" (and a picker in the panel on phones),
-  each auto-rolled; the Initiative button rolls one in. Hidden monsters are never sent to players. Down monsters
+  Monsters: the Monster Sheet has "Add to fight" per monster, "Add whole encounter to fight" and "Send to initiative" (3.3); there
+  is no "Add all in the list" and no phone picker; the Initiative button rolls one in. Hidden monsters are never sent to players. Down monsters
   (≤ 0 HP) stay greyed and are skipped by Next; archived or gone ones stay, marked, until removed. The order and turns
   belong on the VTT (owner, 2026-11-03), not the character sheet: a sheet only shows "The DM started a fight. Roll
-  initiative" until that character has rolled in. Until the VTT (1.6/1.7) exists, players see the order on the
+  initiative" until that character has rolled in. Players see the order on the
   campaign page as portraits (no numbers, no player health, monsters as Healthy / Bloodied / Down) with the round
   and timer; the DM also sees numbers, player HP (read-only), monster HP and AC, and can change monster HP there.
-  When the VTT is built, the order and turns ("You're up next", "Your turn") move there and the DM's controls move
-  from the Monster Sheet to the DM's VTT screen (done in 1.6: the map page). While the DM is offline the controls say "Offline, changes paused"; a change from an older copy of the
+  The DM's controls moved from the Monster Sheet to the map page in 1.6. "You're up next" and "Your turn" are on the campaign
+  page's Fight panel (`assets/js/fight.js`). While the DM is offline the controls say "Offline, changes paused"; a change from an older copy of the
   fight is refused with "This fight changed, reloaded".
 - Monster HP from anywhere: once changed through `sheets/monster/cloud.php?hp=`, a monster's HP only changes as
   single changes (damage and healing as amounts, typed numbers as the numbers that changed), applied in order by
@@ -450,7 +453,7 @@ section stays cards + View. The plan as first written is kept below the "Built" 
 - How: DM changes are POSTed as small *field-level edits*, not whole characters: `{op: "damage", amount: 7}`
   for HP, and `{op: "set", path: "skills.Stealth.p", value: 2, was: 1}` for anything else. The player's sheet
   applies them to its own copy and saves normally. If the player is offline, edits wait in
-  `campaigns/<id>/pending/<sub>.json` and are applied on next load, in order, then removed. So a DM change only
+  `campaigns/<id>/pending/<character id>.json` and are applied on next load, in order, then removed. So a DM change only
   touches the one field it names. A field the player changed after the DM's `was` value is kept as the
   player's, and the DM is told "player changed this first".
 - Data safety: the DM never writes the player's character file directly. Each DM edit is one undo step on the
@@ -464,9 +467,8 @@ section stays cards + View. The plan as first written is kept below the "Built" 
 **1.6 Battle map with fog of war**
 - What: the DM's own screen has a few map buttons: upload a map image (per encounter, unlimited maps), set a
   square grid (5 ft per square, drag to fit the image), and paint fog. A map starts fully fogged. The DM paints
-  grid squares or drags rectangles to reveal or re-hide. **Fog edits are a private draft** until the DM presses
-  "Send to table", so the DM can prepare a room before anyone sees it. Players and the Table view only ever see
-  the last sent fog.
+  grid squares or drags rectangles to reveal or re-hide. Fog edits were a private draft until the DM pressed
+  "Send to table" (replaced by 1.6b: fog is live and freeform in `fog.ops`, with no draft and no Send to table).
 - Tokens: every character in the fight gets a token with their character art (initials if none). Monsters get
   their art or initials. Token size follows creature size (Medium 1 square, Large 2 × 2...). Players drag
   their own token. The DM drags any. Moves are sent live. The DM can mark any monster token **hidden**: the DM
@@ -474,9 +476,11 @@ section stays cards + View. The plan as first written is kept below the "Built" 
 - Ruler with joints (requested 2026-11-02): while dragging the ruler, a right click drops a joint at the
   current point and the ruler carries on from there, so a path around a corner or wall can be measured. The
   label shows the total distance of the whole line (every leg added up), in feet. Releasing the drag ends it.
-- Where: the DM's screen (full controls), the Table view (1.7, big, read-only), and a Map tab on the player's
-  sheet and campaign page (phones included, for online players), where players can move only their own token.
-- How fog stays secret: the server cuts the fog out of the image. For each sent fog state, PHP renders a masked
+- (Replaced by 1.6b where different: no draft or Send to table, no masked copies, no Brush / Rectangle / Reset draft / "What players see".)
+- Where: the DM's screen (full controls), the Table view (1.7, big, read-only), and a Map link button on the player's sheet (opens
+  `/campaigns/<id>/map` in a new tab) and a Map section on the campaign page (phones included, for online players), where players can move only their own token.
+- How fog stayed secret (replaced by 1.6b: players get `work.webp` and every screen draws the fog from `fog.ops`, so there are
+  no masked copies): the server cut the fog out of the image. For each sent fog state, PHP rendered a masked
   copy (`campaigns/<id>/maps/<map id>/public-<n>.webp`) where fogged squares are solid black, and only that
   copy is ever served to players and the Table view. The full image is served only to the DM. This needs the GD
   extension with WebP in the Dockerfile (`docker-php-ext-install gd`). Hidden tokens are filtered out on the
@@ -486,7 +490,7 @@ section stays cards + View. The plan as first written is kept below the "Built" 
   is kept). Token art is a link to the character's `artUrl` (0.4), never a copy.
 - Data safety: maps live only in campaign data and touch no character file. Moving a token writes only
   `map.json`.
-- Size: 5 days. Done: the DM uploads a map, reveals one room as a draft (players still see full fog), sends it
+- Size: 5 days. Done (as first planned; 1.6b dropped the draft and send): the DM uploads a map, reveals one room as a draft (players still see full fog), sends it
   (players now see the room). A player on a phone moves their own token but can't move another. A hidden goblin
   is visible to the DM only. Checking every response in the player's and Table view's network traffic shows no
   original map URL and no hidden token.
@@ -498,23 +502,19 @@ section stays cards + View. The plan as first written is kept below the "Built" 
     Players open the map from a Map button in the sheet's top bar (its own tab) and from the Map section under the fight
     on the campaign page; their map shows the turn order with "Your turn" / "You're up next".
   - Maps: a plain named list per campaign, `accounts/campaigns/<id>/maps/<map id>/` (`original.<ext>` as uploaded,
-    `work.webp` and `thumb.webp`, `public-<n>.webp` for every send, all kept, and `map.json` with grid, draft fog, sent fog
-    and tokens); `maps/table.json` names the one map "On the table", which players follow live, fight or not (never set by itself, even for the first map: the DM presses Put on the table). The DM's list
+    `work.webp` and `thumb.webp`, and `map.json` with grid, fog ops and tokens; the `public-<n>.webp` masked copies and the draft and
+    sent fog are from before 1.6b, kept for old maps, and `mp_create` still writes an unused draft/sent); `maps/table.json` names the one map "On the table", which players follow live, fight or not (never set by itself, even for the first map: the DM presses Put on the table). The DM's list
     is a thumbnail grid (the one on the table in blue) with Put on the table, Rename and Archive; archived maps fold under
     "Archived (N)" with Unarchive. Nothing is deleted, copied to other campaigns or replaced (a new picture is a new map).
   - Upload: DM and co-DMs, JPG / PNG / WebP / GIF (a GIF's first frame), anything else refused with a message, 4 MB
-    chunks, no size limit. Masked copies come from a working copy (longest side 2048 px, WebP quality 80; players' masked copies quality 75, so maps load fast); PHP's memory is raised only for
-    the decode and render. Pictures go through `campaigns/maps.php`, which checks membership; the original and the
-    working copy only to the DM and co-DMs, players only the map on the table as last sent. GD with JPEG and WebP is in
+    chunks, no size limit. The working copy is the longest side 2048 px, WebP quality 80, and players get it as is (1.6b: no masked copies); PHP's memory is raised only for
+    the decode and render. Pictures go through `campaigns/maps.php`, which checks membership; the original only to the DM and
+    co-DMs, players the working copy of the map on the table (1.6b). GD with JPEG and WebP is in
     the Dockerfile.
   - Grid: drag a box over one printed square (size and offset from it), arrow keys nudge, a size field; square cells,
-    5 ft, partial edge squares count. Changing it asks first ("Changing the grid resets the fog"): the draft starts over
-    fully fogged and players keep the last send. Faint grid lines with a per-viewer toggle.
-  - Fog: [Brush | Rectangle] and [Reveal | Hide], Undo (Ctrl+Z) for this session's strokes, Reset draft to last sent,
-    Reveal all, Hide all. The draft autosaves a second after each stroke and is private until "Send to table". The DM
-    sees fog dark but see-through, changed squares outlined, and "What players see" (the players' copy). A map on the
-    table never sent shows players a black rectangle with the party on it. The server paints fogged squares solid black;
-    the browser only adds a soft edge.
+    5 ft, partial edge squares count. It used to ask first and reset the fog (1.6b: the grid no longer resets fog). Faint grid lines with a per-viewer toggle.
+  - Fog (replaced by 1.6b: no Brush / Rectangle, Reset draft or "What players see", and no draft or Send to table; the picture is sent
+    once and every screen draws the fog from `fog.ops`, see 1.6b).
   - Tokens: party characters always have one (Medium); fight monsters and plain entries get one when they join
     (monsters sized from their creature type text, Tiny to Gargantuan, changeable); the DM can also put any of their
     monsters on the map without a fight. New ones wait in a "Not placed" tray (drag on, or click for mid-view). When a
@@ -536,21 +536,24 @@ section stays cards + View. The plan as first written is kept below the "Built" 
 
 **1.6b Battle map rework** (built 2026-11-04 from the owner's D&D Beyond screenshots and `_dev/mockups/battlemap-v2/`; it replaces the text above and in 1.7 where different)
 - Layout and behaviour follow those screenshots: map dropdown top left, turn tracker top middle, floating tool rail (select, pan | fog, draw, overlays, ruler, point, tokens; players: select, pan, draw, ruler, point, erasing only their own lines), Hide or Display map and zoom bottom right. Colours are the site's own.
-- Fog: freeform and live, no draft or Send to table (Cover All, Reveal All, left button reveals and right button covers, square, round or polygon, the wheel sizes the brush, Ctrl+Z). Light blue for the DM; the picture is sent once and every screen draws the fog over it from the strokes, with strokes shown live as they're painted (owner's choice 2026-11-04: faster, and they accept a player could read under fog with browser tools; hidden and fogged monsters are still never sent). Maps from before keep what players saw (their last sent fog); an unsent draft stays in `map.json`, unused. New uploads start clear and stay off the table until Display map. The grid no longer resets fog.
+- Fog: freeform and live, no draft or Send to table (Cover All, Reveal All, left button reveals and right button covers, square, round or polygon, the wheel sizes the brush, Ctrl+Z). Light blue for the DM; the picture is sent once and every screen draws the fog over it from the strokes, with strokes shown live as they're painted (owner's choice 2026-11-04: faster, and they accept a player could read under fog with browser tools; hidden and fogged monsters are still never sent). Maps from before keep what players saw (their last sent fog); an unsent draft stays in `map.json`, unused (`mp_create` still writes an empty draft/sent). New uploads start clear and stay off the table until Display map. The grid no longer resets fog.
 - Tokens: Token Browser (Players; your monsters plus the Compendium, with type, size and CR filters; a Compendium monster is saved to the Monster Sheet first). Each click adds a copy, Goblin A, B, C, with its own HP in `campaigns/<id>/monster-copies.json`; the Monster Sheet save never changes for a copy. Monster Sheet "Add to fight" keeps using the sheet's HP. Token menu: HP, Conditions, Combat, Hide, Ring, Size, More. Monsters wholly under fog stay hidden from players, plus Shift+H.
 - Owner's later answers: the Token Browser groups your monsters by Monster Sheet encounter, each with Add all. A monster has no initiative until rolled or typed: Start combat and COMBAT mid-fight roll d20 + bonus for any without one, one roll per kind, and the list stays blank for the next fight. A Monster Sheet initiative roll updates that monster's copies instead of adding an entry. Initiative Order keeps up, down and remove on each row and an Add entry form (Lair action).
 - Players change HP and conditions from their own token: DM edits sent by the owner (`self`), only those two kinds, applied by the sheet's own rules.
-- Combat: the left panel. Combat Encounter (saved per map in `enc`: Add all tokens, Auto initiative, Difficulty from `difficulty.js`, Start combat), then Initiative Order (Next, Previous, up arrow for End combat). `fi_op begin` starts at round 1 with no rolling-in phase; a sheet's initiative roll still updates the order. Tokens stay where they are when a fight ends. Kept from before: the "DM's turn" card and the round timer. Dropped: death-save ticks and "Your turn" notices. Party at 0 HP get the same dead look as monsters.
-- Table view is now a plain Spectator window: map and turn tracker only. Its roll log, 3D dice and "Show on TV now" handouts are gone (the stored `handouts/tv.json` is unused). Pitfall: a monster or drawing is sent to players by a coarse `sight` grid, so one on a very small revealed gap can stay hidden.
+- Combat: the left panel. Combat Encounter (saved per map in `enc`: Add all tokens, Auto initiative, Difficulty from `difficulty.js`, Start combat), then Initiative Order (Next, Previous, up arrow for End combat). `fi_op begin` starts at round 1 with no rolling-in phase; a sheet's initiative roll still updates the order. Tokens stay where they are when a fight ends. Kept from before: the "DM's turn" card and the round timer. Dropped on the map and Table view: death-save ticks and "Your turn" notices; the campaign page's Fight panel keeps them (owner's choice, `assets/js/fight.js`). Party at 0 HP get the same dead look as monsters.
+- Table view is now a plain Spectator window: map and turn tracker only. Its roll log, 3D dice and "Show on TV now" handouts are gone (only the server-side `ho_tv()` and `handouts/tv.json` remain, unused). Pitfall: a monster or drawing is sent to players by a coarse `sight` grid, so one on a very small revealed gap can stay hidden.
 - Checks: `maps.test.php`, `initiative.test.php`, `table.test.php`, `dm-edits.test.php`, `monster-import.test.js`, `maps-page.mjs`, `table-page.mjs`, `initiative-page.mjs`.
 
 - Icons: set A (thin outline) for every button, the owner's pick from `_dev/mockups/map-icons/`; our own drawings in `assets/js/map-icons.js`.
 
 **1.7 Table view (TV / screen share)** (built 2026-11-03 from the prototype `_dev/mockups/battlemap/table.html`; the owner's
 answers of that day are the "Built" notes, which replace the plan below where they differ)
+- Replaced by 1.6b (2026-11-04): the Table view renders with `map.js` as a plain tracker (map and turn tracker with the round count). It has no
+  "Waiting for" or "+N" cards and no dice log with 3D dice, and no "Show on TV now" button (only the server-side `ho_tv()` and
+  `handouts/tv.json` remain). The map has a "Spectator window" menu item and the campaign page an "Open Table view" link. The Turn
+  order, Dice and Handouts bullets below are history.
 - Built:
-  - How it's used: the DM's PC is plugged into the TV. The DM or a co-DM presses **Open Table view** (the campaign page's header
-    and the map page's top bar), which opens `/campaigns/<id>/table` (`campaigns/table.php`) in a new tab of their own
+  - How it's used: the DM's PC is plugged into the TV. The DM or a co-DM presses **Open Table view** (a link on the campaign page; the map page has a "Spectator window" menu item), which opens `/campaigns/<id>/table` (`campaigns/table.php`) in a new tab of their own
     signed-in browser; they move that tab to the TV. No pairing, no separate login. Players get a 404 there.
   - The `table` role is real: that tab reads everything with `?as=table` (and joins the relay with `&as=table`), and
     `cp_viewer()` turns the DM's request into the stand-in viewer `CP_TABLE`, which is nobody: not a member, not a DM, owns
@@ -564,7 +567,7 @@ answers of that day are the "Built" notes, which replace the plan below where th
     (keys: F full screen, + and - zoom, 0 fits; no on-screen controls; a one-time "Click to go full screen" that goes after
     30 s), a faint grid, every name under its token, live drags and rulers. Wake lock; the cursor hides when still.
     `assets/js/map.js` draws it (`table: true`, read-only), not a second renderer.
-  - Turn order along the top: from whoever's turn it is, the round number, the current card bigger, "Next" on the one after,
+  - (Replaced by 1.6b.) Turn order along the top: from whoever's turn it is, the round number, the current card bigger, "Next" on the one after,
     "Waiting for: ..." (party characters not rolled in) while rolling in, cards shrinking as there are more and "+N" past 14,
     a slide on each new turn, no sound. Art or initials, no initiative numbers, monsters Bloodied (red edge) / Down (grey
     cross) as on the map. A hidden monster's turn shows a **DM's turn** card (id `dm-turn`, kind `dm`, nothing about the
@@ -573,7 +576,7 @@ answers of that day are the "Built" notes, which replace the plan below where th
     (set C of `_dev/mockups/condition-icons/`, the owner's pick; `assets/js/conds.js`; a condition a player made up gets its
     first letter). Never HP numbers. `fi_pc()` reads them from the character's save with the DM's waiting edits
     (`dm_char`); `sheets/player/cloud.php` and `sheets/player/dm.php` tell everyone "status" when they change.
-  - Dice: the last 8 rolls of the current session in the bottom-left corner, older ones fading, nat 20 / nat 1 lines marked,
+  - (Replaced by 1.6b: gone.) Dice: the last 8 rolls of the current session in the bottom-left corner, older ones fading, nat 20 / nat 1 lines marked,
     hidden DM rolls as "DM rolled" only (the Table view gets no name either; players still see the name, as since 1.3),
     whispers not at all. Each new public roll is thrown as big 3D dice (`dice/dice3d.js`, no sound) landing on the numbers
     rolled: sheets now send a `dice` field (`[[sides, [values]], ...]`, new and additive: older log entries have none and
@@ -581,7 +584,7 @@ answers of that day are the "Built" notes, which replace the plan below where th
     `view.dice`), else their synced `dice-choice`, looked up by the server (`tl_dice_set`) and sent with the live roll; a
     choice naming any script that isn't one of the site's dice files is dropped (plain dice). Rolls arriving together land
     together; offline or late rolls (over 2 minutes) only get their log line; no WebGL: log only, silently.
-  - Handouts: a **Show on TV now** / **Take off TV** button on handouts sent to everyone (one on the TV at a time,
+  - (Replaced by 1.6b: gone.) Handouts: a **Show on TV now** / **Take off TV** button on handouts sent to everyone (one on the TV at a time,
     `handouts/tv.json`) replaces 3.4's "Show on the Table view" switch, whose stored value stays in the files, unused. The
     handout covers the map: title, text, several pictures as a grid, text alone big. Edits follow live; unsharing, sending to
     fewer or archiving takes it off for good.
@@ -634,7 +637,7 @@ answers of that day are the "Built" notes, which replace the plan below where th
 **1.8 Bring live play to `/sheets/player/`** (no longer needed: there's one sheet code now, so every live-play
 change already lands in `sheets/player/`. The test copy is archived and must not be used.)
 
-**1.9 Campaign page rework** (asked for 2026-11-03; owner's answers from the interview of that day; built 2026-11-04, on a branch until merged)
+**1.9 Campaign page rework** (asked for 2026-11-03; owner's answers from the interview of that day; built 2026-11-04, on main since 08d0bd0)
 - Built: everything below, in `campaigns/index.php`, `campaigns/campaigns.js`, `includes/tablelog.php` (`tl_page`), `campaigns/log.php` (`?page=1`, its default
   answer unchanged). The second round of the owner's answers (2026-11-04):
   - Rolls tab: an empty session is skipped (an accidental Start then End never hides the one before; with only empty ones, "No sessions yet"), every roll of the
@@ -646,12 +649,11 @@ change already lands in `sheets/player/`. The test copy is archived and must not
     the pills don't stick, and are 44 px tall on phones. The fight dot is blue and shows as soon as a fight exists, rolling included. No toast for "Your turn".
   - Tiles: "Level 5 Fighter / Rogue" (no race), two-line names, 200 px or wider, the dot on each of an online player's characters, the old rule for who can open
     one (your own, or all for DMs). "Add your character" is primary for players and co-DMs, plain for the DM. No characters: a link to Build one. Only member: a line to Invite players.
-  - Handouts: the pill counts new and updated, the Overview line names new ones; a name opens that handout on its tab, a pinned title that note. Everything is listed, nothing cut.
+  - Handouts: the pill counts new and updated, the Overview line names new ones (updated ones count on the pill only); a name opens that handout on its tab, a pinned title that note. Everything is listed, nothing cut.
   - Campaign tab: one column, Rename and Delete or Leave last. The invite link, a player's rules, the title and the breadcrumb follow live. Ending a session with a fight on says so.
   - `/transcripts/`: the archived uploader keeps working, behind the password (`/private/archive/private/transcripts/`), and the viewer (`/private/archive/transcripts/`) serves the audio with Range. `/campaigns/<id>?s=<n>` also goes to `#rolls`.
   - Files stay on disk with no page: past sessions and rolls outside sessions, owner's choice.
-  - Checks: `campaign-tabs.mjs`, `transcripts-archive.test.php`, `tablelog.test.php`. `includes/functions.php`: `$site_page['crumb']` names a page's last breadcrumb. Check on dndtest that
-    `/transcripts/data/...` redirects there too: the local server uses `_dev/router.php`, Apache the root `.htaccess`.
+  - Checks: `campaign-tabs.mjs`, `transcripts-archive.test.php`, `tablelog.test.php`. `includes/functions.php`: `$site_page['crumb']` names a page's last breadcrumb. The redirect (`/transcripts/data/...` too) is in the root `.htaccess` (line 5); the local server uses `_dev/router.php`.
 - Before: the page was one long scroll: 4,043 px for a DM on a phone, 2,763 px for a player, and an empty map took 602 px.
 - Tabs: pill tabs under the title: **Overview, Rolls, Handouts, Notes** (DM and co-DMs only), **Campaign**. They wrap to two
   rows on a phone. Links are `#rolls`, `#handouts`, `#notes`, `#campaign`; back and reload stay on the tab. A plain
@@ -666,7 +668,7 @@ change already lands in `sheets/player/`. The test copy is archived and must not
     a green dot when online. The whole tile opens the sheet for those allowed to, as View does today (1.5). A button in the Party
     heading opens a dialog with today's checkboxes, Clone offer and archived note: "Add your character" (the primary button) with
     none in the campaign, "Change characters" (plain) after.
-  - New handouts: players only, a line naming the unopened ones, linking to the Handouts tab, hidden when there are none.
+  - New handouts: players only, a line naming the new ones (updated ones count on the pill only), linking to the Handouts tab, hidden when there are none.
   - Pinned notes: DM and co-DMs only, titles linking to the Notes tab, hidden when there are none.
   - Fight: as today, above the map and hidden with no fight, with a "Run the fight" link to the map page for DMs. No new controls.
   - Map: still the live map with tokens, sized to the screen's height, shown only when a map is on the table. With none, players
@@ -777,10 +779,10 @@ change already lands in `sheets/player/`. The test copy is archived and must not
   - The campaign page's Not placed tray keeps cutting long names, with the full name as a tooltip (the owner's choice
     over wrapping).
 
-**2.3 Theme-ready CSS**
+**2.3 Theme-ready CSS** (built; `_dev/scripts/theme-css.test.js` and `theme-recolour.mjs` check it)
 - What: move colours and fonts into CSS variables in `global.css`, matching the design guide's tokens, so user
   themes (6.3) are only a new set of values later. No visible change now.
-- Size: 1 day. Done: changing the variables re-colours every page, with no colours left hard-coded in page CSS.
+- Size: 1 day. Done: changing the variables re-colours every page, with no colours left hard-coded in page CSS (pure black or white `rgb()` for shadows and scrims is allowed).
 
 ### Phase 3: DM tools
 
@@ -789,7 +791,7 @@ change already lands in `sheets/player/`. The test copy is archived and must not
   with a switcher. Monsters can be moved or copied between encounters.
 - Data model: a new `enc` field in the monster `blank()` (encounter id) and an `encs` list in the
   `monster-sheet` store. On upgrade, every existing monster goes into "Encounter 1", so nothing disappears.
-- Account save: `encs` saved in `accounts/monsters/<sub>/_encounters.json` (newest wins).
+- Account save: `encs` saved in `accounts/monster-encounters/<sub>.json` (newest wins).
 - Size: 1.5 days. Done: the data check shows every old monster present in "Encounter 1", and encounters show up on a second browser.
 - Built (2026-11-03), owner's answers (they replace the text above where different): an encounter picker tops the
   sidebar (on phones it sits in the bar above the monster picker, which then lists only that encounter), with New
@@ -881,7 +883,8 @@ end-of-turn saves. The owner's answers, so they needn't be re-asked:
 - What: private campaign notes for the DM (same editor style as the sheet's Notes panel). Handouts are text
   and/or an image the DM pushes to all players or chosen ones, live. Players get a notice and keep a Handouts
   list on the campaign page and on their sheet. The DM can unshare a handout.
-- Storage: `campaigns/<id>/notes.json`, `campaigns/<id>/handouts/<id>.json` + images (chunked upload, no size limit beyond chunking).
+- Storage: `campaigns/<id>/notes/<id>.json`, `handouts/<id>.json`, `handouts/<id>/<image>.<ext>` (chunked upload), plus `handouts/tv.json`
+  and `handouts/.incoming/`.
 - Size: 2.5 days. Done: a handout sent to one player shows only for that player, live and after reconnecting.
 - Built (2026-11-03, owner's decisions of that day):
   - DM notes: many per campaign on the campaign page (DM and co-DMs only): title, group, pin, search, a folded
@@ -918,8 +921,8 @@ from homebrew (4.6). Official non-SRD classes, subclasses, races and backgrounds
 
 **4.1 SRD build data**
 - What: a data file (`sheets/player/srd-build.json`, built by a script in `_dev/scripts/` from dnd5eapi.co
-  `/api/2014` classes, subclasses, races, backgrounds, features, levels and starting equipment). It replaces the
-  hard-coded `CLASSES`, `RACES` and `HIT_DIE` lists but keeps their names, so existing characters still match.
+  `/api/2014` classes, subclasses, races, backgrounds, features, levels and starting equipment). It adds to the
+  hard-coded `CLASSES`, `RACES` and `HIT_DIE` lists, which stay as the offline fallback and keep their names, so existing characters still match.
 - Size: 1.5 days. Done: a test confirms every class has levels 1-20 with features, spell slots and proficiency bonus.
 
 **4.2 Step-by-step builder** (built 2026-11-03 with 4.3, from the owner's answers in the builder questions and the approved
@@ -1015,18 +1018,19 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
     never below 0. The limits sit at one third and two thirds of the capacity formula's result. 2024 characters get the same, with the rule
     text saying it's the older SRD 5.1 rule the table turned on (SRD 5.2 has no such rule).
   - "Not carried" tick per item, default carried (49 a); one "Coins carried" tick, default on (50 a); editable capacity formula, default
-    STR_SCORE * 15 (51 a); the weight line in words plus the guide's progress bar, red when over (52 b); clicking it opens the rule text (53).
+    STR_SCORE * 15 (51 a); the weight line in words plus the guide's progress bar, red only over capacity (`w.over`; owner confirmed 2026-11-05; the encumbered warning text still shows) (52 b); clicking it opens the rule text (53).
   - A "Fill in missing weights" button: exact name matches on 0 lb rows only, with Undo (54 a). Magic items take the base armour or weapon's
     weight where the name shows it (55 c).
   - Mockup first, one page (56 a). Heavy armour rules left out (57 a). The Monster Sheet gets no weight line (58 a).
 
 **4.6 Homebrew classes and races (for the builder)**
-- What: a creator for homebrew races, subraces, classes, subclasses, backgrounds and feats in the same shape as
+- What: a creator for homebrew races, subraces, classes, subclasses, backgrounds and feats (feats use the Compendium's ordinary form, `HB_KINDS` has feat; the stepped popup covers class, subclass, race, subrace
+  and background) in the same shape as
   the SRD build data (features per level, hit die, proficiencies, spell slots, resources with formulas). They're
   used by the builder and level-up exactly like SRD entries, marked "Homebrew".
 - Storage and sharing: `accounts/homebrew/<sub>/<id>.json`. Shared to a campaign by the DM or owner (see 5.2).
   Characters keep a *copy* of the homebrew they used, so editing or deleting homebrew never breaks a sheet;
-  "update from source" is a manual button.
+  "Update from source" is the prompt at level up, not a manual button.
 - Size: 4 days. Done: a custom class built in the creator can be picked in the builder by another campaign
   member and levelled 1→3.
 - Built (stage 4 of 5.2): New class and New subclass in the Classes tab, New race and New subrace in Races, New background: a full-screen popup in steps with Back and Next (`assets/js/homebrew-form.js`, loaded the first time it's
@@ -1064,7 +1068,8 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
 - What: create homebrew items (including magic items with attunement), spells, monsters and feats. Visible to
   the owner, and to a campaign once added to it ("Mine + my campaigns"). Shows in the compendium, spell picker,
   item suggestions and monster search for members.
-- Storage: `accounts/homebrew/<sub>/<id>.json`, with the campaign keeping a list of shared ids. A copy is kept
+- Storage: `accounts/homebrew/<sub>/<id>.json` (kinds: rule, spell, item, magic, feat, monster, class, subclass, race, subrace,
+  background), with the campaign keeping a list of shared ids. A copy is kept
   on any character or monster that uses it.
 - Data safety: deleting homebrew never removes copies already on sheets. Unsharing hides it from the
   compendium but leaves existing copies.
@@ -1089,13 +1094,10 @@ mockup `_dev/mockups/builder/`; the "Built" notes replace the plan below where t
   Compendium shows the numbers worked out at save time. Homebrew monsters come first in the Add monsters and Import monster search and go through `addMonsters`, each its own copy with `hbsrc`, and Update (the changes, hand-edit warning, Undo) keeps
   hit points, conditions, notes, rolls and uses. A monster shared "DM only" is left out of `hb_view` for anyone but that campaign's DM and co-DMs, so a player's answer never has it. Check: `homebrew-monsters.mjs`.
 
-**5.3 Retire the D&D Beyond viewer**
-- What: when the party overview (1.5) is live, import the 6 characters from `characters.json` into their
-  owners' homebrew sheets (with each owner, using the existing D&D Beyond import). Then take `/characters/` out
-  of `site_pages()` and make the page a short notice pointing to the campaign page (the old page is moved with
-  `git mv` into `private/archive/`, never deleted). The D&D Beyond import button on the sheet stays.
-- Data safety: `characters/cache/` and its volume are left in place (never deleted).
-- Size: half a day, plus time with each player. Done: all 6 characters exist as homebrew sheets on their owners' accounts.
+**5.3 Retire the D&D Beyond viewer** (DONE, owner, 2026-11-05)
+- Done: `/characters/` became My Characters on 2026-11-02 (commit 3b71019). The old viewer is in `private/archive/characters/`. The sheet's
+  "From D&D Beyond" import button stays (`sheets/player/sheet.js`, `ddb.js`, `ddb.php`).
+- Data safety: `characters/cache/` and its volume stay (never deleted); nothing live writes there (`ddb.php` caches in the temp folder).
 
 **5.4 Compendium popup on every page**
 - What: on any page whatsoever, the Compendium opens in a popup panel for super fast referencing.
@@ -1151,7 +1153,7 @@ git repo. The action log is outside the character's own folder and save, so shee
 | Fights | `campaigns/<id>/fights/<n>.json` | `{n, round, started, startedAt, ended, entries: [...]}`, see `includes/initiative.php` |
 | Character versions | `characters/<id>/history/<n>.json` | the whole character as saved, every version, with `updated` |
 | Handouts, notes, homebrew | `campaigns/<id>/` (`includes/handouts.php`), `homebrew/<sub>/<id>.json` | their own files, with times |
-| Monsters | `monsters/<sub>/<id>.json` | the Monster Sheet's save, with `cr`, `xp`, `race`, `cmp` |
+| Monsters | `monsters/<sub>/<id>.json` | the Monster Sheet's save, with `cr`, `race`, `cmp` (no `xp` field: XP is worked out from `cr` in `sheets/monster/difficulty.js`, so `xp` on `mhp` lines is always empty) |
 
 Deleting a campaign moves its folder to `campaigns/.deleted/`; the action log stays where it is either way.
 
@@ -1263,7 +1265,7 @@ Using it:
 | Separate accessibility pass | Not picked. Every new feature still keeps today's level: labels, keyboard use, dialogs, reduced motion. |
 | Merging Quick Rolls into Dice Sets | The owner keeps both pages as they are. |
 | Dice fairness tallies in the account (0.2) | The owner's choice: `dice-test-counts` stays in the browser only. |
-| Any count or size limits | The owner wants no limits anywhere; only the proxy's request size is handled, by chunking. |
+| Any count or size limits | The owner wants no limits anywhere. Chunking is only for map and handout uploads (the proxy's request size). Saves stop at 8 MB (characters, monsters, backups, art, DM edits) and homebrew at 2 MB, each only to stop a broken client. |
 | Copying official non-SRD classes, subclasses, races, monsters or spell text | Copyright. Only SRD 5.1 / CC content, plus homebrew. One exception by the owner's choice (3.2): the 2014 XP thresholds and encounter multipliers aren't in SRD 5.1 as far as we know, so the Monster Sheet uses those numbers from the free Basic Rules, with no book text copied. |
 | Removing the 205 extra spells | The owner keeps them and wants them shown everywhere. Their stats are kept; the compendium and sheet show their text fetched live from wikidot, never stored. No non-SRD text is copied into the site's files, and no more is added. |
 | Guests (signed-out) in campaigns | Membership, logs and the DM view hang off the Google account. |
@@ -1280,13 +1282,12 @@ Using it:
 
 ## Open questions
 
-None. Every area was answered in the interview on 2026-11-02. These steps need the owner's word when they come
+None. Every area was answered in the interview on 2026-11-02 or in the later interviews recorded in each item. These steps need the owner's word when they come
 up, because of CLAUDE.md rather than an open design question:
 
 - Every push to live: only when the owner says so in that message.
 - Any server change beyond `deploy.sh test|live` (`--compose`, `import`, `logs`, volumes) asks first. The live
   relay (1.2) ended up needing no compose change.
-- Retiring the D&D Beyond viewer (5.3) needs each of the 6 players to import their character first.
 
 ---
 
