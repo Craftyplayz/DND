@@ -57,6 +57,7 @@ export const BROWSER_CHECKS = {
     'layout-ok': { ports: [8142, 8104], split: true, tmp: 'dnd-layout-check', secs: 150 },
     'dice-folds': { url: true, split: true, secs: 40 },
     'dice-presets': { ports: [8146], split: true, tmp: 'dnd-presets-check', secs: 40 },
+    'odd-dice': { ports: [8147], split: true, tmp: 'dnd-odd-dice-check', secs: 90 },
     'stats-page': { ports: [8142], split: true, tmp: 'dnd-stats-check', secs: 60 },
     'sheet-rules': { ports: [8142, 8104], split: true, tmp: 'dnd-rules-check', secs: 120 },
 };

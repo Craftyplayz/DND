@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function parseRoll(s) {
         const t = String(s).replace(/−/g, '-').replace(/\s+/g, ''), g = [];
         let m = 0, rest = t.replace(/([+-]?)(\d*)d(\d+)|([+-]?)(\d+)/gi, (x, sd, c, n, sn, k) => {
-            if (n) { if (sd === '-' || !DICE.includes(+n)) g.push(null); else g.push(`${n}x${c || 1}`); }
+            if (n) { if (sd === '-' || !ROLLABLE(+n)) g.push(null); else g.push(`${n}x${c || 1}`); }
             else m += (sn === '-' ? -1 : 1) * +k;
             return '';
         });
@@ -512,7 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function diceRoll(s, V) {
         let r;
         try { r = hbDice(s, V); } catch (e) { return parseRoll(resolve(s, V)); }
-        if (!r.dice.length || r.dice.some(([n, c]) => c < 0 || !DICE.includes(n))) return null;
+        if (!r.dice.length || r.dice.some(([n, c]) => c < 0 || !ROLLABLE(n))) return null;
         return { g: r.dice.map(([n, c]) => `${n}x${c}`).join(','), m: r.k, x: r.each || 1 };
     }
     // a boxed roll button, or the plain rule link when click to roll is off
@@ -1917,6 +1917,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const dlgHTML = () => (dlgMode.kind === 'hbup' ? hbUpDlg(dlgMode) : dlgMode === 'custom' ? customDlg() : dlgMode.kind === 'crop' ? cropDlg() : dlgMode.kind === 'rest' ? restDlg(dlgMode.r) : dlgMode.kind === 'ddb' ? ddbDlg() : dlgMode.kind === 'new' ? newDlg() : formulaDlg(dlgMode));
     // ---- dice: a card for each roll and the dice tray in the bottom-left corner ----
     const DICE = [4, 6, 8, 10, 12, 20, 100], tray = { open: false, pool: {} };
+    // any whole die from d2 up gets a roll button (1d2, 1d3); the 3D dice have shapes for DICE only, so the rest roll at once,
+    // except a d2, which flips the coin: heads is 1, tails 2 (owner's choice)
+    const ROLLABLE = (n) => Number.isInteger(n) && n >= 2 && n <= 1000;
     // this character's own dice (C.view.dice, a copy of a Dice Sets choice kept from Customise), else
     // the dice chosen on the Dice Sets page (/dice/, choice.js), read at every roll so a change there applies here straight away;
     // with no choice yet, the style this sheet had picked before (C.view.diceStyle). Plain purple if any of it fails to load.
@@ -1973,11 +1976,11 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (logIt) St?.add(C.id, { t: 'roll', title, expr, shown, total: String(total), nat: natN, dice, kind: rollKind });
         };
         const quick =() => card(thrown.map(([n, c]) => [n, Array.from({ length: c }, () => (n === 'coin' ? (die(2) === 1 ? 'heads' : 'tails') : die(n)))]));
-        if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches) return quick();
+        if (C.view.noAnim || matchMedia('(prefers-reduced-motion: reduce)').matches || thrown.some(([n]) => n !== 'coin' && n !== 2 && !DICE.includes(n))) return quick();
         // 3D dice (dice3d.js, three.js + cannon-es from jsDelivr) load on the first roll; the face that lands up is the result
         const css = getComputedStyle(main);
-        dice3d().then(async (m) => m.throwDice(thrown, { style: await chosenStyle(m), accent: css.getPropertyValue('--btn').trim() || '#5b3f8f', sound: !C.view.noSound }))
-            .then(card, () => { dice3dP = null; quick(); });
+        dice3d().then(async (m) => m.throwDice(thrown.map(([n, c]) => [n === 2 ? 'coin' : n, c]), { style: await chosenStyle(m), accent: css.getPropertyValue('--btn').trim() || '#5b3f8f', sound: !C.view.noSound }))
+            .then((rolls) => card(rolls.map(([n, r], g) => (thrown[g][0] === 2 ? [2, r.map((v) => (v === 'heads' ? 1 : 2))] : [n, r]))), () => { dice3dP = null; quick(); });
     }
     // ---- the table (ROADMAP 1.3): signed in, rolls are shared to a campaign's table log (assets/js/live.js) ----
     // "Rolls go to" in the dice tray picks the campaign ("none" keeps them to yourself, "" means its only one); the toggle
