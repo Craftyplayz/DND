@@ -35,7 +35,7 @@ const web = spawn(PHP, ['-S', `127.0.0.1:${PORT}`, '-t', ROOT, join(ROOT, '_dev/
 await serving(BASE + '/privacy/');
 
 const click = (b, sel) => b.ev(`(() => { const e = document.querySelector(${J(sel)}); if (e) e.click(); return !!e; })()`);
-const count = (b) => b.ev(`parseInt(document.querySelector('#cp-count').textContent.replace(/\\D/g, '')) || 0`);
+const count = (b) => b.ev(`parseInt((document.querySelector('#cp-count')?.textContent ?? '').replace(/\\D/g, '')) || 0`); // 0 while sync.js restarts the page after pulling the account's settings, so until() keeps waiting
 const countIs = (b, n) => until(() => count(b), (c) => c === n);
 const loaded = (b) => until(() => count(b), (c) => c > 0, 30000);
 const bookBox = (n) => `#books-list input[data-book="${n.replace(/"/g, '\\"')}"]`;
@@ -116,9 +116,9 @@ try {
             await b.ev(`localStorage.setItem('compendium-books', ${J(J([PHB]))})`);
             await b.go(BASE + '/compendium/?t=spell&i=2014:fireball');
             is(`${name} a link opens a hidden entry`, (await until(() => b.ev(`document.querySelector('#cp-dbody h2')?.textContent || ''`), Boolean)), 'Fireball');
-            await b.shot(390);
+            await b.size(390);
             is(`${name} phone: no sideways scroll`, await b.ev(`document.documentElement.scrollWidth <= innerWidth`), true);
-            await b.shot(1280);
+            await b.size(1280);
             errs(b, name, 'compendium');
         } finally { b.close(); }
 

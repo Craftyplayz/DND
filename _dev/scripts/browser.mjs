@@ -7,6 +7,7 @@
 //   await b.key('Control', 'k')                    real key input (a chord: all down in order, then up); names: Control Shift Alt Backspace Delete Escape Enter Tab or one character
 //   await b.drag([[x, y], [x2, y2], ...])           real mouse: press at the first point, move through the rest, release at the last (one point = a click)
 //   await b.shot(width)                             -> PNG Buffer of the whole page at that window width
+//   await b.size(width, height = 800)               just sets the window size, with no picture (a check that only needs the width)
 //   b.close()
 //   browsers                                        ['chrome', 'firefox'], or just the one CHECK_BROWSER names
 //   await serving(url)                              waits until a server the script started answers
@@ -123,6 +124,7 @@ async function start(name) {
                     { type: 'pointerMove', x: Math.round(pts[0][0]), y: Math.round(pts[0][1]), origin: 'viewport' }, { type: 'pointerDown', button: 0 },
                     ...pts.slice(1).map(([x, y]) => ({ type: 'pointerMove', x: Math.round(x), y: Math.round(y), origin: 'viewport' })), { type: 'pointerUp', button: 0 }] }] }),
                 block: async (re) => { blocked = re; await send('network.addIntercept', { phases: ['beforeRequestSent'] }); },
+                size: (width, height = 800) => send('browsingContext.setViewport', { context, viewport: { width, height }, devicePixelRatio: 1 }),
                 shot: async (width, height = 800) => {
                     await send('browsingContext.setViewport', { context, viewport: { width, height }, devicePixelRatio: 1 });
                     const r = await send('browsingContext.captureScreenshot', { context, origin: 'document' });
@@ -152,6 +154,7 @@ async function start(name) {
             errors, close, ev, until: (e, ms) => until(ev, e, ms),
             go: async (url) => { errors.length = 0; const done = new Promise((r) => { loaded = r; }); await send('Page.navigate', { url }); await Promise.race([done, sleep(15000)]); },
             // shortcut: Chrome only takes glob patterns here, so a regex is turned into "*source*"; fine for plain file names
+            size: (width, height = 800) => send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }),
             shot: async (width, height = 800) => {
                 await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
                 await send('Page.bringToFront'); const h = (await send('Runtime.evaluate', { expression: 'document.documentElement.scrollHeight', returnByValue: true })).result.value;
