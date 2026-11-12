@@ -43,7 +43,7 @@ $ok = [['hp', ['how' => 'dmg', 'amt' => 7]], ['set', ['path' => ['abilities', '@
     ['unrow', ['path' => [...$INV, 'rows', '#r1:Rope']]], ['unrow', ['path' => ['panels', '#pn:Notes', 'notes', '#n1:Backstory']]],
     ['set', ['path' => ['panels', '#pn:Notes', 'notes', '#n1:Backstory', 'body'], 'value' => 'x', 'was' => 'y']], ['set', ['path' => ['insp'], 'value' => true, 'was' => false]],
     ['add', ['path' => ['panels', '#ps:Spells', 'slots', '0:', 'used'], 'amt' => 1]], ['add', ['path' => ['classes', '0:Rogue', 'hdUsed'], 'amt' => 1]],
-    ['roll', ['roll' => ['at' => 1, 'title' => 'Stealth', 'expr' => '1d20', 'shown' => '4', 'total' => 4, 'nat' => '']]]];
+    ['roll', ['roll' => ['at' => 1, 'title' => 'Stealth', 'expr' => '1d20', 'shown' => '4', 'total' => 4, 'nat' => '']]], ['art', ['value' => 'data:image/png;base64,iVBORw0KGgo=']]];
 foreach ($ok as [$op, $x]) $is("allowed: $op " . implode('.', $x['path'] ?? []), dm_check($E($op, $x)), null);
 $no = [['set', ['path' => ['rolls'], 'value' => '', 'was' => '']], ['set', ['path' => ['view', 'tab'], 'value' => 'x', 'was' => '']], ['set', ['path' => ['art'], 'value' => 'x', 'was' => '']],
     ['set', ['path' => ['artUrl'], 'value' => 'x', 'was' => '']], ['set', ['path' => ['archived'], 'value' => 1, 'was' => 0]], ['set', ['path' => ['updated'], 'value' => 1, 'was' => 0]],
@@ -55,7 +55,7 @@ $no = [['set', ['path' => ['rolls'], 'value' => '', 'was' => '']], ['set', ['pat
     ['row', ['path' => [...$INV, 'rows'], 'row' => ['id' => 'r3', 'name' => 'Junk', 'evil' => 1]]], ['row', ['path' => [...$INV, 'rows'], 'row' => ['id' => 'r3', 'qty' => ['x']]]],
     ['row', ['path' => ['panels', '#ps:Spells', 'slots'], 'row' => ['max' => 1, 'used' => 0]]], ['unrow', ['path' => ['panels', '#ps:Spells', 'slots', '0:']]],
     ['hp', ['how' => 'kill', 'amt' => 7]], ['roll', ['roll' => ['title' => ['x']]]], ['set', ['path' => 'name', 'value' => 'x', 'was' => 'y']], ['set', ['path' => ['', 'x'], 'value' => 'x', 'was' => 'y']],
-    ['explode', []]];
+    ['explode', []], ['art', ['value' => 'https://x.example/a.png']], ['art', ['value' => 'data:image/svg+xml;base64,PHN2Zz4=']], ['art', ['value' => 'data:image/png;base64,' . str_repeat('A', 200000)]]];
 foreach ($no as [$op, $x]) $is("refused: $op " . (is_array($x['path'] ?? null) ? implode('.', $x['path']) : json_encode($x['path'] ?? '')), dm_check($E($op, $x)) !== null, true);
 $is('refused: a bad id', dm_check($o(['id' => 'x', 'at' => 1, 't' => '', 'op' => 'hp', 'how' => 'dmg', 'amt' => 1])) !== null, true);
 
@@ -64,9 +64,10 @@ $send = fn($u, $char, $edits, $camp = null) => dm_send($A, $u, $camp ?? $c(), $c
 $is('a player may not', $send($pl, 'ozzy', [$E('hp', ['how' => 'dmg', 'amt' => 1])])[0], 403);
 $is('a stranger may not', $send(['sub' => '999', 'name' => 'X'], 'lock', [$E('hp', ['how' => 'dmg', 'amt' => 1])])[0], 403);
 $is('not for a character outside the campaign', $send($dm, 'ozzy', [$E('hp', ['how' => 'dmg', 'amt' => 1])])[0], 403);
-// the owner, from their token on the map: hit points and conditions only, marked as their own
-$own = $send($dm, 'dmpc', [$h0 = $E('hp', ['how' => 'dmg', 'amt' => 1]), $t0 = $E('tag', ['path' => ['conditions'], 'value' => 'Prone', 'on' => true]), $x0 = $E('set', ['path' => ['name'], 'value' => 'New', 'was' => 'Dmpc']), $y0 = $E('tag', ['path' => ['profs', 'langs'], 'value' => 'Orc', 'on' => true])]);
-$is('your own character: HP and conditions, nothing else', [$own[0], $own[1]['queued'], array_column($own[1]['refused'], 'id')], [200, [$h0->id, $t0->id], [$x0->id, $y0->id]]);
+// the owner, from their token on the map: hit points, conditions and portrait only, marked as their own
+$own = $send($dm, 'dmpc', [$h0 = $E('hp', ['how' => 'dmg', 'amt' => 1]), $t0 = $E('tag', ['path' => ['conditions'], 'value' => 'Prone', 'on' => true]), $a0 = $E('art', ['value' => 'data:image/png;base64,iVBORw0KGgo=']), $x0 = $E('set', ['path' => ['name'], 'value' => 'New', 'was' => 'Dmpc']), $y0 = $E('tag', ['path' => ['profs', 'langs'], 'value' => 'Orc', 'on' => true])]);
+$is('your own character: HP, conditions and portrait, nothing else', [$own[0], $own[1]['queued'], array_column($own[1]['refused'], 'id')], [200, [$h0->id, $t0->id, $a0->id], [$x0->id, $y0->id]]);
+$is('the waiting portrait shows on the server\'s copy', dm_char($A, 'dmpc')->art, 'data:image/png;base64,iVBORw0KGgo=');
 $is('your own: marked, and a client can\'t mark a DM\'s edit', [$own[2][0]->self ?? null, $send($co, 'dmpc', [$sx = $E('hp', ['how' => 'heal', 'amt' => 1, 'self' => true])])[2][0]->self ?? null], [true, null]);
 $is('the DM may', $send($dm, 'lock', [$h = $E('hp', ['how' => 'dmg', 'amt' => 7])])[1], ['queued' => [$h->id], 'refused' => []]);
 $is('a co-DM may', $send($co, 'lock', [$s = $E('set', ['path' => ['skills', '@Stealth', 'p'], 'value' => 1, 'was' => 0])])[1]['queued'], [$s->id]);

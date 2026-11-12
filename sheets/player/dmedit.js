@@ -8,6 +8,7 @@
 //   row   {path, row}          adds a row (from the sheet's own ROW maker) at the end of the list at path
 //   unrow {path}               removes the row at path; a note is archived instead
 //   roll  {roll}               a roll the DM made as the character, into its roll log
+//   art   {value}              a new portrait from the map (a data:image URL up to ARTMAX), replacing art and artUrl
 // A path is a list of steps: a key, "#<id>[:label]" (a row by id), "@<name>" (a skill by name, an ability by key) or
 // "<n>[:name]" (any other list by position, refused when that entry's name changed).
 //   hbDm.apply(c, e, {hpMax, make}) -> {ok, inv} | {ok: false, why, conflict}; inv: the edits that undo it
@@ -26,6 +27,8 @@
     const same = (a, b) => (kind(a) === 'l' || kind(a) === 'o' || kind(b) === 'l' || kind(b) === 'o' ? JSON.stringify(a) === JSON.stringify(b) : String(a ?? '') === String(b ?? ''));
     const show = (v) => (v === '' || v == null ? 'blank' : typeof v === 'boolean' ? (v ? 'on' : 'off') : String(v));
     const KEEP = 500; // applied edit ids a character remembers
+    const ARTMAX = 200000; // as fi_art() on the server
+    const artOk = (v) => typeof v === 'string' && v.length <= ARTMAX && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v);
 
     // what the DM never changes: the roll log (except rolls), view settings, panel layout, portrait, archive, save stamps
     const NO_TOP = new Set(['id', 'updated', 'archived', 'art', 'artUrl', 'rolls', 'view', 'calc', 'dmApplied', 'miscCat', 'hbPanel', 'hb2', 'passSplit', 'hoPanel', 'draft', 'build', 'campRules']); // draft, build: the builder's own (4.2); campRules: a copy of the campaign's (4.4)
@@ -99,6 +102,14 @@
             c.rolls.unshift(clone(e.roll));
             c.rolls.length = Math.min(c.rolls.length, 100);
             return { ok: true, inv: [] };
+        }
+        if (e.op === 'art') {
+            // the map sends {value}; the player's Undo puts back both fields ({value, url}, either may be blank)
+            const url = e.url ?? '';
+            if (!(artOk(e.value) || (e.value === '' && 'url' in e)) || (url !== '' && !/^\/sheets\/player\/art\.php\?id=[\w-]+&v=[a-f0-9]{12}$/.test(url))) return no("That isn't a picture");
+            const inv = [{ op: 'art', value: c.art || '', url: c.artUrl || '' }];
+            c.art = e.value; c.artUrl = url;
+            return { ok: true, inv };
         }
         if (e.op === 'hp') {
             if (!isObj(c.hp)) return no('This character has no hit points');
@@ -224,6 +235,7 @@
     function words(e, before, after, changes) {
         if (e.op === 'hp') return e.how === 'dmg' ? `−${Math.abs(nm(e.amt))} HP` : e.how === 'heal' ? `+${Math.abs(nm(e.amt))} HP` : `${Math.abs(nm(e.amt))} temp HP`;
         if (e.op === 'roll') return String(e.roll?.title || 'Roll');
+        if (e.op === 'art') return 'New portrait';
         const lines = changes ? changes(before, after).map((x) => x.t) : [];
         if (e.op === 'add') {
             const p = pat(e.path), coin = /coins\.(\w+)$/.exec(p);
@@ -234,7 +246,7 @@
         return lines.join(', ') || (e.op === 'set' ? `${e.path[e.path.length - 1]} ${show(e.was)} → ${show(e.value)}` : 'a change');
     }
 
-    const hbDm = { apply, run, diff, words, where, pat, allowed, AMOUNT, TAGS, FIXED, NO_TOP, NO_PANEL, NO_ANY, KEEP };
+    const hbDm = { apply, run, diff, words, where, pat, allowed, artOk, ARTMAX, AMOUNT, TAGS, FIXED, NO_TOP, NO_PANEL, NO_ANY, KEEP };
     globalThis.hbDm = hbDm;
     if (typeof window === 'undefined' || typeof fetch === 'undefined' || typeof localStorage === 'undefined') return;
 

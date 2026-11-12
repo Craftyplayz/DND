@@ -53,6 +53,14 @@ body:has(> main.mp) { display: flex; flex-direction: column; height: 100dvh; mar
 .mp-face { position: relative; display: grid; place-items: center; overflow: hidden; background: var(--card2); border: 2px solid var(--line-strong); border-radius: 50%; color: var(--text); font-weight: 700; }
 .mp-face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .mp-tok .mp-face { position: absolute; inset: 4%; border-width: calc(2px / var(--k, 1)); box-shadow: 0 2px 8px rgb(0 0 0 / .6); font-size: 36cqw; }
+.mp-tok .mp-face img { rotate: var(--rot, 0deg); } /* the art turns inside the ring; labels and conditions stay upright */
+/* the picked token's handles: turn (top), resize (sides); the same size on screen at any zoom */
+.mp-h { position: absolute; z-index: 3; display: grid; place-items: center; width: calc(28px / var(--k, 1)); height: calc(28px / var(--k, 1)); background: var(--btn2); border: calc(1px / var(--k, 1)) solid var(--line-strong); border-radius: 50%; color: var(--text); box-shadow: 0 1px 4px rgb(0 0 0 / .5); cursor: ew-resize; touch-action: none; }
+.mp-h .mpt-ph, .mp-h svg { width: 70%; height: 70%; }
+.mp-hrot { top: calc(-34px / var(--k, 1)); left: 50%; transform: translateX(-50%); cursor: grab; }
+.mp-hl, .mp-hr { top: 50%; transform: translateY(-50%); }
+.mp-hl { left: calc(-34px / var(--k, 1)); }
+.mp-hr { right: calc(-34px / var(--k, 1)); }
 .mp-tok.mine .mp-face { border-color: var(--btn-line); }
 .mp-tok.bloodied .mp-face { border: calc(4px / var(--k, 1)) solid var(--danger-line); }
 .mp-tok.on .mp-face { box-shadow: 0 0 0 calc(4px / var(--k, 1)) var(--accent); }

@@ -19,7 +19,9 @@
 // enc: the panel's encounter, {ids: [token keys], init: {key: n}, side: {key: party | enemy}}. maps/opts.json: {fx, ac} (fi_opts).
 // A token: {"kind": "pc" | "monster" | "plain", "char" | "mon" + "by" | "name", "size" (T S M L H G), "x", "y" (top-left, original
 // px), "placed" (false: in the "Not placed" tray), "hidden" (monsters not in a fight; a fight monster's hidden flag is its
-// initiative entry's), "copy" + "suffix" (a copy with its own HP, fi_copies), "rename", "ring", "noName", "locked", "group", "cond"}.
+// initiative entry's), "copy" + "suffix" (a copy with its own HP, fi_copies), "rename", "ring", "noName", "locked", "group", "cond",
+// "sq" (squares across, any size, from the resize handles: wins over "size" until a size is picked), "rot" (degrees, the art turns
+// inside the ring), "art" (plain tokens only: a data:image picture; a character's or monster's art is its sheet's)}.
 // Token keys are hashes, so no Google or monster id reaches players. Nothing here ever touches a character or monster file.
 // mp_view() alone decides what each person gets (players: only the masked picture, no fog ops, no hidden or fogged monsters, no
 // drawings or overlays wholly under fog, no original); the Table view (1.7) adds its own role there.
@@ -31,6 +33,13 @@ const MP_TYPES = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEB
 const MP_SIZES = ['T' => 0.5, 'S' => 1, 'M' => 1, 'L' => 2, 'H' => 3, 'G' => 4]; // squares across
 const MP_PTS = 5000; // points in one stroke, polygon or drawing
 const MP_SIGHT = 200; // cells along the longest side of "sight"
+
+// how wide a token is on map $m, in original px
+function mp_span($m, $t)
+{
+    $sq = (float)($t['sq'] ?? 0);
+    return ($sq > 0 ? $sq : MP_SIZES[$t['size'] ?? 'M'] ?? 1) * $m['grid']['s'];
+}
 
 function mp_ok_id($id)
 {
@@ -356,7 +365,7 @@ function mp_tokens($accounts, $c, $m, $f)
         $o = ['k' => (string)$k, 'kind' => $t['kind'], 'size' => $t['size'] ?? 'M', 'x' => $t['x'] ?? null, 'y' => $t['y'] ?? null, 'placed' => !empty($t['placed']) && isset($t['x']),
             'fight' => $e ? $e['id'] : null, 'turn' => $e && $f['phase'] === 'running' && $f['turn'] === $e['id'], 'running' => $e && $running,
             'suffix' => (string)($t['suffix'] ?? ''), 'ring' => (string)($t['ring'] ?? ''), 'noName' => !empty($t['noName']), 'locked' => !empty($t['locked']), 'group' => (string)($t['group'] ?? ''),
-            'cond' => is_array($t['cond'] ?? null) ? $t['cond'] : []];
+            'cond' => is_array($t['cond'] ?? null) ? $t['cond'] : [], 'sq' => isset($t['sq']) ? (float)$t['sq'] : null, 'rot' => (float)($t['rot'] ?? 0)];
         if ($t['kind'] === 'pc') {
             $card = cp_card($accounts, $t['char']);
             $ch = dm_char($accounts, $t['char']);
@@ -364,7 +373,8 @@ function mp_tokens($accounts, $c, $m, $f)
             foreach (is_array($ch->abilities ?? null) ? $ch->abilities : [] as $a) if (is_object($a) && ($a->key ?? '') === 'DEX') $dex = (int)floor((fi_num($a->score ?? 10) - 10) / 2);
             $lvl = 0;
             foreach (is_array($ch->classes ?? null) ? $ch->classes : [] as $cl) if (is_object($cl)) $lvl += (int)fi_num($cl->level ?? 0);
-            $o += ['name' => $card['name'] ?? 'Gone character', 'art' => fi_art($card['art'] ?? ''), 'owner' => $party[$t['char']], 'hidden' => false, 'pc' => fi_pc($accounts, $t['char']),
+            // a portrait sent from the map (a waiting DM edit, applied in $ch) shows before the sheet takes it
+            $o += ['name' => $card['name'] ?? 'Gone character', 'art' => fi_art(is_string($ch->art ?? null) && $ch->art !== '' ? $ch->art : ($card['art'] ?? '')), 'owner' => $party[$t['char']], 'hidden' => false, 'pc' => fi_pc($accounts, $t['char']),
                 'char' => $t['char'], 'bonus' => $dex, 'level' => $lvl, 'hp' => $ch ? ['cur' => fi_num($ch->hp->cur ?? 0), 'max' => fi_num($ch->calc->hpMax ?? 0) ?: null, 'temp' => fi_num($ch->hp->temp ?? 0)] : null];
         } elseif ($t['kind'] === 'monster') {
             $mon = fi_mon_of($accounts, $c, $t);
@@ -375,7 +385,7 @@ function mp_tokens($accounts, $c, $m, $f)
                 'mon' => $t['mon'], 'by' => $t['by'] ?? $c['dm'], 'copy' => $t['copy'] ?? null, 'ac' => $e['ac'] ?? $cp['ac'] ?? null, 'bonus' => $e['bonus'] ?? $cp['bonus'] ?? null,
                 'cr' => isset($mon['cr']) ? (string)$mon['cr'] : null, 'xp' => $mon['xp'] ?? null,
                 'hp' => $mon ? ['cur' => fi_num($mon['hp']['cur'] ?? 0), 'max' => fi_num($mon['hp']['base'] ?? 0) + fi_num($mon['hp']['mod'] ?? 0), 'temp' => fi_num($mon['hp']['temp'] ?? 0)] : null];
-        } else $o += ['name' => $t['rename'] ?? $e['name'] ?? $t['name'] ?? 'Entry', 'art' => '', 'hidden' => !empty($t['hidden'])];
+        } else $o += ['name' => $t['rename'] ?? $e['name'] ?? $t['name'] ?? 'Entry', 'art' => fi_art((string)($t['art'] ?? '')), 'hidden' => !empty($t['hidden'])];
         $out[] = $o;
     }
     return $out;
@@ -385,7 +395,7 @@ function mp_tokens($accounts, $c, $m, $f)
 function mp_in_sight($m, $t)
 {
     if (!$t['placed']) return false;
-    $span = (MP_SIZES[$t['size']] ?? 1) * $m['grid']['s'];
+    $span = mp_span($m, $t);
     return mp_sight_any($m, $t['x'], $t['y'], $t['x'] + $span - 0.01, $t['y'] + $span - 0.01);
 }
 
@@ -398,7 +408,7 @@ function mp_fogged_entries($accounts, $c, $f)
     $out = [];
     foreach ($f['entries'] as $e) {
         $t = $e['kind'] === 'pc' ? null : ($toks[mp_entry_key($c, $e)] ?? null);
-        if ($t && !empty($t['placed']) && isset($t['x']) && !mp_in_sight($m, ['placed' => true, 'size' => $t['size'] ?? 'M', 'x' => $t['x'], 'y' => $t['y']])) $out[] = $e['id'];
+        if ($t && !empty($t['placed']) && isset($t['x']) && !mp_in_sight($m, ['placed' => true, 'size' => $t['size'] ?? 'M', 'sq' => $t['sq'] ?? null, 'x' => $t['x'], 'y' => $t['y']])) $out[] = $e['id'];
     }
     return $out;
 }
@@ -418,7 +428,7 @@ function mp_tok_out($t, $sub, $dm, $opts = ['fx' => true, 'ac' => false])
     $mine = $t['kind'] === 'pc' && $t['owner'] === $sub;
     $fx = $dm || $opts['fx'];
     $o = ['k' => $t['k'], 'kind' => $t['kind'], 'name' => $t['name'], 'art' => $t['art'], 'size' => $t['size'], 'x' => $t['x'], 'y' => $t['y'], 'placed' => $t['placed'], 'turn' => $t['turn'], 'mine' => $mine,
-        'status' => $fx ? ($t['status'] ?? null) : ($t['kind'] === 'monster' ? 'healthy' : null), 'suffix' => $t['suffix'], 'ring' => $t['ring'], 'noName' => $t['noName'], 'locked' => $t['locked'], 'cond' => $t['cond']];
+        'status' => $fx ? ($t['status'] ?? null) : ($t['kind'] === 'monster' ? 'healthy' : null), 'suffix' => $t['suffix'], 'ring' => $t['ring'], 'noName' => $t['noName'], 'locked' => $t['locked'], 'cond' => $t['cond'], 'sq' => $t['sq'], 'rot' => $t['rot']];
     if ($t['kind'] === 'pc' && $t['pc']) $o += $fx ? $t['pc'] : ['down' => false, 'saves' => null, 'conds' => $t['pc']['conds']];
     if ($dm) {
         $o += ['hidden' => $t['hidden'], 'fight' => $t['fight'], 'group' => $t['group']];
@@ -527,7 +537,7 @@ function mp_suffix($toks, $mon, $name = null)
 //   {op: "activate", m} | {op: "hide", m} | {op: "rename", m, name} | {op: "archive", m, on} | {op: "grid", m, s, ox, oy}
 //   {op: "fog", m, add} (an "all" op replaces the list) | {op: "fogset", m, ops} (Undo)
 //   {op: "draw", m, add} and {op: "drawdel", m, ids} (players too: their own lines, the map on the table) | {op: "drawset", m, draws} | {op: "overlay", m, o} (by id) | {op: "overlaydel", m, ids}
-//   {op: "token", m, k, size?, hidden?, ring?, noName?, locked?, group?, name?, cond?} (players: size only, their own token on the map on the table)
+//   {op: "token", m, k, size?, sq?, rot?, art?, hidden?, ring?, noName?, locked?, group?, name?, cond?} (players: size, sq and rot only, their own token on the map on the table)
 //   {op: "drop", m, mon} | {op: "remove", m, k} | {op: "place", m, mon, x, y, ac?, bonus?} | {op: "paste", m, k, x, y}
 //   {op: "copyhp", m, k, hop} | {op: "enc", m, enc} | {op: "opts", m, fx?, ac?} | {op: "send", m, mons: [{mon, ac, bonus}]}
 // and for everyone: {op: "move", m, k, x, y, placed} (players: their own character's token on the map on the table only, unless locked),
@@ -581,7 +591,7 @@ function mp_op($accounts, $c, $sub, $body)
         $keep = $stored[$t['k']] ?? null;
         // a party token that was never moved isn't stored yet
         if (!$keep) foreach (fi_party($c) as $char => $owner) if (mp_key($c['id'], 'pc', $char) === $t['k']) $keep = ['kind' => 'pc', 'char' => $char, 'size' => 'M'];
-        $span = (MP_SIZES[$t['size']] ?? 1) * $m['grid']['s'];
+        $span = mp_span($m, $t);
         if ($placed) [$keep['x'], $keep['y']] = mp_clamp($m, $span, $body['x'], $body['y']);
         $keep['placed'] = $placed;
         $stored[$t['k']] = $keep;
@@ -610,11 +620,11 @@ function mp_op($accounts, $c, $sub, $body)
         return [200, ['ok' => true], $live];
     }
     if (!$dm && !(in_array($op, ['draw', 'drawdel'], true) && $onTable)) { // players draw on the map on the table, and erase their own lines
-        // a player may resize their own character's token on the map on the table, and nothing else about it
+        // a player may resize and turn their own character's token on the map on the table, and nothing else about it
         $own = false;
         if ($op === 'token' && $onTable) foreach (fi_party($c) as $char => $owner) if ($owner === $sub && mp_key($c['id'], 'pc', $char) === (string)($body['k'] ?? '')) $own = true;
         if (!$own) return [403, ['error' => 'Only the DM can do that.'], []];
-        $body = array_intersect_key($body, ['k' => 1, 'size' => 1]);
+        $body = array_intersect_key($body, ['k' => 1, 'size' => 1, 'sq' => 1, 'rot' => 1]);
     }
     if ($op === 'activate') {
         if ($m['archived']) return [400, ['error' => 'Unarchive the map first.'], []];
@@ -666,10 +676,10 @@ function mp_op($accounts, $c, $sub, $body)
         $rec = ['mon' => $id, 'by' => $by, 'name' => mb_substr((string)($old['name'] ?? $mon['name'] ?? 'Monster'), 0, 80), 'suffix' => $suffix, 'hp' => $old['hp'] ?? fi_hp($mon['hp'] ?? [], ['k' => 'set', 'hp' => []]),
             'ac' => $old['ac'] ?? fi_int($body['ac'] ?? null), 'bonus' => $old['bonus'] ?? fi_int($body['bonus'] ?? 0) ?? 0];
         if (!fi_copies_change($accounts, $c['id'], function (&$all) use ($copy, $rec) { $all[$copy] = $rec; return true; })) return [500, ['error' => "Couldn't save the token."], []];
-        [$x, $y] = mp_clamp($m, (MP_SIZES[$size] ?? 1) * $m['grid']['s'], $body['x'], $body['y']);
+        [$x, $y] = mp_clamp($m, mp_span($m, ['size' => $size, 'sq' => $from['sq'] ?? null]), $body['x'], $body['y']);
         $k = mp_key($c['id'], 'monster', "$by:$id:$copy");
         $toks[$k] = ['kind' => 'monster', 'mon' => $id, 'by' => $by, 'copy' => $copy, 'suffix' => $suffix, 'name' => $rec['name'], 'size' => $size, 'x' => $x, 'y' => $y, 'placed' => true]
-            + array_intersect_key($from ?? [], ['cond' => 1, 'ring' => 1, 'noName' => 1, 'hidden' => 1]);
+            + array_intersect_key($from ?? [], ['cond' => 1, 'ring' => 1, 'noName' => 1, 'hidden' => 1, 'sq' => 1, 'rot' => 1]);
         $m['tokens'] = $toks;
         return mp_write($accounts, $c['id'], $m) ? [200, ['k' => $k], $all] : [500, ['error' => "Couldn't save the token."], []];
     }
@@ -765,6 +775,23 @@ function mp_op($accounts, $c, $sub, $body)
             if (isset($body['size'])) {
                 if (!isset(MP_SIZES[$body['size']])) return [400, ['error' => 'Pick a size from Tiny to Gargantuan.'], []];
                 $toks[$k]['size'] = $body['size'];
+                unset($toks[$k]['sq']); // a picked size replaces a dragged one
+            }
+            if (array_key_exists('sq', $body)) {
+                if ($body['sq'] === null || $body['sq'] === 0) unset($toks[$k]['sq']);
+                elseif (!is_numeric($body['sq']) || $body['sq'] < 0.25 || $body['sq'] > 30) return [400, ['error' => 'A token is ¼ to 30 squares across.'], []];
+                else $toks[$k]['sq'] = round((float)$body['sq'], 2);
+            }
+            if (isset($body['rot'])) {
+                if (!is_numeric($body['rot']) || !is_finite((float)$body['rot'])) return [400, ['error' => "That isn't an angle."], []];
+                $r = round(fmod(fmod((float)$body['rot'], 360) + 360, 360), 1);
+                if ($r == 0 || $r == 360) unset($toks[$k]['rot']); else $toks[$k]['rot'] = $r;
+            }
+            if (isset($body['art'])) {
+                if ($toks[$k]['kind'] !== 'plain') return [400, ['error' => "This token's art is on its sheet."], []];
+                if ($body['art'] === '') unset($toks[$k]['art']);
+                elseif (!dm_art_ok($body['art'])) return [400, ['error' => 'Send a JPEG, PNG or WebP picture.'], []];
+                else $toks[$k]['art'] = $body['art'];
             }
             if (isset($body['hidden'])) {
                 if ($toks[$k]['kind'] === 'pc') return [400, ['error' => "Party characters can't be hidden."], []];

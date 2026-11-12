@@ -17,7 +17,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 
 // a character with something of every kind the DM can change
 const CHAR = {
-    id: 'kai1', updated: 5, archived: 0, name: 'Kai', race: 'Elf', hp: { cur: 20, base: 20, temp: 3, mod: 0 }, exhaustion: 0, insp: false,
+    id: 'kai1', updated: 5, archived: 0, name: 'Kai', race: 'Elf', art: '', artUrl: '/sheets/player/art.php?id=kai1&v=0123456789ab', hp: { cur: 20, base: 20, temp: 3, mod: 0 }, exhaustion: 0, insp: false,
     abilities: [{ key: 'STR', name: 'Strength', score: 14, save: false, sb: '' }, { key: 'CON', name: 'Constitution', score: 12, save: true, sb: '' }],
     skills: [{ name: 'Stealth', ab: 'DEX', p: 0, b: '' }, { name: 'Arcana', ab: 'INT', p: 1, b: '' }],
     classes: [{ name: 'Rogue', level: 3, die: 8, hdUsed: 1 }], conditions: ['Prone'], profs: { armour: [], weapons: [], langs: ['Common'], tools: [], notes: '' },
@@ -67,7 +67,9 @@ const CASES = [
     ['view settings are not the DM\'s', E('set', { path: ['view', 'tab'], value: 'x', was: '' })],
     ['panel layout is not the DM\'s', E('set', { path: ['panels', '#pi:Inventory', 'on'], value: false, was: true })],
     ['archiving is not the DM\'s', E('set', { path: ['archived'], value: 5, was: 0 })],
-    ['portrait is not the DM\'s', E('set', { path: ['art'], value: 'x', was: '' })],
+    ['portrait is not the DM\'s to set', E('set', { path: ['art'], value: 'x', was: '' })],
+    ['a new portrait from the map', E('art', { value: 'data:image/jpeg;base64,/9j/AAAA' })],
+    ['a portrait that isn\'t a picture', E('art', { value: 'https://evil.example/x.png' })],
     ['a panel can\'t be removed', E('unrow', { path: ['panels', '#pi:Inventory'] })],
     ['wrong kind of value', E('set', { path: ['insp'], value: 'yes', was: false })],
 ];
@@ -92,9 +94,11 @@ is('renamed class: refused', R['class whose name changed is refused'].why, 'Wiza
 is('coins: +50', R.coins.c.panels[0].coins.gp, 60);
 is('row added at the end', R['row added at the end'].c.panels[0].rows.map((r) => r.name), ['Longsword', 'Rope']);
 is('note archived, kept', R['a note is archived, not removed'].c.panels[2].notes.length === 1 && R['a note is archived, not removed'].c.panels[2].notes[0].archived > 0, true);
-for (const n of ['the roll log is not the DM\'s', 'view settings are not the DM\'s', 'panel layout is not the DM\'s', 'archiving is not the DM\'s', 'portrait is not the DM\'s', 'a panel can\'t be removed', 'wrong kind of value'])
+for (const n of ['the roll log is not the DM\'s', 'view settings are not the DM\'s', 'panel layout is not the DM\'s', 'archiving is not the DM\'s', 'portrait is not the DM\'s to set', 'a portrait that isn\'t a picture', 'a panel can\'t be removed', 'wrong kind of value'])
     is(`refused: ${n}`, R[n].ok, false);
 is('the roll log gets "DM: ..." for an applied edit', R.coins.c.rolls[0], { at: 1000, title: 'DM: a change', expr: '', shown: '', total: '', dm: 1 });
+is('a new portrait replaces both art fields', [R['a new portrait from the map'].c.art, R['a new portrait from the map'].c.artUrl, R['a new portrait from the map'].c.rolls[0].title], ['data:image/jpeg;base64,/9j/AAAA', '', 'DM: a change']);
+is('a new portrait replaces both art fields', [R['a new portrait from the map'].c.art, R['a new portrait from the map'].c.artUrl, R['a new portrait from the map'].c.rolls[0].title], ['data:image/jpeg;base64,/9j/AAAA', '', 'DM: a change']);
 is('a DM roll goes in as it was rolled', R['a roll into the log'].c.rolls.map((r) => r.title), ['Stealth']);
 is('a refused edit is still marked applied (never tried twice)', R['a removed row is refused'].c.dmApplied.length, 1);
 

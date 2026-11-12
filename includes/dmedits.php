@@ -159,6 +159,12 @@ function dm_row_ok($p, $row)
     return true;
 }
 
+// a portrait from the map (dmedit.js artOk): a data:image URL no bigger than fi_art() takes
+function dm_art_ok($v)
+{
+    return is_string($v) && strlen($v) <= 200000 && preg_match('#^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$#', $v) === 1;
+}
+
 // what's wrong with an edit before it's queued, or null
 function dm_check($e)
 {
@@ -166,6 +172,7 @@ function dm_check($e)
     if (!is_numeric($e->at ?? null) || !is_string($e->t ?? null) || mb_strlen($e->t) > 2000) return "That isn't a DM edit.";
     $op = $e->op ?? '';
     if ($op === 'hp') return in_array($e->how ?? '', ['dmg', 'heal', 'temp'], true) && is_numeric($e->amt ?? null) ? null : "That isn't a change to hit points.";
+    if ($op === 'art') return dm_art_ok($e->value ?? null) ? null : "That isn't a picture.";
     if ($op === 'roll') {
         if (!is_object($e->roll ?? null)) return "That isn't a roll.";
         foreach ($e->roll as $v) if (!is_scalar($v)) return "That isn't a roll.";
@@ -198,6 +205,12 @@ function dm_apply(&$c, $e, $max)
         if (!is_array($c->rolls ?? null)) $c->rolls = [];
         array_unshift($c->rolls, json_decode(json_encode($e->roll)));
         $c->rolls = array_slice($c->rolls, 0, 100);
+        return $yes;
+    }
+    if ($op === 'art') {
+        if (!dm_art_ok($e->value ?? null)) return $no("That isn't a picture");
+        $c->art = $e->value;
+        $c->artUrl = '';
         return $yes;
     }
     if ($op === 'hp') {
@@ -416,7 +429,7 @@ function dm_member_name($c, $sub)
 function dm_send($accounts, $user, $c, $char, $edits)
 {
     $owner = ch_meta($accounts, $char)['owner'] ?? null;
-    // the owner, from their token on the map: hit points and conditions only ("self": no "DM:" in their roll log)
+    // the owner, from their token on the map: hit points, conditions and portrait only ("self": no "DM:" in their roll log)
     $self = $c && $owner === $user['sub'] && cp_member($c, $user['sub']) >= 0;
     if (!$c || !(cp_is_dm($c, $user['sub']) || $self) || !cp_has_char($c, $char)) return [403, ['error' => "You can't change this character. Only its campaign's DM and co-DMs can."], []];
     if (!$owner) return [404, ['error' => 'No such character.'], []];
@@ -430,7 +443,7 @@ function dm_send($accounts, $user, $c, $char, $edits)
     foreach ($edits as $e) {
         $id = is_object($e) && is_string($e->id ?? null) ? $e->id : '';
         if ($why = dm_check($e)) { $refused[] = ['id' => $id, 'why' => $why]; continue; }
-        if ($self && !(($e->op ?? '') === 'hp' || (($e->op ?? '') === 'tag' && ($e->path ?? null) === ['conditions']))) { $refused[] = ['id' => $id, 'why' => 'From the map you can only change hit points and conditions.']; continue; }
+        if ($self && !(in_array($e->op ?? '', ['hp', 'art'], true) || (($e->op ?? '') === 'tag' && ($e->path ?? null) === ['conditions']))) { $refused[] = ['id' => $id, 'why' => 'From the map you can only change hit points, conditions and the portrait.']; continue; }
         unset($e->self);
         if (isset($known[$id])) continue; // sent before (the outbox tried again)
         $r = dm_run($now, $e);

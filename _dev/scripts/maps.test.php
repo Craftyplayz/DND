@@ -208,6 +208,20 @@ $is('and nothing else about it', [$op('222', ['op' => 'token', 'k' => $lockK, 'r
 $is("not someone else's", [$op('222', ['op' => 'token', 'k' => $tok($dv, 'Dmpc')['k'], 'size' => 'L'])[0], $op('222', ['op' => 'token', 'k' => $gk, 'size' => 'L'])[0]], [403, 403]);
 $op('111', ['op' => 'token', 'k' => $lockK, 'size' => 'M', 'locked' => true]);
 $is('locked: Pat can\'t move it, the server lets the DM', [$op('222', ['op' => 'move', 'k' => $lockK, 'x' => 100, 'y' => 0, 'placed' => true])[0], $op('111', ['op' => 'token', 'k' => $lockK, 'locked' => false])[0]], [403, 200]);
+// the handles (2026-11-12): any size and any angle, for players on their own token too; picking a size again drops the dragged one
+$is('Pat turns and drags Lock to 1.37 squares', [$op('222', ['op' => 'token', 'k' => $lockK, 'rot' => -90, 'sq' => 1.374])[0], array_intersect_key($tok(mp_view($A, $c, '111'), 'Lock'), ['sq' => 1, 'rot' => 1])], [200, ['sq' => 1.37, 'rot' => 270.0]]);
+$is('too small, too big, not an angle', [$op('111', ['op' => 'token', 'k' => $lockK, 'sq' => 0.1])[0], $op('111', ['op' => 'token', 'k' => $lockK, 'sq' => 31])[0], $op('111', ['op' => 'token', 'k' => $lockK, 'rot' => 'x'])[0]], [400, 400, 400]);
+$is('a dragged size counts for fog', mp_span(mp_read($A, $c['id'], $m['id']), ['size' => 'M', 'sq' => 2.5]), 250.0);
+$op('111', ['op' => 'token', 'k' => $lockK, 'size' => 'M', 'rot' => 360]);
+$is('a size picked drops sq; 360 is upright', array_intersect_key($tok(mp_view($A, $c, '111'), 'Lock'), ['sq' => 1, 'rot' => 1]), ['sq' => null, 'rot' => 0.0]);
+// art: a plain token keeps its own; a character's or monster's is its sheet's; players can't set it with a token op
+$px = 'data:image/png;base64,iVBORw0KGgo=';
+$lairK = null; foreach (mp_view($A, $c, '111')['map']['tokens'] as $x) if ($x['kind'] === 'plain') $lairK = $x['k'];
+$is('plain token art saved and sent', [$op('111', ['op' => 'token', 'k' => $lairK, 'art' => $px])[0], $tok(mp_view($A, $c, '111'), 'Lair')['art']], [200, $px]);
+$is('not a picture, not a plain token', [$op('111', ['op' => 'token', 'k' => $lairK, 'art' => 'https://x.example/a.png'])[0], $op('111', ['op' => 'token', 'k' => $gk, 'art' => $px])[0], $op('111', ['op' => 'token', 'k' => $lockK, 'art' => $px])[0]], [400, 400, 400]);
+$op('222', ['op' => 'token', 'k' => $lockK, 'art' => $px]);
+$is("a player's token op never sets art", $tok(mp_view($A, $c, '111'), 'Lock')['art'], '');
+$op('111', ['op' => 'token', 'k' => $lairK, 'art' => '']);
 $is('own token: its character id for its owner, not for others', [$tok(mp_view($A, $c, '222'), 'Lock')['char'], isset($tok(mp_view($A, $c, CP_TABLE), 'Lock')['char'])], ['lock', false]);
 // the DM's token fields
 $is('ring, name badge, group, conditions', [$op('111', ['op' => 'token', 'k' => $gk, 'ring' => '#00ff00', 'noName' => true, 'group' => 'g1', 'cond' => ['Prone', ' ']])[0], $op('111', ['op' => 'token', 'k' => $gk, 'ring' => 'red'])[0]], [200, 400]);

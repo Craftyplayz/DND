@@ -43,6 +43,7 @@ await serving(BASE + '/privacy/'); await serving(`http://127.0.0.1:${RELAY}/heal
 
 let bad = 0;
 const is = (name, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want)) { bad++; console.log(`FAIL ${name}: got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); } else console.log(`ok   ${name}`); };
+async function waitFor(ok, ms = 10000) { const t = Date.now(); while (Date.now() - t < ms && !(await ok())) await sleep(150); }
 async function until(b, expr, ok, ms = 8000) { const t = Date.now(); let v; while (Date.now() - t < ms) { v = await b.ev(expr); if (ok(v)) return v; await sleep(150); } return v; }
 const api = (sid, body) => fetch(`${BASE}/campaigns/api.php`, { method: 'POST', headers: { Cookie: 'dndsid=' + sid, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
 const mapsApi = (sid, body) => fetch(`${BASE}/campaigns/maps.php`, { method: 'POST', headers: { Cookie: 'dndsid=' + sid, 'Content-Type': 'application/json' }, body: JSON.stringify({ c: CAMP, ...body }) }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
@@ -319,6 +320,53 @@ try {
     is('Damage from the token goes to the sheet', await until(pat, `document.querySelector('[data-mp=menu] .who small')?.textContent || ''`, (t) => t.startsWith('17/')).then((t) => t.startsWith('17/')), true);
     is('another player never gets their HP', JSON.parse(await viewAs(SID.sam)).map.tokens.find((t) => t.name === 'Lock').hp, undefined);
     is('a player can\'t edit more than HP and conditions', (await fetch(`${BASE}/sheets/player/dm.php`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.pat, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: 'send', c: CAMP, char: 'lock', edits: [{ id: 'nope00000001', at: 1, t: 'x', op: 'set', path: ['name'], value: 'Bad', was: 'Lock' }] }) }).then((r) => r.json())).refused?.length, 1);
+
+    // the picked token's handles (2026-11-12): turn from the top, any size from the sides, the centre stays put; players on their own token
+    is('their own picked token has turn and resize handles', await pat.ev(`['rot', 'l', 'r'].every((h) => !!${tokOf('Lock')}.querySelector('[data-h=' + h + ']'))`), true);
+    await pat.ev(HELP);
+    const lk = JSON.parse(await pat.ev(`JSON.stringify(BM.state.m.tokens.find((t) => t.name === 'Lock'))`)), gs = mapJson().grid.s, lsz = (lk.sq || 1) * gs, lc = [lk.x + lsz / 2, lk.y + lsz / 2];
+    await drag(pat, [[lc[0], lc[1] - lsz], [lc[0] + lsz, lc[1] - 5], [lc[0] + lsz, lc[1]]], { el: '.mp-tok.picked [data-h=rot]' });
+    is('turned a quarter to the right, saved', await until(pat, '1', () => mapJson().tokens[lk.k]?.rot === 90, 5000).then(() => mapJson().tokens[lk.k]?.rot), 90);
+    is('the DM sees the art turned', await until(dm, `${tokOf('Lock')}?.style.getPropertyValue('--rot')`, (v) => v === '90deg'), '90deg');
+    await drag(pat, [[lc[0] + lsz / 2, lc[1]], [lc[0] + gs, lc[1]], [lc[0] + 1.25 * gs, lc[1]]], { el: '.mp-tok.picked [data-h=r]' });
+    const lt = await until(pat, '1', () => mapJson().tokens[lk.k]?.sq === 2.5, 5000).then(() => mapJson().tokens[lk.k]);
+    is('dragged to 2.5 squares, around the same centre', [lt.sq, lt.x + 1.25 * gs, lt.y + 1.25 * gs], [2.5, lc[0], lc[1]]);
+    is('the DM sees it 2.5 squares wide', await until(dm, `Math.round(parseFloat(${tokOf('Lock')}?.style.width))`, (w) => w === 2.5 * gs), 2.5 * gs);
+    // custom art: a picture dropped on their own token, then one from Upload art, becomes Lock's portrait (a waiting DM edit)
+    const pic = (col) => `await new Promise((ok) => { const c = document.createElement('canvas'); c.width = 600; c.height = 300; const x = c.getContext('2d'); x.fillStyle = '${col}'; x.fillRect(0, 0, 600, 300); c.toBlob((b) => ok(new File([b], 'art.png', { type: 'image/png' }))); })`;
+    await pat.ev(`(async () => { const f = ${pic('#c00')}, dt = new DataTransfer(); dt.items.add(f); const el = ${tokOf('Lock')}, r = el.getBoundingClientRect();
+        el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 })); return 1; })()`);
+    const queued = async () => (await fetch(`${BASE}/sheets/player/dm.php?char=lock`, { headers: { Cookie: 'dndsid=' + SID.pat } }).then((r) => r.json())).edits.filter((e) => e.op === 'art');
+    is('dropped: a portrait edit waits for the sheet, cropped square as JPEG', await waitFor(async () => (await queued()).length === 1).then(async () => (await queued())[0]?.value.slice(0, 23)), 'data:image/jpeg;base64,');
+    is('the DM sees the new portrait on the token', await until(dm, `${tokOf('Lock')}?.querySelector('img')?.src.slice(0, 15) || ''`, (s) => s === 'data:image/jpeg'), 'data:image/jpeg');
+    await clickTok(pat, 'Lock');
+    await until(pat, `!!document.querySelector('[data-mp=menu] [data-mpa=panel][data-v=rename]')`, Boolean);
+    await click(pat, '[data-mp=menu] [data-mpa=panel][data-v=rename]');
+    is('Edit: an Upload art button for the owner, no rename', await until(pat, `!!document.querySelector('[data-mpa=artpick]') && !document.querySelector('[data-mpi=ren]')`, Boolean), true);
+    await pat.ev(`(async () => { const i = document.querySelector('[data-mpi=artfile]'), dt = new DataTransfer(); dt.items.add(${pic('#0c0')}); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    is('Upload art: a second portrait edit', await waitFor(async () => (await queued()).length === 2).then(async () => (await queued()).length), 2);
+    // the DM's Upload art on a goblin copy: the Monster Sheet's Goblin gets it, so every copy shows it
+    await rail(dm, 'select');
+    await clickTok(dm, 'Goblin B');
+    await until(dm, `!!document.querySelector('[data-mp=menu] [data-mpa=panel][data-v=rename]')`, Boolean);
+    await click(dm, '[data-mp=menu] [data-mpa=panel][data-v=rename]');
+    await until(dm, `!!document.querySelector('[data-mpi=artfile]')`, Boolean);
+    await dm.ev(`(async () => { const i = document.querySelector('[data-mpi=artfile]'), dt = new DataTransfer(); dt.items.add(${pic('#00c')}); i.files = dt.files; i.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    const gobArt = () => JSON.parse(readFileSync(join(ACCOUNTS, 'monsters', '111', 'gob.json'), 'utf8')).art || '';
+    is('the Monster Sheet goblin has the new art', await waitFor(async () => gobArt() !== '').then(() => gobArt().slice(0, 15)), 'data:image/jpeg');
+    // the same with the real mouse (a browser may hand a press inside the token button to the button itself): turn Goblin B to the left
+    const gk = key('Goblin B'), hd = JSON.parse(await dm.ev(`(() => { const t = ${tokOf('Goblin B')}, h = t.querySelector('[data-h=rot]').getBoundingClientRect(), r = t.getBoundingClientRect(); return JSON.stringify([h.left + h.width / 2, h.top + h.height / 2, r.left + r.width / 2, r.top + r.height / 2]); })()`));
+    await dm.drag([[hd[0], hd[1]], [hd[2] - 40, hd[3] - 40], [hd[2] - 80, hd[3] + 1], [hd[2] - 80, hd[3]]]);
+    is('real mouse: turned to the left', await until(dm, '1', () => Math.round(mapJson().tokens[gk]?.rot) === 270, 5000).then(() => Math.round(mapJson().tokens[gk]?.rot)), 270);
+    if (process.env.MAP_SHOT) writeFileSync(process.env.MAP_SHOT, await dm.shot(1100));
+    // Pat's sheet takes the waiting portrait (the green one, the newest) and moves it into the account
+    await go(pat, `${BASE}/characters/lock`);
+    const lockSaved = () => JSON.parse(readFileSync(join(ACCOUNTS, 'characters', 'lock', 'character.json'), 'utf8'));
+    is("the sheet shows the portrait sent from the map", await until(pat, `document.querySelector('.hb-art img')?.src || ''`, (s) => /^data:image\/jpeg|art\.php/.test(s), 15000).then((s) => /^data:image\/jpeg|art\.php/.test(s)), true);
+    is('...and saves it to the account as its portrait file', await waitFor(async () => /art\.php/.test(lockSaved().artUrl || ''), 20000).then(() => [/art\.php/.test(lockSaved().artUrl || ''), lockSaved().art]), [true, '']);
+    await go(pat, `${BASE}/campaigns/${CAMP}/map`);
+    await until(pat, `!!${tokOf('Lock')}`, Boolean);
+    is('every goblin copy shows it', await until(dm, `['Goblin A', 'Goblin B'].every((n) => [...document.querySelectorAll('.mp-tok')].find((e) => e.getAttribute('aria-label').startsWith(n))?.querySelector('img')?.src.startsWith('data:image/jpeg'))`, Boolean), true);
 
     // Pat draws: it shows for the DM; they erase only their own line
     await rail(pat, 'draw');

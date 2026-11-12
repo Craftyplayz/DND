@@ -75,7 +75,7 @@ window.BattleMap = (() => {
         const canEdit = () => !S.table && !offline() && (S.dm || !S.paused);
         const tokOf = (k) => S.m?.tokens.find((t) => t.k === k);
         const ovOf = (id) => S.m?.overlays?.find((o) => o.id === id);
-        const span = (t) => (SIZES[t.size] || 1) * S.m.grid.s;
+        const span = (t) => (t.sq || SIZES[t.size] || 1) * S.m.grid.s; // sq: a size dragged with the handles, any width
         const entryOf = (t) => S.fight?.entries.find((e) => e.id === t.fight) || null;
         const movable = (t) => (S.dm || t.mine) && !t.locked;
         const allowed = (t) => S.dm || ['select', 'pan', 'draw', 'ruler', 'point'].includes(t);
@@ -268,13 +268,16 @@ window.BattleMap = (() => {
                 have.delete(t.k);
                 const hideName = t.noName && !S.dm;
                 const inFight = !!S.fight && t.kind === 'monster' && t.fight;
-                const html = face(t) + (hideName ? '' : `<span class="mp-name">${esc(t.name)}</span>`) + (window.Conds?.row(t.conds || t.cond) || '') + (t.ac != null && (S.dm ? inFight : true) ? `<span class="mp-ac" title="Armour Class">${esc(t.ac)}</span>` : '');
+                const grips = S.picks.size === 1 && S.picks.has(t.k) && movable(t) && canEdit() && G?.type !== 'move'
+                    ? `<span class="mp-h mp-hrot" data-h="rot" title="Turn (Shift: 45° steps)">${ic('Rotate token')}</span><span class="mp-h mp-hl" data-h="l" title="Resize">${ic('Resize left')}</span><span class="mp-h mp-hr" data-h="r" title="Resize">${ic('Resize right')}</span>` : '';
+                const html = face(t) + grips + (hideName ? '' : `<span class="mp-name">${esc(t.name)}</span>`) + (window.Conds?.row(t.conds || t.cond) || '') + (t.ac != null && (S.dm ? inFight : true) ? `<span class="mp-ac" title="Armour Class">${esc(t.ac)}</span>` : '');
                 if (!el) { el = document.createElement('button'); el.type = 'button'; el.className = 'mp-tok'; el.dataset.k = t.k; toks.append(el); }
                 if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }
                 const sz = span(t);
                 if (G?.type !== 'move' || !G.items?.some((i) => i.t.k === t.k)) Object.assign(el.style, { left: t.x + 'px', top: t.y + 'px' });
                 Object.assign(el.style, { width: sz + 'px', height: sz + 'px', zIndex: S.picks.has(t.k) ? 2 : '' });
                 el.style.setProperty('--ring', t.ring || '');
+                el.style.setProperty('--rot', (t.rot || 0) + 'deg');
                 const down = t.status === 'down' || (t.kind === 'pc' && t.down);
                 el.className = 'mp-tok' + (t.turn ? ' on' : '') + (t.status === 'bloodied' ? ' bloodied' : '') + (down ? ' down' : '') + (t.hidden ? ' hid' : '') + (t.ring ? ' ringed' : '') + (t.mine ? ' mine' : '') + (t.noName ? ' noname' : '')
                     + (movable(t) && canEdit() ? ' can' : '') + (S.picks.has(t.k) ? ' picked' : '') + (G?.type === 'move' && G.items?.some((i) => i.t.k === t.k) ? ' drag' : '');
@@ -445,8 +448,8 @@ window.BattleMap = (() => {
         // add from the browser or the tray: p is where on the map it goes
         async function addToken(add, p) {
             const [kind, id] = [add.slice(0, 3), add.slice(4)];
-            const at = (size) => { const s = (SIZES[size] || 1) * S.m.grid.s; return snap({ size }, p[0] - s / 2, p[1] - s / 2); };
-            if (kind === 'tok') { const t = tokOf(id); if (!t) return; const [x, y] = at(t.size); return moveTo(t, x, y); }
+            const at = (size, sq) => { const s = (sq || SIZES[size] || 1) * S.m.grid.s; return snap({ size, sq }, p[0] - s / 2, p[1] - s / 2); };
+            if (kind === 'tok') { const t = tokOf(id); if (!t) return; const [x, y] = at(t.size, t.sq); return moveTo(t, x, y); }
             let mon = id;
             if (kind === 'cmp') {
                 toast('Saving it to your Monster Sheet...');
@@ -559,14 +562,16 @@ window.BattleMap = (() => {
             box.hidden = false;
             const t = ids[0], many = ids.length > 1, e = encOf(), hasHp = !many && t.hp && t.kind !== 'plain', dis = canEdit() ? '' : ' disabled', conds = (t.conds || t.cond || []);
             const Tab = (a, v, p, name, on, off) => `<button type="button" class="mpt-tab${on ? ' on' : ''}" data-mpa="${a}" data-v="${v}"${off ? ' disabled' : ''}>${ic(name, p)}<span>${name}</span></button>`;
-            let h = `<div class="mpt-mh"><div class="who"><b>${many ? ids.length + ' tokens' : esc(t.name)}</b>${!many && S.dm ? ` <button type="button" class="mpt-link" data-mpa="panel" data-v="rename" aria-label="Rename" title="Rename">Edit</button>` : ''}<small>${many ? '' : `${t.hp ? `${t.hp.cur}/${t.hp.max ?? '?'}${t.hp.temp ? ' +' + t.hp.temp : ''}` : ''}${S.dm && t.ac != null ? ` · AC ${esc(t.ac)}` : ''}`}</small></div>${!many && t.kind !== 'plain' ? '<button type="button" class="mpt-link" data-mpa="panel" data-v="cond">CONDITIONS +</button>' : ''}</div>`;
+            let h = `<div class="mpt-mh"><div class="who"><b>${many ? ids.length + ' tokens' : esc(t.name)}</b>${!many && (S.dm || t.mine) ? ` <button type="button" class="mpt-link" data-mpa="panel" data-v="rename" aria-label="Rename" title="Rename">Edit</button>` : ''}<small>${many ? '' : `${t.hp ? `${t.hp.cur}/${t.hp.max ?? '?'}${t.hp.temp ? ' +' + t.hp.temp : ''}` : ''}${S.dm && t.ac != null ? ` · AC ${esc(t.ac)}` : ''}`}</small></div>${!many && t.kind !== 'plain' ? '<button type="button" class="mpt-link" data-mpa="panel" data-v="cond">CONDITIONS +</button>' : ''}</div>`;
             if (!many && conds.length) h += `<div class="mpt-panel" style="padding:4px 10px"><div class="mpt-conds">${conds.map((x) => `<span class="badge r">${esc(x)}</span>`).join('')}</div></div>`;
             if (S.panel === 'hp' && hasHp) h += `<div class="mpt-panel"><div class="mpt-hp"><button type="button" class="btn small" data-mpa="hp" data-v="heal"${dis}>+ Heal</button><input class="field" data-mpi="hpn" type="number" inputmode="numeric" min="0" placeholder="-" aria-label="Amount"><button type="button" class="btn small" data-mpa="hp" data-v="dmg"${dis}>Damage −</button></div>
                 <div class="mpt-two"><label>Temp HP<input class="field" data-mpi="hptemp" type="number" inputmode="numeric" min="0" value="${t.hp.temp || 0}"></label>${S.dm && t.kind === 'monster' ? '<label>Change Max HP<input class="field" data-mpi="hpmax" type="number" inputmode="numeric" min="1" placeholder="-"></label>' : ''}</div><button type="button" class="mpt-fold" data-mpa="panel" data-v="hp" aria-label="Fold" title="Fold">▲</button></div>`;
             if (S.panel === 'cond' && !many) h += `<div class="mpt-panel mpt-conds">${CONDS.map((x) => `<button type="button" class="${conds.includes(x) ? 'on' : ''}" data-mpa="cond" data-v="${x}"${pressed(conds.includes(x))}${dis}>${x}</button>`).join('')}</div>`;
-            if (S.panel === 'size' && !many) h += `<div class="mpt-panel"><div class="mpt-row">${Object.entries(SIZE_NAMES).map(([v, n]) => `<button type="button" class="btn small${v === t.size ? ' primary' : ''}" data-mpa="size" data-v="${v}"${dis}>${n}</button>`).join('')}</div></div>`;
+            if (S.panel === 'size' && !many) h += `<div class="mpt-panel"><div class="mpt-row">${Object.entries(SIZE_NAMES).map(([v, n]) => `<button type="button" class="btn small${v === t.size && !t.sq ? ' primary' : ''}" data-mpa="size" data-v="${v}"${dis}>${n}</button>`).join('')}</div></div>`;
             if (S.panel === 'ring' && !many) h += `<div class="mpt-panel"><div class="mpt-row">${RINGS.map((col) => `<button type="button" class="mpt-swatch${col === (t.ring || '') ? ' on' : ''}" style="background:${col || 'transparent'}" data-mpa="ring" data-v="${col}" aria-label="${col ? 'Ring ' + col : 'Normal ring'}" title="${col ? 'Ring colour' : 'Normal ring'}"></button>`).join('')}</div></div>`;
-            if (S.panel === 'rename' && !many) h += `<div class="mpt-panel"><input class="field" data-mpi="ren" style="text-align:left" maxlength="80" value="${esc(baseOf(t))}" aria-label="Token name"><div class="mpt-row"><button type="button" class="btn small" data-mpa="rensave"${dis}>Save name</button><button type="button" class="btn small" data-mpa="noname"${dis}>${t.noName ? 'Show' : 'Hide'} name badge</button></div></div>`;
+            const artBtn = `<button type="button" class="btn small" data-mpa="artpick"${dis}>Upload art</button><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-mpi="artfile" hidden>`;
+            if (S.panel === 'rename' && !many) h += S.dm ? `<div class="mpt-panel"><input class="field" data-mpi="ren" style="text-align:left" maxlength="80" value="${esc(baseOf(t))}" aria-label="Token name"><div class="mpt-row"><button type="button" class="btn small" data-mpa="rensave"${dis}>Save name</button><button type="button" class="btn small" data-mpa="noname"${dis}>${t.noName ? 'Show' : 'Hide'} name badge</button>${artBtn}</div><p class="mpt-hint">${artWhere(t)}</p></div>`
+                : `<div class="mpt-panel"><div class="mpt-row">${artBtn}</div><p class="mpt-hint">${artWhere(t)}</p></div>`;
             if (S.panel === 'more' && S.dm) h += `<div class="mpt-panel"><div class="mpt-row"><button type="button" class="btn small" data-mpa="group"${dis}>${ids.some((x) => x.group) ? 'Ungroup' : 'Group'}</button><button type="button" class="btn small" data-mpa="lock"${dis}>${t.locked ? 'Unlock' : 'Lock'}</button>${!many && e.ids.includes(t.k) ? `<button type="button" class="btn small" data-mpa="side1" data-v="${esc(t.k)}"${dis}>Change side (now ${e.side[t.k] === 'party' ? 'party' : 'enemy'})</button>` : ''}${!many && t.fight ? `<button type="button" class="btn small" data-mpa="unfight" data-v="${esc(t.fight)}"${dis}>Remove from combat</button>` : ''}<button type="button" class="btn small" data-mpa="delete"${dis}>${t.kind === 'pc' && !many ? 'Take off the map' : 'Delete token'}</button></div></div>`;
             const inEnc = S.fight ? ids.every((x) => x.fight) : ids.every((x) => e.ids.includes(x.k));
             h += `<div class="mpt-tabs">${hasHp ? Tab('panel', 'hp', 'H', 'HP', S.panel === 'hp') : ''}${S.dm ? Tab('combat', '', '+', 'COMBAT', false, inEnc) + (ids.every((x) => x.kind === 'pc') ? '' : Tab('togglehide', '', 'E', t.hidden ? 'REVEAL' : 'HIDE', t.hidden)) + (many ? '' : Tab('panel', 'ring', 'O', 'RING', S.panel === 'ring')) : ''}${many ? '' : Tab('panel', 'size', 'S', 'SIZE', S.panel === 'size')}${S.dm ? Tab('panel', 'more', '...', 'MORE', S.panel === 'more') : ''}</div>`;
@@ -623,6 +628,64 @@ window.BattleMap = (() => {
                 window.Fight.load(c);
             });
         }
+        // ---- token art: a picture dropped on a token or picked with Upload art becomes its sheet's art (the owner's choice, 2026-11-12):
+        // a character's portrait (a DM edit the sheet applies, as HP from the map), the Monster Sheet monster's art (every copy shares
+        // it), or a plain token's own picture
+        const artWhere = (t) => (t.kind === 'pc' ? "The picture becomes the character's portrait on their sheet." : t.kind === 'monster' ? "The picture becomes this monster's art on the Monster Sheet, for every copy." : 'The picture stays with this token.') + ' You can also drop a picture on the token.';
+        // a square crop from the middle, 480 px like the sheets' own crop, small enough for fi_art() (200 000 characters)
+        async function artOf(file) {
+            const url = URL.createObjectURL(file);
+            try {
+                const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = url; });
+                for (const [px, q] of [[480, 0.85], [400, 0.75], [320, 0.7], [240, 0.6]]) {
+                    const cv = document.createElement('canvas'), s = Math.min(im.naturalWidth, im.naturalHeight);
+                    cv.width = cv.height = px;
+                    cv.getContext('2d').drawImage(im, (im.naturalWidth - s) / 2, (im.naturalHeight - s) / 2, s, s, 0, 0, px, px);
+                    const d = cv.toDataURL('image/jpeg', q);
+                    if (d.length <= 200000) return d;
+                }
+            } catch (e) { } finally { URL.revokeObjectURL(url); }
+            return null;
+        }
+        async function setArt(t, file) {
+            if (!/^image\//.test(file.type)) return toast('Drop a picture: JPG, PNG, WebP or GIF.', 'err');
+            if (!(S.dm || t.mine) || !canEdit()) return;
+            const art = await artOf(file);
+            if (!art) return toast("That picture couldn't be read. Try a JPG or PNG.", 'err');
+            const was = t.art;
+            t.art = art; drawToks();
+            let ok = false;
+            if (t.kind === 'pc') ok = !!window.hbDm?.send && (await window.hbDm.send(c, t.char, [{ op: 'art', value: art, t: 'New portrait' }]), true);
+            else if (t.kind === 'monster') ok = await monArt(t, art);
+            else ok = !!(await post({ op: 'token', k: t.k, art }));
+            if (!ok) { t.art = was; drawToks(); return; }
+            await post({ op: 'token', k: t.k }, true); // no change: tells every open map to load again, so they see the new art
+            toast(t.kind === 'pc' ? 'Portrait changed. Their sheet takes it next time it opens.' : 'Art changed.', 'ok');
+            load();
+        }
+        // the Monster Sheet keeps the art and its newest save wins, so this save is stamped newest (only the DM who added it may)
+        async function monArt(t, art) {
+            const api = '/sheets/monster/cloud.php';
+            try {
+                const r = await fetch(`${api}?id=${encodeURIComponent(t.mon)}`, { cache: 'no-store' });
+                const m = r.ok ? await r.json() : null;
+                if (!m || m.id !== t.mon) { toast('Only the DM who added this monster can change its art.', 'err'); return false; }
+                m.art = art; m.updated = Math.max(Date.now(), (+m.updated || 0) + 1);
+                const w = await fetch(api, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m) });
+                if (!w.ok) { toast((await w.json().catch(() => ({}))).error || "Couldn't save the art. Try again.", 'err'); return false; }
+                return true;
+            } catch (e) { toast("Couldn't reach the site. Check your connection and try again.", 'err'); return false; }
+        }
+        // drop a picture file on a token you may change
+        const dropTok = (e) => { const el = e.target.closest?.('.mp-tok'), t = el && tokOf(el.dataset.k); return t && (S.dm || t.mine) && canEdit() ? t : null; };
+        view.addEventListener('dragover', (e) => { if (!e.dataTransfer?.types.includes('Files')) return; e.preventDefault(); e.dataTransfer.dropEffect = dropTok(e) ? 'copy' : 'none'; });
+        view.addEventListener('drop', (e) => {
+            if (!e.dataTransfer?.types.includes('Files')) return;
+            e.preventDefault();
+            const t = dropTok(e), f = e.dataTransfer.files[0];
+            if (!t) return toast('Drop the picture on a token you can change.');
+            if (f) setArt(t, f);
+        });
         const setHidden = (t, on) => (t.fight ? window.Fight.act(c, 'hide', { e: t.fight, on }) : post({ op: 'token', k: t.k, hidden: on }));
 
         // ---- changes ----
@@ -631,7 +694,7 @@ window.BattleMap = (() => {
         const sendRuler = throttle((pts) => post({ op: 'ruler', pts }, true), 150);
         const sendTrail = throttle((tr) => { tr.sent = Date.now(); post({ op: 'trail', id: tr.id, pts: [tr.target], color: tr.c }, true); }, 80);
         function snap(t, x, y) {
-            const g = S.m.grid, [x0, y0] = cells(g, S.m.w, S.m.h), n = SIZES[t.size] || 1;
+            const g = S.m.grid, [x0, y0] = cells(g, S.m.w, S.m.h), n = t.sq || SIZES[t.size] || 1;
             if (n < 1) { const cx = x + (n * g.s) / 2, cy = y + (n * g.s) / 2, off = (g.s - n * g.s) / 2; return [x0 + Math.floor((cx - x0) / g.s) * g.s + off, y0 + Math.floor((cy - y0) / g.s) * g.s + off]; }
             return [x0 + Math.round((x - x0) / g.s) * g.s, y0 + Math.round((y - y0) / g.s) * g.s];
         }
@@ -769,6 +832,8 @@ window.BattleMap = (() => {
             // Select (and Tokens, which also lets you pick)
             if (!S.full && !t) { G = { ...base, type: 'pan', tx: S.tx, ty: S.ty }; return; }
             if (S.dm) for (const id of S.picks) { const o = ovOf(id); if (!o) continue; const h = handles(o); if (Math.hypot(p[0] - h.size[0], p[1] - h.size[1]) < 12 / S.k) { G = { ...base, type: 'ovsize', o }; return; } if (Math.hypot(p[0] - h.turn[0], p[1] - h.turn[1]) < 12 / S.k) { G = { ...base, type: 'ovturn', o }; return; } }
+            const grip = t && e.target.closest('[data-h]');
+            if (grip && movable(t) && canEdit()) { G = { ...base, type: grip.dataset.h === 'rot' ? 'tokrot' : 'toksize', t, sz: span(t), x0: t.x, y0: t.y }; return; }
             if (t) {
                 const alone = e.shiftKey && t.group && S.picks.has(t.k);
                 if (!alone) {
@@ -829,6 +894,15 @@ window.BattleMap = (() => {
                 drawMarks(); drawLive();
             }
             else if (G.type === 'ovsize') { const o = G.o; o.len = Math.max(S.m.grid.s / 4, o.type === 'square' ? Math.hypot(p[0] - o.x, p[1] - o.y) * Math.SQRT2 : Math.hypot(p[0] - o.x, p[1] - o.y)); drawMarks(); drawLive(); }
+            else if (G.type === 'tokrot' || G.type === 'toksize') {
+                const t = G.t, cx = G.x0 + G.sz / 2, cy = G.y0 + G.sz / 2, el = toks.querySelector(`[data-k="${CSS.escape(t.k)}"]`);
+                if (G.type === 'tokrot') { const a = (Math.atan2(p[1] - cy, p[0] - cx) * 180) / Math.PI + 90; t.rot = Math.round((((e.shiftKey ? Math.round(a / 45) * 45 : a) % 360) + 360) % 360 * 10) / 10; el?.style.setProperty('--rot', t.rot + 'deg'); }
+                else {
+                    const s = S.m.grid.s, sq = Math.round(clamp((2 * Math.abs(p[0] - cx)) / s, 0.25, 30) * 100) / 100;
+                    Object.assign(t, { sq, x: cx - (sq * s) / 2, y: cy - (sq * s) / 2 });
+                    if (el) Object.assign(el.style, { left: t.x + 'px', top: t.y + 'px', width: sq * s + 'px', height: sq * s + 'px' });
+                }
+            }
             else if (G.type === 'ovturn') { G.o.ang = Math.atan2(p[1] - G.o.y, p[0] - G.o.x); drawMarks(); drawLive(); }
             else if (G.type === 'box') { Object.assign(box.style, { left: Math.min(G.p[0], p[0]) + 'px', top: Math.min(G.p[1], p[1]) + 'px', width: Math.abs(p[0] - G.p[0]) + 'px', height: Math.abs(p[1] - G.p[1]) + 'px' }); box.hidden = false; }
             else if (G.type === 'wait' || G.type === 'move') {
@@ -861,6 +935,8 @@ window.BattleMap = (() => {
             else if (g.type === 'erase') { if (g.del.length) post({ op: 'drawdel', ids: g.del }); }
             else if (g.type === 'newov') { const o = S.newOv; S.newOv = null; if (o.len > S.m.grid.s / 4) { S.m.overlays.push(o); S.picks = new Set([o.id]); post({ op: 'overlay', o }); drawOpts(); } drawMarks(); drawLive(); }
             else if (g.type === 'ovsize' || g.type === 'ovturn') post({ op: 'overlay', o: g.o });
+            else if (g.type === 'tokrot') { if (g.moved && !(await post({ op: 'token', k: g.t.k, rot: g.t.rot || 0 }))) load(); }
+            else if (g.type === 'toksize') { if (g.moved && !((await post({ op: 'token', k: g.t.k, sq: g.t.sq })) && (await post({ op: 'move', k: g.t.k, x: g.t.x, y: g.t.y, placed: true })))) load(); drawToks(); placeMenu(); }
             else if (g.type === 'box') {
                 const L = Math.min(g.p[0], p[0]), Rr = Math.max(g.p[0], p[0]), Tt = Math.min(g.p[1], p[1]), B = Math.max(g.p[1], p[1]);
                 if (Rr - L > 4 || B - Tt > 4) for (const t of S.m.tokens) { if (!t.placed || !(S.dm || t.mine)) continue; const sz = span(t), X = t.x + sz / 2, Y = t.y + sz / 2; if (X >= L && X <= Rr && Y >= Tt && Y <= B) S.picks.add(t.k); }
@@ -965,9 +1041,10 @@ window.BattleMap = (() => {
                     return changeHp(t, v, n);
                 }
                 case 'cond': return toggleCond(t, v);
-                case 'size': t.size = v; drawToks(); if (await post({ op: 'token', k: t.k, size: v })) load(); return;
+                case 'size': t.size = v; delete t.sq; drawToks(); if (await post({ op: 'token', k: t.k, size: v })) load(); return;
                 case 'ring': t.ring = v; drawToks(); drawMenu(); return post({ op: 'token', k: t.k, ring: v });
                 case 'rensave': { const name = part('menu').querySelector('[data-mpi=ren]').value.trim(); document.activeElement?.blur(); if (name && (await post({ op: 'token', k: t.k, name }))) load(); return; }
+                case 'artpick': return part('menu').querySelector('[data-mpi=artfile]')?.click();
                 case 'noname': t.noName = !t.noName; drawToks(); drawMenu(); return post({ op: 'token', k: t.k, noName: t.noName });
             }
         });
@@ -1017,6 +1094,7 @@ window.BattleMap = (() => {
             if (k === 'hptemp' && t) { const n = Math.max(0, parseInt(i.value, 10) || 0); i.blur(); if (t.kind === 'pc') changeHp(t, 'temp', n); else setMonHp(t, { k: 'set', hp: { temp: n } }); return; }
             if (k === 'hpmax' && t) { const n = parseInt(i.value, 10); i.value = ''; i.blur(); if (n > 0) setMonHp(t, { k: 'set', hp: { base: n, mod: 0, cur: Math.min(t.hp.cur, n) } }); return; }
             if (k === 'ovpat') { S.ovPat = +i.value; for (const id of S.picks) { const o = ovOf(id); if (o) { o.pat = S.ovPat; post({ op: 'overlay', o }, true); } } remember(); return drawMarks(); }
+            if (k === 'artfile') { const f = i.files[0]; i.value = ''; if (f && t) setArt(t, f); return; }
             if (k === 'brtype') { S.brType = i.value; return drawOpts(); }
             if (k === 'brsize') { S.brSize = i.value; return drawOpts(); }
             if (k === 'brcr') { S.brCr = i.value; return drawOpts(); }
