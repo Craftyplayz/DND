@@ -369,6 +369,44 @@ try {
     await until(pat, `!!${tokOf('Lock')}`, Boolean);
     is('every goblin copy shows it', await until(dm, `['Goblin A', 'Goblin B'].every((n) => [...document.querySelectorAll('.mp-tok')].find((e) => e.getAttribute('aria-label').startsWith(n))?.querySelector('img')?.src.startsWith('data:image/jpeg'))`, Boolean), true);
 
+    // map pictures (2026-11-13): Pat drops a PNG on the map, under Lock; anyone moves, sizes and turns it; the DM hides it
+    await pat.ev(HELP); await dm.ev(HELP);
+    const P0 = [lc[0], lc[1] + 1.25 * gs + 120];
+    await pat.ev(`(async () => { const f = await new Promise((ok) => { const c = document.createElement('canvas'); c.width = 400; c.height = 200; c.getContext('2d').fillRect(0, 0, 400, 100); c.toBlob((b) => ok(new File([b], 'chest.png', { type: 'image/png' }))); });
+        const dt = new DataTransfer(); dt.items.add(f); const [x, y] = __pt(${P0[0]}, ${P0[1]}), el = document.elementFromPoint(x, y);
+        el.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientX: x, clientY: y })); return 1; })()`);
+    const pic0 = () => mapJson().pics?.[0];
+    await until(pat, '1', () => !!pic0(), 8000);
+    is('dropped: a picture where it fell, 2 squares wide, its shape kept', [Math.abs(pic0()?.x - P0[0]) < 2, Math.abs(pic0()?.y - P0[1]) < 2, pic0()?.w, pic0()?.h], [true, true, 2 * gs, gs]);
+    is('the DM sees it, under the tokens', await until(dm, `document.querySelectorAll('.mp-pic img').length === 1 && !!document.querySelector('.mp-pics + .mp-toks')`, Boolean), true);
+    is('picked: turn and resize handles, and a menu with Delete (no Hide for players)', await until(pat, `!!document.querySelector('.mp-pic.picked [data-ph=rot]') && !!document.querySelector('.mp-pic.picked [data-ph=size]') && !!document.querySelector('[data-mpa=picdel]') && !document.querySelector('[data-mpa=pichide]')`, Boolean), true);
+    await drag(pat, [P0, [P0[0] + 25, P0[1]], [P0[0] + 50, P0[1]]], { el: '.mp-pic' });
+    is('moved', await until(pat, '1', () => Math.abs(pic0()?.x - P0[0] - 50) < 2, 5000).then(() => Math.abs(pic0()?.x - P0[0] - 50) < 2), true);
+    await until(pat, `!!document.querySelector('.mp-pic.picked [data-ph=size]')`, Boolean);
+    const q0 = pic0();
+    await drag(pat, [[q0.x + q0.w / 2, q0.y + q0.h / 2], [q0.x + q0.w, q0.y + q0.h]], { el: '.mp-pic.picked [data-ph=size]' });
+    is('resized from the corner: twice as big, still 2 : 1', await until(pat, '1', () => Math.round(pic0()?.w) === 2 * q0.w, 5000).then(() => [Math.round(pic0().w), Math.round(pic0().h)]), [2 * q0.w, 2 * q0.h]);
+    await until(pat, `!!document.querySelector('.mp-pic.picked [data-ph=rot]')`, Boolean);
+    const q1 = pic0();
+    await drag(pat, [[q1.x, q1.y - q1.h / 2 - 20], [q1.x + 50, q1.y - 50], [q1.x + 100, q1.y + 0.5], [q1.x + 100, q1.y]], { el: '.mp-pic.picked [data-ph=rot]' });
+    is('turned a quarter to the right', await until(pat, '1', () => Math.round(pic0()?.rot) === 90, 5000).then(() => Math.round(pic0()?.rot)), 90);
+    is('the DM sees it turned', await until(dm, `document.querySelector('.mp-pic')?.style.transform || ''`, (t) => /rotate\(90/.test(t)), 'rotate(90deg)');
+    await dm.ev(`(() => { const r = document.querySelector('.mp-pic').getBoundingClientRect(), o = { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1, isPrimary: true };
+        document.querySelector('.mp-pic').dispatchEvent(new PointerEvent('pointerdown', o)); document.querySelector('[data-mp=view]').dispatchEvent(new PointerEvent('pointerup', o)); })(); 1`);
+    await until(dm, `!!document.querySelector('[data-mpa=pichide]')`, Boolean);
+    if (process.env.PIC_SHOT) writeFileSync(process.env.PIC_SHOT, await dm.shot(1100));
+    await click(dm, '[data-mpa=pichide]');
+    const picUrl = `${BASE}/campaigns/maps.php?c=${CAMP}&m=${mapJson().id}&pic=${pic0().id}`;
+    is('hidden by the DM: gone for Pat, and its address refuses them', [await until(pat, `document.querySelectorAll('.mp-pic').length`, (n) => n === 0), (await fetch(picUrl, { headers: { Cookie: 'dndsid=' + SID.pat } })).status], [0, 404]);
+    await click(dm, '[data-mpa=pichide]');
+    await until(pat, `document.querySelectorAll('.mp-pic').length`, (n) => n === 1);
+    is('revealed: Pat gets the picture itself', (await fetch(picUrl, { headers: { Cookie: 'dndsid=' + SID.pat } })).headers.get('content-type'), 'image/webp');
+    await pat.ev(`(() => { const r = document.querySelector('.mp-pic').getBoundingClientRect(), o = { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1, isPrimary: true };
+        document.querySelector('.mp-pic').dispatchEvent(new PointerEvent('pointerdown', o)); document.querySelector('[data-mp=view]').dispatchEvent(new PointerEvent('pointerup', o)); })(); 1`);
+    await until(pat, `!!document.querySelector('[data-mpa=picdel]')`, Boolean);
+    await click(pat, '[data-mpa=picdel]');
+    is('Pat deletes it: gone for the DM too', [await until(dm, `document.querySelectorAll('.mp-pic').length`, (n) => n === 0), await until(pat, '1', () => !mapJson().pics?.length, 5000).then(() => mapJson().pics.length)], [0, 0]);
+
     // Pat draws: it shows for the DM; they erase only their own line
     await rail(pat, 'draw');
     await until(pat, `!!document.querySelector('[data-mpa=penmode]')`, Boolean);

@@ -38,7 +38,7 @@ window.BattleMap = (() => {
     const throttle = (fn, ms) => { let t = 0, last = null; const run = () => { t = 0; fn(...last); }; return (...a) => { last = a; if (!t) t = setTimeout(run, ms); }; };
     const ph = (s) => `<span class="mpt-ph" aria-hidden="true">${esc(s)}</span>`;
     // a button's icon by the names in map-icons.js; a button's own words map onto them
-    const ICON_OF = { Point: 'Point and Ping', 'Add Square Overlay': 'Square overlay', 'Add Circle Overlay': 'Circle overlay', 'Add Cone Overlay': 'Cone overlay', 'Add Line Overlay': 'Line overlay', 'Reveal overlay': 'Hide overlay', COMBAT: 'Combat', HIDE: 'Hide', REVEAL: 'Hide', RING: 'Ring', SIZE: 'Size', MORE: 'More' };
+    const ICON_OF = { Point: 'Point and Ping', 'Add Square Overlay': 'Square overlay', 'Add Circle Overlay': 'Circle overlay', 'Add Cone Overlay': 'Cone overlay', 'Add Line Overlay': 'Line overlay', 'Reveal overlay': 'Hide overlay', COMBAT: 'Combat', HIDE: 'Hide', REVEAL: 'Hide', DELETE: 'Delete overlay', RING: 'Ring', SIZE: 'Size', MORE: 'More' };
     const ic = (name, fallback = '') => { const svg = window.MapIcons?.get(ICON_OF[name] || name); return svg ? `<span class="mpt-ph" aria-hidden="true">${svg}</span>` : ph(fallback || name[0]); };
     const art = (x) => (x.art ? `<img src="${esc(x.art)}" alt="" referrerpolicy="no-referrer" draggable="false" onerror="this.remove()">` : '');
     const clock = (at, skew) => { const s = Math.max(0, Math.floor((Date.now() + skew - at) / 1000)); return (Math.floor(s / 3600) ? `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}` : Math.floor(s / 60)) + ':' + String(s % 60).padStart(2, '0'); };
@@ -67,14 +67,15 @@ window.BattleMap = (() => {
         });
         const remember = () => { const { fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointColor } = S; try { localStorage.setItem(TOOLKEY, JSON.stringify({ fogShape, fogSize, penMode, penSize, penColor, ovType, ovColor, ovPat, pointColor })); } catch (e) { } };
         // ---- the stage ----
-        view.innerHTML = `<div class="mp-stage"><img class="mp-img" alt="" draggable="false"><div class="mp-under"><canvas class="mp-marks"></canvas><div class="mp-grid"></div></div><div class="mp-toks"></div>
+        view.innerHTML = `<div class="mp-stage"><img class="mp-img" alt="" draggable="false"><div class="mp-under"><canvas class="mp-marks"></canvas><div class="mp-grid"></div></div><div class="mp-pics"></div><div class="mp-toks"></div>
             <canvas class="mp-fog"></canvas><svg class="mp-ruler" aria-hidden="true"></svg><div class="mp-box" hidden></div></div><p class="mp-msg muted" hidden></p>`;
         const $ = (s) => view.querySelector(s);
-        const stage = $('.mp-stage'), img = $('.mp-img'), under = $('.mp-under'), marks = $('.mp-marks'), grid = $('.mp-grid'), toks = $('.mp-toks'), fogC = $('.mp-fog'), svg = $('.mp-ruler'), box = $('.mp-box'), msg = $('.mp-msg');
+        const pics = $('.mp-pics'), stage = $('.mp-stage'), img = $('.mp-img'), under = $('.mp-under'), marks = $('.mp-marks'), grid = $('.mp-grid'), toks = $('.mp-toks'), fogC = $('.mp-fog'), svg = $('.mp-ruler'), box = $('.mp-box'), msg = $('.mp-msg');
         const offline = () => S.failed || !navigator.onLine;
         const canEdit = () => !S.table && !offline() && (S.dm || !S.paused);
         const tokOf = (k) => S.m?.tokens.find((t) => t.k === k);
         const ovOf = (id) => S.m?.overlays?.find((o) => o.id === id);
+        const picOf = (id) => S.m?.pics?.find((p) => p.id === id);
         const span = (t) => (t.sq || SIZES[t.size] || 1) * S.m.grid.s; // sq: a size dragged with the handles, any width
         const entryOf = (t) => S.fight?.entries.find((e) => e.id === t.fight) || null;
         const movable = (t) => (S.dm || t.mine) && !t.locked;
@@ -120,7 +121,7 @@ window.BattleMap = (() => {
                 sendGo();
                 if (was?.id !== S.m?.id || was?.fog?.ops?.length !== S.m?.fog?.ops?.length) S.fogLive = {}; // a saved stroke replaces its live copy
                 if (was?.id !== S.m?.id) { S.picks.clear(); S.panel = null; S.poly = []; S.fogUndo = []; S.fogOps = null; }
-                for (const id of [...S.picks]) if (!tokOf(id) && !ovOf(id)) S.picks.delete(id);
+                for (const id of [...S.picks]) if (!tokOf(id) && !ovOf(id) && !picOf(id)) S.picks.delete(id);
             } catch (e) { S.failed = true; }
             draw();
         }
@@ -261,7 +262,23 @@ window.BattleMap = (() => {
         }
         // ---- tokens ----
         const face = (t) => `<span class="mp-face">${art(t)}<span aria-hidden="true">${esc(initials(t.name))}</span></span>`;
+        // ---- map pictures (2026-11-13): dropped on the map; anyone may move, size (keeping the shape) and turn them ----
+        function drawPics() {
+            const m = S.m, have = new Map([...pics.children].map((el) => [el.dataset.id, el]));
+            for (const p of m.pics || []) {
+                let el = have.get(p.id);
+                have.delete(p.id);
+                if (!el) { el = document.createElement('div'); el.className = 'mp-pic'; el.dataset.id = p.id; el.innerHTML = `<img alt="" draggable="false" src="${esc(p.src)}">`; pics.append(el); }
+                const on = S.picks.has(p.id), grips = on && S.picks.size === 1 && canEdit() && G?.type !== 'picmove'
+                    ? `<span class="mp-h mp-hrot" data-ph="rot" title="Turn (Shift: 45° steps)">${ic('Rotate token')}</span><span class="mp-h mp-hcorner" data-ph="size" title="Resize">${ic('Size')}</span>` : '';
+                if (el.dataset.g !== grips) { el.querySelectorAll('.mp-h').forEach((h) => h.remove()); el.insertAdjacentHTML('beforeend', grips); el.dataset.g = grips; }
+                Object.assign(el.style, { left: p.x - p.w / 2 + 'px', top: p.y - p.h / 2 + 'px', width: p.w + 'px', height: p.h + 'px', transform: `rotate(${p.rot || 0}deg)` });
+                el.classList.toggle('picked', on); el.classList.toggle('hid', !!p.hidden); el.classList.toggle('can', canEdit());
+            }
+            for (const el of have.values()) el.remove();
+        }
         function drawToks() {
+            drawPics();
             const m = S.m, have = new Map([...toks.children].map((el) => [el.dataset.k, el]));
             for (const t of m.tokens.filter((x) => x.placed)) {
                 let el = have.get(t.k);
@@ -557,7 +574,14 @@ window.BattleMap = (() => {
         function drawMenu() {
             const box = part('menu');
             if (!box) return;
-            const m = S.m, ids = [...S.picks].map(tokOf).filter(Boolean);
+            const m = S.m, ids = [...S.picks].map(tokOf).filter(Boolean), pic = S.picks.size === 1 && picOf([...S.picks][0]);
+            if (m && pic && !G) {
+                const Tab = (a, name, p) => `<button type="button" class="mpt-tab" data-mpa="${a}"${canEdit() ? '' : ' disabled'}>${ic(name, p)}<span>${name}</span></button>`;
+                const h = `<div class="mpt-mh"><div class="who"><b>Picture</b><small>Drag to move. Handles turn and resize it.</small></div></div><div class="mpt-tabs">${S.dm ? Tab('pichide', pic.hidden ? 'REVEAL' : 'HIDE', 'E') : ''}${Tab('picdel', 'DELETE', 'X')}</div>`;
+                box.hidden = false;
+                if (box.dataset.h !== h) { box.innerHTML = h; box.dataset.h = h; box.dataset.for = pic.id; }
+                return placeMenu();
+            }
             if (!m || !ids.length || G?.type === 'move' || (!S.dm && !ids.every((t) => t.mine))) { box.hidden = true; return; }
             box.hidden = false;
             const t = ids[0], many = ids.length > 1, e = encOf(), hasHp = !many && t.hp && t.kind !== 'plain', dis = canEdit() ? '' : ' disabled', conds = (t.conds || t.cond || []);
@@ -582,9 +606,10 @@ window.BattleMap = (() => {
         function placeMenu() {
             const box = part('menu');
             if (!box || box.hidden || !S.m) return;
-            const t = [...S.picks].map(tokOf).filter(Boolean)[0];
-            if (!t) return;
-            const sz = span(t), R = view.getBoundingClientRect(), W = box.offsetWidth, H = box.offsetHeight, X = t.placed ? (t.x + sz / 2) * S.k + S.tx : R.width / 2, Y = t.placed ? t.y * S.k + S.ty : R.height / 2;
+            const t = [...S.picks].map(tokOf).filter(Boolean)[0], pic = !t && S.picks.size === 1 && picOf([...S.picks][0]);
+            if (!t && !pic) return;
+            const R = view.getBoundingClientRect(), W = box.offsetWidth, H = box.offsetHeight, r = pic ? Math.hypot(pic.w, pic.h) / 2 : 0;
+            const sz = pic ? 2 * r : span(t), X = pic ? pic.x * S.k + S.tx : t.placed ? (t.x + sz / 2) * S.k + S.tx : R.width / 2, Y = pic ? (pic.y - r) * S.k + S.ty : t.placed ? t.y * S.k + S.ty : R.height / 2;
             box.style.left = clamp(X - W / 2, 8, Math.max(8, R.width - W - 8)) + 'px';
             // under the token and its name badge, clear of the turn handle on top (owner's choice, 2026-11-13); above only when there's no room below
             const below = Y + sz * S.k + 30;
@@ -680,14 +705,25 @@ window.BattleMap = (() => {
         }
         // drop a picture file on a token you may change
         const dropTok = (e) => { const el = e.target.closest?.('.mp-tok'), t = el && tokOf(el.dataset.k); return t && (S.dm || t.mine) && canEdit() ? t : null; };
-        view.addEventListener('dragover', (e) => { if (!e.dataTransfer?.types.includes('Files')) return; e.preventDefault(); e.dataTransfer.dropEffect = dropTok(e) ? 'copy' : 'none'; });
+        view.addEventListener('dragover', (e) => { if (!e.dataTransfer?.types.includes('Files')) return; e.preventDefault(); e.dataTransfer.dropEffect = S.m && canEdit() ? 'copy' : 'none'; });
         view.addEventListener('drop', (e) => {
             if (!e.dataTransfer?.types.includes('Files')) return;
             e.preventDefault();
             const t = dropTok(e), f = e.dataTransfer.files[0];
-            if (!t) return toast('Drop the picture on a token you can change.');
-            if (f) setArt(t, f);
+            if (!f || !S.m || !canEdit()) return;
+            if (t) return setArt(t, f);
+            addPic(f, toMap(e));
         });
+        async function addPic(file, [x, y]) {
+            if (!/^image\//.test(file.type)) return toast('Drop a picture: PNG, JPG, WebP or GIF.', 'err');
+            try {
+                const r = await fetch(`/campaigns/maps.php?c=${encodeURIComponent(c)}&m=${encodeURIComponent(S.m.id)}&pic=new&x=${Math.round(x)}&y=${Math.round(y)}`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+                const out = await r.json().catch(() => ({}));
+                if (!r.ok) return toast(out.error || "Couldn't add the picture. Try again.", 'err');
+                await load();
+                S.picks = new Set([out.id]); S.panel = null; drawToks(); drawMenu();
+            } catch (e) { toast("Couldn't reach the site. Check your connection and try again.", 'err'); }
+        }
         const setHidden = (t, on) => (t.fight ? window.Fight.act(c, 'hide', { e: t.fight, on }) : post({ op: 'token', k: t.k, hidden: on }));
 
         // ---- changes ----
@@ -729,6 +765,8 @@ window.BattleMap = (() => {
         }
         const round = (p) => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10];
         function deleteSel() {
+            const gone = [...S.picks].filter(picOf);
+            if (gone.length && canEdit()) { S.m.pics = S.m.pics.filter((p) => !gone.includes(p.id)); for (const id of gone) S.picks.delete(id); drawPics(); drawMenu(); post({ op: 'picdel', ids: gone }).then((ok) => ok || load()); }
             if (!S.dm || !S.m) return;
             for (const id of [...S.picks]) {
                 const t = tokOf(id);
@@ -834,6 +872,16 @@ window.BattleMap = (() => {
             // Select (and Tokens, which also lets you pick)
             if (!S.full && !t) { G = { ...base, type: 'pan', tx: S.tx, ty: S.ty }; return; }
             if (S.dm) for (const id of S.picks) { const o = ovOf(id); if (!o) continue; const h = handles(o); if (Math.hypot(p[0] - h.size[0], p[1] - h.size[1]) < 12 / S.k) { G = { ...base, type: 'ovsize', o }; return; } if (Math.hypot(p[0] - h.turn[0], p[1] - h.turn[1]) < 12 / S.k) { G = { ...base, type: 'ovturn', o }; return; } }
+            const pe = !t && e.target.closest('.mp-pic'), pic = pe && picOf(pe.dataset.id);
+            if (pic) {
+                if (e.shiftKey) { if (S.picks.has(pic.id)) S.picks.delete(pic.id); else S.picks.add(pic.id); }
+                else if (!S.picks.has(pic.id)) { S.picks = new Set([pic.id]); S.panel = null; }
+                const ph = e.target.closest('[data-ph]');
+                if (canEdit()) G = { ...base, type: ph ? (ph.dataset.ph === 'rot' ? 'picrot' : 'picsize') : 'picwait', pic, x0: pic.x, y0: pic.y, w0: pic.w, d0: Math.max(1, Math.hypot(p[0] - pic.x, p[1] - pic.y)) };
+                else G = { ...base, type: 'pan', tx: S.tx, ty: S.ty };
+                drawOpts(); drawToks(); drawLive(); drawMenu();
+                return;
+            }
             const grip = t && e.target.closest('[data-h]');
             if (grip && movable(t) && canEdit()) { G = { ...base, type: grip.dataset.h === 'rot' ? 'tokrot' : 'toksize', t, sz: span(t), x0: t.x, y0: t.y }; return; }
             if (t) {
@@ -896,6 +944,14 @@ window.BattleMap = (() => {
                 drawMarks(); drawLive();
             }
             else if (G.type === 'ovsize') { const o = G.o; o.len = Math.max(S.m.grid.s / 4, o.type === 'square' ? Math.hypot(p[0] - o.x, p[1] - o.y) * Math.SQRT2 : Math.hypot(p[0] - o.x, p[1] - o.y)); drawMarks(); drawLive(); }
+            else if (G.type === 'picwait' || G.type === 'picmove' || G.type === 'picrot' || G.type === 'picsize') {
+                const q = G.pic;
+                if (G.type === 'picwait') { if (!G.moved) return; G.type = 'picmove'; part('menu') && (part('menu').hidden = true); }
+                if (G.type === 'picmove') { q.x = G.x0 + p[0] - G.p[0]; q.y = G.y0 + p[1] - G.p[1]; }
+                else if (G.type === 'picrot') { const a = (Math.atan2(p[1] - q.y, p[0] - q.x) * 180) / Math.PI + 90; q.rot = Math.round((((e.shiftKey ? Math.round(a / 45) * 45 : a) % 360) + 360) % 360 * 10) / 10; }
+                else { const w = clamp(G.w0 * Math.hypot(p[0] - q.x, p[1] - q.y) / G.d0, 4, 4 * Math.max(S.m.w, S.m.h)); q.h = (q.h * w) / q.w; q.w = w; }
+                drawPics();
+            }
             else if (G.type === 'tokrot' || G.type === 'toksize') {
                 const t = G.t, cx = G.x0 + G.sz / 2, cy = G.y0 + G.sz / 2, el = toks.querySelector(`[data-k="${CSS.escape(t.k)}"]`);
                 if (G.type === 'tokrot') { const a = (Math.atan2(p[1] - cy, p[0] - cx) * 180) / Math.PI + 90; t.rot = Math.round((((e.shiftKey ? Math.round(a / 45) * 45 : a) % 360) + 360) % 360 * 10) / 10; el?.style.setProperty('--rot', t.rot + 'deg'); }
@@ -937,6 +993,12 @@ window.BattleMap = (() => {
             else if (g.type === 'erase') { if (g.del.length) post({ op: 'drawdel', ids: g.del }); }
             else if (g.type === 'newov') { const o = S.newOv; S.newOv = null; if (o.len > S.m.grid.s / 4) { S.m.overlays.push(o); S.picks = new Set([o.id]); post({ op: 'overlay', o }); drawOpts(); } drawMarks(); drawLive(); }
             else if (g.type === 'ovsize' || g.type === 'ovturn') post({ op: 'overlay', o: g.o });
+            else if (g.type === 'picmove' || g.type === 'picrot' || g.type === 'picsize') {
+                const q = g.pic;
+                if (g.moved && !(await post({ op: 'pic', id: q.id, o: { x: q.x, y: q.y, w: q.w, rot: q.rot || 0 } }))) load();
+                drawToks(); drawMenu();
+            }
+            else if (g.type === 'picwait') drawMenu();
             else if (g.type === 'tokrot') { if (g.moved && !(await post({ op: 'token', k: g.t.k, rot: g.t.rot || 0 }))) load(); }
             else if (g.type === 'toksize') { if (g.moved && !((await post({ op: 'token', k: g.t.k, sq: g.t.sq })) && (await post({ op: 'move', k: g.t.k, x: g.t.x, y: g.t.y, placed: true })))) load(); drawToks(); placeMenu(); }
             else if (g.type === 'box') {
@@ -1046,6 +1108,8 @@ window.BattleMap = (() => {
                 case 'size': t.size = v; delete t.sq; drawToks(); if (await post({ op: 'token', k: t.k, size: v })) load(); return;
                 case 'ring': t.ring = v; drawToks(); drawMenu(); return post({ op: 'token', k: t.k, ring: v });
                 case 'rensave': { const name = part('menu').querySelector('[data-mpi=ren]').value.trim(); document.activeElement?.blur(); if (name && (await post({ op: 'token', k: t.k, name }))) load(); return; }
+                case 'pichide': { const q = picOf([...S.picks][0]); if (!q) return; q.hidden = !q.hidden; drawPics(); drawMenu(); if (!(await post({ op: 'pic', id: q.id, o: { hidden: q.hidden } }))) load(); return; }
+                case 'picdel': return deleteSel();
                 case 'artpick': return part('menu').querySelector('[data-mpi=artfile]')?.click();
                 case 'noname': t.noName = !t.noName; drawToks(); drawMenu(); return post({ op: 'token', k: t.k, noName: t.noName });
             }

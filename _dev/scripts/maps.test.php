@@ -222,6 +222,22 @@ $is('not a picture, not a plain token', [$op('111', ['op' => 'token', 'k' => $la
 $op('222', ['op' => 'token', 'k' => $lockK, 'art' => $px]);
 $is("a player's token op never sets art", $tok(mp_view($A, $c, '111'), 'Lock')['art'], '');
 $op('111', ['op' => 'token', 'k' => $lairK, 'art' => '']);
+// map pictures (2026-11-13): anyone adds, moves, sizes, turns and removes them; the DM hides; fog and hidden keep them from players
+$mm = fn() => mp_read($A, $c['id'], $m['id']);
+$pa = mp_pic_add($A, $c['id'], '222', $mm(), $bytes, 50, 50);
+$pid = $pa[1]['id'] ?? '';
+$pp = $mm()['pics'][0] ?? [];
+$is('a picture: saved as WebP, 2 squares on its longest side, keeping its shape', [$pa[0], is_file(mp_root($A, $c['id']) . "/{$m['id']}/pics/$pid.webp"), (float)$pp['w'], (float)$pp['h']], [200, true, 200.0, 150.0]);
+$is('not a picture', mp_pic_add($A, $c['id'], '222', $mm(), 'hello', 0, 0)[0], 415);
+$is('Pat moves, sizes and turns it; the shape stays', [$op('222', ['op' => 'pic', 'id' => $pid, 'o' => ['x' => 60, 'y' => 70, 'w' => 100, 'rot' => -45, 'hidden' => true]])[0], array_map(fn($v) => is_bool($v) ? $v : (float)$v, array_intersect_key($mm()['pics'][0], array_flip(['x', 'y', 'w', 'h', 'rot', 'hidden'])))],
+    [200, ['x' => 60.0, 'y' => 70.0, 'w' => 100.0, 'h' => 75.0, 'rot' => 315.0, 'hidden' => false]]);
+$is('too small, not a number', [$op('222', ['op' => 'pic', 'id' => $pid, 'o' => ['w' => 1]])[0], $op('222', ['op' => 'pic', 'id' => $pid, 'o' => ['x' => 'a']])[0]], [400, 400]);
+$pv = fn($sub) => array_column(mp_view($A, $c, $sub)['map']['pics'], 'id');
+$is('players get it, with its address', [$pv('222'), str_contains(mp_view($A, $c, '222')['map']['pics'][0]['src'], "pic=$pid")], [[$pid], true]);
+$op('111', ['op' => 'pic', 'id' => $pid, 'o' => ['hidden' => true]]);
+$is('hidden by the DM: players never get it, nor change it', [$pv('222'), $pv('111'), $op('222', ['op' => 'pic', 'id' => $pid, 'o' => ['x' => 1]])[0], $op('222', ['op' => 'picdel', 'ids' => [$pid]])[0]], [[], [$pid], 404, 404]);
+$op('111', ['op' => 'pic', 'id' => $pid, 'o' => ['hidden' => false]]);
+$is('Pat removes it; the file stays', [$op('222', ['op' => 'picdel', 'ids' => [$pid]])[0], $mm()['pics'], is_file(mp_root($A, $c['id']) . "/{$m['id']}/pics/$pid.webp")], [200, [], true]);
 $is('own token: its character id for its owner, not for others', [$tok(mp_view($A, $c, '222'), 'Lock')['char'], isset($tok(mp_view($A, $c, CP_TABLE), 'Lock')['char'])], ['lock', false]);
 // the DM's token fields
 $is('ring, name badge, group, conditions', [$op('111', ['op' => 'token', 'k' => $gk, 'ring' => '#00ff00', 'noName' => true, 'group' => 'g1', 'cond' => ['Prone', ' ']])[0], $op('111', ['op' => 'token', 'k' => $gk, 'ring' => 'red'])[0]], [200, 400]);

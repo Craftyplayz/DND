@@ -5,6 +5,8 @@
 //   GET ?c=&m=&img=work                      -> the map's picture (players: the map on the table); every screen draws the fog over it
 //   GET ?c=&m=&img=public&n=<n>              -> an older masked copy, kept: the DM and co-DMs only
 //   GET ?c=&m=&img=work | original | thumb   -> the DM and co-DMs only
+//   GET ?c=&m=&pic=<id>                      -> a picture dropped on the map (players: the map on the table, not hidden or fogged)
+//   POST ?c=&m=&pic=new&x=&y= (image/*)      -> {"id"}: a picture dropped on the map (players: the map on the table)
 //   GET ?c=&mons                             -> the DM's own monsters, to add to the fight or drop on the map
 //   POST ?c=&up=<upload id>&i=<n>  (application/octet-stream, 4 MB chunks in order)   the DM and co-DMs upload a picture
 //   POST {"c", "op": "upload", "up", "name"} -> {"map"}: the uploaded picture becomes a new map
@@ -57,6 +59,19 @@ if (!$post && isset($_GET['img'])) {
     exit;
 }
 
+if (!$post && isset($_GET['pic'])) {
+    $m = mp_read($accounts, $c['id'], $_GET['m'] ?? '');
+    $seen = !$m ? [] : ($dm ? ($m['pics'] ?? []) : ((mp_active($accounts, $c['id'])['id'] ?? null) === $m['id'] ? mp_pics_seen($m) : []));
+    $id = in_array((string)$_GET['pic'], array_column($seen, 'id'), true) ? (string)$_GET['pic'] : null;
+    $file = $id ? mp_root($accounts, $c['id']) . "/{$m['id']}/pics/$id.webp" : null;
+    if (!$file || !is_file($file)) mp_out(404, ['error' => 'No such picture.']);
+    header('Content-Type: image/webp');
+    header('Content-Length: ' . filesize($file));
+    header('Cache-Control: private, max-age=31536000, immutable'); // a picture never changes: a new one gets a new id
+    readfile($file);
+    exit;
+}
+
 if (!$post && isset($_GET['mons'])) {
     if (!$dm) mp_out(403, ['error' => 'Only the DM can do that.']);
     // only what the map page needs to roll initiative and work out AC (formula.js, as the Monster Sheet does)
@@ -99,6 +114,24 @@ if (isset($_GET['up'])) {
     $meta['n']++;
     if (!mp_put("$dir/$id.json", $meta)) mp_out(500, ['error' => "Couldn't save the upload."]);
     mp_out(200, ['n' => $meta['n']]);
+}
+
+// a picture dropped on the map: anyone in the campaign, on the map on the table (the DM: any map)
+if (isset($_GET['pic'])) {
+    if ($sub === CP_TABLE) mp_out(403, ['error' => "The Table view can't change the map."]);
+    if (stripos($type, 'image/') !== 0) mp_out(415, ['error' => 'Send the picture as an image.']);
+    $bytes = file_get_contents('php://input', false, null, 0, 8 * 1024 * 1024 + 1);
+    if ($bytes === false || $bytes === '') mp_out(400, ['error' => 'No picture was sent.']);
+    if (strlen($bytes) > 8 * 1024 * 1024) mp_out(413, ['error' => 'That picture is too big. Use one under 8 MB.']);
+    $lock = mp_lock($accounts, $c['id']);
+    if (!$lock) mp_out(500, ['error' => "Couldn't lock the maps folder."]);
+    $m = mp_read($accounts, $c['id'], $_GET['m'] ?? '');
+    $onTable = $m && (mp_active($accounts, $c['id'])['id'] ?? null) === $m['id'];
+    if (!$m || (!$dm && !$onTable)) mp_out($m ? 403 : 404, ['error' => $m ? "That map isn't on the table." : 'That map is gone. Reload the page.']);
+    [$code, $out] = mp_pic_add($accounts, $c['id'], $sub, mp_fog_upgrade($accounts, $c['id'], $m), $bytes, $_GET['x'] ?? 0, $_GET['y'] ?? 0);
+    flock($lock, LOCK_UN);
+    if ($code === 200) live_publish($c['id'], ['type' => 'map'], null, $onTable ? null : 'dm');
+    mp_out($code, $out);
 }
 
 if (!is_array($body)) mp_out(415, ['error' => 'Send JSON.']);

@@ -33,6 +33,7 @@ const MP_TYPES = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEB
 const MP_SIZES = ['T' => 0.5, 'S' => 1, 'M' => 1, 'L' => 2, 'H' => 3, 'G' => 4]; // squares across
 const MP_PTS = 5000; // points in one stroke, polygon or drawing
 const MP_SIGHT = 200; // cells along the longest side of "sight"
+const MP_PIC = 1024; // a map picture's longest side, kept as WebP
 
 // how wide a token is on map $m, in original px
 function mp_span($m, $t)
@@ -168,6 +169,72 @@ function mp_create($accounts, $c, $sub, $name, $file)
     $m = ['id' => $id, 'name' => cp_clean_name($name) ?? 'Map', 'created' => (int)round(microtime(true) * 1000), 'by' => $sub, 'archived' => 0, 'ext' => $ext,
         'w' => $w, 'h' => $h, 'ww' => imagesx($work), 'wh' => imagesy($work), 'grid' => $grid, 'draft' => mp_fogged($grid, $w, $h), 'sent' => null, 'fog' => ['n' => 1, 'ops' => [], 'sight' => null], 'tokens' => new stdClass()];
     return mp_fog_render($accounts, $c['id'], $m) && mp_write($accounts, $c['id'], $m) ? [200, $m] : [500, ['error' => "Couldn't save the map."]];
+}
+
+// ---- map pictures (2026-11-13): a picture dropped on the map becomes an object anyone in the campaign may move, size, turn or
+// remove (the owner's choice), under the tokens and the fog. pics: [{id, x, y (its centre, original px), w, h (h always follows w:
+// it keeps its shape), rot (degrees), hidden (the DM's), by}], the picture in <map>/pics/<id>.webp. Players get the ones not hidden
+// and not wholly under fog.
+
+// a dropped picture onto map $m at (x, y), 2 squares on its longest side: [code, response]. The caller holds mp_lock().
+function mp_pic_add($accounts, $cid, $sub, $m, $bytes, $x, $y)
+{
+    $info = @getimagesizefromstring($bytes);
+    if (!$info || !isset(MP_TYPES[$info[2]])) return [415, ['error' => "That isn't a PNG, JPG, WebP or GIF picture."]];
+    if (!mp_gd('512M')) return [500, ['error' => "This server can't make map pictures (PHP's GD with WebP is missing)."]];
+    $src = @imagecreatefromstring($bytes);
+    if (!$src) return [400, ['error' => "That picture couldn't be read. Save it again as a PNG and drop that."]];
+    imagepalettetotruecolor($src); // a GIF: its first frame
+    $iw = imagesx($src);
+    $ih = imagesy($src);
+    $k = min(1, MP_PIC / max($iw, $ih));
+    $W = max(1, (int)round($iw * $k));
+    $H = max(1, (int)round($ih * $k));
+    $out = imagecreatetruecolor($W, $H);
+    imagealphablending($out, false);
+    imagesavealpha($out, true);
+    imagefill($out, 0, 0, imagecolorallocatealpha($out, 0, 0, 0, 127));
+    imagecopyresampled($out, $src, 0, 0, 0, 0, $W, $H, $iw, $ih);
+    $dir = mp_root($accounts, $cid) . "/{$m['id']}/pics";
+    if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) return [500, ['error' => "Couldn't save the picture."]];
+    $id = bin2hex(random_bytes(6));
+    if (!imagewebp($out, "$dir/$id.webp", 85)) return [500, ['error' => "Couldn't save the picture."]];
+    $w = round($m['grid']['s'] * 2 * $W / max($W, $H), 1);
+    $p = ['id' => $id, 'x' => round(max(0, min($m['w'], (float)$x)), 1), 'y' => round(max(0, min($m['h'], (float)$y)), 1), 'w' => $w, 'h' => round($w * $H / $W, 1), 'rot' => 0, 'hidden' => false, 'by' => $sub];
+    $m['pics'] = [...($m['pics'] ?? []), $p];
+    return mp_write($accounts, $cid, $m) ? [200, ['id' => $id]] : [500, ['error' => "Couldn't save the picture."]];
+}
+
+// a change to picture $old as sent ({x, y, w, rot, hidden}), cleaned, or null; h follows w. Only the DM changes hidden.
+function mp_pic_of($o, $old, $m, $dm)
+{
+    if (!is_array($o)) return null;
+    $p = $old;
+    foreach (['x', 'y', 'w', 'rot'] as $k) if (isset($o[$k])) {
+        if (!is_numeric($o[$k]) || !is_finite((float)$o[$k])) return null;
+        $p[$k] = round((float)$o[$k], 1);
+    }
+    if ($p['w'] < 4 || $p['w'] > 4 * max($m['w'], $m['h'])) return null;
+    $p['h'] = round($p['w'] * $old['h'] / $old['w'], 1);
+    $p['x'] = max(-$p['w'], min($m['w'] + $p['w'], $p['x']));
+    $p['y'] = max(-$p['h'], min($m['h'] + $p['h'], $p['y']));
+    $p['rot'] = round(fmod(fmod($p['rot'], 360) + 360, 360), 1);
+    if ($dm && isset($o['hidden'])) $p['hidden'] = !empty($o['hidden']);
+    return $p;
+}
+
+// what players get: the pictures not hidden and at least partly in sight (a turned one counts by the circle around it)
+function mp_pics_seen($m)
+{
+    return array_values(array_filter($m['pics'] ?? [], function ($p) use ($m) {
+        $r = hypot($p['w'], $p['h']) / 2;
+        return !$p['hidden'] && mp_sight_any($m, $p['x'] - $r, $p['y'] - $r, $p['x'] + $r, $p['y'] + $r);
+    }));
+}
+
+function mp_pics_out($list, $base, $mid, $dm)
+{
+    return array_map(fn($p) => array_intersect_key($p, array_flip($dm ? ['id', 'x', 'y', 'w', 'h', 'rot', 'hidden'] : ['id', 'x', 'y', 'w', 'h', 'rot'])) + ['src' => "$base&m=$mid&pic={$p['id']}"], $list);
 }
 
 // ---- fog ----
@@ -470,10 +537,10 @@ function mp_view($accounts, $c, $sub, $mid = null, $role = null)
     if ($dm) {
         $enc = $m['enc'] ?? [];
         $o += ['fog' => ['n' => $n, 'ops' => $m['fog']['ops'] ?? []], 'enc' => ['ids' => $enc['ids'] ?? [], 'init' => (object)($enc['init'] ?? []), 'side' => (object)($enc['side'] ?? [])],
-            'img' => "$base&m={$m['id']}&img=work", 'original' => "$base&m={$m['id']}&img=original", 'draws' => mp_draws_out($m['draws'] ?? [], $sub), 'overlays' => $m['overlays'] ?? []];
+            'img' => "$base&m={$m['id']}&img=work", 'original' => "$base&m={$m['id']}&img=original", 'draws' => mp_draws_out($m['draws'] ?? [], $sub), 'overlays' => $m['overlays'] ?? [], 'pics' => mp_pics_out($m['pics'] ?? [], $base, $m['id'], true)];
         $o['tokens'] = array_map(fn($t) => mp_tok_out($t, $sub, true), $toks);
     } else {
-        $o += ['img' => "$base&m={$m['id']}&img=work", 'fog' => ['n' => $n, 'ops' => $m['fog']['ops'] ?? []], 'draws' => mp_draws_out(mp_draws_seen($m), $sub), 'overlays' => mp_overlays_seen($m)];
+        $o += ['img' => "$base&m={$m['id']}&img=work", 'fog' => ['n' => $n, 'ops' => $m['fog']['ops'] ?? []], 'draws' => mp_draws_out(mp_draws_seen($m), $sub), 'overlays' => mp_overlays_seen($m), 'pics' => mp_pics_out(mp_pics_seen($m), $base, $m['id'], false)];
         $o['tokens'] = array_values(array_map(fn($t) => mp_tok_out($t, $sub, false, $opts),
             array_filter($toks, fn($t) => mp_player_sees($m, $t) || ($t['kind'] === 'pc' && $t['owner'] === $sub))));
     }
@@ -536,6 +603,7 @@ function mp_suffix($toks, $mon, $name = null)
 // The caller holds mp_lock(). Ops for the DM and co-DMs:
 //   {op: "activate", m} | {op: "hide", m} | {op: "rename", m, name} | {op: "archive", m, on} | {op: "grid", m, s, ox, oy}
 //   {op: "fog", m, add} (an "all" op replaces the list) | {op: "fogset", m, ops} (Undo)
+//   {op: "pic", m, id, o: {x?, y?, w?, rot?, hidden?}} and {op: "picdel", m, ids} (players too, any picture they can see, the map on the table)
 //   {op: "draw", m, add} and {op: "drawdel", m, ids} (players too: their own lines, the map on the table) | {op: "drawset", m, draws} | {op: "overlay", m, o} (by id) | {op: "overlaydel", m, ids}
 //   {op: "token", m, k, size?, sq?, rot?, art?, hidden?, ring?, noName?, locked?, group?, name?, cond?} (players: size, sq and rot only, their own token on the map on the table)
 //   {op: "drop", m, mon} | {op: "remove", m, k} | {op: "place", m, mon, x, y, ac?, bonus?} | {op: "paste", m, k, x, y}
@@ -619,7 +687,7 @@ function mp_op($accounts, $c, $sub, $body)
         }
         return [200, ['ok' => true], $live];
     }
-    if (!$dm && !(in_array($op, ['draw', 'drawdel'], true) && $onTable)) { // players draw on the map on the table, and erase their own lines
+    if (!$dm && !(in_array($op, ['draw', 'drawdel', 'pic', 'picdel'], true) && $onTable)) { // players draw on the map on the table, and erase their own lines
         // a player may resize and turn their own character's token on the map on the table, and nothing else about it
         $own = false;
         if ($op === 'token' && $onTable) foreach (fi_party($c) as $char => $owner) if ($owner === $sub && mp_key($c['id'], 'pc', $char) === (string)($body['k'] ?? '')) $own = true;
@@ -734,6 +802,20 @@ function mp_op($accounts, $c, $sub, $body)
         $d['by'] = $sub;
         $m['draws'] = [...($m['draws'] ?? []), $d];
         return mp_write($accounts, $c['id'], $m) ? [200, ['id' => $d['id']], $all] : [500, ['error' => "Couldn't save the map."], []];
+    } elseif ($op === 'pic' || $op === 'picdel') {
+        // players: only pictures they can see (a hidden or fogged one isn't theirs to find)
+        $mine = $dm ? ($m['pics'] ?? []) : mp_pics_seen($m);
+        $ids = $op === 'pic' ? [(string)($body['id'] ?? '')] : (is_array($body['ids'] ?? null) ? array_filter($body['ids'], 'is_string') : []);
+        $may = array_column($mine, 'id');
+        if (!$ids || array_diff($ids, $may)) return [404, ['error' => "That picture isn't on the map any more."], []];
+        $list = [];
+        foreach ($m['pics'] ?? [] as $p) {
+            if (!in_array($p['id'], $ids, true)) { $list[] = $p; continue; }
+            if ($op === 'picdel') continue; // the file stays in pics/: nothing is ever unlinked
+            if (!($p = mp_pic_of($body['o'] ?? null, $p, $m, $dm))) return [400, ['error' => "That isn't a picture change."], []];
+            $list[] = $p;
+        }
+        $m['pics'] = $list;
     } elseif ($op === 'drawdel') {
         $ids = is_array($body['ids'] ?? null) ? $body['ids'] : [];
         $m['draws'] = array_values(array_filter($m['draws'] ?? [], fn($d) => !(in_array($d['id'] ?? null, $ids, true) && ($dm || ($d['by'] ?? null) === $sub))));

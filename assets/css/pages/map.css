@@ -46,7 +46,16 @@ body:has(> main.mp) { display: flex; flex-direction: column; height: 100dvh; mar
 .mp-ruler text { fill: var(--text-hi); font-weight: 700; paint-order: stroke; stroke: rgb(0 0 0); stroke-width: calc(3px / var(--k, 1)); }
 
 /* tokens: name on hover or tap, a ring on whoever's turn it is, a red edge for Bloodied, grey with a cross for Down */
-.mp-toks { position: absolute; inset: 0; }
+.mp-toks { position: absolute; inset: 0; pointer-events: none; }
+.mp-tok { pointer-events: auto; }
+/* map pictures (2026-11-13): over the map and drawings, under tokens and fog; turned around their centre */
+.mp-pics { position: absolute; inset: 0; pointer-events: none; }
+.mp-pic { position: absolute; pointer-events: auto; touch-action: none; }
+.mp-pic > img { display: block; width: 100%; height: 100%; pointer-events: none; user-select: none; }
+.mp-pic.can { cursor: grab; }
+.mp-pic.hid { opacity: .45; }
+.mp-pic.picked { outline: calc(2px / var(--k, 1)) dashed var(--accent); outline-offset: calc(2px / var(--k, 1)); }
+.mp-hcorner { right: calc(-14px / var(--k, 1)); bottom: calc(-14px / var(--k, 1)); cursor: nwse-resize; }
 .mp-tok { position: absolute; padding: 0; background: none; border: 0; container-type: size; touch-action: none; }
 .mp-tok.can { cursor: grab; }
 .mp-tok.drag { z-index: 2; cursor: grabbing; }
