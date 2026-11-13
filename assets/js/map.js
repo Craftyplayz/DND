@@ -586,7 +586,9 @@ window.BattleMap = (() => {
             if (!t) return;
             const sz = span(t), R = view.getBoundingClientRect(), W = box.offsetWidth, H = box.offsetHeight, X = t.placed ? (t.x + sz / 2) * S.k + S.tx : R.width / 2, Y = t.placed ? t.y * S.k + S.ty : R.height / 2;
             box.style.left = clamp(X - W / 2, 8, Math.max(8, R.width - W - 8)) + 'px';
-            box.style.top = clamp(Y - H - 12 > 8 ? Y - H - 12 : Y + sz * S.k + 12, 8, Math.max(8, R.height - H - 8)) + 'px';
+            // under the token and its name badge, clear of the turn handle on top (owner's choice, 2026-11-13); above only when there's no room below
+            const below = Y + sz * S.k + 30;
+            box.style.top = clamp(below + H <= R.height - 8 || Y - H - 12 < 8 ? below : Y - H - 12, 8, Math.max(8, R.height - H - 8)) + 'px';
         }
         // HP: a party character's goes to their sheet (the DM-edit queue and the sheet's own rules); a copy's stays with the copy; any other monster's goes to the Monster Sheet
         async function changeHp(t, how, n) {

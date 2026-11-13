@@ -322,6 +322,7 @@ try {
     is('a player can\'t edit more than HP and conditions', (await fetch(`${BASE}/sheets/player/dm.php`, { method: 'POST', headers: { Cookie: 'dndsid=' + SID.pat, 'Content-Type': 'application/json' }, body: JSON.stringify({ act: 'send', c: CAMP, char: 'lock', edits: [{ id: 'nope00000001', at: 1, t: 'x', op: 'set', path: ['name'], value: 'Bad', was: 'Lock' }] }) }).then((r) => r.json())).refused?.length, 1);
 
     // the picked token's handles (2026-11-12): turn from the top, any size from the sides, the centre stays put; players on their own token
+    is('the token menu opens below the token, clear of the turn handle', await pat.ev(`(() => { const m = document.querySelector('[data-mp=menu]').getBoundingClientRect(), t = ${tokOf('Lock')}.getBoundingClientRect(); return m.top >= t.bottom; })()`), true);
     is('their own picked token has turn and resize handles', await pat.ev(`['rot', 'l', 'r'].every((h) => !!${tokOf('Lock')}.querySelector('[data-h=' + h + ']'))`), true);
     await pat.ev(HELP);
     const lk = JSON.parse(await pat.ev(`JSON.stringify(BM.state.m.tokens.find((t) => t.name === 'Lock'))`)), gs = mapJson().grid.s, lsz = (lk.sq || 1) * gs, lc = [lk.x + lsz / 2, lk.y + lsz / 2];
